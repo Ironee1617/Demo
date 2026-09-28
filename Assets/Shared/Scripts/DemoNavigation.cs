@@ -25,6 +25,7 @@ namespace PrototypeLab
         private void OnGUI()
         {
             var sceneName = SceneManager.GetActiveScene().name;
+            if (sceneName == HideAndSeek) return;
             var width = Mathf.Min(400f, Screen.width - 32f);
             var height = sceneName == Hub ? 225f : 145f;
             var area = new Rect(16f, 16f, width, height);
