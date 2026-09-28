@@ -11,6 +11,7 @@ namespace PrototypeLab.Aquarium.Editor
         [MenuItem("Aquarium/Build Windows Demo")]
         public static void Windows()
         {
+            AquariumCameraChecks.Run();
             string path = Environment.GetEnvironmentVariable("AQUARIUM_BUILD_PATH");
             if (string.IsNullOrEmpty(path)) path = Path.GetFullPath(Path.Combine(Application.dataPath, "../../AquariumDemo/AquariumDemo.exe"));
             Directory.CreateDirectory(Path.GetDirectoryName(path));

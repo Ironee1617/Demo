@@ -9,6 +9,7 @@ namespace PrototypeLab.Aquarium
     {
         private AquariumSession session;
         private AquariumView view;
+        private AquariumThirdPersonCamera followCamera;
         private AquariumModel backdrop;
         private string playerName = "Diver", joinCode = "", notice = "";
         private Team selectedTeam;
@@ -23,18 +24,21 @@ namespace PrototypeLab.Aquarium
         private AudioSource audioSource;
         private readonly Dictionary<string, AudioClip> sounds = new Dictionary<string, AudioClip>();
         private int lastEffect;
+        private bool automated;
 
         private void Awake()
         {
             Application.runInBackground = true; Application.targetFrameRate = 60;
             session = new AquariumSession(); view = new AquariumView(transform); backdrop = new AquariumModel();
+            followCamera = new AquariumThirdPersonCamera(view.Camera);
             playerName = PlayerPrefs.GetString("Aquarium.Name", "Diver");
             audioSource = gameObject.AddComponent<AudioSource>(); audioSource.volume = 0.24f; audioSource.spatialBlend = 0;
             sounds["eat"] = Tone("eat", 700, 1150, 0.13f); sounds["shot"] = Tone("shot", 180, 55, 0.12f);
             sounds["burp"] = Tone("burp", 110, 370, 0.45f); sounds["morph"] = Tone("morph", 340, 820, 0.25f);
             sounds["caught"] = Tone("caught", 450, 90, 0.25f);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            gameObject.AddComponent<AquariumSmokeDriver>().Initialize(session, view);
+            var smoke = gameObject.AddComponent<AquariumSmokeDriver>();
+            smoke.Initialize(session, view, followCamera); automated = smoke.enabled;
 #endif
         }
 
@@ -56,22 +60,31 @@ namespace PrototypeLab.Aquarium
         {
             if (Input.GetKeyDown(KeyCode.Escape) && session.Connected) pause = !pause;
             var p = Local();
-            if (session.Connected && session.State.phase == RoundPhase.Playing && p != null)
+            followCamera.Prepare(session.State, session.LocalId);
+            bool playing = session.Connected && session.State.phase == RoundPhase.Playing;
+            bool wasLocked = Cursor.lockState == CursorLockMode.Locked;
+            bool captureMouse = playing && !pause && Application.isFocused && !automated;
+            if (!automated) { Cursor.lockState = captureMouse ? CursorLockMode.Locked : CursorLockMode.None; Cursor.visible = !captureMouse; }
+            if (captureMouse && wasLocked)
+                followCamera.Look(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"), Input.mouseScrollDelta.y);
+            if (playing && p != null && !automated)
             {
-                bool control = !pause && p.alive && p.swallowedBy == 0;
+                bool control = captureMouse && wasLocked && p.alive && p.swallowedBy == 0;
                 pendingAction |= control && (p.team == Team.Hider ? Input.GetKeyDown(KeyCode.E) : Input.GetMouseButtonDown(0));
                 pendingMorph |= control && Input.GetKeyDown(KeyCode.Q);
                 inputTimer += Time.unscaledDeltaTime;
                 if (inputTimer >= 0.05f)
                 {
                     inputTimer = 0;
-                    var aim = view.Aim(Input.mousePosition, p.position + p.facing) - p.position;
-                    // Explicit keys avoid depending on a project's Input Manager axis configuration.
+                    var aim = followCamera.Aim(session.State, p);
+                    var move = control ? followCamera.Movement(
+                        (Input.GetKey(KeyCode.D) ? 1 : 0) - (Input.GetKey(KeyCode.A) ? 1 : 0),
+                        (Input.GetKey(KeyCode.W) ? 1 : 0) - (Input.GetKey(KeyCode.S) ? 1 : 0),
+                        (Input.GetKey(KeyCode.Space) ? 1 : 0) - (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) ? 1 : 0)) : new Point();
                     session.Input(new SwimInput
                     {
-                        x = control ? ((Input.GetKey(KeyCode.D) ? 1 : 0) - (Input.GetKey(KeyCode.A) ? 1 : 0)) : 0,
-                        z = control ? ((Input.GetKey(KeyCode.W) ? 1 : 0) - (Input.GetKey(KeyCode.S) ? 1 : 0)) : 0,
-                        aimX = aim.x, aimZ = aim.z, slow = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift),
+                        x = move.x, y = move.y, z = move.z,
+                        aimX = aim.x, aimY = aim.y, aimZ = aim.z, slow = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift),
                         action = pendingAction && control, morph = pendingMorph && control
                     });
                     pendingAction = pendingMorph = false;
@@ -94,6 +107,17 @@ namespace PrototypeLab.Aquarium
                     if (sounds.TryGetValue(fx.kind, out sound)) audioSource.PlayOneShot(sound);
                 }
             }
+        }
+
+        private void LateUpdate()
+        {
+            followCamera.Prepare(session.State, session.LocalId);
+            followCamera.UpdatePose(session.State, view, Time.unscaledDeltaTime);
+        }
+
+        private void OnApplicationFocus(bool focused)
+        {
+            if (!focused && !automated && session != null && session.Connected) pause = true;
         }
 
         private Texture2D Texture(Color color)
@@ -164,7 +188,7 @@ namespace PrototypeLab.Aquarium
             { SaveName(); lastEffect = 0; session.StartPractice(playerName, selectedTeam); }
             GUI.enabled = true;
             string status = session.Status;
-            Label(x + 30, y + 536, 412, 80, string.IsNullOrEmpty(status) ? "2–8명 · 방 코드 접속 · 3분 한 판\nWASD 이동 / 마우스 조준 / ESC 메뉴" : status, small);
+            Label(x + 30, y + 536, 412, 80, string.IsNullOrEmpty(status) ? "2–8명 · 방 코드 접속 · 3D / 3인칭\nWASD 이동 · Space 상승 / Ctrl 하강\n마우스 시점 회전 · ESC 메뉴" : status, small);
             if (session.Busy && GUI.Button(new Rect(x + 318, y + 605, 124, 28), "연결 취소", button)) session.Leave();
             else if (!session.Busy && Application.CanStreamedLevelBeLoaded("00_Hub") && GUI.Button(new Rect(x + 30, y + 606, 155, 28), "← 데모 허브", button)) SceneManager.LoadScene("00_Hub");
             Label(width - 352, height - 104, 310, 60, "AQUARIUM 07\n먹을 것인가, 들킬 것인가.", heading);
@@ -218,7 +242,7 @@ namespace PrototypeLab.Aquarium
             string condition = !p.alive ? "잡혔습니다 · 관전 중" : p.swallowedBy != 0 ? "동료 뱃속! 곧 나옵니다" : p.team == Team.Seeker ? "이상하게 행동하는 물고기를 찾으세요" : p.revealUntil > state.time ? "정체 노출 중!" : p.species < 0 ? "Q로 가까운 물고기로 변신하세요" : "변신 중 · 물고기처럼 움직이세요";
             Label(width - 294, 68, 262, 30, condition, small);
             Panel(new Rect(24, height - 83, width - 48, 59), ink);
-            string controls = p.team == Team.Hider ? "WASD  이동     SHIFT  천천히     Q  근처 물고기로 변신     E  앞의 물고기 먹기" : "WASD  이동     마우스  조준     왼쪽 클릭  작살 발사";
+            string controls = p.team == Team.Hider ? "WASD 이동 · Space 상승 / Ctrl 하강 · 마우스 시점 · Q 변신 · E 먹기 · Shift 천천히" : "WASD 이동 · Space 상승 / Ctrl 하강 · 마우스 시점 · 왼쪽 클릭 작살 · 휠 카메라 거리";
             Label(43, height - 72, width - 300, 30, controls, body);
             float cooldown = Mathf.Max(0, p.nextAction - state.time);
             Label(43, height - 45, width - 310, 20, p.team == Team.Hider ? "먹이 32마리를 모두 먹으면 승리 · 동료를 삼키면 1초 뒤 뱉고 정체가 드러납니다" : "모든 외계인을 잡거나 시간을 버티면 승리 · 바위는 작살을 막습니다", small);
@@ -241,15 +265,16 @@ namespace PrototypeLab.Aquarium
                 if (!session.IsHost) Label(x + 28, y + 190, 216, 45, "방장의 재시작을 기다리는 중", small);
                 if (Button(x + 266, y + 187, 216, "나가기")) Leave();
             }
-            else if (!pause)
+            else if (!pause && p.alive && p.swallowedBy == 0)
             {
-                float mx = Input.mousePosition.x / (Screen.width / width), my = (Screen.height - Input.mousePosition.y) / (Screen.height / height);
+                float mx = width / 2, my = height / 2;
                 Panel(new Rect(mx - 6, my - 1, 12, 2), cyan); Panel(new Rect(mx - 1, my - 6, 2, 12), cyan);
             }
         }
 
         private void OnDestroy()
         {
+            if (!automated) { Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
             session?.Dispose(); view?.Dispose();
             foreach (var clip in sounds.Values) Destroy(clip);
             if (font != null) Destroy(font);

@@ -4,7 +4,9 @@
 
 ## 아쿠아리움 숨바꼭질
 
-`Assets/Demos/HideAndSeek/30_HideAndSeek.unity`를 열고 Play를 누르세요. 물고기로 변신·먹기, 동료 삼키기와 1초 후 뱉기, 술래 작살, 승패, AI 연습, Relay 인터넷 방 코드 접속을 지원합니다.
+`Assets/Demos/HideAndSeek/30_HideAndSeek.unity`를 열고 Play를 누르세요. 각 플레이어의 **3인칭 시점과 3D 수영**, 물고기로 변신·먹기, 동료 삼키기와 1초 후 뱉기, 술래 작살, 승패, AI 연습, Relay 인터넷 방 코드 접속을 지원합니다.
+
+WASD 이동 · 마우스 시점 회전 · Space 상승 / Ctrl 하강 · 휠 거리 조절 · ESC 메뉴. 친구도 최신 3인칭 빌드로 접속해 주세요.
 
 **[실행 방법·조작·인터넷 설정·개발 구조](Docs/Aquarium-Demo.md)**
 

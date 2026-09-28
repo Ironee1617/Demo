@@ -13,15 +13,18 @@ namespace PrototypeLab.Aquarium
         {
             public string mode, code, status, phase;
             public int localId, players, snapshots, fishRemaining;
-            public float time, localX, localZ;
-            public bool connected, host;
+            public float time, localX, localY, localZ, minHeight, maxHeight, cameraDistance, cameraYaw;
+            public int cameraFollowId;
+            public bool connected, host, perspective;
             public string[] errors;
         }
         private AquariumSession session;
         private AquariumView view;
+        private AquariumThirdPersonCamera followCamera;
         private string mode, reportPath, capturePath, codePath;
         private float started, duration = 24, nextInput;
         private bool initialized, captured;
+        private float minHeight = float.MaxValue, maxHeight = float.MinValue;
         private readonly List<string> errors = new List<string>();
         private string Arg(string key)
         {
@@ -29,10 +32,10 @@ namespace PrototypeLab.Aquarium
             for (int i = 0; i < args.Length - 1; i++) if (args[i] == key) return args[i + 1];
             return "";
         }
-        public void Initialize(AquariumSession value, AquariumView sceneView)
+        public void Initialize(AquariumSession value, AquariumView sceneView, AquariumThirdPersonCamera playerCamera)
         {
             mode = Arg("-aqTest"); if (mode.Length == 0) { enabled = false; return; }
-            session = value; view = sceneView; reportPath = Arg("-aqReport"); capturePath = Arg("-aqCapture"); codePath = Arg("-aqCodeFile");
+            session = value; view = sceneView; followCamera = playerCamera; reportPath = Arg("-aqReport"); capturePath = Arg("-aqCapture"); codePath = Arg("-aqCodeFile");
             float requested; if (float.TryParse(Arg("-aqDuration"), out requested)) duration = requested;
             Application.logMessageReceived += Log; started = Time.realtimeSinceStartup;
         }
@@ -67,8 +70,13 @@ namespace PrototypeLab.Aquarium
                 if (p != null && elapsed > nextInput)
                 {
                     nextInput = elapsed + 0.05f;
-                    session.Input(new SwimInput { x = Mathf.Sin(elapsed * 0.7f), z = Mathf.Cos(elapsed * 0.6f), aimX = -1, aimZ = 0, morph = true, action = true });
+                    var move = followCamera.Movement(0.15f, 0.35f, Mathf.Sin(elapsed * 0.8f) * 0.7f);
+                    var aim = followCamera.Aim(state, p);
+                    session.Input(new SwimInput { x = move.x, y = move.y, z = move.z, aimX = aim.x, aimY = aim.y, aimZ = aim.z, morph = true, action = true });
+                    if (state.phase == RoundPhase.Playing)
+                    { minHeight = Mathf.Min(minHeight, p.position.y); maxHeight = Mathf.Max(maxHeight, p.position.y); }
                 }
+                if (state.phase == RoundPhase.Playing && followCamera.Active) followCamera.Look(0.12f * Time.unscaledDeltaTime * 60, 0, 0);
             }
             if (!captured && capturePath.Length > 0 && elapsed > duration - 3)
             { CaptureWorld(); captured = true; }
@@ -78,7 +86,10 @@ namespace PrototypeLab.Aquarium
                 var report = new Report { mode = mode, connected = session.Connected, host = session.IsHost, code = session.Code, status = session.Status,
                     localId = session.LocalId, players = s == null ? 0 : s.players.Length, snapshots = session.ReceivedSnapshots,
                     phase = s == null ? "none" : s.phase.ToString(), time = s == null ? 0 : s.time, fishRemaining = s == null ? 0 : s.remaining,
-                    localX = p == null ? 0 : p.position.x, localZ = p == null ? 0 : p.position.z, errors = errors.ToArray() };
+                    localX = p == null ? 0 : p.position.x, localY = p == null ? 0 : p.position.y, localZ = p == null ? 0 : p.position.z,
+                    minHeight = minHeight == float.MaxValue ? 0 : minHeight, maxHeight = maxHeight == float.MinValue ? 0 : maxHeight,
+                    perspective = !view.Camera.orthographic, cameraFollowId = followCamera.FollowId, cameraYaw = followCamera.Yaw,
+                    cameraDistance = p == null ? 0 : Vector3.Distance(view.Camera.transform.position, view.PlayerPosition(p)), errors = errors.ToArray() };
                 if (reportPath.Length > 0) File.WriteAllText(reportPath, JsonUtility.ToJson(report, true));
                 enabled = false; Application.Quit(errors.Count == 0 ? 0 : 1);
             }

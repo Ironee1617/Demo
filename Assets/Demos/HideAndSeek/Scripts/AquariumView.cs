@@ -14,6 +14,8 @@ namespace PrototypeLab.Aquarium
         private readonly Dictionary<int, GameObject> effects = new Dictionary<int, GameObject>();
         private readonly List<Material> materials = new List<Material>();
         private readonly List<Transform> bubbles = new List<Transform>();
+        private readonly List<Renderer> glassPanels = new List<Renderer>();
+        private Actor hiddenByCamera;
         private readonly HashSet<string> visible = new HashSet<string>();
         private readonly Color[] colors = { new Color(1f, 0.64f, 0.19f), new Color(0.17f, 0.81f, 0.88f), new Color(1f, 0.43f, 0.57f) };
         private readonly Material sand, dark, teal, white, black, purple, steel, glass;
@@ -26,7 +28,7 @@ namespace PrototypeLab.Aquarium
         public AquariumView(Transform parent)
         {
             root = new GameObject("Aquarium visuals").transform; root.SetParent(parent);
-            sand = Material(new Color(0.54f, 0.75f, 0.68f));
+            sand = Material(new Color(0.24f, 0.38f, 0.33f));
             dark = Material(new Color(0.024f, 0.09f, 0.15f)); teal = Material(new Color(0.03f, 0.46f, 0.51f));
             white = Material(new Color(0.93f, 1f, 1f)); black = Material(new Color(0.015f, 0.035f, 0.075f));
             purple = Material(new Color(0.65f, 0.32f, 0.92f)); steel = Material(new Color(0.66f, 0.8f, 0.89f));
@@ -40,11 +42,12 @@ namespace PrototypeLab.Aquarium
             if (Camera == null) { var go = new GameObject("Aquarium Camera"); go.tag = "MainCamera"; Camera = go.AddComponent<Camera>(); go.AddComponent<AudioListener>(); }
             Camera.transform.position = new Vector3(0, 23, -20);
             Camera.transform.rotation = Quaternion.Euler(49, 0, 0);
-            Camera.orthographic = true; Camera.orthographicSize = 12.7f; Camera.nearClipPlane = 0.1f; Camera.farClipPlane = 100;
+            Camera.orthographic = false; Camera.fieldOfView = 68; Camera.nearClipPlane = 0.06f; Camera.farClipPlane = 100;
             Camera.clearFlags = CameraClearFlags.SolidColor; Camera.backgroundColor = new Color(0.025f, 0.065f, 0.105f);
             Camera.allowHDR = false;
-            RenderSettings.fog = false; RenderSettings.ambientMode = AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.61f, 0.76f, 0.83f);
+            RenderSettings.fog = true; RenderSettings.fogMode = FogMode.Exponential; RenderSettings.fogDensity = 0.018f;
+            RenderSettings.fogColor = new Color(0.06f, 0.22f, 0.29f); RenderSettings.ambientMode = AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.3f, 0.46f, 0.53f);
             var sun = UnityEngine.Object.FindFirstObjectByType<Light>();
             if (sun != null) { sun.transform.rotation = Quaternion.Euler(55, -25, 0); sun.color = new Color(0.81f, 0.96f, 1); sun.intensity = 1.1f; sun.shadows = LightShadows.Soft; }
         }
@@ -65,6 +68,11 @@ namespace PrototypeLab.Aquarium
             go.transform.localPosition = at; go.transform.localScale = size;
             UnityEngine.Object.Destroy(go.GetComponent<Collider>());
             go.GetComponent<Renderer>().sharedMaterial = mat;
+            if (mat == glass)
+            {
+                var renderer = go.GetComponent<Renderer>(); renderer.shadowCastingMode = ShadowCastingMode.Off;
+                if (type == PrimitiveType.Cube) glassPanels.Add(renderer);
+            }
             return go;
         }
         private GameObject Box(string name, Transform parent, Vector3 at, Vector3 size, Material mat)
@@ -78,10 +86,11 @@ namespace PrototypeLab.Aquarium
             Box("Exhibition floor", root, new Vector3(0, -1.3f, 0), new Vector3(80, 1, 60), dark);
             Box("Tank foundation", root, new Vector3(0, -0.55f, 0), new Vector3(30, 1.1f, 19), teal);
             Box("Sand bed", root, new Vector3(0, -0.05f, 0), new Vector3(28, 0.3f, 17), sand);
-            Box("Back glass", root, new Vector3(0, 2.4f, 8.65f), new Vector3(28.6f, 5, 0.12f), glass);
-            Box("Left glass", root, new Vector3(-14.2f, 2, 0), new Vector3(0.1f, 4, 17.4f), glass);
-            Box("Right glass", root, new Vector3(14.2f, 2, 0), new Vector3(0.1f, 4, 17.4f), glass);
-            Box("Front glass", root, new Vector3(0, 0.4f, -8.6f), new Vector3(28.6f, 0.8f, 0.1f), glass);
+            Box("Back glass", root, new Vector3(0, 3.5f, 8.65f), new Vector3(28.6f, 7, 0.12f), glass);
+            Box("Left glass", root, new Vector3(-14.2f, 3.5f, 0), new Vector3(0.1f, 7, 17.4f), glass);
+            Box("Right glass", root, new Vector3(14.2f, 3.5f, 0), new Vector3(0.1f, 7, 17.4f), glass);
+            Box("Front glass", root, new Vector3(0, 3.5f, -8.6f), new Vector3(28.6f, 7, 0.1f), glass);
+            Box("Water surface", root, new Vector3(0, 7.05f, 0), new Vector3(28, 0.04f, 17), glass);
             var glow = Material(new Color(0.16f, 0.94f, 0.93f)); glow.EnableKeyword("_EMISSION"); glow.SetColor("_EmissionColor", new Color(0.03f, 0.45f, 0.5f));
             for (int side = -1; side <= 1; side += 2)
             {
@@ -90,7 +99,7 @@ namespace PrototypeLab.Aquarium
             }
             for (int i = 0; i < 8; i++)
             {
-                var rail = Box("Aquarium pillar", root, new Vector3(-14 + i * 4, 2.5f, 8.8f), new Vector3(0.08f, 5, 0.12f), teal);
+                var rail = Box("Aquarium pillar", root, new Vector3(-14 + i * 4, 3.5f, 8.8f), new Vector3(0.08f, 7, 0.12f), teal);
                 rail.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
             }
             var rock = Material(new Color(0.2f, 0.42f, 0.46f));
@@ -98,8 +107,7 @@ namespace PrototypeLab.Aquarium
             {
                 var at = AquariumModel.Rocks[i]; float radius = AquariumModel.RockRadii[i];
                 var b = Ball("Harpoon cover rock", root, new Vector3(at.x, 0.9f, at.z), new Vector3(radius * 2, 2.8f, radius * 2), rock);
-                b.transform.localRotation = Quaternion.Euler(0, i * 62, 9);
-                Ball("Rock shoulder", root, new Vector3(at.x + 0.3f, 0.4f, at.z - 0.3f), new Vector3(radius * 1.7f, 1.4f, radius * 1.7f), rock);
+                b.transform.localRotation = Quaternion.Euler(0, i * 62, 0);
             }
             var kelp = Material(new Color(0.08f, 0.55f, 0.39f)); var coral = Material(new Color(0.98f, 0.43f, 0.48f));
             for (int i = 0; i < 24; i++)
@@ -122,14 +130,6 @@ namespace PrototypeLab.Aquarium
                 float size = Range(0.055f, 0.14f);
                 bubbles.Add(Ball("Air bubble", root, new Vector3(Range(-13, 13), Range(0.1f, 5), Range(-7, 8)), Vector3.one * size, glass).transform);
             }
-            WorldLabel("ABYSS / 07", new Vector3(-10, 0.04f, -10.3f), 0.55f, white);
-            WorldLabel("A Q U A R I U M", new Vector3(6.2f, 0.04f, -10.3f), 0.32f, white);
-        }
-        private void WorldLabel(string text, Vector3 at, float size, Material unused)
-        {
-            var go = new GameObject(text); go.transform.SetParent(root); go.transform.localPosition = at; go.transform.rotation = Quaternion.Euler(90, 0, 0);
-            var label = go.AddComponent<TextMesh>(); label.text = text; label.characterSize = size; label.fontSize = 48;
-            label.anchor = TextAnchor.MiddleCenter; label.color = new Color(0.45f, 0.82f, 0.83f);
         }
 
         private Transform Fin(Transform parent, Vector3 at, Vector3 size, Material mat)
@@ -195,10 +195,12 @@ namespace PrototypeLab.Aquarium
                 if (actor != null) DestroyActor(actor);
                 actor = MakeActor(kind); actors[key] = actor;
             }
-            Vector3 target = new Vector3(at.x, dead ? 0.5f : 1.6f + Mathf.Sin(time * 2.2f + at.x) * 0.055f, at.z);
+            Vector3 target = new Vector3(at.x, at.y, at.z);
             float blend = fresh ? 1 : 1 - Mathf.Exp(-dt * 18);
             actor.root.transform.position = Vector3.Lerp(actor.root.transform.position, target, blend);
-            var rot = Quaternion.LookRotation(new Vector3(facing.x, 0, facing.z));
+            var direction = new Vector3(facing.x, facing.y, facing.z);
+            if (direction.sqrMagnitude < 0.001f) direction = Vector3.forward;
+            var rot = Quaternion.LookRotation(direction, Mathf.Abs(direction.normalized.y) > 0.99f ? Vector3.forward : Vector3.up);
             if (dead) rot *= Quaternion.Euler(0, 0, 180);
             actor.root.transform.rotation = fresh ? rot : Quaternion.Slerp(actor.root.transform.rotation, rot, blend);
             if (actor.tail != null) actor.tail.localRotation = Quaternion.Euler(0, dead ? 0 : Mathf.Sin(time * 10 + at.z) * 20, 0);
@@ -247,7 +249,7 @@ namespace PrototypeLab.Aquarium
                     effects[e.id] = fx;
                 }
                 float age = Mathf.Clamp01((state.time - e.born) / e.duration);
-                fx.transform.position = new Vector3(e.position.x, 1.7f + age * 0.3f, e.position.z);
+                fx.transform.position = new Vector3(e.position.x, e.position.y + age * 0.3f, e.position.z);
                 fx.transform.localScale = Vector3.one * (0.15f + age * (e.kind == "burp" ? 2.7f : 1.3f));
                 var line = fx.GetComponent<LineRenderer>(); var c = line.startColor; c.a = 1 - age; line.startColor = line.endColor = c;
             }
@@ -256,13 +258,32 @@ namespace PrototypeLab.Aquarium
             foreach (int id in expired) effects.Remove(id);
             for (int i = 0; i < bubbles.Count; i++)
             { var pos = bubbles[i].localPosition; pos.y += dt * (0.35f + i % 4 * 0.13f); if (pos.y > 5) pos.y = 0.2f; bubbles[i].localPosition = pos; }
-            Camera.orthographicSize = Mathf.Max(12.7f, 19f / Camera.aspect);
         }
 
-        public Point Aim(Vector3 mouse, Point fallback)
+        public Vector3 PlayerPosition(Swimmer player)
         {
-            var ray = Camera.ScreenPointToRay(mouse); float distance;
-            return new Plane(Vector3.up, new Vector3(0, 1.6f, 0)).Raycast(ray, out distance) ? new Point(ray.GetPoint(distance).x, ray.GetPoint(distance).z) : fallback;
+            Actor actor;
+            return actors.TryGetValue("p" + player.id, out actor) ? actor.root.transform.position : new Vector3(player.position.x, player.position.y, player.position.z);
+        }
+        public void CameraOcclusion(int targetId, Vector3? target)
+        {
+            if (hiddenByCamera != null && hiddenByCamera.root != null)
+                foreach (var renderer in hiddenByCamera.root.GetComponentsInChildren<Renderer>()) renderer.enabled = true;
+            hiddenByCamera = null;
+            foreach (var panel in glassPanels)
+            {
+                panel.enabled = true;
+                if (!target.HasValue) continue;
+                var delta = target.Value - Camera.transform.position; float hit;
+                if (panel.bounds.IntersectRay(new Ray(Camera.transform.position, delta.normalized), out hit) && hit < delta.magnitude)
+                    panel.enabled = false;
+            }
+            Actor actor;
+            if (target.HasValue && Vector3.Distance(Camera.transform.position, target.Value) < 0.9f && actors.TryGetValue("p" + targetId, out actor))
+            {
+                hiddenByCamera = actor;
+                foreach (var renderer in actor.root.GetComponentsInChildren<Renderer>()) renderer.enabled = false;
+            }
         }
         private void DestroyActor(Actor actor)
         {

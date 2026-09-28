@@ -16,7 +16,7 @@ namespace PrototypeLab.Aquarium
     // Only the host simulates movement, hits, eating, role changes and victory.
     public sealed class AquariumSession : IDisposable
     {
-        [Serializable] private class Hello { public int protocol = 1; public string name; public Team team; }
+        [Serializable] private class Hello { public int protocol = 2; public string name; public Team team; }
         [Serializable] private class Message
         {
             public string kind;
@@ -26,7 +26,7 @@ namespace PrototypeLab.Aquarium
             public SwimInput input;
             public AquariumSnapshot state;
         }
-        private const string Channel = "aquarium.v1";
+        private const string Channel = "aquarium.v2";
         private const int PacketLimit = 60000;
         public AquariumModel Model { get; private set; }
         public AquariumSnapshot State { get; private set; }
@@ -122,7 +122,7 @@ namespace PrototypeLab.Aquarium
             network.NetworkConfig = new NetworkConfig
             {
                 NetworkTransport = transport, EnableSceneManagement = false, ConnectionApproval = true,
-                TickRate = 30, ClientConnectionBufferTimeout = 20, ProtocolVersion = 1,
+                TickRate = 30, ClientConnectionBufferTimeout = 20, ProtocolVersion = 2,
                 ConnectionData = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new Hello { name = AquariumModel.CleanName(name), team = team }))
             };
             network.ConnectionApprovalCallback += Approve;
@@ -153,7 +153,7 @@ namespace PrototypeLab.Aquarium
             string reason = "";
             Hello hello = null;
             try { if (request.Payload.Length <= 512) hello = JsonUtility.FromJson<Hello>(Encoding.UTF8.GetString(request.Payload)); } catch { }
-            if (hello == null || hello.protocol != 1) reason = "같은 버전의 데모로 접속해 주세요.";
+            if (hello == null || hello.protocol != 2) reason = "같은 버전의 데모로 접속해 주세요.";
             else if (Model == null || Model.Phase != RoundPhase.Lobby) reason = "진행 중인 방입니다. 다음 라운드 대기실에서 접속해 주세요.";
             else if (Model.Players.Count + approved.Count >= AquariumModel.MaxPlayers) reason = "방이 가득 찼습니다. 최대 8명입니다.";
             response.Approved = reason.Length == 0; response.Reason = reason;
