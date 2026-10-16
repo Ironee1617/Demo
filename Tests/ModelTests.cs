@@ -413,6 +413,35 @@ public static class ModelTests
                 diver.position = CoverSide(-3); p.position = CoverSide(3); Advance(m, 2.1f); Check(p.score == 5, "rock blocks exposure");
                 diver.position = At(0, 0, 4); p.position = At(2, 0, 4); Advance(m, 24); Check(p.score == 50 && p.exposureScore == 50, "fifty point life cap");
             });
+            Test("laid egg sinks smoothly on the host and freezes with the finished scene", () => {
+                var m = Match(true); var owner = m.Player(1); owner.position = At(0, 0, 5); owner.personalEaten = 3; m.Player(3).alive = false;
+                m.SetInput(1, new SwimInput { layEgg = true }); m.Tick(0.1f);
+                var egg = m.Eggs[0]; var bornAt = egg.position; float hatchesAt = egg.hatchAt;
+                Advance(m, 0.5f);
+                Check(Math.Abs(bornAt.y - egg.position.y - 0.6f) < 0.002f && egg.position.x == bornAt.x && egg.position.z == bornAt.z, "gradual downward movement without sideways drift");
+                Check((m.Snapshot().eggs[0].position - egg.position).Length == 0 && egg.hatchAt == hatchesAt, "network snapshot uses the sinking position without delaying hatch");
+                m.RemovePlayer(2); var stopped = egg.position; Advance(m, 1);
+                Check((egg.position - stopped).Length == 0, "finished scene stops sinking immediately");
+            });
+            Test("laid egg settles on the actual sand height and stays planted", () => {
+                var m = Match(true); var owner = m.Player(1); owner.position = At(0, 0, 7); owner.personalEaten = 3; m.Player(3).alive = false;
+                m.SetInput(1, new SwimInput { layEgg = true }); m.Tick(0.1f); var egg = m.Eggs[0];
+                Advance(m, 7);
+                float clearance = egg.position.y - AquariumModel.EggRadius - AquariumSeabed.Height(egg.position);
+                Check(clearance >= -0.0001f && clearance < 0.003f, "egg shell touches the sculpted sand instead of floating or penetrating");
+                var landed = egg.position; Advance(m, 1);
+                Check((egg.position - landed).Length < 0.0001f && !m.Player(3).alive, "landed egg stays still while awaiting its original hatch time");
+            });
+            Test("sinking egg stops on a rounded reef without sliding through it", () => {
+                var m = Match(true); m.Player(3).alive = false; var rock = AquariumModel.Rocks[1];
+                var egg = new RevivalEgg { id = 900, owner = 1, revivePlayer = 3,
+                    position = rock + new Point(0.25f, AquariumModel.RockHalfHeight + 1.2f, 0), hatchAt = m.Time + 30 };
+                m.Eggs.Add(egg); var start = egg.position; Advance(m, 2);
+                Check(egg.position.y < start.y - 0.5f && egg.position.y > rock.y + AquariumModel.RockHalfHeight,
+                    "egg lands above the solid reef rather than reaching the seabed through it");
+                var landed = egg.position; Advance(m, 1);
+                Check((egg.position - landed).Length < 0.002f && egg.position.x == start.x && egg.position.z == start.z, "contact remains stable on the rounded surface");
+            });
             Test("eggs require three personal meals dead teammate and once-only use", () => {
                 var m = Match(true); var p = m.Player(1); p.personalEaten = 3;
                 m.SetInput(1, new SwimInput { layEgg = true }); m.Tick(0.1f); Check(m.Eggs.Count == 0 && !p.eggUsed, "cannot waste egg with no dead teammate");

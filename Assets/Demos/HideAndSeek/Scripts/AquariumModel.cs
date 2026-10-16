@@ -113,6 +113,7 @@ namespace PrototypeLab.Aquarium
         public const float ScanDuration = 5f, ScanCooldown = 18f, MaxStamina = 100f;
         public const float TraceDuration = 5f, ReviewSeconds = 20f;
         public const float DeathReviewSeconds = 2.5f, FeedSoundRadius = 10f;
+        public const float EggSinkSpeed = 1.2f, EggRadius = 0.4f;
         public const float HalfWidth = 15f * AquariumMapOutline.HorizontalScale, HalfDepth = 10f * AquariumMapOutline.HorizontalScale, WaterHeight = 12f, Floor = 0.15f, RockHalfHeight = 1.4f;
         public static readonly float[] RockRadii = { 1.15f, 1.35f, 0.8f, 1.05f, 0.85f, 1.0f, 1.05f, 0.85f, 0.9f, 0.85f, 0.75f };
         public static readonly Point[] Rocks = FitReefs(new[] { new Point(-6, 0.9f, -2), new Point(5, 0.9f, 2.3f), new Point(1, 0.9f, -5), new Point(-10, 0.9f, 3.8f), new Point(-10.1f, 0.9f, -2.5f), new Point(9, 0.9f, -2.8f), new Point(10.5f, 0.9f, 3.8f), new Point(-3, 0.9f, 5.8f), new Point(7, 0.9f, -5.8f), new Point(-8, 0.9f, 5.8f), new Point(1.5f, 0.9f, 4.0f) });
@@ -341,7 +342,7 @@ namespace PrototypeLab.Aquarium
                 input.action = input.morph = input.feed = input.scan = input.layEgg = false;
             }
             TickHarpoons(dt);
-            TickEggs();
+            TickEggs(dt);
             TickExposure(dt);
             CheckWinner();
         }
@@ -520,16 +521,20 @@ namespace PrototypeLab.Aquarium
             if (target == null) return;
             owner.eggUsed = true;
             var egg = new RevivalEgg { id = ++nextEgg, owner = owner.id, revivePlayer = target.id,
-                position = Constrain(owner.position - owner.facing * 0.7f, 0.4f), hatchAt = Time + HatchSeconds };
+                position = Constrain(owner.position - owner.facing * 0.7f, EggRadius), hatchAt = Time + HatchSeconds };
             Eggs.Add(egg); Effect("egg", egg.position, owner.facing, 0.8f);
         }
 
-        private void TickEggs()
+        private void TickEggs(float dt)
         {
             for (int i = Eggs.Count - 1; i >= 0; i--)
             {
                 var egg = Eggs[i]; var target = Player(egg.revivePlayer);
                 if (target == null || target.alive) { Eggs.RemoveAt(i); continue; }
+                // Use the shared terrain collision so eggs settle on sand or reef surfaces on every client.
+                var fallingTo = egg.position + new Point(0, -EggSinkSpeed * dt, 0);
+                float surface = ObstacleHit(egg.position, fallingTo, EggRadius);
+                egg.position += (fallingTo - egg.position) * Math.Min(1, Math.Max(0, surface));
                 if (Time < egg.hatchAt) continue;
                 target.alive = true; target.position = egg.position; target.species = -1; target.swallowedBy = 0;
                 target.stamina = MaxStamina; target.lastMealAt = Time; target.deathReason = "";

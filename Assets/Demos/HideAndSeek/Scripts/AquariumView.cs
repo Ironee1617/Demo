@@ -229,10 +229,10 @@ namespace PrototypeLab.Aquarium
             }
             else if (kind == "egg")
             {
-                Ball("Pearl egg", t, new Vector3(0, 0.28f, 0), new Vector3(0.47f, 0.64f, 0.47f), eggPearl);
-                Ball("Amber egg core", t, new Vector3(0, 0.2f, 0.18f), new Vector3(0.22f, 0.28f, 0.12f), eggGold);
-                Ball("Egg glint", t, new Vector3(-0.1f, 0.43f, 0.18f), new Vector3(0.07f, 0.11f, 0.035f), white);
-                var band = Ring("Shell seam", t, 0.23f, new Color(1f, 0.66f, 0.22f, 0.85f), 0.018f); band.transform.localPosition = new Vector3(0, 0.22f, 0);
+                Ball("Pearl egg", t, new Vector3(0, 0.32f - AquariumModel.EggRadius, 0), new Vector3(0.47f, 0.64f, 0.47f), eggPearl);
+                Ball("Amber egg core", t, new Vector3(0, 0.24f - AquariumModel.EggRadius, 0.18f), new Vector3(0.22f, 0.28f, 0.12f), eggGold);
+                Ball("Egg glint", t, new Vector3(-0.1f, 0.47f - AquariumModel.EggRadius, 0.18f), new Vector3(0.07f, 0.11f, 0.035f), white);
+                var band = Ring("Shell seam", t, 0.23f, new Color(1f, 0.66f, 0.22f, 0.85f), 0.018f); band.transform.localPosition = new Vector3(0, 0.26f - AquariumModel.EggRadius, 0);
             }
             return actor;
         }
@@ -305,7 +305,8 @@ namespace PrototypeLab.Aquarium
                 var actor = Place("e" + egg.id, "egg", egg.position, new Point(0, 1), dt, visualTime);
                 float urgency = Mathf.Clamp01(1 - (egg.hatchAt - visualTime) / AquariumModel.HatchSeconds);
                 float pulse = Mathf.Sin(visualTime * (3 + urgency * 5) + egg.id) * (0.025f + urgency * 0.025f);
-                actor.root.transform.localScale = new Vector3(1 - pulse, 1 + pulse, 1 - pulse);
+                // Pulse sideways while keeping the shell's foot planted on the collision surface.
+                actor.root.transform.localScale = new Vector3(1 - pulse, 1, 1 - pulse);
             }
             removedActors.Clear();
             foreach (var pair in actors) if (!visible.Contains(pair.Key)) { DestroyActor(pair.Value); removedActors.Add(pair.Key); }
