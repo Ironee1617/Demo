@@ -1,0 +1,9 @@
+Three former deck intersections: exactly one surface each — PASS
+Interior duplicate glass partitions: none — PASS
+Closed connected lagoon/entry contours — PASS
+Animated water and deck underside separation — PASS
+North entry apron: 7.8 m wide / 3.2 m projection
+Entry rail opening: 2.6 m
+Clear water cylinder: 5.5 m diameter, checked at three depths — PASS
+Four saved staging anchors — PASS
+No entry animation or active cinematic camera — PASS

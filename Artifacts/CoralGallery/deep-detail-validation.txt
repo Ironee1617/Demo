@@ -1,0 +1,6 @@
+Water height: 12 m / glass top: 12.02 m / deck: 12.275 m — PASS
+Four 4096 x 4096 color and normal maps, mipmapped, 16x anisotropy — PASS
+Sand vertex heights match gameplay field — PASS
+Sand elevation range: 0.143 to 0.984 m
+Dark visitor gallery material / four marine exhibit illustrations — PASS
+Raised entry anchors, no entry animation — PASS

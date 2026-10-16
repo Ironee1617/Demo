@@ -1,0 +1,3 @@
+View 0: mean channel difference=7.291666E-05, changed pixels (>3)=0 / 576000
+View 1: mean channel difference=3.298611E-05, changed pixels (>3)=0 / 576000
+View 2: mean channel difference=5.787037E-05, changed pixels (>3)=0 / 576000

@@ -102,9 +102,9 @@ namespace PrototypeLab.Aquarium
         public const float HungerSeconds = 60f, EatStun = 2f, AllyStun = 3f, MorphLock = 6f, HatchSeconds = 12f;
         public const float ScanDuration = 5f, ScanCooldown = 18f, MaxStamina = 100f;
         public const float TraceDuration = 5f, ReviewSeconds = 20f;
-        public const float HalfWidth = 14f, HalfDepth = 8.5f, WaterHeight = 7f, Floor = 0.15f, RockHalfHeight = 1.4f;
-        public static readonly Point[] Rocks = { new Point(-6, 0.9f, -2), new Point(5, 0.9f, 3), new Point(1, 0.9f, -5) };
-        public static readonly float[] RockRadii = { 1.15f, 1.35f, 0.8f };
+        public const float HalfWidth = 15f * AquariumMapOutline.HorizontalScale, HalfDepth = 10f * AquariumMapOutline.HorizontalScale, WaterHeight = 12f, Floor = 0.15f, RockHalfHeight = 1.4f;
+        public static readonly float[] RockRadii = { 1.15f, 1.35f, 0.8f, 1.05f, 0.85f, 1.0f, 1.05f, 0.85f, 0.9f, 0.85f, 0.75f };
+        public static readonly Point[] Rocks = FitReefs(new[] { new Point(-6, 0.9f, -2), new Point(5, 0.9f, 2.3f), new Point(1, 0.9f, -5), new Point(-10, 0.9f, 3.8f), new Point(-10.1f, 0.9f, -2.5f), new Point(9, 0.9f, -2.8f), new Point(10.5f, 0.9f, 3.8f), new Point(-3, 0.9f, 5.8f), new Point(7, 0.9f, -5.8f), new Point(-8, 0.9f, 5.8f), new Point(1.5f, 0.9f, 4.0f) });
         public readonly List<Swimmer> Players = new List<Swimmer>();
         public readonly List<Prey> Fish = new List<Prey>();
         public readonly List<Harpoon> Harpoons = new List<Harpoon>();
@@ -134,7 +134,7 @@ namespace PrototypeLab.Aquarium
         {
             if (Phase != RoundPhase.Lobby || Players.Count >= MaxPlayers || Player(id) != null) return null;
             var p = new Swimmer { id = id, name = CleanName(name), team = team, bot = bot, ready = bot || id == 1 };
-            p.position = new Point(-9 + Players.Count * 2.4f, 2, 0);
+            p.position = Constrain(AquariumMapOutline.LayoutPoint(-9 + Players.Count * 2.4f, 2, 0), p.team == Team.Seeker ? .5f : .4f);
             Players.Add(p);
             return p;
         }
@@ -197,7 +197,7 @@ namespace PrototypeLab.Aquarium
                 p.releaseAt = p.revealUntil = p.nextAction = p.nextMorph = p.nextFeed = p.stunnedUntil = 0;
                 p.stamina = MaxStamina; p.lastMealAt = HuntAt; p.personalEaten = p.score = p.exposureScore = 0;
                 p.eggUsed = false; p.nextScan = p.scanUntil = p.morphLockedUntil = p.exposureSeconds = 0; p.deathReason = "";
-                p.position = p.team == Team.Hider ? new Point(-8 + hider++ * 2, 2, -1) : new Point(10, 2, -4 + seeker++ * 2);
+                p.position = Constrain(p.team == Team.Hider ? AquariumMapOutline.LayoutPoint(-8 + hider++ * 2, 2, -1) : AquariumMapOutline.LayoutPoint(10, 2, -4 + seeker++ * 2), p.team == Team.Seeker ? .5f : .4f);
                 p.facing = new Point(p.team == Team.Hider ? 1 : -1, 0);
             }
             return true;
@@ -236,7 +236,7 @@ namespace PrototypeLab.Aquarium
         {
             Fish.Clear();
             for (int i = 0; i < FishCount; i++)
-                Fish.Add(new Prey { id = 100 + i, species = i % 3, position = Constrain(new Point(Range(-12, 12), Range(1, 5.6f), Range(-7, 7)), 0.35f),
+                Fish.Add(new Prey { id = 100 + i, species = i % 3, position = Constrain(AquariumMapOutline.LayoutPoint(Range(-12, 12), Range(1.2f, WaterHeight-1.2f), Range(-7, 7)), 0.35f),
                     facing = new Point(Range(-1, 1), Range(-0.25f, 0.25f), Range(-1, 1)).Normalized, turnAt = Time + Range(1, 4) });
         }
 
@@ -321,7 +321,7 @@ namespace PrototypeLab.Aquarium
 
         private SwimInput BotInput(Swimmer p)
         {
-            Point target = new Point((float)Math.Sin(Time * 0.23f) * 10, 3 + (float)Math.Sin(Time * 0.3f) * 1.5f, (float)Math.Cos(Time * 0.31f) * 6);
+            Point target = AquariumMapOutline.LayoutPoint((float)Math.Sin(Time * 0.23f) * 10, 3 + (float)Math.Sin(Time * 0.3f) * 1.5f, (float)Math.Cos(Time * 0.31f) * 6);
             float closest = float.MaxValue;
             if (p.team == Team.Hider)
             {
@@ -367,7 +367,7 @@ namespace PrototypeLab.Aquarium
         private bool InBite(Swimmer p, Point target, float best)
         {
             var delta = target - p.position;
-            return delta.Length < best && (delta.Length < 0.3f || Point.Dot(delta.Normalized, p.facing) > 0.25f) && ObstacleHit(p.position, target) > 1;
+            return delta.Length < best && (delta.Length < 0.3f || Point.Dot(delta.Normalized, p.facing) > 0.25f) && SolidHit(p.position, target) > 1;
         }
 
         private void Bite(Swimmer p)
@@ -491,7 +491,7 @@ namespace PrototypeLab.Aquarium
                 { var t = HitTime(start, end, f.position, 0.42f); if (t < first) { first = t; hitFish = f; hitPlayer = null; } }
                 foreach (var egg in Eggs)
                 { var t = HitTime(start, end, egg.position, 0.45f); if (t < first) { first = t; hitEgg = egg; hitFish = null; hitPlayer = null; } }
-                var obstruction = ObstacleHit(start, end);
+                var obstruction = SolidHit(start, end);
                 if (obstruction < first) { first = obstruction; hitFish = null; hitPlayer = null; hitEgg = null; }
                 if (first <= 1f)
                 {
@@ -502,7 +502,7 @@ namespace PrototypeLab.Aquarium
                     else Effect("miss", h.position, h.direction, 0.35f);
                     Harpoons.RemoveAt(i);
                 }
-                else if (h.life <= 0 || Math.Abs(end.x) > HalfWidth || Math.Abs(end.z) > HalfDepth || end.y < Floor || end.y > WaterHeight) Harpoons.RemoveAt(i);
+                else if (h.life <= 0 || !InsideTank(end) || end.y < AquariumSeabed.Height(end) || end.y > WaterHeight) Harpoons.RemoveAt(i);
                 else h.position = end;
             }
         }
@@ -519,11 +519,39 @@ namespace PrototypeLab.Aquarium
             return t >= 0 && t <= 1 ? t : 2;
         }
 
+        // Keep each cover ellipsoid and a swimmer-sized clearance inside the traced water.
+        private static Point[] FitReefs(Point[] rocks)
+        {
+            var radii = RockRadii;
+            for (int i = 0; i < rocks.Length; i++)
+            {
+                var original=AquariumMapOutline.LayoutPoint(rocks[i].x,rocks[i].y,rocks[i].z);float clearance=radii[i]+.85f;
+                var p=AquariumMapOutline.Clamp(original,clearance);
+                if(!AquariumWalkwayLayout.Contains(p,clearance)){p.y+=AquariumSeabed.Height(p)-Floor;rocks[i]=p;continue;}
+                float best=float.MaxValue;
+                for(float x=-HalfWidth;x<=HalfWidth;x+=.25f)for(float z=-HalfDepth;z<=HalfDepth;z+=.25f)
+                {
+                    var candidate=new Point(x,original.y,z);float distance=(candidate-original).Length;
+                    if(distance>=best||!AquariumMapOutline.Contains(candidate,clearance)||AquariumWalkwayLayout.Contains(candidate,clearance))continue;
+                    bool overlaps=false;
+                    for(int j=0;j<i;j++)if((candidate-rocks[j]).Length<radii[i]+radii[j]+.3f){overlaps=true;break;}
+                    if(!overlaps){best=distance;p=candidate;}
+                }
+                p.y+=AquariumSeabed.Height(p)-Floor;rocks[i]=p;
+            }
+            return rocks;
+        }
+        // The reference has a concave inlet, so the shared polygon owns collision too.
+        public static float TankRadius(float angle) { return AquariumMapOutline.Radius(angle); }
+        public static bool InsideTank(Point p, float padding = 0) { return AquariumMapOutline.Contains(p, padding); }
+        private static Point ConstrainPerimeter(Point p, float padding) { return AquariumMapOutline.Clamp(p, padding); }
+
         public static Point Constrain(Point p, float radius)
         {
-            p.x = Math.Max(-HalfWidth + radius, Math.Min(HalfWidth - radius, p.x));
-            p.z = Math.Max(-HalfDepth + radius, Math.Min(HalfDepth - radius, p.z));
-            p.y = Math.Max(Floor + radius, Math.Min(WaterHeight - radius, p.y));
+            for(int pass=0;pass<8;pass++)
+            {
+            p = AquariumWalkwayLayout.Constrain(ConstrainPerimeter(p, radius),radius);
+            p.y = Math.Max(AquariumSeabed.Height(p) + radius, Math.Min(WaterHeight - radius, p.y));
             for (int i = 0; i < Rocks.Length; i++)
             {
                 var delta = ScaleRock(p - Rocks[i], i, radius);
@@ -531,7 +559,7 @@ namespace PrototypeLab.Aquarium
                 {
                     var outward = delta.Normalized;
                     var resolved = Rocks[i] + new Point(outward.x * (RockRadii[i] + radius), outward.y * (RockHalfHeight + radius), outward.z * (RockRadii[i] + radius));
-                    if (resolved.y < Floor + radius)
+                    if (resolved.y < AquariumSeabed.Height(resolved) + radius)
                     {
                         var flat = new Point(delta.x, delta.z).Normalized;
                         float horizontal = (RockRadii[i] + radius) * (float)Math.Sqrt(Math.Max(0, 1 - delta.y * delta.y));
@@ -540,8 +568,30 @@ namespace PrototypeLab.Aquarium
                     else p = resolved;
                 }
             }
-            p.y = Math.Max(Floor + radius, Math.Min(WaterHeight - radius, p.y));
+            p.y = Math.Max(AquariumSeabed.Height(p) + radius, Math.Min(WaterHeight - radius, p.y));
+            p = AquariumMonolithLayout.Constrain(p,radius);
+            p.y = Math.Max(AquariumSeabed.Height(p) + radius, Math.Min(WaterHeight - radius, p.y));
+            if(FreeSpace(p,radius))break;
+            }
+            if(!FreeSpace(p,radius))
+            {
+                // At a concave entrance joint the two inward normals can oppose one another.
+                // Resolve onto the nearest free side instead of oscillating between the panes.
+                for(float ring=.12f;ring<=12;ring+=.12f)for(int angle=0;angle<48;angle++)
+                {
+                    double a=angle*Math.PI/24;
+                    var candidate=p+new Point((float)Math.Cos(a)*ring,0,(float)Math.Sin(a)*ring);
+                    if(FreeSpace(candidate,radius+.002f))return candidate;
+                }
+            }
             return p;
+        }
+
+        private static bool FreeSpace(Point p,float radius)
+        {
+            if(p.y<AquariumSeabed.Height(p)+radius-.001f||p.y>WaterHeight-radius+.001f||!InsideTank(p,radius)||AquariumWalkwayLayout.Contains(p,radius)||AquariumMonolithLayout.Overlaps(p,radius))return false;
+            for(int i=0;i<Rocks.Length;i++)if(ScaleRock(p-Rocks[i],i,radius).Length<1)return false;
+            return true;
         }
 
         private static Point ScaleRock(Point delta, int index, float padding)
@@ -550,11 +600,15 @@ namespace PrototypeLab.Aquarium
         // Shared swept ellipsoid check for harpoons, camera occlusion and aim rays.
         public static float ObstacleHit(Point start, Point end, float padding = 0)
         {
-            float hit = 2;
+            float hit = Math.Min(AquariumMonolithLayout.Hit(start,end,padding),AquariumSeabed.Hit(start,end,padding));
             for (int i = 0; i < Rocks.Length; i++)
                 hit = Math.Min(hit, HitTime(ScaleRock(start - Rocks[i], i, padding), ScaleRock(end - Rocks[i], i, padding), new Point(), 1));
             return hit;
         }
+
+        // Glass is transparent to the camera but blocks projectiles and physical interaction.
+        public static float SolidHit(Point start,Point end,float padding=0)
+        { return Math.Min(ObstacleHit(start,end,padding),AquariumWalkwayLayout.Hit(start,end,padding)); }
 
         private void Effect(string kind, Point at, Point direction, float duration)
         { Effects.Add(new WaterEffect { id = ++nextEffect, kind = kind, position = at, direction = direction, born = Time, duration = duration }); }

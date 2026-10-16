@@ -1,0 +1,18 @@
+Coral Gallery 1.8
+Applied to: Assets/Demos/HideAndSeek/30_HideAndSeek.unity
+Art scene: Assets/Demos/HideAndSeek/31_CoralGallery.unity
+Render meshes: 95
+Triangles: 8209202
+Kelp fronds: 286
+Coral colonies: 607
+Anemone colonies: 32
+Bubbles: 140
+Joined walkway glass envelope, y=0.27 to 12.02: PASS
+360 perimeter collision samples: PASS
+Camera checks: PASS
+Shader compiler: PASS
+Horizontal layout scale: 2.4x; area: 5.76x
+Outer footprint: 78.08 x 53.08 m
+Water footprint: 68.45 x 42.08 m
+Water depth: 12.0 m
+Actor, plant and existing reef dimensions retained

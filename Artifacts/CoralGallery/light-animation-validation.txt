@@ -1,0 +1,2 @@
+GPU sunlight animation, isolated rays at t=1 and t=4: PASS (37278 changed pixels of 256000)
+72 frames / 12 fps / 6 seconds

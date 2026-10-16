@@ -1,0 +1,3 @@
+Isolated anemones, caustics disabled: 12307 changed pixels / 256000 — PASS
+GPU deformation, fixed bases and closed tentacles.
+48 frames / 12 fps / 4 seconds.

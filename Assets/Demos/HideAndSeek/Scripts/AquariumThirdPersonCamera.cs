@@ -77,7 +77,7 @@ namespace PrototypeLab.Aquarium
             if (move.sqrMagnitude > 1) move.Normalize();
             var position = camera.transform.position + move * (7f * dt);
             position.x = Mathf.Clamp(position.x, -AquariumModel.HalfWidth - 3, AquariumModel.HalfWidth + 3);
-            position.y = Mathf.Clamp(position.y, AquariumModel.Floor + 0.2f, AquariumModel.WaterHeight + 5);
+            position.y = Mathf.Clamp(position.y, AquariumSeabed.Height(position.x,position.z) + 0.2f, AquariumModel.WaterHeight + 5);
             position.z = Mathf.Clamp(position.z, -AquariumModel.HalfDepth - 3, AquariumModel.HalfDepth + 3);
             camera.transform.position = position;
         }
@@ -87,8 +87,7 @@ namespace PrototypeLab.Aquarium
             if (!Active)
             {
                 // An establishing view for menus only; every player uses perspective during a round.
-                camera.orthographic = false; camera.fieldOfView = 52;
-                camera.transform.SetPositionAndRotation(new Vector3(0, 21, -24), Quaternion.Euler(39, 0, 0));
+                AquariumEnvironment.ConfigureOverview(camera);
                 view.CameraOcclusion(0, null);
                 return;
             }
@@ -114,9 +113,9 @@ namespace PrototypeLab.Aquarium
             Vector3 wanted = pivot - rotation * Vector3.forward * distance;
             // The boom may pass through glass/water, which fade locally. Compressing it at
             // the surface would put it inside the swimmer's head. Only solid rock/floor block it.
-            if (wanted.y < AquariumModel.Floor + 0.22f)
+            if (wanted.y < AquariumSeabed.Height(wanted.x,wanted.z) + 0.22f)
             {
-                wanted.y = AquariumModel.Floor + 0.22f;
+                wanted.y = AquariumSeabed.Height(wanted.x,wanted.z) + 0.22f;
                 var horizontal = new Vector3(wanted.x - pivot.x, 0, wanted.z - pivot.z);
                 if (horizontal.magnitude < 2) wanted = new Vector3(pivot.x, wanted.y, pivot.z) + horizontal.normalized * 2;
             }
@@ -127,7 +126,7 @@ namespace PrototypeLab.Aquarium
             wanted = pivot + delta * travel;
             // Snap inward to prevent crossing a wall; ease outward when cover clears.
             var candidate = snap ? wanted : Vector3.Lerp(camera.transform.position, wanted, 1 - Mathf.Exp(-dt * 16));
-            candidate.y = Mathf.Max(AquariumModel.Floor + 0.22f, candidate.y);
+            candidate.y = Mathf.Max(AquariumSeabed.Height(candidate.x,candidate.z) + 0.22f, candidate.y);
             float blocked = AquariumModel.ObstacleHit(ToPoint(pivot), ToPoint(candidate), 0.2f);
             if (blocked <= 1) candidate = Vector3.Lerp(pivot, candidate, Mathf.Max(0, blocked - 0.04f));
             camera.transform.SetPositionAndRotation(candidate, rotation); snap = false;

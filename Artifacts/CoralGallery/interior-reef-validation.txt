@@ -1,0 +1,7 @@
+38 furnished enclosed visitor gallery bays — PASS
+Continuous rear wall, dry floor and promenade ceiling — PASS
+Seven fractured rock formations: three cliffs/bridge and four outcrops — PASS
+Reef meshes remain inside glass with 0.2 m clearance — PASS
+Shared collision field agrees with every reef vertex within 0.12 m — PASS
+1 m diameter swim-through under central arch — PASS
+No visitor models added

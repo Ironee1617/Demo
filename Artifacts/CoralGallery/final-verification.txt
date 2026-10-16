@@ -1,0 +1,44 @@
+Coral Gallery 1.8 — 2026-10-16T18:41:38.044598+09:00
+Applied project: C:/Users/shern/Documents/Demo
+Build: Build/Aquarium-CoralGallery/AquariumDemo.exe
+Scenes: 30_HideAndSeek.unity / 31_CoralGallery.unity
+
+암반 7개: 사면체 내부·외부 기준으로 삼각형 방향을 수정.
+열린 모서리 / 뒤집힌 공유 모서리 / 비정상 연결 / 붕괴 삼각형: 전부 0.
+모래: 경계 1개, 내부 구멍 없음. 테두리의 분석 함수 근접 표본은 격자 보간 오차로 별도 표시.
+건축 띠 밑면·원기둥 양 끝·잎 가장자리를 채우고, 움직이는 줄기와 촉수의 연결 단면을 공유.
+
+산호 6형태 / 해조류 5형태.
+말미잘 2형태: 사용자 최종 사진에 맞춘 붉은 기둥·분홍 촉수, 올리브 기둥·짧고 둥근 연두/아이보리 촉수.
+납작한 바닥 원반과 카펫형 제거. 비대칭 기둥 밑동을 바위·잔돌 틈에 묻고, 부착부부터 끝까지 완만한 색 변화 적용.
+넓고 평평한 상단 덮개 제거. 몸통과 타원형 윗면이 하나의 연속 곡면으로 연결되며 촉수 뿌리를 곡면에 묻음.
+분홍 촉수를 더 도톰하고 부드러운 곡선으로 수정. 과도한 반점·주름 제외. 뿌리 고정 및 GPU 촉수 애니메이션.
+수심 12 m, 구불구불한 원본 윤곽, 도보·유리벽·입수 공간과 기존 캐릭터 크기 유지.
+
+51 gameplay tests: PASS
+20 camera checks: PASS
+Shader compilation and Windows player build: PASS
+Seven closed rock volumes, consistent triangle orientation: PASS
+Sand single boundary, no internal holes: PASS
+Existing glass/entry clearance and shared rock collision: PASS
+Isolated anemone motion, caustics disabled: PASS (12,314 changed pixels / 256,000)
+Anemone motion preview: 48 rendered frames / 12 fps / 4 s.
+Rendered meshes: 85 / triangles: 8,209,202
+Seaweed: 286 / coral: 607 / anemones: 32 / bubbles: 140
+
+Original-project player smoke tests:
+practice: 23.47 s simulated, Playing, connected, errors=[]
+seeker: 23.47 s simulated, Playing, connected, errors=[]
+Fresh screenshots verified; both processes exited. This is not a performance benchmark.
+Startup diagnostics: d3d12: upload buffer was too small for the requested resource! Size: 16777216. Requested: 18043992.
+d3d12: upload buffer was too small for the requested resource! Size: 18874368. Requested: 27454824.
+d3d12: upload buffer was too small for the requested resource! Size: 28311552. Requested: 40053024.
+
+All 454 environment files match the validated clone byte-for-byte.
+7 critical SHA256 copy checks: PASS.
+743 baseline files verified unchanged before application.
+Backup: C:/Users/shern/Documents/ChatGPT/수족관/Before-Biodiversity
+Detailed mesh audit: Artifacts/CoralGallery/biodiversity-validation.txt
+Latest user reference notes: Docs/Aquarium-Material-Sources.md
+
+Windows desktop / Built-in Render Pipeline. Remote multiplayer was not re-tested for this scenery revision.

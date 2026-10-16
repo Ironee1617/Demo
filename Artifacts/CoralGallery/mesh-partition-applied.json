@@ -1,0 +1,128 @@
+{
+  "applied_at": "2026-10-16T19:18:03.040281+09:00",
+  "changed_project_files": [
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Editor/AquariumEnvironmentAuthoring.Biodiversity.cs",
+      "sha256": "3982920e1eb1add6d5f8ccf59f0b31317e56940b778a99e37f36495da4155ea4"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Editor/AquariumEnvironmentAuthoring.cs",
+      "sha256": "2027cc6cf285fdde9699f6962686e1e93de17cba8c4c77e1289a18d9765005a9"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Editor/AquariumEnvironmentAuthoring.MeshParts.cs",
+      "sha256": "fc78bffc0099f6dc58c28bc720e37e583979b24bcda47cd2ee650187d2bdb6da"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Editor/AquariumEnvironmentAuthoring.MeshParts.cs.meta",
+      "sha256": "798292aec28359e6c3c11672f8072bd7ccae15a5edad104766d50215912db15c"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/CoralGallery.prefab",
+      "sha256": "8caf0875c92ff5d2053bf652432cc9dab9df376a81ac919f270c82f0ba7fa17e"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/079.asset",
+      "sha256": "60de44776654fea8e118baa7b4b3f61ce236d5d7f5c9abd47fdafc752a0c9cee"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/079_part002.asset",
+      "sha256": "2524930ce5bae2cce361640abebbbb51286d020da96d6187d950406f52ed3a53"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/079_part002.asset.meta",
+      "sha256": "b9e8138655e2602e0b526df4cf78f072e2d065070ab9c98f58bd77f17857a47b"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/079_part003.asset",
+      "sha256": "282af4d83c0b3bda7302c4c971c9c3cb5f8e6bd2ca92dcd443c30d24fdc05348"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/079_part003.asset.meta",
+      "sha256": "7da85c4899beccdd04d002632d5dcb9d082ec1555a166df5fe8f9653d35c1863"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/079_part004.asset",
+      "sha256": "5597f1840394efa02cb500b6b7b87b5901233c4c30d2f7f95855b7621d2bb802"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/079_part004.asset.meta",
+      "sha256": "58c6f0681b657bcb8a3052d9bb7f91c11cdaffb3f4bb98e9f6d07980cdc38411"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/079_part005.asset",
+      "sha256": "f8a903210143053188f9d5fead7d983d3fd63bec09430ca1202e9ff149f534a0"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/079_part005.asset.meta",
+      "sha256": "a063ef881721d4141a0416fb3dd1ef783fee17d5ab99b33fcd825e5e7141bac6"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/081.asset",
+      "sha256": "d5eb04ccdf48834aadb51d15cc3de1d96d980317c58dda41cf1c58a18b50a630"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/081_part002.asset",
+      "sha256": "a777ec110d9728a317952e3854a716b22dae8cd4dda2806aa8b2224d8f0984ef"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/081_part002.asset.meta",
+      "sha256": "2ec8075758c0a468e418864688cf71840be06c20c92c5eff7b5e950f1f79af3a"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/081_part003.asset",
+      "sha256": "b57417571fc3a80ac8ffca8cbebf675af1e64075984d6e4547fa8352808077cd"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/081_part003.asset.meta",
+      "sha256": "711c421f8fbde69662a7bb78641ef6a39eb283423d768389f473d0f8a88a537a"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/081_part004.asset",
+      "sha256": "a09eabb1a4f0c24fc3841a73d1908b4b2cb545561ed156dbb4a2207779b5ea93"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/081_part004.asset.meta",
+      "sha256": "9d46801fda9bf4a785986cccff563b08bd1d0a77ad4e7ae0a4680c9d3a4a1c9c"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/081_part005.asset",
+      "sha256": "cade066b62f6512d6c6556d2f2ba4fb81403eeccb80123dbeb24025a423b635c"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/081_part005.asset.meta",
+      "sha256": "6a6713577da45231ab86f52c11f5708ddad672198b9f3bc667fb14e3fb9e4bbb"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/081_part006.asset",
+      "sha256": "9c183cbbe303a0c60b2ecc145f0bb100762882f41c0c4368c01fca438611f422"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/081_part006.asset.meta",
+      "sha256": "e74dccc1d8630ab325574b5a9f350a3f9776cf3e73a2ba5958b0a3cfcbc97b3f"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/081_part007.asset",
+      "sha256": "55335110ca2786790a1e11014647dc9df1387927f3db925b550c50aea0297131"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/081_part007.asset.meta",
+      "sha256": "5af2b9ba8dd004709de2393ae5e96db0b3471130b335e98c1ee84190f2f1987c"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/30_HideAndSeek.unity",
+      "sha256": "ddfd15454db35474d3962dec26fb9fcf3c5fb6d607abebd347c84c474acd7355"
+    },
+    {
+      "path": "Assets/Demos/HideAndSeek/31_CoralGallery.unity",
+      "sha256": "a89f69ec230fbdb2b35ee41f628c5138aee9f7f686008477ee97ce2cc9bec33a"
+    },
+    {
+      "path": "Docs/Aquarium-CoralGallery.md",
+      "sha256": "6b4acbb7cb789b80508d217e15376debf5b37fa101ff4ee0077f3599e746805e"
+    }
+  ],
+  "triangle_count_before": 8209202,
+  "triangle_count_after": 8209202,
+  "max_mesh_bytes": 38096421
+}

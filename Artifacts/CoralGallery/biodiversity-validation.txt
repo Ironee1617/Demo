@@ -1,0 +1,15 @@
+Coral Gallery 1.8 / topology and biodiversity
+01 • Contoured sand bed / dunes and current ripples: vertices=58026, triangles=111918, boundary=4132, reversedSharedEdges=0, nonmanifold=0, degenerate=0, boundaryLoops=1, irregularBoundary=0, analyticContourMarginSamples=2
+31 • Monolithic limestone / Western fractured escarpment: vertices=83268, triangles=166540, boundary=0, reversedSharedEdges=0, nonmanifold=0, degenerate=0, boundaryLoops=0, irregularBoundary=0, analyticContourMarginSamples=0
+31 • Monolithic limestone / Eastern reference cantilever cliff: vertices=100654, triangles=201316, boundary=0, reversedSharedEdges=0, nonmanifold=0, degenerate=0, boundaryLoops=0, irregularBoundary=0, analyticContourMarginSamples=0
+31 • Monolithic limestone / Central broken-bed swim-through: vertices=74500, triangles=149000, boundary=0, reversedSharedEdges=0, nonmanifold=0, degenerate=0, boundaryLoops=0, irregularBoundary=0, analyticContourMarginSamples=0
+31 • Monolithic limestone / Crescent lagoon outcrop: vertices=14620, triangles=29236, boundary=0, reversedSharedEdges=0, nonmanifold=0, degenerate=0, boundaryLoops=0, irregularBoundary=0, analyticContourMarginSamples=0
+31 • Monolithic limestone / Northwest stepped reef: vertices=19962, triangles=39920, boundary=0, reversedSharedEdges=0, nonmanifold=0, degenerate=0, boundaryLoops=0, irregularBoundary=0, analyticContourMarginSamples=0
+31 • Monolithic limestone / Southwest collapsed slabs: vertices=11952, triangles=23904, boundary=0, reversedSharedEdges=0, nonmanifold=0, degenerate=0, boundaryLoops=0, irregularBoundary=0, analyticContourMarginSamples=0
+31 • Monolithic limestone / Southeast talus ridge: vertices=14042, triangles=28084, boundary=0, reversedSharedEdges=0, nonmanifold=0, degenerate=0, boundaryLoops=0, irregularBoundary=0, analyticContourMarginSamples=0
+All seven rock volumes: closed two-manifold edges, consistent outward triangle winding, no collapsed triangles — PASS
+Sand: one continuous boundary loop, no interior holes — PASS
+Coral forms [staghorn, scroll, fan, brain, finger, sponge]: 100, 113, 102, 87, 107, 98
+Seaweed forms [broad kelp, ribbon, eelgrass, red feather, sargassum]: 55, 59, 52, 57, 63
+Anemones [rose flowing, mint rounded]: 11, 21
+Anemone bend payload: 78390 fixed vertices / 237419 flexible vertices — PASS

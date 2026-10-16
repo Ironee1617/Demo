@@ -1,0 +1,42 @@
+{
+  "AppliedAt": "2026-10-16T18:39:14.5262367+09:00",
+  "Version": "1.8",
+  "OriginalBaselineFiles": 743,
+  "Checks": [
+    {
+      "Path": "Assets\\Demos\\HideAndSeek\\Environment\\Resources\\Aquarium\\CoralGallery.prefab",
+      "SHA256": "6241058A66C0AC194CF797D7FFED6A41C1D1338073CD2AC0E15738A1AACE0E8F",
+      "Match": true
+    },
+    {
+      "Path": "Assets\\Demos\\HideAndSeek\\Scripts\\AquariumModel.cs",
+      "SHA256": "C899107114191FC4D7BFCC2DFA685C51A34CF891458B422A19A991A2272B84AA",
+      "Match": true
+    },
+    {
+      "Path": "Assets\\Demos\\HideAndSeek\\Scripts\\AquariumThirdPersonCamera.cs",
+      "SHA256": "34373EF8B21913B70780D37557D26135EF2F1E7BD0A4B8033EBDBD088A886B3C",
+      "Match": true
+    },
+    {
+      "Path": "Assets\\Demos\\HideAndSeek\\30_HideAndSeek.unity",
+      "SHA256": "953CC94C79F464C1ADA2E471EA31B80ED0DAC00924AF7E489B0DC43E530D6DE5",
+      "Match": true
+    },
+    {
+      "Path": "Assets\\Demos\\HideAndSeek\\Environment\\Runtime\\AquariumEnvironment.Biodiversity.cs",
+      "SHA256": "5BB3482AED473BD32072A5206076FE696EEBCBCAF5E3C8395E048E0663851797",
+      "Match": true
+    },
+    {
+      "Path": "Assets\\Demos\\HideAndSeek\\Environment\\Resources\\Aquarium\\Shaders\\LivingReef.shader",
+      "SHA256": "C7EEE162BA18A58498B6B1A33256BDAA76905E33D862FDFBFCD8E142AFF11B6C",
+      "Match": true
+    },
+    {
+      "Path": "Build\\Aquarium-CoralGallery\\AquariumDemo_Data\\Managed\\Assembly-CSharp.dll",
+      "SHA256": "70882A7B68C806456618B507AD5EA2B4B44AD64469C2145400E2EEA7A46B4180",
+      "Match": true
+    }
+  ]
+}

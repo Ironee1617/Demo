@@ -1,0 +1,4 @@
+Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/079.asset: 5 parts / 744438 triangles / positions, normals, tangents, colors, UVs, animation payload and triangle order identical — PASS
+Assets/Demos/HideAndSeek/Environment/Resources/Aquarium/Meshes/081.asset: 7 parts / 1102080 triangles / positions, normals, tangents, colors, UVs, animation payload and triangle order identical — PASS
+Scene triangles before/after: 8209202 / 8209202 — PASS
+Largest mesh asset: 38096421 bytes; all below 40 MiB — PASS

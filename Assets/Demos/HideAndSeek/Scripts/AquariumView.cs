@@ -19,8 +19,8 @@ namespace PrototypeLab.Aquarium
         private readonly Dictionary<string, Actor> actors = new Dictionary<string, Actor>();
         private readonly Dictionary<int, GameObject> effects = new Dictionary<int, GameObject>();
         private readonly List<Material> materials = new List<Material>();
-        private readonly List<Transform> bubbles = new List<Transform>();
-        private readonly List<Transform> plants = new List<Transform>();
+
+
         private readonly List<Renderer> glassPanels = new List<Renderer>();
         private readonly HashSet<string> visible = new HashSet<string>();
         private readonly HashSet<int> activeEffects = new HashSet<int>();
@@ -62,15 +62,8 @@ namespace PrototypeLab.Aquarium
             Camera.transform.rotation = Quaternion.Euler(49, 0, 0);
             Camera.orthographic = false; Camera.fieldOfView = 68; Camera.nearClipPlane = 0.06f; Camera.farClipPlane = 100;
             Camera.clearFlags = CameraClearFlags.SolidColor; Camera.backgroundColor = new Color(0.025f, 0.12f, 0.18f);
-            Camera.allowHDR = false;
-            RenderSettings.fog = true; RenderSettings.fogMode = FogMode.Exponential; RenderSettings.fogDensity = 0.024f;
-            RenderSettings.fogColor = new Color(0.055f, 0.23f, 0.3f); RenderSettings.ambientMode = AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.28f, 0.39f, 0.43f);
-            var sun = UnityEngine.Object.FindFirstObjectByType<Light>();
-            if (sun == null) { var go = new GameObject("Aquarium daylight"); go.transform.SetParent(root); sun = go.AddComponent<Light>(); sun.type = LightType.Directional; }
-            sun.transform.rotation = Quaternion.Euler(48, -35, 0); sun.color = new Color(0.88f, 0.98f, 1); sun.intensity = 0.68f; sun.shadows = LightShadows.Soft; sun.shadowStrength = 0.35f;
-            var fill = new GameObject("Soft aquarium fill"); fill.transform.SetParent(root); fill.transform.rotation = Quaternion.Euler(30, 145, 0);
-            var fillLight = fill.AddComponent<Light>(); fillLight.type = LightType.Directional; fillLight.color = new Color(0.35f, 0.73f, 0.88f); fillLight.intensity = 0.18f;
+            AquariumEnvironment.ConfigureCamera(Camera);
+            AquariumEnvironment.ConfigureLighting(root);
         }
 
         private Material Material(Color color, bool transparent = false)
@@ -103,83 +96,9 @@ namespace PrototypeLab.Aquarium
 
         private void BuildEnvironment()
         {
-            Box("Exhibition floor", root, new Vector3(0, -1.3f, 0), new Vector3(80, 1, 60), dark);
-            Box("Tank foundation", root, new Vector3(0, -0.55f, 0), new Vector3(30, 1.1f, 19), teal);
-            Box("Sand bed", root, new Vector3(0, -0.05f, 0), new Vector3(28, 0.3f, 17), sand);
-            Box("Back glass", root, new Vector3(0, 3.5f, 8.65f), new Vector3(28.6f, 7, 0.12f), glass);
-            Box("Left glass", root, new Vector3(-14.2f, 3.5f, 0), new Vector3(0.1f, 7, 17.4f), glass);
-            Box("Right glass", root, new Vector3(14.2f, 3.5f, 0), new Vector3(0.1f, 7, 17.4f), glass);
-            Box("Front glass", root, new Vector3(0, 3.5f, -8.6f), new Vector3(28.6f, 7, 0.1f), glass);
-            Box("Water surface", root, new Vector3(0, 7.05f, 0), new Vector3(28, 0.04f, 17), glass);
-            var glow = Material(new Color(0.38f, 0.95f, 0.92f)); glow.EnableKeyword("_EMISSION"); glow.SetColor("_EmissionColor", new Color(0.05f, 0.48f, 0.49f));
-            for (int side = -1; side <= 1; side += 2)
-            {
-                Box("Lower light rail", root, new Vector3(0, 0.21f, side * 8.7f), new Vector3(28.9f, 0.07f, 0.1f), glow);
-                Box("Lower light rail", root, new Vector3(side * 14.25f, 0.21f, 0), new Vector3(0.1f, 0.07f, 17.5f), glow);
-                Box("Upper frame", root, new Vector3(0, 7.1f, side * 8.7f), new Vector3(28.9f, 0.12f, 0.16f), teal);
-                Box("Upper frame", root, new Vector3(side * 14.25f, 7.1f, 0), new Vector3(0.16f, 0.12f, 17.5f), teal);
-                for (int z = -1; z <= 1; z += 2)
-                    Box("Corner frame", root, new Vector3(side * 14.25f, 3.5f, z * 8.7f), new Vector3(0.15f, 7, 0.15f), teal);
-            }
-            Box("Exhibit backdrop", root, new Vector3(0, 3.2f, 12), new Vector3(43, 9, 0.4f), dark);
-            for (int i = 0; i < 8; i++)
-            {
-                var rail = Box("Aquarium rear mullion", root, new Vector3(-14 + i * 4, 3.5f, 8.8f), new Vector3(0.05f, 7, 0.07f), teal);
-                rail.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
-            }
-            var rock = Material(new Color(0.29f, 0.48f, 0.5f));
-            var rockTop = Material(new Color(0.48f, 0.65f, 0.57f));
-            for (int i = 0; i < AquariumModel.Rocks.Length; i++)
-            {
-                var at = AquariumModel.Rocks[i]; float radius = AquariumModel.RockRadii[i];
-                // This ellipsoid matches the host collision volume exactly.
-                Ball("Harpoon cover rock", root, new Vector3(at.x, at.y, at.z), new Vector3(radius * 2, AquariumModel.RockHalfHeight * 2, radius * 2), rock);
-                // Small patches sit on the same surface; they do not imply extra cover.
-                for (int j = 0; j < 3; j++)
-                {
-                    float angle = j * 2.1f + i;
-                    Ball("Rock moss", root, new Vector3(at.x + Mathf.Sin(angle) * radius * 0.38f, 2.19f, at.z + Mathf.Cos(angle) * radius * 0.38f),
-                        new Vector3(radius * 0.42f, 0.13f, radius * 0.4f), rockTop);
-                }
-            }
-            var kelp = Material(new Color(0.1f, 0.59f, 0.43f)); var leafLight = Material(new Color(0.26f, 0.75f, 0.48f));
-            var coral = Material(new Color(0.97f, 0.48f, 0.47f)); var lavender = Material(new Color(0.66f, 0.51f, 0.83f));
-            for (int i = 0; i < 24; i++)
-            {
-                float x = Range(-13, 13), z = i < 16 ? Range(7.1f, 8) : Range(-8, -7.6f);
-                var clump = new GameObject("Swaying sea grass"); clump.transform.SetParent(root, false); clump.transform.localPosition = new Vector3(x, 0.12f, z); plants.Add(clump.transform);
-                for (int j = 0; j < 3; j++)
-                {
-                    float height = Range(0.65f, 1.9f);
-                    var leaf = Ball("Kelp blade", clump.transform, new Vector3((j - 1) * 0.2f, height * 0.45f, 0), new Vector3(0.16f, height, 0.32f), j == 1 ? leafLight : kelp);
-                    leaf.transform.localRotation = Quaternion.Euler(Range(-14, 14), 0, (j - 1) * -19);
-                }
-                if (i % 3 == 0)
-                {
-                    var stem = Shape("Coral stem", PrimitiveType.Capsule, root, new Vector3(x + 0.65f, 0.42f, z), new Vector3(0.18f, 0.35f, 0.18f), i % 2 == 0 ? coral : lavender);
-                    for (int side = -1; side <= 1; side += 2)
-                    {
-                        var branch = Shape("Coral branch", PrimitiveType.Capsule, stem.transform, new Vector3(side * 1.1f, 0.3f, 0), new Vector3(0.75f, 0.75f, 0.75f), i % 2 == 0 ? coral : lavender);
-                        branch.transform.localRotation = Quaternion.Euler(0, 0, side * -37);
-                    }
-                }
-            }
-            for (int i = 0; i < 65; i++)
-            {
-                float size = Range(0.04f, 0.12f);
-                Ball("Sand pebble", root, new Vector3(Range(-13.5f, 13.5f), 0.14f, Range(-8, 8)), new Vector3(size * 2, size, size), i % 3 == 0 ? white : rockTop);
-            }
-            for (int i = 0; i < 25; i++)
-            {
-                var ripple = Ring("Soft sand caustic", root, Range(0.35f, 0.8f), new Color(0.8f, 1f, 0.94f, 0.16f), 0.018f);
-                ripple.transform.localPosition = new Vector3(Range(-13, 13), 0.108f, Range(-8, 8)); ripple.transform.localScale = new Vector3(1.8f, 1, 0.8f);
-                ripple.transform.localRotation = Quaternion.Euler(0, Range(-60, 60), 0);
-            }
-            for (int i = 0; i < 32; i++)
-            {
-                float size = Range(0.045f, 0.11f);
-                bubbles.Add(Ball("Air bubble", root, new Vector3(Range(-13, 13), Range(0.1f, 6.5f), Range(-7, 8)), Vector3.one * size, glass).transform);
-            }
+            var environment = AquariumEnvironment.Ensure(root);
+            foreach (var renderer in environment.GetComponentsInChildren<Renderer>())
+                if (renderer.name == "04 • Curved aquarium glass") glassPanels.Add(renderer);
         }
 
         private Mesh MakeFanMesh()
@@ -420,9 +339,7 @@ namespace PrototypeLab.Aquarium
             expiredEffects.Clear();
             foreach (var e in effects) if (!activeEffects.Contains(e.Key)) { UnityEngine.Object.Destroy(e.Value); expiredEffects.Add(e.Key); }
             foreach (int id in expiredEffects) effects.Remove(id);
-            for (int i = 0; i < bubbles.Count; i++)
-            { var pos = bubbles[i].localPosition; pos.y += dt * (0.35f + i % 4 * 0.13f); if (pos.y > 6.8f) pos.y = 0.2f; bubbles[i].localPosition = pos; }
-            for (int i = 0; i < plants.Count; i++) plants[i].localRotation = Quaternion.Euler(Mathf.Sin(state.time * 0.8f + i) * 3, 0, Mathf.Sin(state.time + i * 1.7f) * 5);
+
         }
 
         public Vector3 PlayerPosition(Swimmer player)

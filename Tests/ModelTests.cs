@@ -5,6 +5,8 @@ public static class ModelTests
 {
     private static int passed;
     private static Point At(float x, float z, float y = 1.6f) { return new Point(x, y, z); }
+    private static Point Layout(float x,float z,float y=1.6f) { return AquariumMapOutline.LayoutPoint(x,y,z); }
+    private static Point CoverSide(float offset) { var p=AquariumModel.Rocks[1];return new Point(p.x+offset,1,p.z); }
     private static void Check(bool value, string message) { if (!value) throw new Exception(message); }
     private static void Test(string name, Action test) { test(); passed++; Console.WriteLine("PASS " + name); }
     private static AquariumModel Match(bool friend = false)
@@ -14,7 +16,7 @@ public static class ModelTests
         Check(m.StartRound(), "start");
         // Most rule scenarios isolate one human per role; roster fill has its own checks below.
         m.Players.RemoveAll(p => p.filled);
-        foreach (var fish in m.Fish) { fish.position = At(-12, 7); fish.facing = new Point(); fish.turnAt = float.MaxValue; }
+        foreach (var fish in m.Fish) { fish.position = At(-12, 2.5f); fish.facing = new Point(); fish.turnAt = float.MaxValue; }
         m.Player(1).position = At(0, 0); m.Player(1).facing = new Point(1, 0);
         m.Player(2).position = At(12, 7);
         return m;
@@ -27,6 +29,151 @@ public static class ModelTests
     {
         try
         {
+            Test("sculpted sand stops swimmers and camera or projectile rays at its actual surface", () => {
+                float low=100,high=-100;
+                for(int x=-30;x<=30;x+=2)for(int z=-17;z<=17;z+=2)
+                {
+                    var p=new Point(x,0,z);if(!AquariumMapOutline.Contains(p,1)||AquariumWalkwayLayout.Contains(p,1))continue;
+                    float h=AquariumSeabed.Height(p);low=Math.Min(low,h);high=Math.Max(high,h);
+                    var moved=AquariumModel.Constrain(p,.4f);
+                    Check(moved.y>=AquariumSeabed.Height(moved)+.399f,"swimmer above local dune");
+                    Check((AquariumModel.Constrain(moved,.4f)-moved).Length<.003f,"stable sand contact at " + x + "," + z + " => " + moved.x + "," + moved.y + "," + moved.z);
+                    float t=AquariumSeabed.Hit(new Point(x,h+2,z),new Point(x,h-2,z),.2f);
+                    Check(t>.43f&&t<.46f,"swept ray contacts sand with padding");
+                }
+                Check(high-low>.65f,"genuinely contoured floor");
+            });
+            Test("12 metre water column is navigable above the reefs", () => {
+                var p=new Point(2.3f,10.8f,4);
+                Check((AquariumModel.Constrain(p,.5f)-p).Length<.002f,"deep upper water is accessible");
+                var top=AquariumModel.Constrain(new Point(2.3f,30,4),.5f);
+                Check(Math.Abs(top.y-11.5f)<.002f,"correct raised surface collision");
+            });
+            Test("giant limestone walls block swimmers, camera rays and swept harpoons", () => {
+                foreach(var centre in new[]{new Point(-24.5f,2,-1.5f),new Point(27,3,3.7f),new Point(-2.3f,2,3.8f),new Point(-13.5f,1.25f,10.5f),new Point(-24.4f,1.45f,9.9f),new Point(-20,1.15f,-8.5f),new Point(24.7f,1.2f,-7.8f)})
+                {
+                    Check(AquariumMonolithLayout.Distance(centre)<0,"solid cliff interior");
+                    var resolved=AquariumModel.Constrain(centre,.5f);
+                    Check(AquariumMonolithLayout.Distance(resolved)>=.499f,"swimmer exits stone");
+                    Check((AquariumModel.Constrain(resolved,.5f)-resolved).Length<.002f,"stable reef contact");
+                    var from=centre+new Point(0,0,-10);var to=centre+new Point(0,0,10);
+                    Check(AquariumModel.ObstacleHit(from,to,.15f)<=1,"camera and aim occlusion");
+                    Check(AquariumModel.SolidHit(from,to,.15f)<=1,"fast projectile hits cliff");
+                }
+            });
+            Test("reference cantilever has a navigable undercut and solid projecting ledge", () => {
+                var under=new Point(23.3f,3.3f,3.4f);
+                Check((AquariumModel.Constrain(under,.5f)-under).Length<.002f,"diver can enter the cliff recess");
+                Check(AquariumMonolithLayout.Hit(new Point(19,3.3f,3.4f),under,.5f)>1,"clear horizontal route below cantilever");
+                Check(AquariumMonolithLayout.Hit(under,new Point(23.3f,8,3.4f),.2f)<1,"projectile hits the real shelf overhead");
+            });
+            Test("natural arch leaves a continuous diver-sized swimming passage", () => {
+                for(float z=-1;z<=9;z+=.1f)
+                {
+                    var p=new Point(2.3f,2,z);
+                    Check(AquariumMonolithLayout.Distance(p)>.65f,"arch clearance at "+z);
+                    Check((AquariumModel.Constrain(p,.5f)-p).Length<.002f,"arch path stays open");
+                }
+                Check(AquariumMonolithLayout.Hit(new Point(2.3f,2,-1),new Point(2.3f,2,9),.5f)>1,"ray passes below arch");
+                Check(AquariumMonolithLayout.Hit(new Point(2.3f,4.9f,-1),new Point(2.3f,4.9f,9))<1,"stone lintel occludes ray");
+            });
+            Test("new terrain keeps generated actors outside all limestone masses", () => {
+                var m=new AquariumModel();m.AddPlayer(1,"Diver",Team.Seeker);m.SetRole(1,Team.Seeker,true);m.StartRound();
+                foreach(var fish in m.Fish)Check(AquariumMonolithLayout.Distance(fish.position)>.349f,"fish spawn inside stone");
+                foreach(var player in m.Players)Check(AquariumMonolithLayout.Distance(player.position)>.399f,"player spawn inside stone");
+            });
+            Test("curved perimeter matches art and keeps swimmers inside at every heading", () => {
+                for (int i = 0; i < 720; i++) {
+                    float angle = i * (float)Math.PI / 360;
+                    var outside = new Point((float)Math.Cos(angle) * 90, 5, (float)Math.Sin(angle) * 90);
+                    var constrained = AquariumModel.Constrain(outside, 0.4f);
+                    Check(AquariumModel.InsideTank(constrained, 0.399f), "perimeter " + i);
+                    Check(!AquariumModel.InsideTank(outside), "reject outside point " + i);
+                    var again = AquariumModel.Constrain(constrained, 0.4f);
+                    Check((again - constrained).Length < 0.001f, "stable boundary " + i);
+                }
+                for (int i = 0; i < AquariumModel.Rocks.Length; i++) {
+                    var p = AquariumModel.Rocks[i];
+                    var start = p + new Point(-AquariumModel.RockRadii[i] - 1, 0, 0);
+                    var end = p + new Point(AquariumModel.RockRadii[i] + 1, 0, 0);
+                    Check(AquariumModel.ObstacleHit(start, end) <= 1, "reef collision " + i);
+                }
+            });
+            Test("reference outline preserves the inlet and triangulates without overlap", () => {
+                Check(!AquariumMapOutline.Contains(Layout(6.96f, 4.255f)), "top-right inlet stays outside water");
+                Check(AquariumMapOutline.Contains(Layout(8.52f, 4.255f)), "right lagoon remains connected");
+                Check(!AquariumMapOutline.Contains(Layout(-1.2f, -6.785f)), "entrance valley stays outside water");
+                Check(AquariumMapOutline.Contains(Layout(-4.08f, -6.095f)), "left lagoon lobe remains open");
+                var contour = AquariumMapOutline.Sample(false, 248);
+                var indices = AquariumMapOutline.Triangulate(contour);
+                Check(indices.Length == (contour.Length - 2) * 3, "complete triangulation");
+                double polygonArea = 0, triangleArea = 0;
+                for (int i = 0; i < contour.Length; i++) {
+                    var a = contour[i]; var b = contour[(i + 1) % contour.Length];
+                    polygonArea += a.x * b.z - b.x * a.z;
+                    Check(AquariumMapOutline.Contains(AquariumMapOutline.Clamp(a, 0.4f), 0.399f), "inset near control " + i);
+                }
+                for (int i = 0; i < indices.Length; i += 3) {
+                    var a = contour[indices[i]]; var b = contour[indices[i + 1]]; var c = contour[indices[i + 2]];
+                    triangleArea += Math.Abs((b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x));
+                }
+                Check(Math.Abs(Math.Abs(polygonArea) - triangleArea) < 0.01, "triangle area exactly covers polygon");
+                for (int x = -15; x <= 15; x++) for (int z = -10; z <= 10; z++)
+                    Check(AquariumModel.InsideTank(AquariumModel.Constrain(Layout(x,z,.6f), 0.4f), 0.399f), "floor boundary " + x + "," + z);
+            });
+            Test("full-depth walkway glass excludes swimmers and catches swept projectiles", () => {
+                for (int path=0;path<AquariumWalkwayLayout.Paths.Length;path++)
+                {
+                    var points=AquariumWalkwayLayout.Paths[path];
+                    for(int i=4;i<points.Length-4;i+=5)
+                    {
+                        var p=points[i];p.y=4;
+                        var resolved=AquariumModel.Constrain(p,.4f);
+                        Check(!AquariumWalkwayLayout.Contains(resolved,.399f),"outside dry walkway "+path+":"+i);
+                        Check(AquariumModel.InsideTank(resolved,.399f),"walkway joint remains in water "+path+":"+i);
+                    }
+                }
+                var a=Layout(-8.8f,4.3f,5);var b=Layout(-6.4f,4.3f,5);
+                Check(AquariumModel.ObstacleHit(a,b)>1,"transparent wall leaves camera boom unobstructed");
+                Check(AquariumModel.SolidHit(a,b)<1,"glass blocks a fast projectile above rocks");
+                Check(AquariumWalkwayLayout.Hit(new Point(0,2,0),new Point(3,2,0))>1,"open water remains clear");
+                for(int x=-15;x<=15;x++)for(int z=-10;z<=10;z++)
+                {
+                    var p=AquariumModel.Constrain(Layout(x,z,.6f),.4f);
+                    Check(!AquariumWalkwayLayout.Contains(p,.399f),"floor grid clear of glass "+x+","+z);
+                }
+            });
+            Test("rounded deck junctions share swim and swept projectile collision", () => {
+                int filletSamples=0;
+                foreach(var centre in new[]{Layout(-5.4f,2,4),Layout(-.8f,-5.4f,4)})
+                for(int x=-12;x<=12;x++)for(int z=-12;z<=12;z++)
+                {
+                    var p=centre+new Point(x*.25f,z*.25f);float raw=100;
+                    for(int path=0;path<AquariumWalkwayLayout.Paths.Length;path++)
+                    {Point q,t;raw=Math.Min(raw,AquariumWalkwayLayout.DistanceToPath(p,path,out q,out t)-AquariumWalkwayLayout.HalfWidths[path]);}
+                    if(raw<.01f||AquariumWalkwayLayout.SignedDistance(p)>-.015f)continue;
+                    var resolved=AquariumWalkwayLayout.Constrain(p,.3f);
+                    Check(AquariumWalkwayLayout.SignedDistance(resolved)>=.299f,"filleted corner excludes swimmer");
+                    var start=resolved+(resolved-p).Normalized;
+                    Check(AquariumWalkwayLayout.Hit(start,p)<1,"projectile hits rounded fillet before endpoint");
+                    filletSamples++;
+                }
+                Check(filletSamples>=2,"both joins contain rounded transition geometry");
+            });
+            Test("spacious layout keeps reef dimensions and spreads valid spawns", () => {
+                var outline=AquariumMapOutline.Sample(true,496);float minX=100,maxX=-100,minZ=100,maxZ=-100;
+                foreach(var p in outline){minX=Math.Min(minX,p.x);maxX=Math.Max(maxX,p.x);minZ=Math.Min(minZ,p.z);maxZ=Math.Max(maxZ,p.z);}
+                Check(maxX-minX>77 && maxX-minX<79 && maxZ-minZ>52 && maxZ-minZ<54,"human-scale 78 by 53 metre footprint");
+                Check(AquariumWalkwayLayout.HalfWidths[0]*2>2.7f,"central promenade has room for people to pass");
+                Check(AquariumModel.WaterHeight==12 && AquariumModel.RockHalfHeight==1.4f,"deeper water and original small reef height");
+                float[] original={1.15f,1.35f,.8f,1.05f,.85f,1,1.05f,.85f,.9f,.85f,.75f};
+                for(int i=0;i<original.Length;i++)Check(AquariumModel.RockRadii[i]==original[i],"individual reef size unchanged "+i);
+                var m=new AquariumModel();m.AddPlayer(1,"Hider",Team.Hider);m.AddPlayer(2,"Diver",Team.Seeker);m.SetRole(2,Team.Seeker,true);Check(m.StartRound(),"start enlarged map");
+                foreach(var p in m.Players){float radius=p.team==Team.Seeker?.5f:.4f;Check(AquariumModel.InsideTank(p.position,radius-.001f)&&!AquariumWalkwayLayout.Contains(p.position,radius-.001f),"valid player spawn "+p.id);}
+                bool left=false,right=false;
+                foreach(var fish in m.Fish){Check(AquariumModel.InsideTank(fish.position,.349f)&&!AquariumWalkwayLayout.Contains(fish.position,.349f),"valid fish spawn");left|=fish.position.x<-16;right|=fish.position.x>16;}
+                Check(left&&right,"fish populate the enlarged map instead of clustering in old bounds");
+            });
             Test("lobby readiness and both roles", () => {
                 var m = new AquariumModel(); m.AddPlayer(1, "One", Team.Hider); Check(!m.StartRound(), "solo must fail");
                 m.AddPlayer(2, "Two", Team.Hider); m.SetRole(2, Team.Hider, true); Check(!m.StartRound(), "no seeker");
@@ -57,7 +204,7 @@ public static class ModelTests
             Test("seeker warmup and speed advantage", () => {
                 var m = Match(); var s = m.Player(2); s.position = At(0, 6);
                 m.SetInput(2, new SwimInput { x = 1 }); m.Tick(0.1f); Check(s.position.x == 0, "head start freeze"); Advance(m, 5);
-                m.Player(1).position = At(0, -7); m.SetInput(1, new SwimInput { x = 1 }); m.SetInput(2, new SwimInput { x = 1 }); m.Tick(0.1f);
+                m.Player(1).position = At(0, 0); m.SetInput(1, new SwimInput { x = 1 }); m.SetInput(2, new SwimInput { x = 1 }); m.Tick(0.1f);
                 Check(Math.Abs(m.Player(1).position.x - 0.4f) < 0.001f && Math.Abs(s.position.x - 0.47f) < 0.001f, "speeds");
             });
             Test("harpoon kills hider and seekers win", () => {
@@ -71,7 +218,7 @@ public static class ModelTests
                 Check(m.Snapshot().target == 31 && m.Snapshot().remaining == 31 && m.Snapshot().killed == 1 && m.Snapshot().eaten == 0, "death reduces goal without counting as eaten");
             });
             Test("rock cover blocks harpoons", () => {
-                var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(-10, -2); m.Player(1).position = At(-3, -2);
+                var m = Match(); Advance(m, 5.1f); m.Player(2).position = CoverSide(-3); m.Player(1).position = CoverSide(3);
                 Act(m, 2); Advance(m, 0.8f); Check(m.Player(1).alive && m.Harpoons.Count == 0, "cover");
             });
             Test("carrier death releases swallowed player", () => {
@@ -99,7 +246,7 @@ public static class ModelTests
                 for (int i = 0; i < 100; i++) { m.SetInput(1, new SwimInput { y = 1 }); m.Tick(0.1f); }
                 Check(Math.Abs(m.Player(1).position.y - (AquariumModel.WaterHeight - 0.4f)) < 0.001f, "water surface");
                 for (int i = 0; i < 100; i++) { m.SetInput(1, new SwimInput { y = -1 }); m.Tick(0.1f); }
-                Check(Math.Abs(m.Player(1).position.y - (AquariumModel.Floor + 0.4f)) < 0.001f, "floor");
+                Check(Math.Abs(m.Player(1).position.y - (AquariumSeabed.Height(m.Player(1).position) + 0.4f)) < 0.001f, "floor");
                 var before = m.Player(1).position; Advance(m, 0.5f);
                 m.SetInput(1, new SwimInput { y = float.NaN, aimY = float.PositiveInfinity }); m.Tick(0.1f);
                 Check(!float.IsNaN(m.Player(1).position.y), "invalid vertical input");
@@ -117,11 +264,12 @@ public static class ModelTests
                 Check(!m.Player(1).alive, "elevated shot");
             });
             Test("rock volume permits swimming and shooting over it", () => {
-                var at = new Point(-6, 4, -2); Check((AquariumModel.Constrain(at, 0.4f) - at).Length < 0.001f, "above rock movement");
-                Check(AquariumModel.ObstacleHit(new Point(-10, 4, -2), new Point(-3, 4, -2)) > 1, "above rock shot");
-                Check(AquariumModel.ObstacleHit(new Point(-10, 1, -2), new Point(-3, 1, -2)) < 1, "rock blocks low shot");
-                var grounded = AquariumModel.Constrain(new Point(-6, 0.2f, -2), 0.4f);
-                Check(grounded.y >= AquariumModel.Floor + 0.4f && (grounded - new Point(-6, grounded.y, -2)).Length > 1, "cannot become trapped under rock");
+                var centre=AquariumModel.Rocks[0];
+                var at = new Point(centre.x, 4, centre.z); Check((AquariumModel.Constrain(at, 0.4f) - at).Length < 0.001f, "above rock movement");
+                Check(AquariumModel.ObstacleHit(at-new Point(3,0),at+new Point(3,0)) > 1, "above rock shot");
+                Check(AquariumModel.ObstacleHit(centre-new Point(3,0),centre+new Point(3,0)) < 1, "rock blocks low shot");
+                var grounded = AquariumModel.Constrain(new Point(centre.x, 0.2f, centre.z), 0.4f);
+                Check(grounded.y >= AquariumModel.Floor + 0.4f && (grounded - new Point(centre.x, grounded.y, centre.z)).Length > 1, "cannot become trapped under rock");
             });
             Test("harpoon enforces three-second host cooldown", () => {
                 var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(0, 6);
@@ -131,10 +279,10 @@ public static class ModelTests
                 Advance(m, 2.1f); Act(m, 2); Check(m.Player(2).nextAction > ready && m.Harpoons.Count == 1, "ready shot accepted");
             });
             Test("feed attracts only nearby live fish for five seconds and cools down for twenty", () => {
-                var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(0, 6);
-                var near = m.Fish[0]; near.position = At(4, 6);
-                var far = m.Fish[1]; far.position = At(-10, 6);
-                var dead = m.Fish[2]; dead.position = At(4, 6); dead.dead = true;
+                var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(0, 0);
+                var near = m.Fish[0]; near.position = At(4, 0);
+                var far = m.Fish[1]; far.position = At(-10, 0); // Clear water inside the curved gallery perimeter.
+                var dead = m.Fish[2]; dead.position = At(4, 0); dead.dead = true;
                 m.SetInput(2, new SwimInput { aimX = 1, feed = true }); m.Tick(1f / 30);
                 var food = m.Effects.Find(e => e.kind == "feed"); Check(food != null && food.duration == 5, "feed spawned");
                 float ready = m.Player(2).nextFeed, before = (near.position - food.position).Length;
@@ -232,7 +380,7 @@ public static class ModelTests
                 Check(m.Effects.FindAll(e => e.kind == "morph").Count == 1 && (m.Effects[0].position - p.position).Length < 0.001f, "caster-only effect matches NPC morph");
                 Advance(m, 0.7f); p.species = -1; ally.position = At(-1, 0); Act(m, 1, true); Check(p.species == -1, "cannot copy behind aim");
                 Advance(m, 0.7f); ally.position = At(1, 0); ally.species = -1; Act(m, 1, true); Check(p.species == -1, "unmorphed alien not a fish target");
-                Advance(m, 0.7f); p.position = At(-7.6f, -2, 1); m.Fish[0].position = At(-5, -2, 1); Act(m, 1, true); Check(p.species == -1, "rock blocks morph");
+                Advance(m, 0.7f); var cover=AquariumModel.Rocks[2];p.position=new Point(cover.x-1.3f,1,cover.z);m.Fish[0].position=new Point(cover.x+1.3f,1,cover.z);Act(m,1,true);Check(p.species==-1,"rock blocks morph");
             });
             Test("sprint drains only while moving and restores when released for both roles", () => {
                 var m = Match(); Advance(m, 5.1f); var p = m.Player(1); var diver = m.Player(2); diver.position = At(0, 6);
@@ -243,7 +391,7 @@ public static class ModelTests
                 p.stamina = 0; var before = p.position; m.SetInput(1, new SwimInput { x = 1, sprint = true }); m.Tick(0.1f);
                 Check(Math.Abs((p.position - before).Length - 0.4f) < 0.001f && p.stamina == 0, "empty stamina gives no pulse boost");
                 m.SetInput(1, new SwimInput()); m.Tick(0.1f); Check(Math.Abs(p.stamina - 1.8f) < 0.001f, "18 stamina per second recovery");
-                p.position = At(AquariumModel.HalfWidth - 0.4f, 0); p.stamina = 40;
+                p.position = AquariumModel.Constrain(At(90, 0), 0.4f); p.stamina = 40;
                 m.SetInput(1, new SwimInput { x = 1, sprint = true }); m.Tick(0.1f); Check(p.stamina >= 40, "blocked movement does not consume stamina");
             });
             Test("scan has role countdown and host cooldown without exposing identity", () => {
@@ -260,7 +408,7 @@ public static class ModelTests
                 Advance(m, 2.1f); Check(p.score == 5 && p.exposureScore == 5, "visible disguised fish scores");
                 diver.facing = new Point(-1, 0); Advance(m, 2.1f); Check(p.score == 5, "behind diver does not score");
                 diver.facing = new Point(1, 0); p.position = At(13, 0, 4); Advance(m, 2.1f); Check(p.score == 5, "distant target does not score");
-                diver.position = At(-10, -2, 1); p.position = At(-3, -2, 1); Advance(m, 2.1f); Check(p.score == 5, "rock blocks exposure");
+                diver.position = CoverSide(-3); p.position = CoverSide(3); Advance(m, 2.1f); Check(p.score == 5, "rock blocks exposure");
                 diver.position = At(0, 0, 4); p.position = At(2, 0, 4); Advance(m, 24); Check(p.score == 50 && p.exposureScore == 50, "fifty point life cap");
             });
             Test("eggs require three personal meals dead teammate and once-only use", () => {
@@ -298,7 +446,7 @@ public static class ModelTests
                 Check(m.Eggs.Count == 0 && m.WinReason == WinReason.AllAliensCaught && !m.Player(3).alive && m.Effects.Exists(e => e.kind == "eggBreak"), "egg destroyed in one hit");
             });
             Test("NPCs flee a nearby diver but bait takes precedence", () => {
-                var m = Match(); Advance(m, 5.1f); var diver = m.Player(2); diver.position = At(0, 6); var fish = m.Fish[0]; fish.position = At(3, 6); fish.facing = new Point();
+                var m = Match(); Advance(m, 5.1f); var diver = m.Player(2); diver.position = At(0, 0); var fish = m.Fish[0]; fish.position = At(3, 0); fish.facing = new Point();
                 m.Tick(0.1f); Check(fish.position.x > 3, "flee diver");
                 m.SetInput(2, new SwimInput { aimX = 1, feed = true }); m.Tick(0.1f); float before = fish.position.x; m.Tick(0.1f);
                 Check(fish.position.x < before, "bait overrides flight");
@@ -311,7 +459,7 @@ public static class ModelTests
                 var m = Match(true); Advance(m, 5.1f); var diver = m.Player(2); diver.bot = true;
                 diver.position = At(0, 0, 4); diver.facing = new Point(-1, 0); m.Player(1).position = At(3, 0, 4); m.Player(3).position = At(12, 7, 4);
                 m.Tick(0.1f); Check(diver.nextAction == 0, "does not target alien behind view");
-                diver.position = At(-10, -2, 1); diver.facing = new Point(1, 0); m.Player(1).position = At(-3, -2, 1);
+                diver.position = CoverSide(-3); diver.facing = new Point(1, 0); m.Player(1).position = CoverSide(3);
                 m.Tick(0.1f); Check(diver.nextAction == 0, "does not track alien through rock");
                 diver.position = At(0, 0, 4); diver.facing = new Point(1, 0); m.Player(1).position = At(-12, 7, 4); m.Player(3).alive = false;
                 m.Eggs.Add(new RevivalEgg { id = 99, owner = 1, revivePlayer = 3, position = At(1.3f, 0, 4), hatchAt = m.Time + 12 });
@@ -322,3 +470,4 @@ public static class ModelTests
         catch (Exception ex) { Console.Error.WriteLine("FAIL " + ex.Message); return 1; }
     }
 }
+

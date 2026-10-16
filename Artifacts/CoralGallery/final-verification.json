@@ -1,0 +1,41 @@
+{
+  "version": "1.8",
+  "verified_at": "2026-10-16T18:41:38.044598+09:00",
+  "environment_files_matching": 454,
+  "baseline_files": 743,
+  "gameplay_tests": 51,
+  "camera_checks": 20,
+  "closed_rock_volumes": 7,
+  "sand_boundary_loops": 1,
+  "coral_forms": 6,
+  "seaweed_forms": 5,
+  "anemone_forms": 2,
+  "anemone_motion_changed_pixels": 12314,
+  "render_stats": {
+    "Render meshes": 85,
+    "Triangles": 8209202,
+    "Kelp fronds": 286,
+    "Coral colonies": 607,
+    "Anemone colonies": 32,
+    "Bubbles": 140
+  },
+  "startup_diagnostics": [
+    "d3d12: upload buffer was too small for the requested resource! Size: 16777216. Requested: 18043992.",
+    "d3d12: upload buffer was too small for the requested resource! Size: 18874368. Requested: 27454824.",
+    "d3d12: upload buffer was too small for the requested resource! Size: 28311552. Requested: 40053024."
+  ],
+  "player_modes": {
+    "practice": {
+      "seconds": 23.466651916503906,
+      "phase": "Playing",
+      "connected": true,
+      "errors": []
+    },
+    "seeker": {
+      "seconds": 23.466651916503906,
+      "phase": "Playing",
+      "connected": true,
+      "errors": []
+    }
+  }
+}
