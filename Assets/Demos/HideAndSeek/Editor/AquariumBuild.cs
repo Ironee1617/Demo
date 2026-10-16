@@ -13,9 +13,9 @@ namespace PrototypeLab.Aquarium.Editor
         {
             AquariumCameraChecks.Run();
             string path = Environment.GetEnvironmentVariable("AQUARIUM_BUILD_PATH");
-            if (string.IsNullOrEmpty(path)) path = Path.GetFullPath(Path.Combine(Application.dataPath, "../../AquariumDemo/AquariumDemo.exe"));
+            if (string.IsNullOrEmpty(path)) path = Path.GetFullPath(Path.Combine(Application.dataPath, "../Build/Aquarium-v0.1/AquariumDemo.exe"));
             Directory.CreateDirectory(Path.GetDirectoryName(path));
-            PlayerSettings.companyName = "PrototypeLab"; PlayerSettings.productName = "Mimic Aquarium";
+            PlayerSettings.companyName = "PrototypeLab"; PlayerSettings.productName = "Aquarium Hide and Seek";
             PlayerSettings.defaultScreenWidth = 1440; PlayerSettings.defaultScreenHeight = 900;
             PlayerSettings.fullScreenMode = FullScreenMode.Windowed; PlayerSettings.resizableWindow = true;
             PlayerSettings.runInBackground = true;

@@ -16,7 +16,8 @@ namespace PrototypeLab.Aquarium
     // Only the host simulates movement, hits, eating, role changes and victory.
     public sealed class AquariumSession : IDisposable
     {
-        [Serializable] private class Hello { public int protocol = 2; public string name; public Team team; }
+        private const int Protocol = 4;
+        [Serializable] private class Hello { public int protocol = Protocol; public string name; public Team team; }
         [Serializable] private class Message
         {
             public string kind;
@@ -26,7 +27,7 @@ namespace PrototypeLab.Aquarium
             public SwimInput input;
             public AquariumSnapshot state;
         }
-        private const string Channel = "aquarium.v2";
+        private const string Channel = "aquarium.v4";
         private const int PacketLimit = 60000;
         public AquariumModel Model { get; private set; }
         public AquariumSnapshot State { get; private set; }
@@ -50,8 +51,13 @@ namespace PrototypeLab.Aquarium
         {
             Leave(); Practice = true; LocalId = 1;
             Model = new AquariumModel(); Model.AddPlayer(1, name, team);
-            Model.AddPlayer(2, team == Team.Hider ? "연습 술래" : "연습 물고기", team == Team.Hider ? Team.Seeker : Team.Hider, true);
-            Model.AddPlayer(3, "연습 물고기 2", Team.Hider, true);
+            int nextId = 2;
+            if (team == Team.Hider) Model.AddPlayer(nextId++, "연습 잠수부", Team.Seeker, true);
+            while (nextId <= AquariumModel.MaxPlayers)
+            {
+                Model.AddPlayer(nextId, "연습 외계인 " + (nextId - 1), Team.Hider, true);
+                nextId++;
+            }
             Model.StartRound(); State = Model.Snapshot(); Status = "";
         }
 
@@ -122,7 +128,7 @@ namespace PrototypeLab.Aquarium
             network.NetworkConfig = new NetworkConfig
             {
                 NetworkTransport = transport, EnableSceneManagement = false, ConnectionApproval = true,
-                TickRate = 30, ClientConnectionBufferTimeout = 20, ProtocolVersion = 2,
+                TickRate = 30, ClientConnectionBufferTimeout = 20, ProtocolVersion = Protocol,
                 ConnectionData = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new Hello { name = AquariumModel.CleanName(name), team = team }))
             };
             network.ConnectionApprovalCallback += Approve;
@@ -153,11 +159,21 @@ namespace PrototypeLab.Aquarium
             string reason = "";
             Hello hello = null;
             try { if (request.Payload.Length <= 512) hello = JsonUtility.FromJson<Hello>(Encoding.UTF8.GetString(request.Payload)); } catch { }
-            if (hello == null || hello.protocol != 2) reason = "같은 버전의 데모로 접속해 주세요.";
+            if (hello == null || hello.protocol != Protocol) reason = "기획서 v0.1이 적용된 같은 버전의 데모로 접속해 주세요.";
             else if (Model == null || Model.Phase != RoundPhase.Lobby) reason = "진행 중인 방입니다. 다음 라운드 대기실에서 접속해 주세요.";
-            else if (Model.Players.Count + approved.Count >= AquariumModel.MaxPlayers) reason = "방이 가득 찼습니다. 최대 8명입니다.";
+            else if (Model.Players.Count + approved.Count >= AquariumModel.MaxPlayers) reason = "방이 가득 찼습니다. 외계인 4명과 잠수부 1명, 최대 5명입니다.";
+            else if (hello.team != Team.Hider && hello.team != Team.Seeker) reason = "외계인 또는 잠수부 역할을 선택해 주세요.";
+            else if (RoleCount(hello.team) >= (hello.team == Team.Seeker ? 1 : 4))
+                reason = hello.team == Team.Seeker ? "잠수부는 1명만 참가할 수 있습니다. 외계인을 선택해 다시 접속해 주세요." : "외계인 4자리가 모두 찼습니다. 잠수부를 선택해 다시 접속해 주세요.";
             response.Approved = reason.Length == 0; response.Reason = reason;
             if (response.Approved) approved[request.ClientNetworkId] = hello;
+        }
+
+        private int RoleCount(Team team)
+        {
+            int count = Model.Players.FindAll(p => p.team == team).Count;
+            foreach (var hello in approved.Values) if (hello.team == team) count++;
+            return count;
         }
 
         private void OnConnected(ulong client)
