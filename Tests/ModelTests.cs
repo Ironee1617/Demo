@@ -9,7 +9,7 @@ public static class ModelTests
     private static Point CoverSide(float offset) { var p=AquariumModel.Rocks[1];return new Point(p.x+offset,1,p.z); }
     private static void Check(bool value, string message) { if (!value) throw new Exception(message); }
     private static void Test(string name, Action test) { test(); passed++; Console.WriteLine("PASS " + name); }
-    private static AquariumModel Match(bool friend = false)
+    private static AquariumModel Match(bool friend = false, bool warmup = false)
     {
         var m = new AquariumModel(); m.AddPlayer(1, "Hider", Team.Hider); m.AddPlayer(2, "Seeker", Team.Seeker); m.SetRole(2, Team.Seeker, true);
         if (friend) { m.AddPlayer(3, "Friend", Team.Hider); m.SetRole(3, Team.Hider, true); }
@@ -19,6 +19,7 @@ public static class ModelTests
         foreach (var fish in m.Fish) { fish.position = At(-12, 2.5f); fish.facing = new Point(); fish.turnAt = float.MaxValue; }
         m.Player(1).position = At(0, 0); m.Player(1).facing = new Point(1, 0);
         m.Player(2).position = At(12, 7);
+        if (!warmup) Advance(m, 5.1f);
         return m;
     }
     private static void Advance(AquariumModel m, float seconds)
@@ -202,10 +203,11 @@ public static class ModelTests
                 Check(m.Player(3).swallowedBy == 0 && m.Player(3).alive && m.Phase == RoundPhase.Playing, "disconnect release");
             });
             Test("seeker warmup and speed advantage", () => {
-                var m = Match(); var s = m.Player(2); s.position = At(0, 6);
+                var m = Match(warmup: true); var s = m.Player(2); s.position = At(0, 6);
                 m.SetInput(2, new SwimInput { x = 1 }); m.Tick(0.1f); Check(s.position.x == 0, "head start freeze"); Advance(m, 5);
                 m.Player(1).position = At(0, 0); m.SetInput(1, new SwimInput { x = 1 }); m.SetInput(2, new SwimInput { x = 1 }); m.Tick(0.1f);
-                Check(Math.Abs(m.Player(1).position.x - 0.4f) < 0.001f && Math.Abs(s.position.x - 0.47f) < 0.001f, "speeds");
+                Check(m.Player(1).position.x > 0 && m.Player(1).position.x < 0.4f && s.position.x < 0.47f, "smooth start");
+                m.Tick(0.1f); Check(Math.Abs(m.Player(1).velocity.x - 4) < 0.001f && Math.Abs(s.velocity.x - 4.7f) < 0.001f, "base speeds reached");
             });
             Test("harpoon kills hider and seekers win", () => {
                 var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(0, 0); m.Player(1).position = At(2, 0);
@@ -233,7 +235,7 @@ public static class ModelTests
                 m.SetRole(2, Team.Seeker, true); Check(m.StartRound() && m.Round == 2 && m.Winner == -1, "rematch");
             });
             Test("input expiry, diagonal clamp and malformed input", () => {
-                var m = Match(); m.SetInput(1, new SwimInput { x = 1, z = 1 }); m.Tick(0.1f); Check(Math.Abs((m.Player(1).position - At(0, 0)).Length - 0.4f) < 0.001f, "diagonal clamp");
+                var m = Match(); m.SetInput(1, new SwimInput { x = 1, z = 1 }); m.Tick(0.1f); Check(Math.Abs((m.Player(1).position - At(0, 0)).Length - 0.32f) < 0.001f, "diagonal acceleration clamp");
                 Advance(m, 0.5f); var before = m.Player(1).position; Advance(m, 0.5f); Check((before - m.Player(1).position).Length < 0.001f, "stale input stopped");
                 m.SetInput(1, new SwimInput { x = float.NaN }); m.SetInput(1, new SwimInput { x = float.MaxValue, aimX = float.PositiveInfinity });
                 m.Tick(float.NaN); m.Tick(0.1f); Check(!float.IsNaN(m.Time) && (before - m.Player(1).position).Length < 0.001f, "invalid input");
@@ -242,7 +244,7 @@ public static class ModelTests
             Test("3D movement normalizes all axes and bounds swimming height", () => {
                 var m = Match(); var origin = m.Player(1).position;
                 m.SetInput(1, new SwimInput { x = 1, y = 1, z = 1 }); m.Tick(0.1f);
-                Check(Math.Abs((m.Player(1).position - origin).Length - 0.4f) < 0.001f, "3D diagonal speed");
+                Check(Math.Abs((m.Player(1).position - origin).Length - 0.32f) < 0.001f, "3D diagonal acceleration speed");
                 for (int i = 0; i < 100; i++) { m.SetInput(1, new SwimInput { y = 1 }); m.Tick(0.1f); }
                 Check(Math.Abs(m.Player(1).position.y - (AquariumModel.WaterHeight - 0.4f)) < 0.001f, "water surface");
                 for (int i = 0; i < 100; i++) { m.SetInput(1, new SwimInput { y = -1 }); m.Tick(0.1f); }
@@ -296,7 +298,7 @@ public static class ModelTests
                 Check(m.Player(2).nextFeed > ready, "feed becomes ready again");
             });
             Test("feed is restricted to divers after hiding countdown", () => {
-                var m = Match(); m.SetInput(1, new SwimInput { feed = true }); m.SetInput(2, new SwimInput { feed = true }); m.Tick(0.1f);
+                var m = Match(warmup: true); m.SetInput(1, new SwimInput { feed = true }); m.SetInput(2, new SwimInput { feed = true }); m.Tick(0.1f);
                 Check(m.Effects.Count == 0 && m.Player(2).nextFeed == 0, "warmup and role restrictions");
                 Advance(m, 5.1f); Check(!m.Effects.Exists(e => e.kind == "feed"), "warmup click is not queued");
             });
@@ -353,7 +355,7 @@ public static class ModelTests
                 Check(!invalid.StartRound() && invalid.StartProblem().Length > 0, "reject two divers");
             });
             Test("hunger begins after countdown and starvation is fatal", () => {
-                var m = Match(); var p = m.Player(1);
+                var m = Match(warmup: true); var p = m.Player(1);
                 Check(p.lastMealAt == m.HuntAt, "countdown does not spend hunger");
                 Advance(m, 64.8f); Check(p.alive, "survive before 60 hungry seconds");
                 Advance(m, 0.4f); Check(!p.alive && p.deathReason == "starved" && m.WinReason == WinReason.AllAliensCaught, "starvation and wipe");
@@ -370,7 +372,7 @@ public static class ModelTests
                 Act(m, 1); float biteAt = m.Time;
                 Check(p.species == -1 && ally.species == -1 && Math.Abs(p.morphLockedUntil - biteAt - 6) < 0.001f && ally.morphLockedUntil == p.morphLockedUntil, "both unmorph for six seconds");
                 Advance(m, 3.1f); var before = p.position; m.SetInput(1, new SwimInput { z = 1, sprint = true }); m.Tick(0.1f);
-                Check((p.position - before).Length > 0.6f && p.stamina < 100 && ally.swallowedBy == 0, "sprint resumes after three seconds");
+                Check((p.position - before).Length > 0.3f && p.stamina < 100 && ally.swallowedBy == 0, "sprint acceleration resumes after three seconds");
                 p.position = At(0, 0); m.Fish[0].position = At(1, 0); Act(m, 1, true); Check(p.species == -1, "morph still blocked");
                 Advance(m, 3); m.Fish[0].position = At(1, 0); Act(m, 1, true); Check(p.species == 0, "morph resumes after six seconds");
             });
@@ -385,17 +387,17 @@ public static class ModelTests
             Test("sprint drains only while moving and restores when released for both roles", () => {
                 var m = Match(); Advance(m, 5.1f); var p = m.Player(1); var diver = m.Player(2); diver.position = At(0, 6);
                 m.SetInput(1, new SwimInput { x = 1, sprint = true }); m.SetInput(2, new SwimInput { x = 1, sprint = true }); m.Tick(0.1f);
-                Check(Math.Abs(p.position.x - 0.64f) < 0.001f && Math.Abs(diver.position.x - 0.752f) < 0.001f, "boost speed for both roles");
+                Check(Math.Abs(p.position.x - 0.32f) < 0.001f && Math.Abs(diver.position.x - 0.32f) < 0.001f, "smooth sprint starts for both roles");
                 Check(Math.Abs(p.stamina - 97.5f) < 0.001f && p.stamina == diver.stamina, "25 stamina per second");
                 m.SetInput(1, new SwimInput { sprint = true }); m.Tick(0.1f); Check(Math.Abs(p.stamina - 99.3f) < 0.001f, "stationary sprint does not drain");
                 p.stamina = 0; var before = p.position; m.SetInput(1, new SwimInput { x = 1, sprint = true }); m.Tick(0.1f);
-                Check(Math.Abs((p.position - before).Length - 0.4f) < 0.001f && p.stamina == 0, "empty stamina gives no pulse boost");
+                Check((p.position - before).Length <= 0.4f && p.stamina == 0, "empty stamina gives no pulse boost");
                 m.SetInput(1, new SwimInput()); m.Tick(0.1f); Check(Math.Abs(p.stamina - 1.8f) < 0.001f, "18 stamina per second recovery");
-                p.position = AquariumModel.Constrain(At(90, 0), 0.4f); p.stamina = 40;
-                m.SetInput(1, new SwimInput { x = 1, sprint = true }); m.Tick(0.1f); Check(p.stamina >= 40, "blocked movement does not consume stamina");
+                p.position = At(0, 0, AquariumModel.WaterHeight - 0.4f); p.velocity = new Point(); p.stamina = 40;
+                m.SetInput(1, new SwimInput { y = 1, sprint = true }); m.Tick(0.1f); Check(p.stamina >= 40, "blocked movement at the water surface does not consume stamina");
             });
             Test("scan has role countdown and host cooldown without exposing identity", () => {
-                var m = Match(); m.Player(1).species = 2; m.SetInput(1, new SwimInput { scan = true }); m.SetInput(2, new SwimInput { scan = true }); m.Tick(0.1f);
+                var m = Match(warmup: true); m.Player(1).species = 2; m.SetInput(1, new SwimInput { scan = true }); m.SetInput(2, new SwimInput { scan = true }); m.Tick(0.1f);
                 Check(m.Player(1).scanUntil == 0 && m.Player(2).scanUntil == 0, "role and countdown restrictions");
                 Advance(m, 5.1f); m.SetInput(2, new SwimInput { scan = true }); m.Tick(0.1f); var diver = m.Player(2);
                 float ready = diver.nextScan; Check(Math.Abs(diver.scanUntil - m.Time - 5) < 0.001f && Math.Abs(ready - m.Time - 18) < 0.001f, "scan timers");
@@ -464,6 +466,113 @@ public static class ModelTests
                 diver.position = At(0, 0, 4); diver.facing = new Point(1, 0); m.Player(1).position = At(-12, 7, 4); m.Player(3).alive = false;
                 m.Eggs.Add(new RevivalEgg { id = 99, owner = 1, revivePlayer = 3, position = At(1.3f, 0, 4), hatchAt = m.Time + 12 });
                 m.Tick(0.1f); Check(m.Eggs.Count == 0 && diver.nextAction > m.Time && m.Effects.Exists(e => e.kind == "eggBreak"), "visible egg counterplay");
+            });
+            Test("countdown blocks human and bot meals including allies but permits movement and disguise", () => {
+                var m = Match(true, true); var p = m.Player(1); m.Fish[0].position = At(1, 0); m.Fish[0].species = 2; m.Player(3).position = At(1.2f, 0);
+                m.SetInput(1, new SwimInput { x = 0.5f, aimX = 1, morph = true, action = true }); m.Tick(0.1f);
+                Check(p.position.x > 0 && p.species == 2, "warmup movement and morph remain available");
+                Check(!m.Fish[0].eaten && m.Player(3).swallowedBy == 0 && p.personalEaten == 0 && p.nextAction == 0, "normal meal blocked without consuming action cooldown");
+                m.Fish[0].position = At(4, 0); m.SetInput(1, new SwimInput { aimX = 1, action = true }); m.Tick(0.1f);
+                Check(m.Player(3).swallowedBy == 0 && p.stunnedUntil == 0, "ally bite blocked");
+                Advance(m, 5.1f); Check(p.personalEaten == 0 && m.Player(3).swallowedBy == 0, "countdown clicks are not queued");
+                var botMatch = Match(true, true); var bot = botMatch.Player(1); bot.bot = true; botMatch.Fish[0].position = At(1.2f, 0); botMatch.Player(3).position = At(1, 0);
+                botMatch.Tick(0.1f); Check(botMatch.Player(3).swallowedBy == 0 && !botMatch.Fish[0].eaten, "bot cannot eat ally during warmup");
+                botMatch.Player(3).position = At(8, 5); botMatch.Tick(0.1f); Check(!botMatch.Fish[0].eaten && bot.personalEaten == 0, "bot cannot eat normal fish during warmup");
+            });
+            Test("swimming accelerates gradually and stops within a short bounded distance", () => {
+                var m = Match(); var p = m.Player(1); float previous = 0;
+                for (int i = 0; i < 8; i++)
+                {
+                    m.SetInput(1, new SwimInput { x = 1 }); m.Tick(1f / 60);
+                    Check(p.velocity.x >= previous && p.velocity.x <= AquariumModel.HiderSpeed + 0.001f, "bounded acceleration"); previous = p.velocity.x;
+                    if (i == 0) Check(p.velocity.x < 1, "no instantaneous full speed");
+                }
+                Check(Math.Abs(p.velocity.x - AquariumModel.HiderSpeed) < 0.001f, "base speed reached after ramp");
+                var stopAt = p.position; m.SetInput(1, new SwimInput());
+                for (int i = 0; i < 12; i++) m.Tick(1f / 60);
+                Check(p.velocity.Length < 0.001f && (p.position - stopAt).Length < 0.3f, "bounded deceleration distance");
+                stopAt = p.position; Advance(m, 0.3f); Check((p.position - stopAt).Length < 0.0001f, "no residual drift");
+            });
+            Test("stun swallowed death and wall limits discard swimming momentum immediately", () => {
+                var m = Match(true); var p = m.Player(1); p.velocity = new Point(4, 0); p.stunnedUntil = m.Time + 1; var before = p.position;
+                m.SetInput(1, new SwimInput { x = 1, sprint = true }); m.Tick(0.1f);
+                Check(p.velocity.Length == 0 && (p.position - before).Length == 0, "stun has no drift");
+                p.stunnedUntil = 0; p.swallowedBy = 3; p.releaseAt = m.Time + 2; p.velocity = new Point(4, 0); m.Tick(0.1f);
+                Check(p.velocity.Length == 0 && (p.position - m.Player(3).position).Length == 0, "swallowed follows carrier without independent velocity");
+                p.swallowedBy = 0; p.alive = false; p.velocity = new Point(4, 0); before = p.position; m.Tick(0.1f);
+                Check(p.velocity.Length == 0 && (p.position - before).Length == 0, "dead swimmer has no drift");
+                p.alive = true; p.position = At(0, 0, AquariumModel.WaterHeight - 0.4f); p.velocity = new Point(0, 4, 0); before = p.position;
+                for (int i = 0; i < 10; i++) { m.SetInput(1, new SwimInput { y = 1 }); m.Tick(0.1f); }
+                Check(p.velocity.Length == 0 && (p.position - before).Length < 0.0001f, "water surface constraint remains stable without stored velocity");
+                var warmup = Match(warmup: true); var diver = warmup.Player(2); diver.velocity = new Point(4, 0); before = diver.position; warmup.Tick(0.1f);
+                Check(diver.velocity.Length == 0 && (diver.position - before).Length == 0, "diver warmup discards velocity");
+            });
+            Test("death records authoritative time and the visible species exactly once", () => {
+                var m = Match(true); var p = m.Player(1); var ally = m.Player(3); var diver = m.Player(2);
+                p.position = At(2, 0); p.species = 2; p.velocity = new Point(0.1f, 0); ally.position = At(10, 5); diver.position = At(0, 0);
+                Act(m, 2); Advance(m, 0.2f);
+                Check(!p.alive && p.deathSpecies == 2 && p.diedAt > m.HuntAt && p.velocity.Length == 0, "visible fish body and death clock captured");
+                float diedAt = p.diedAt; var bodyAt = p.position; p.species = 0; p.revealUntil = m.Time + 10; Advance(m, 3.1f);
+                Check(p.deathSpecies == 2 && p.diedAt == diedAt && (p.position - bodyAt).Length == 0, "corpse appearance and clock do not follow later reveal changes");
+                ally.position = At(2, 0); ally.species = 1; ally.revealUntil = m.Time + 1; Act(m, 2); Advance(m, 0.2f);
+                Check(!ally.alive && ally.deathSpecies == -1, "exposed alien dies as alien body");
+                Advance(m, 3); Check(ally.deathSpecies == -1, "expired reveal does not turn corpse into fish");
+                Check(AquariumModel.DeathReviewSeconds == 2.5f, "shared death camera duration");
+            });
+            Test("finished review preserves effects harpoons eggs and positions at finishedAt", () => {
+                var m = Match(true); var p = m.Player(1); p.velocity = new Point(4, 0);
+                m.Effects.Add(new WaterEffect { id = 900, kind = "feed", born = m.Time, duration = 0.1f, position = At(3, 2) });
+                m.Harpoons.Add(new Harpoon { id = 900, owner = 1, position = At(6, 4), direction = new Point(1, 0) });
+                m.Eggs.Add(new RevivalEgg { id = 900, owner = 1, revivePlayer = 3, position = At(2, 3), hatchAt = m.Time + 1 });
+                m.RemovePlayer(2); var endedAt = m.FinishedAt; var playerAt = p.position; var fishAt = m.Fish[0].position; var shotAt = m.Harpoons[0].position; var eggAt = m.Eggs[0].position;
+                float shotLife = m.Harpoons[0].life; Advance(m, 21);
+                Check(m.Phase == RoundPhase.Finished && m.Time > endedAt + 20 && m.FinishedAt == endedAt && m.Snapshot().finishedAt == endedAt, "review clock advances independently of scene timestamp");
+                Check(m.Effects.Count == 1 && m.Harpoons.Count == 1 && m.Eggs.Count == 1 && m.Harpoons[0].life == shotLife, "world objects and effect lifetimes are preserved");
+                Check(p.velocity.Length == 0 && (p.position - playerAt).Length == 0 && (m.Fish[0].position - fishAt).Length == 0 && (m.Harpoons[0].position - shotAt).Length == 0 && (m.Eggs[0].position - eggAt).Length == 0, "all game positions frozen");
+                m.ReturnToLobby(); Check(m.FinishedAt == 0 && m.Effects.Count == 0 && m.Harpoons.Count == 0 && m.Eggs.Count == 0, "new lobby clears frozen state");
+            });
+            Test("last death with a viable egg stays playing through death review", () => {
+                var m = Match(true); var owner = m.Player(1); var dead = m.Player(3); owner.personalEaten = 3; dead.alive = false;
+                m.SetInput(1, new SwimInput { layEgg = true }); m.Tick(0.1f); owner.position = At(2, 0); m.Player(2).position = At(0, 0);
+                Act(m, 2); Advance(m, 0.2f);
+                Check(!owner.alive && owner.diedAt > 0 && m.Eggs.Count == 1 && m.Phase == RoundPhase.Playing && m.FinishedAt == 0, "egg prevents true match finish");
+                Advance(m, 3); Check(m.Phase == RoundPhase.Playing && m.FinishedAt == 0, "death camera duration does not end match");
+                dead.diedAt = m.Time - 5; dead.deathSpecies = 1; Advance(m, 9.2f);
+                Check(dead.alive && dead.diedAt == 0 && dead.deathSpecies == -1 && dead.velocity.Length == 0, "revival clears death review data");
+            });
+            Test("morph target selection prioritizes aim alignment then distance for NPCs and allies", () => {
+                var m = Match(true); var p = m.Player(1); var ally = m.Player(3); ally.position = At(10, 5);
+                m.Fish[0].position = At(1, 0.5f); m.Fish[1].position = At(2.4f, 0);
+                var selected = AquariumModel.FindMorphTarget(m.Fish, m.Players, p, new Point(1, 0), m.Time);
+                Check(selected != null && selected.id == m.Fish[1].id && !selected.player, "centered farther fish wins over near peripheral fish");
+                m.Fish[2].position = At(1.8f, 0); selected = AquariumModel.FindMorphTarget(m.Fish, m.Players, p, new Point(1, 0), m.Time);
+                Check(selected.id == m.Fish[2].id, "distance resolves equal alignment");
+                ally.position = At(1.2f, 0); ally.species = 2; selected = AquariumModel.FindMorphTarget(m.Fish, m.Players, p, new Point(1, 0), m.Time);
+                Check(selected.player && selected.id == ally.id && selected.species == 2, "same selection rule accepts disguised ally");
+                ally.revealUntil = m.Time + 1; m.Fish[2].dead = true; m.Fish[1].eaten = true; m.Fish[0].position = At(-1, 0);
+                Check(AquariumModel.FindMorphTarget(m.Fish, m.Players, p, new Point(1, 0), m.Time) == null, "dead eaten exposed and behind targets are excluded");
+            });
+            Test("explicit morph target stays locked across input coalescing and rejects invalid target without fallback", () => {
+                var m = Match(true); var p = m.Player(1); m.Player(3).position = At(10, 5); m.Fish[0].position = At(2.4f, 0); m.Fish[0].species = 2; m.Fish[1].position = At(1.5f, 0); m.Fish[1].species = 1;
+                m.SetInput(1, new SwimInput { aimX = 1, morph = true, morphTargetId = m.Fish[0].id });
+                m.SetInput(1, new SwimInput { aimX = 1 }); m.Tick(0.1f);
+                Check(p.species == 2, "queued selection does not switch to nearer fish");
+                Advance(m, 0.7f); p.species = -1; m.Fish[0].eaten = true;
+                m.SetInput(1, new SwimInput { aimX = 1, morph = true, morphTargetId = m.Fish[0].id }); m.Tick(0.1f);
+                Check(p.species == -1, "invalid eaten selection cannot fall back to valid nearby fish");
+                Advance(m, 0.7f); m.Fish[0].eaten = false; m.Fish[0].position = At(5, 0);
+                m.SetInput(1, new SwimInput { aimX = 1, morph = true, morphTargetId = m.Fish[0].id }); m.Tick(0.1f); Check(p.species == -1, "locked target still validates range");
+                Advance(m, 0.7f); m.Fish[0].position = At(-1, 0);
+                m.SetInput(1, new SwimInput { aimX = 1, morph = true, morphTargetId = m.Fish[0].id }); m.Tick(0.1f); Check(p.species == -1, "locked target still validates angle");
+                Advance(m, 0.7f); var cover = AquariumModel.Rocks[0]; p.position = cover + new Point(-1.4f, 1.3f, 0); p.velocity = new Point(); m.Fish[0].position = cover + new Point(1.2f, 1.3f, 0);
+                m.SetInput(1, new SwimInput { aimX = 1, morph = true, morphTargetId = m.Fish[0].id }); m.Tick(0.1f); Check(p.species == -1, "locked target still validates rock occlusion");
+            });
+            Test("feed sound fades over three-dimensional distance and is silent at ten metres", () => {
+                var source = new Point(0, 1, 0);
+                Check(AquariumModel.FeedSoundGain(source, source) == 1, "full gain at source");
+                Check(Math.Abs(AquariumModel.FeedSoundGain(source, new Point(3, 5, 0)) - 0.5f) < 0.001f, "height contributes to five metre distance");
+                Check(AquariumModel.FeedSoundGain(source, new Point(0, 11, 0)) == 0 && AquariumModel.FeedSoundGain(source, new Point(0, 12, 0)) == 0, "vertical boundary and outside radius are silent");
+                Check(AquariumModel.FeedSoundGain(source, new Point(9, 1, 0)) > 0 && AquariumModel.FeedSoundGain(source, new Point(10, 1, 0)) == 0, "horizontal boundary is exact");
             });
             Console.WriteLine("RESULT: " + passed + " gameplay tests passed."); return 0;
         }

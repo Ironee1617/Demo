@@ -15,6 +15,13 @@ namespace PrototypeLab.Aquarium
             public Transform[] tentacles;
             public string kind;
         }
+        private sealed class OutlinePart { public Renderer source, shell; }
+        private readonly List<OutlinePart> outlineParts = new List<OutlinePart>();
+        private Actor outlinedActor;
+        private readonly Material outlineMaterial;
+        private bool worldFrozen, freezeExistingPoses;
+        private int frozenRound;
+        private float environmentTime;
         private readonly Transform root;
         private readonly Dictionary<string, Actor> actors = new Dictionary<string, Actor>();
         private readonly Dictionary<int, GameObject> effects = new Dictionary<int, GameObject>();
@@ -26,7 +33,8 @@ namespace PrototypeLab.Aquarium
         private readonly HashSet<int> activeEffects = new HashSet<int>();
         private readonly List<string> removedActors = new List<string>();
         private readonly List<int> expiredEffects = new List<int>();
-        private Actor hiddenByCamera;
+        private readonly HashSet<Actor> hiddenByCamera = new HashSet<Actor>();
+        private readonly Dictionary<Renderer, bool> hiddenRendererStates = new Dictionary<Renderer, bool>();
         private readonly Color[] colors = { new Color(1f, 0.49f, 0.12f), new Color(0.25f, 0.55f, 0.91f), new Color(0.94f, 0.45f, 0.62f) };
         private readonly Material sand, dark, teal, white, black, purple, steel, glass, redInk, yellowInk, mouthLining, eggPearl, eggGold;
         private readonly MaterialPropertyBlock effectProperties = new MaterialPropertyBlock();
@@ -51,6 +59,8 @@ namespace PrototypeLab.Aquarium
             redInk = Material(new Color(0.91f, 0.045f, 0.12f, 0.55f), true);
             yellowInk = Material(new Color(1f, 0.79f, 0.08f, 0.55f), true);
             lineMaterial = new Material(Shader.Find("Sprites/Default")); materials.Add(lineMaterial);
+            outlineMaterial = new Material(Resources.Load<Shader>("AquariumTargetOutline"));
+            outlineMaterial.SetColor("_OutlineColor", new Color(1f, 0.86f, 0.25f)); outlineMaterial.SetFloat("_OutlineWidth", 0.035f); materials.Add(outlineMaterial);
             fishMaterials = new Material[3]; finMaterials = new Material[3];
             for (int i = 0; i < 3; i++) { fishMaterials[i] = Material(colors[i]); finMaterials[i] = Material(Color.Lerp(colors[i], Color.white, 0.38f)); }
             fanMesh = MakeFanMesh(); coneMesh = MakeConeMesh();
@@ -236,13 +246,13 @@ namespace PrototypeLab.Aquarium
                 actor = MakeActor(kind); actors[key] = actor;
             }
             Vector3 target = new Vector3(at.x, at.y, at.z);
-            float blend = fresh ? 1 : 1 - Mathf.Exp(-dt * 18);
-            actor.root.transform.position = Vector3.Lerp(actor.root.transform.position, target, blend);
+            float blend = fresh || dead ? 1 : 1 - Mathf.Exp(-dt * 18);
+            if (fresh || !freezeExistingPoses) actor.root.transform.position = Vector3.Lerp(actor.root.transform.position, target, blend);
             var direction = new Vector3(facing.x, facing.y, facing.z);
             if (direction.sqrMagnitude < 0.001f) direction = Vector3.forward;
             var rot = Quaternion.LookRotation(direction, Mathf.Abs(direction.normalized.y) > 0.99f ? Vector3.forward : Vector3.up);
             if (dead) rot *= Quaternion.Euler(0, 0, 180);
-            actor.root.transform.rotation = fresh ? rot : Quaternion.Slerp(actor.root.transform.rotation, rot, blend);
+            if (fresh || !freezeExistingPoses) actor.root.transform.rotation = fresh || dead ? rot : Quaternion.Slerp(actor.root.transform.rotation, rot, blend);
             if (actor.tail != null) actor.tail.localRotation = Quaternion.Euler(0, dead ? 0 : Mathf.Sin(time * 10 + at.z) * 22, 90);
             if (actor.tentacles != null) for (int i = 0; i < actor.tentacles.Length; i++)
                 actor.tentacles[i].localRotation = Quaternion.Euler(Mathf.Sin(time * 3 + i * 1.8f) * 15, 0, Mathf.Cos(time * 3 + i) * 12);
@@ -261,31 +271,40 @@ namespace PrototypeLab.Aquarium
         public void Draw(AquariumSnapshot state, int localId, float dt)
         {
             if (state == null) return;
+            bool finished = state.phase == RoundPhase.Finished;
+            // Share the gallery shader clock so water and reef motion freeze with the final scene.
+            if (!finished) environmentTime = Time.time;
+            Shader.SetGlobalFloat("_AquariumPreviewTime", environmentTime);
+            Shader.SetGlobalFloat("_AquariumPreviewTimeEnabled", 1);
+            if (finished && worldFrozen && frozenRound == state.round) { CleanupFrozenWorld(state); return; }
+            worldFrozen = finished; frozenRound = state.round; freezeExistingPoses = finished;
+            float visualTime = finished ? state.finishedAt : state.time;
+            if (finished) SetMorphTarget(null);
             visible.Clear();
-            foreach (var f in state.fish) if (!f.eaten) Place("f" + f.id, "fish" + f.species, f.position, f.facing, dt, state.time, f.dead);
+            foreach (var f in state.fish) if (!f.eaten && (!finished || !f.dead)) Place("f" + f.id, "fish" + f.species, f.position, f.facing, dt, visualTime, f.dead);
             Swimmer local = null;
             foreach (var p in state.players)
             {
                 if (p.id == localId) local = p;
-                bool showAlien = state.phase == RoundPhase.Finished && p.team == Team.Hider;
-                if ((!p.alive || p.swallowedBy != 0) && !showAlien) continue;
-                string kind = p.team == Team.Seeker ? "diver" : (showAlien || p.species < 0 || p.revealUntil > state.time ? "alien" : "fish" + p.species);
-                var actor = Place("p" + p.id, kind, p.position, p.facing, dt, state.time);
-                bool feeding = state.phase == RoundPhase.Playing && p.team == Team.Hider && p.stunnedUntil > state.time;
+                if (p.swallowedBy != 0 || (!p.alive && (state.phase != RoundPhase.Playing || p.team != Team.Hider))) continue;
+                int species = p.alive ? p.species : p.deathSpecies;
+                string kind = p.team == Team.Seeker ? "diver" : (species < 0 || (p.alive && p.revealUntil > visualTime) ? "alien" : "fish" + species);
+                var actor = Place("p" + p.id, kind, p.position, p.facing, dt, p.alive ? visualTime : p.diedAt, !p.alive);
+                bool feeding = state.phase != RoundPhase.Lobby && p.alive && p.team == Team.Hider && p.stunnedUntil > visualTime;
                 if (feeding && actor.predatorMouth == null) PredatorMouth(actor, kind == "alien" ? new Vector3(0, -0.25f, 0.48f) : new Vector3(0, -0.02f, 0.56f));
                 if (actor.predatorMouth != null)
                 {
                     actor.predatorMouth.SetActive(feeding);
-                    actor.predatorMouth.transform.localScale = new Vector3(1, 0.9f + Mathf.Sin(state.time * 9) * 0.1f, 1);
+                    actor.predatorMouth.transform.localScale = new Vector3(1, 0.9f + Mathf.Sin(visualTime * 9) * 0.1f, 1);
                 }
                 if (actor.normalMouth != null) actor.normalMouth.SetActive(!feeding);
             }
-            foreach (var h in state.harpoons) Place("h" + h.id, "harpoon", h.position, h.direction, dt, state.time);
+            foreach (var h in state.harpoons) Place("h" + h.id, "harpoon", h.position, h.direction, dt, visualTime);
             if (state.eggs != null) foreach (var egg in state.eggs)
             {
-                var actor = Place("e" + egg.id, "egg", egg.position, new Point(0, 1), dt, state.time);
-                float urgency = Mathf.Clamp01(1 - (egg.hatchAt - state.time) / AquariumModel.HatchSeconds);
-                float pulse = Mathf.Sin(state.time * (3 + urgency * 5) + egg.id) * (0.025f + urgency * 0.025f);
+                var actor = Place("e" + egg.id, "egg", egg.position, new Point(0, 1), dt, visualTime);
+                float urgency = Mathf.Clamp01(1 - (egg.hatchAt - visualTime) / AquariumModel.HatchSeconds);
+                float pulse = Mathf.Sin(visualTime * (3 + urgency * 5) + egg.id) * (0.025f + urgency * 0.025f);
                 actor.root.transform.localScale = new Vector3(1 - pulse, 1 + pulse, 1 - pulse);
             }
             removedActors.Clear();
@@ -320,7 +339,7 @@ namespace PrototypeLab.Aquarium
                     }
                     effects[e.id] = fx;
                 }
-                float age = Mathf.Clamp01((state.time - e.born) / Mathf.Max(0.01f, e.duration));
+                float age = Mathf.Clamp01((visualTime - e.born) / Mathf.Max(0.01f, e.duration));
                 fx.transform.position = new Vector3(e.position.x, e.position.y + age * 0.3f, e.position.z);
                 bool inkCloud = e.kind == "eat" || e.kind == "burp";
                 fx.transform.localScale = Vector3.one * (inkCloud ? 0.6f + age * 1.6f : e.kind == "feed" ? 1 : 0.15f + age * 1.3f);
@@ -342,6 +361,86 @@ namespace PrototypeLab.Aquarium
 
         }
 
+        public MorphTarget FindMorphTarget(AquariumSnapshot state, Swimmer caster, Point aim)
+        {
+            if (state == null || caster == null || !caster.alive || caster.team != Team.Hider || caster.swallowedBy != 0 || worldFrozen) return null;
+            MorphTarget best = null; float screenDistance = float.MaxValue, worldDistance = float.MaxValue;
+            foreach (var fish in state.fish) if (!fish.dead && !fish.eaten)
+                ConsiderVisibleMorph(caster, aim, fish.id, fish.species, false, fish.position, ref best, ref screenDistance, ref worldDistance);
+            foreach (var player in state.players)
+                if (AquariumModel.CopyableAlly(caster, player, state.time))
+                    ConsiderVisibleMorph(caster, aim, player.id, player.species, true, player.position, ref best, ref screenDistance, ref worldDistance);
+            return best;
+        }
+        private void ConsiderVisibleMorph(Swimmer caster, Point aim, int id, int species, bool player, Point position,
+            ref MorphTarget best, ref float bestScreenDistance, ref float bestWorldDistance)
+        {
+            if (!AquariumModel.CanMorphTarget(caster, aim, position)) return;
+            Actor actor;
+            if (!actors.TryGetValue((player ? "p" : "f") + id, out actor) || !actor.kind.StartsWith("fish")) return;
+            var rendered = actor.root.transform.position;
+            var screen = Camera.WorldToViewportPoint(rendered);
+            if (screen.z <= 0 || screen.x < 0 || screen.x > 1 || screen.y < 0 || screen.y > 1) return;
+            var cameraPosition = Camera.transform.position;
+            if (AquariumModel.ObstacleHit(new Point(cameraPosition.x, cameraPosition.y, cameraPosition.z), new Point(rendered.x, rendered.y, rendered.z)) <= 1) return;
+            float x = (screen.x - 0.5f) * Camera.aspect, y = screen.y - 0.5f;
+            float screenDistance = x * x + y * y, worldDistance = (position - caster.position).Length;
+            if (best != null && (screenDistance > bestScreenDistance + 0.000001f || (Mathf.Abs(screenDistance - bestScreenDistance) <= 0.000001f && worldDistance >= bestWorldDistance))) return;
+            best = new MorphTarget { id = id, species = species, player = player, position = position };
+            bestScreenDistance = screenDistance; bestWorldDistance = worldDistance;
+        }
+        // The same silhouette treatment is used for ordinary fish and disguised players.
+        public void SetMorphTarget(MorphTarget target)
+        {
+            Actor actor = null;
+            if (!worldFrozen && target != null) actors.TryGetValue((target.player ? "p" : "f") + target.id, out actor);
+            if (actor != null && !actor.kind.StartsWith("fish")) actor = null;
+            if (actor == outlinedActor) { UpdateOutlineVisibility(); return; }
+            ClearOutline();
+            outlinedActor = actor;
+            if (actor == null) return;
+            foreach (var filter in actor.root.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (filter.sharedMesh == null || filter.gameObject.name == "Candidate silhouette") continue;
+                var sourceRenderer = filter.GetComponent<Renderer>();
+                if (sourceRenderer == null) continue;
+                var shell = new GameObject("Candidate silhouette"); shell.transform.SetParent(filter.transform, false);
+                shell.AddComponent<MeshFilter>().sharedMesh = filter.sharedMesh;
+                var renderer = shell.AddComponent<MeshRenderer>(); renderer.sharedMaterial = outlineMaterial;
+                renderer.shadowCastingMode = ShadowCastingMode.Off; renderer.receiveShadows = false;
+                outlineParts.Add(new OutlinePart { source = sourceRenderer, shell = renderer });
+            }
+            UpdateOutlineVisibility();
+        }
+        private void UpdateOutlineVisibility()
+        {
+            foreach (var part in outlineParts) if (part.shell != null)
+                part.shell.enabled = part.source != null && part.source.enabled && part.source.gameObject.activeInHierarchy && !hiddenByCamera.Contains(outlinedActor);
+        }
+        private void ClearOutline()
+        {
+            foreach (var part in outlineParts) if (part.shell != null)
+            { part.shell.gameObject.SetActive(false); UnityEngine.Object.Destroy(part.shell.gameObject); }
+            outlineParts.Clear(); outlinedActor = null;
+        }
+        private void CleanupFrozenWorld(AquariumSnapshot state)
+        {
+            // Keep the captured poses and effects untouched while removing objects absent from the snapshot.
+            visible.Clear();
+            foreach (var fish in state.fish) if (!fish.eaten && !fish.dead) visible.Add("f" + fish.id);
+            foreach (var player in state.players) if (player.alive && player.swallowedBy == 0) visible.Add("p" + player.id);
+            foreach (var harpoon in state.harpoons) visible.Add("h" + harpoon.id);
+            if (state.eggs != null) foreach (var egg in state.eggs) visible.Add("e" + egg.id);
+            removedActors.Clear();
+            foreach (var pair in actors) if (!visible.Contains(pair.Key)) { DestroyActor(pair.Value); removedActors.Add(pair.Key); }
+            foreach (var key in removedActors) actors.Remove(key);
+            activeEffects.Clear();
+            foreach (var effect in state.effects) activeEffects.Add(effect.id);
+            expiredEffects.Clear();
+            foreach (var effect in effects) if (!activeEffects.Contains(effect.Key)) { UnityEngine.Object.Destroy(effect.Value); expiredEffects.Add(effect.Key); }
+            foreach (int id in expiredEffects) effects.Remove(id);
+            localRing.gameObject.SetActive(false);
+        }
         public Vector3 PlayerPosition(Swimmer player)
         {
             Actor actor;
@@ -349,9 +448,8 @@ namespace PrototypeLab.Aquarium
         }
         public void CameraOcclusion(int targetId, Vector3? target, bool hideTarget = false)
         {
-            if (hiddenByCamera != null && hiddenByCamera.root != null)
-                foreach (var renderer in hiddenByCamera.root.GetComponentsInChildren<Renderer>()) renderer.enabled = true;
-            hiddenByCamera = null;
+            foreach (var pair in hiddenRendererStates) if (pair.Key != null) pair.Key.enabled = pair.Value;
+            hiddenRendererStates.Clear(); hiddenByCamera.Clear();
             foreach (var panel in glassPanels)
             {
                 panel.enabled = true;
@@ -360,17 +458,29 @@ namespace PrototypeLab.Aquarium
                 if (panel.bounds.IntersectRay(new Ray(Camera.transform.position, delta.normalized), out hit) && hit < delta.magnitude)
                     panel.enabled = false;
             }
-            Actor actor;
-            if (target.HasValue && (hideTarget || Vector3.Distance(Camera.transform.position, target.Value) < 0.9f) && actors.TryGetValue("p" + targetId, out actor))
+            if (target.HasValue)
             {
-                hiddenByCamera = actor;
-                foreach (var renderer in actor.root.GetComponentsInChildren<Renderer>()) renderer.enabled = false;
+                Actor actor;
+                if ((hideTarget || Vector3.Distance(Camera.transform.position, target.Value) < 0.9f) && actors.TryGetValue("p" + targetId, out actor)) HideNearCamera(actor);
+                // Fish that brush past the lens must not cover a death review or the free-view result scene.
+                foreach (var pair in actors)
+                    if ((pair.Key.StartsWith("p") || pair.Key.StartsWith("f")) && (Camera.transform.position - pair.Value.root.transform.position).sqrMagnitude < 1.44f)
+                        HideNearCamera(pair.Value);
             }
+            UpdateOutlineVisibility();
         }
-        private void DestroyActor(Actor actor)
-        { UnityEngine.Object.Destroy(actor.root); }
+        private void HideNearCamera(Actor actor)
+        {
+            if (!hiddenByCamera.Add(actor)) return;
+            // Only active renderers are touched: inactive feeding-mouth children keep their original state.
+            foreach (var renderer in actor.root.GetComponentsInChildren<Renderer>())
+            { hiddenRendererStates[renderer] = renderer.enabled; renderer.enabled = false; }
+        }        private void DestroyActor(Actor actor)
+        { if (actor == outlinedActor) ClearOutline(); UnityEngine.Object.Destroy(actor.root); }
         public void Dispose()
         {
+            Shader.SetGlobalFloat("_AquariumPreviewTimeEnabled", 0);
+            ClearOutline();
             foreach (var actor in actors.Values) DestroyActor(actor);
             foreach (var mat in materials) UnityEngine.Object.Destroy(mat);
             UnityEngine.Object.Destroy(fanMesh); UnityEngine.Object.Destroy(coneMesh);
