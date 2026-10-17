@@ -81,4 +81,6 @@
 
 최종 Windows 실행 파일 smoke도 확인했습니다. [호스트](after/smoke/host.json)·[클라이언트](after/smoke/client.json)는 모두 `connected=true`, 오류 0이며 클라이언트는 스냅샷 455회를 수신했습니다. [먹이 유인 음향](after/smoke/feed.json)은 근거리 재생·원거리 무음·범위 이탈 후 중단을, [변신 대상](after/smoke/target.json)은 선택과 단일 윤곽선을, [종료 화면](after/smoke/terminal.json)은 세계 정지와 자유 카메라를 확인했습니다. 세 시나리오 모두 오류 0입니다.
 
+최종 실행 파일·공유 ZIP의 경로와 SHA-256, 카메라 58개·광선 동등성 28,410개 표본을 포함한 검증 집계는 [빌드 명세](after/build-manifest.json)에 있습니다.
+
 보존한 [before/frames.json](before/frames.json)은 탐색용 Editor 실행으로, SearchDatabase 시작 과정의 예외가 포함되어 전후 성능 비교에서 제외했습니다. [before/hotpath-checks.txt](before/hotpath-checks.txt)의 `0 bytes`도 미지원 계측이므로 할당 근거로 사용하지 않습니다. 신뢰하는 전후 기준은 **`before/after/player-frames.json`과 `before/after/model.txt`**이며 기존 원본 보고서는 수정하지 않았습니다.
