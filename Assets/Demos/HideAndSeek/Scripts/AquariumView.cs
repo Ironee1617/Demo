@@ -14,6 +14,10 @@ namespace PrototypeLab.Aquarium
             public Transform tail;
             public Transform[] tentacles;
             public string kind;
+            public AquariumCreature creature;
+            public CapsuleCollider bodyCollider;
+            public Vector3 previousPosition;
+            public float moveSpeed;
         }
         private readonly Transform root;
         private readonly Dictionary<string, Actor> actors = new Dictionary<string, Actor>();
@@ -28,8 +32,7 @@ namespace PrototypeLab.Aquarium
         private readonly List<int> expiredEffects = new List<int>();
         private Actor hiddenByCamera;
         private readonly Color[] colors = { new Color(1f, 0.49f, 0.12f), new Color(0.25f, 0.55f, 0.91f), new Color(0.94f, 0.45f, 0.62f) };
-        private readonly Material sand, dark, teal, white, black, purple, steel, glass, redInk, yellowInk, mouthLining, eggPearl, eggGold;
-        private readonly MaterialPropertyBlock effectProperties = new MaterialPropertyBlock();
+        private readonly Material sand, dark, teal, white, black, purple, steel, glass, mouthLining, eggPearl, eggGold;
         private readonly Material[] fishMaterials, finMaterials;
         private readonly Material lineMaterial;
         private readonly Mesh fanMesh, coneMesh;
@@ -48,8 +51,6 @@ namespace PrototypeLab.Aquarium
             eggPearl = Material(new Color(1f, 0.9f, 0.69f)); eggGold = Material(new Color(1f, 0.63f, 0.18f));
             eggGold.EnableKeyword("_EMISSION"); eggGold.SetColor("_EmissionColor", new Color(0.3f, 0.12f, 0.015f));
             glass = Material(new Color(0.15f, 0.48f, 0.56f, 0.055f), true);
-            redInk = Material(new Color(0.91f, 0.045f, 0.12f, 0.55f), true);
-            yellowInk = Material(new Color(1f, 0.79f, 0.08f, 0.55f), true);
             lineMaterial = new Material(Shader.Find("Sprites/Default")); materials.Add(lineMaterial);
             fishMaterials = new Material[3]; finMaterials = new Material[3];
             for (int i = 0; i < 3; i++) { fishMaterials[i] = Material(colors[i]); finMaterials[i] = Material(Color.Lerp(colors[i], Color.white, 0.38f)); }
@@ -58,6 +59,7 @@ namespace PrototypeLab.Aquarium
             localRing = Ring("Your swimmer", root, 0.68f, new Color(0.59f, 1f, 0.81f, 0.85f), 0.035f);
             Camera = UnityEngine.Camera.main;
             if (Camera == null) { var go = new GameObject("Aquarium Camera"); go.tag = "MainCamera"; Camera = go.AddComponent<Camera>(); go.AddComponent<AudioListener>(); }
+            Camera.depthTextureMode|=DepthTextureMode.Depth;
             Camera.transform.position = new Vector3(0, 23, -20);
             Camera.transform.rotation = Quaternion.Euler(49, 0, 0);
             Camera.orthographic = false; Camera.fieldOfView = 68; Camera.nearClipPlane = 0.06f; Camera.farClipPlane = 100;
@@ -148,56 +150,10 @@ namespace PrototypeLab.Aquarium
         {
             var actor = new Actor { root = new GameObject(kind), kind = kind }; actor.root.transform.SetParent(root);
             var t = actor.root.transform;
-            if (kind.StartsWith("fish"))
+            if (kind.StartsWith("fish") || kind == "alien")
             {
-                int species = kind[kind.Length - 1] - '0';
-                var mat = fishMaterials[species]; var fins = finMaterials[species];
-                float width = species == 1 ? 0.42f : 0.56f, height = species == 2 ? 0.62f : 0.53f;
-                Ball("Fish body", t, Vector3.zero, new Vector3(width, height, 1.05f), mat);
-                Ball("Pale belly", t, new Vector3(0, -0.13f, 0.12f), new Vector3(width * 0.82f, height * 0.62f, 0.78f), fins);
-                actor.tail = Fin(t, new Vector3(0, 0, -0.5f), new Vector3(0.9f, 1.1f, 0.75f), species == 1 ? eggGold : fins);
-                actor.tail.localRotation = Quaternion.Euler(0, 0, 90);
-                var dorsal = Fin(t, new Vector3(0, height * 0.4f, -0.06f), new Vector3(0.56f, 0.5f, 0.65f), fins); dorsal.localRotation = Quaternion.Euler(0, 0, 90);
-                for (int side = -1; side <= 1; side += 2)
-                {
-                    var fin = Fin(t, new Vector3(side * width * 0.43f, -0.03f, -0.02f), new Vector3(0.5f, 1, 0.4f), fins); fin.localRotation = Quaternion.Euler(0, side * -25, side * -14);
-                    Ball("Eye white", t, new Vector3(side * width * 0.35f, 0.15f, 0.34f), Vector3.one * 0.18f, white);
-                    Ball("Pupil", t, new Vector3(side * width * 0.4f, 0.165f, 0.395f), Vector3.one * 0.102f, black);
-                    Ball("Eye glint", t, new Vector3(side * width * 0.41f, 0.195f, 0.43f), Vector3.one * 0.032f, white);
-                    for (int stripe = 0; stripe < 3; stripe++)
-                    {
-                        float z = 0.12f - stripe * 0.23f;
-                        Ball("Species markings", t, new Vector3(side * width * 0.48f * Mathf.Sqrt(1 - z * z / 0.29f), 0.02f, z),
-                            new Vector3(0.035f, height * (stripe == 2 ? 0.54f : 0.74f), species == 0 ? 0.09f : 0.045f), species == 1 ? finMaterials[1] : white);
-                    }
-                }
-                actor.normalMouth = Ball("Mouth", t, new Vector3(0, -0.02f, 0.52f), new Vector3(0.1f, 0.07f, 0.045f), black);
-
-            }
-            else if (kind == "alien")
-            {
-                Ball("Lilac alien body", t, Vector3.zero, new Vector3(0.82f, 0.81f, 0.73f), purple);
-                Ball("Cyclops eye rim", t, new Vector3(0, 0.14f, 0.33f), new Vector3(0.67f, 0.65f, 0.24f), finMaterials[2]);
-                Ball("Single cyclops eye", t, new Vector3(0, 0.15f, 0.4f), new Vector3(0.56f, 0.54f, 0.2f), white);
-                Ball("Glossy cyclops pupil", t, new Vector3(0, 0.14f, 0.49f), new Vector3(0.32f, 0.35f, 0.11f), black);
-                Ball("Cyclops catchlight", t, new Vector3(0.075f, 0.23f, 0.54f), Vector3.one * 0.085f, white);
-                actor.tentacles = new Transform[4];
-                for (int i = 0; i < 4; i++)
-                {
-                    float angle = Mathf.PI * (0.25f + i * 0.5f);
-                    var foot = new GameObject("Soft tentacle"); foot.transform.SetParent(t, false); foot.transform.localPosition = new Vector3(Mathf.Sin(angle) * 0.25f, -0.27f, Mathf.Cos(angle) * 0.2f);
-                    Ball("Tentacle base", foot.transform, new Vector3(0, -0.13f, 0), new Vector3(0.25f, 0.4f, 0.26f), purple);
-                    Ball("Tentacle tip", foot.transform, new Vector3(Mathf.Sin(angle) * 0.1f, -0.28f, Mathf.Cos(angle) * 0.1f), new Vector3(0.28f, 0.16f, 0.27f), purple);
-                    actor.tentacles[i] = foot.transform;
-                }
-                for (int side = -1; side <= 1; side += 2)
-                {
-                    Ball("Side jaw", t, new Vector3(side * 0.52f, -0.14f, 0.05f), new Vector3(0.49f, 0.28f, 0.4f), purple);
-                    Ball("Side jaw lining", t, new Vector3(side * 0.52f, -0.04f, 0.08f), new Vector3(0.37f, 0.09f, 0.3f), mouthLining);
-                    for (int j = 0; j < 3; j++)
-                        MeshShape("Side jaw tooth", coneMesh, t, new Vector3(side * (0.4f + j * 0.1f), 0, 0.09f), new Vector3(0.075f, 0.11f, 0.075f), white);
-                }
-
+                var visual = new GameObject("Rigged creature");visual.transform.SetParent(t,false);
+                actor.creature=visual.AddComponent<AquariumCreature>();actor.creature.Initialize(kind=="alien"?-1:int.Parse(kind.Substring(4)),random.Next(10000));
             }
             else if (kind == "diver")
             {
@@ -224,19 +180,33 @@ namespace PrototypeLab.Aquarium
                 Ball("Egg glint", t, new Vector3(-0.1f, 0.43f, 0.18f), new Vector3(0.07f, 0.11f, 0.035f), white);
                 var band = Ring("Shell seam", t, 0.23f, new Color(1f, 0.66f, 0.22f, 0.85f), 0.018f); band.transform.localPosition = new Vector3(0, 0.22f, 0);
             }
+            if(kind=="alien" || kind=="diver" || kind.StartsWith("fish"))
+            {
+                actor.bodyCollider=actor.root.AddComponent<CapsuleCollider>();actor.bodyCollider.direction=2;
+                var physicsBody=actor.root.AddComponent<Rigidbody>();physicsBody.isKinematic=true;physicsBody.useGravity=false;
+            }
             return actor;
         }
         private Actor Place(string key, string kind, Point at, Point facing, float dt, float time, bool dead = false)
         {
             visible.Add(key); Actor actor;
-            bool fresh = !actors.TryGetValue(key, out actor) || actor.kind != kind;
+            bool creatureKind=kind=="alien" || kind.StartsWith("fish");
+            bool fresh = !actors.TryGetValue(key, out actor) || (actor.kind != kind && (actor.creature == null || !creatureKind));
             if (fresh)
             {
                 if (actor != null) DestroyActor(actor);
                 actor = MakeActor(kind); actors[key] = actor;
             }
             Vector3 target = new Vector3(at.x, at.y, at.z);
+            actor.kind=kind;
+            if(actor.bodyCollider!=null)
+            {
+                float radius=AquariumBodyCollision.Radius(kind=="diver",kind=="alien");
+                actor.bodyCollider.radius=radius;actor.bodyCollider.height=2*(radius+AquariumBodyCollision.Half(kind=="diver",kind=="alien"));
+            }
             float blend = fresh ? 1 : 1 - Mathf.Exp(-dt * 18);
+            actor.moveSpeed = fresh || dt <= 0 ? 0 : Vector3.Distance(target,actor.previousPosition)/dt;
+            actor.previousPosition=target;
             actor.root.transform.position = Vector3.Lerp(actor.root.transform.position, target, blend);
             var direction = new Vector3(facing.x, facing.y, facing.z);
             if (direction.sqrMagnitude < 0.001f) direction = Vector3.forward;
@@ -262,23 +232,51 @@ namespace PrototypeLab.Aquarium
         {
             if (state == null) return;
             visible.Clear();
-            foreach (var f in state.fish) if (!f.eaten) Place("f" + f.id, "fish" + f.species, f.position, f.facing, dt, state.time, f.dead);
             Swimmer local = null;
             foreach (var p in state.players)
             {
                 if (p.id == localId) local = p;
-                bool showAlien = state.phase == RoundPhase.Finished && p.team == Team.Hider;
-                if ((!p.alive || p.swallowedBy != 0) && !showAlien) continue;
-                string kind = p.team == Team.Seeker ? "diver" : (showAlien || p.species < 0 || p.revealUntil > state.time ? "alien" : "fish" + p.species);
-                var actor = Place("p" + p.id, kind, p.position, p.facing, dt, state.time);
-                bool feeding = state.phase == RoundPhase.Playing && p.team == Team.Hider && p.stunnedUntil > state.time;
-                if (feeding && actor.predatorMouth == null) PredatorMouth(actor, kind == "alien" ? new Vector3(0, -0.25f, 0.48f) : new Vector3(0, -0.02f, 0.56f));
-                if (actor.predatorMouth != null)
+                float age=state.time-p.visualAt;
+                bool deathPose=!p.alive && state.time-p.deathAt<2.4f;
+                bool showAlien = state.phase == RoundPhase.Finished && p.team == Team.Hider && !deathPose;
+                if ((!p.alive && !deathPose || p.swallowedBy != 0) && !showAlien) continue;
+                bool morphing=state.time-p.morphAt<1.4f;
+                int form=showAlien || p.species<0 || p.revealUntil>state.time && !morphing ? -1:p.species;
+                string kind=p.team==Team.Seeker?"diver":form<0?"alien":"fish"+form;
+                var actor=Place("p"+p.id,kind,p.position,p.facing,dt,state.time);
+                if(actor.creature!=null)
                 {
-                    actor.predatorMouth.SetActive(feeding);
-                    actor.predatorMouth.transform.localScale = new Vector3(1, 0.9f + Mathf.Sin(state.time * 9) * 0.1f, 1);
+                    float actionLength=p.visualAction=="SpitRecoil"?AquariumModel.SpitAnimationSeconds:p.visualAction=="SpitOut"?AquariumModel.ReleaseKickSeconds:p.visualAction=="Bite"?AquariumModel.FishFeedingSeconds:p.visualAction=="TentacleEat"?AquariumModel.TentacleFeedingSeconds:2.4f;
+                    string motion=age<actionLength && !string.IsNullOrEmpty(p.visualAction)?p.visualAction:"Locomotion";
+                    if(motion=="Bite" && form<0)motion="TentacleEat";
+                    if(deathPose)motion=p.deathReason=="harpoon"?"Harpoon":"Eaten";
+                    if(motion=="Bite" && form>=0 && age<AquariumFeeding.ReturnToFish)form+=100;
+                    actor.creature.Present(form,motion,p.visualAt,state.time,actor.moveSpeed,deathPose && p.deathReason=="harpoon");
+                    actor.root.transform.localScale=Vector3.one;
+                    actor.bodyCollider.enabled=true;
                 }
-                if (actor.normalMouth != null) actor.normalMouth.SetActive(!feeding);
+            }
+            // Resolve swallowed players after every predator mouth has its current
+            // pose, independent of player roster order and network interpolation.
+            foreach(var p in state.players)
+            {
+                float age=state.time-p.visualAt;
+                if(p.swallowedBy==0 || age>=AquariumModel.SwallowVisualSeconds || state.phase==RoundPhase.Finished)continue;
+                var actor=Place("p"+p.id,"alien",p.swallowedFrom,p.facing,dt,state.time);
+                actor.root.transform.localScale=Vector3.one;
+                actor.creature.Present(-1,"Eaten",p.visualAt,state.time,0);
+                if(actors.TryGetValue("p"+p.swallowedBy,out var predator))IngestActor(actor,predator,age);
+                actor.bodyCollider.enabled=false;
+            }
+            foreach (var f in state.fish)
+            {
+                float age=state.time-f.visualAt;
+                if(f.eaten && age>=AquariumModel.SwallowVisualSeconds)continue;
+                var actor=Place("f"+f.id,"fish"+f.species,f.position,f.facing,dt,state.time,f.dead && age>2.4f);
+                actor.root.transform.localScale=Vector3.one;
+                actor.creature.Present(f.species,f.eaten?"Eaten":f.dead?"Harpoon":"Locomotion",f.visualAt,state.time,actor.moveSpeed,f.dead);
+                if(f.eaten && actors.TryGetValue("p"+f.eater,out var predator))IngestActor(actor,predator,age);
+                actor.bodyCollider.enabled=!f.eaten;
             }
             foreach (var h in state.harpoons) Place("h" + h.id, "harpoon", h.position, h.direction, dt, state.time);
             if (state.eggs != null) foreach (var egg in state.eggs)
@@ -299,17 +297,10 @@ namespace PrototypeLab.Aquarium
                 activeEffects.Add(e.id); GameObject fx;
                 if (!effects.TryGetValue(e.id, out fx))
                 {
-                    if (e.kind == "eat" || e.kind == "burp")
+                    if (AquariumInkCloud.IsInk(e.kind))
                     {
-                        fx = new GameObject(e.kind + " ink cloud"); fx.transform.SetParent(root, false);
-                        for (int i = 0; i < 12; i++)
-                        {
-                            float angle = i * 2.4f, radius = 0.18f + (i % 5) * 0.12f;
-                            var puff = Ball("Ink plume", fx.transform,
-                                new Vector3(Mathf.Cos(angle) * radius, Mathf.Sin(i * 1.7f) * 0.35f, Mathf.Sin(angle) * radius),
-                                new Vector3(0.5f, 0.4f, 0.6f), e.kind == "eat" ? redInk : yellowInk);
-                            puff.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
-                        }
+                        fx=new GameObject(e.kind+" volumetric ink");fx.transform.SetParent(root,false);
+                        fx.AddComponent<AquariumInkCloud>().Initialize(e.id,e.kind!="eat");
                     }
                     else
                     {
@@ -321,25 +312,31 @@ namespace PrototypeLab.Aquarium
                     effects[e.id] = fx;
                 }
                 float age = Mathf.Clamp01((state.time - e.born) / Mathf.Max(0.01f, e.duration));
-                fx.transform.position = new Vector3(e.position.x, e.position.y + age * 0.3f, e.position.z);
-                bool inkCloud = e.kind == "eat" || e.kind == "burp";
-                fx.transform.localScale = Vector3.one * (inkCloud ? 0.6f + age * 1.6f : e.kind == "feed" ? 1 : 0.15f + age * 1.3f);
-                if (inkCloud)
+                if(AquariumInkCloud.IsInk(e.kind))
                 {
-                    var color = (e.kind == "eat" ? redInk : yellowInk).color;
-                    color.a *= 1 - age * age;
-                    effectProperties.SetColor("_Color", color);
-                    foreach (var renderer in fx.GetComponentsInChildren<Renderer>()) renderer.SetPropertyBlock(effectProperties);
+                    float seconds=state.time-e.born-(e.kind=="burp"?0:.12f);
+                    Vector3 source=new Vector3(e.position.x,e.position.y,e.position.z);
+                    if(e.owner!=0 && actors.TryGetValue("p"+e.owner,out var feeder) && feeder.creature!=null)
+                        source=feeder.creature.FeedingMouth+feeder.root.transform.forward*.08f;
+                    fx.GetComponent<AquariumInkCloud>().Present(seconds,e.duration-(e.kind=="burp"?0:.12f),source,new Vector3(e.direction.x,e.direction.y,e.direction.z));
                 }
                 else
                 {
-                    var line = fx.GetComponent<LineRenderer>(); var c = line.startColor; c.a = 1 - age; line.startColor = line.endColor = c;
+                    fx.transform.position=new Vector3(e.position.x,e.position.y+age*.3f,e.position.z);
+                    fx.transform.localScale=Vector3.one*(e.kind=="feed"?1:.15f+age*1.3f);
+                    var line=fx.GetComponent<LineRenderer>();var c=line.startColor;c.a=1-age;line.startColor=line.endColor=c;
                 }
             }
             expiredEffects.Clear();
             foreach (var e in effects) if (!activeEffects.Contains(e.Key)) { UnityEngine.Object.Destroy(e.Value); expiredEffects.Add(e.Key); }
             foreach (int id in expiredEffects) effects.Remove(id);
 
+        }
+
+        private void IngestActor(Actor prey,Actor predator,float age)
+        {
+            if(predator.creature==null)return;
+            prey.creature.PresentIngestion(predator.creature,age);
         }
 
         public Vector3 PlayerPosition(Swimmer player)
@@ -368,7 +365,7 @@ namespace PrototypeLab.Aquarium
             }
         }
         private void DestroyActor(Actor actor)
-        { UnityEngine.Object.Destroy(actor.root); }
+        { if(Application.isPlaying)UnityEngine.Object.Destroy(actor.root);else UnityEngine.Object.DestroyImmediate(actor.root); }
         public void Dispose()
         {
             foreach (var actor in actors.Values) DestroyActor(actor);

@@ -3,12 +3,13 @@ using PrototypeLab.Aquarium;
 
 public static class ModelTests
 {
-    private static int passed;
+    private static int passed, failed;
     private static Point At(float x, float z, float y = 1.6f) { return new Point(x, y, z); }
     private static Point Layout(float x,float z,float y=1.6f) { return AquariumMapOutline.LayoutPoint(x,y,z); }
     private static Point CoverSide(float offset) { var p=AquariumModel.Rocks[1];return new Point(p.x+offset,1,p.z); }
     private static void Check(bool value, string message) { if (!value) throw new Exception(message); }
-    private static void Test(string name, Action test) { test(); passed++; Console.WriteLine("PASS " + name); }
+    private static void Test(string name, Action test)
+    { try { test(); passed++; Console.WriteLine("PASS " + name); } catch(Exception ex) { failed++;Console.Error.WriteLine("FAIL " + name + ": " + ex.Message); } }
     private static AquariumModel Match(bool friend = false)
     {
         var m = new AquariumModel(); m.AddPlayer(1, "Hider", Team.Hider); m.AddPlayer(2, "Seeker", Team.Seeker); m.SetRole(2, Team.Seeker, true);
@@ -16,7 +17,7 @@ public static class ModelTests
         Check(m.StartRound(), "start");
         // Most rule scenarios isolate one human per role; roster fill has its own checks below.
         m.Players.RemoveAll(p => p.filled);
-        foreach (var fish in m.Fish) { fish.position = At(-12, 2.5f); fish.facing = new Point(); fish.turnAt = float.MaxValue; }
+        for(int i=0;i<m.Fish.Count;i++) { var fish=m.Fish[i];fish.position=AquariumModel.Constrain(new Point(-25+(i%4)*1.6f,8,-6+(i/4)*1.5f),.6f);fish.facing=new Point();fish.turnAt=float.MaxValue; }
         m.Player(1).position = At(0, 0); m.Player(1).facing = new Point(1, 0);
         m.Player(2).position = At(12, 7);
         return m;
@@ -25,10 +26,66 @@ public static class ModelTests
     { for (int i = 0; i < (int)Math.Ceiling(seconds * 30); i++) m.Tick(1f / 30); }
     private static void Act(AquariumModel m, int id, bool morph = false)
     { m.SetInput(id, new SwimInput { aimX = 1, action = !morph, morph = morph }); m.Tick(1f / 30); }
+    private static AquariumModel ReleasePair(bool reversed=false,float step=1f/30)
+    {
+        var m=Match(true);m.Player(1).position=At(0,0,7);m.Player(3).position=At(1.3f,0,7);
+        Act(m,1);Check(m.Player(3).swallowedBy==1,"release setup swallowed the ally");
+        if(reversed)m.Players.Reverse();
+        for(int i=0;i<400 && m.Player(3).swallowedBy!=0;i++)m.Tick(step);
+        Check(m.Player(3).swallowedBy==0,"release setup completed");return m;
+    }
     public static int Main()
     {
         try
         {
+            Test("fish meals synchronize one red ink injection with the feeding owner", () => {
+                var m=Match();m.Player(1).species=0;m.Fish[0].position=At(1,0);Act(m,1);
+                var ink=m.Effects.Find(e=>e.kind=="eat");Check(ink!=null && ink.owner==1 && ink.born==m.Player(1).visualAt,"red injection follows the feeding mouth");
+                Act(m,1);Check(m.Effects.FindAll(e=>e.kind=="eat").Count==1,"held action cannot duplicate the plume");
+                Check(Array.Exists(m.Snapshot().effects,e=>e.kind=="eat" && e.owner==1),"network snapshot includes plume owner");
+            });
+            Test("swallowing an alien emits yellow ink immediately before release", () => {
+                var m=Match(true);m.Player(3).position=At(1,0);var capturedFrom=m.Player(3).position;Act(m,1);
+                Check((m.Player(3).swallowedFrom-capturedFrom).Length<.001f,"swallowed alien retains its capture location for head-first suction");
+                var ink=m.Effects.Find(e=>e.kind=="allyEat");Check(ink!=null && ink.owner==1 && ink.born==m.Player(1).visualAt,"yellow injection starts at swallowing");
+                Check(m.Player(3).swallowedBy==1 && !m.Effects.Exists(e=>e.kind=="burp" || e.kind=="eat"),"distinct from red meal and later release");
+                Advance(m,3.1f);Check(m.Player(3).swallowedBy==0 && m.Effects.Exists(e=>e.kind=="burp"),"release behavior preserved");
+            });
+            Test("rounded hulls separate fish alien and diver in three dimensions", () => {
+                foreach(bool diver in new[]{false,true})foreach(bool alien in new[]{false,true})
+                {
+                    var a=new Point(2.3f,7,4);var b=a+new Point(.2f,.15f,.1f);var ad=new Point(0,0,1);var bd=new Point(1,0,0);
+                    float radius=AquariumBodyCollision.Radius(diver,alien),half=AquariumBodyCollision.Half(diver,alien);
+                    var correction=AquariumBodyCollision.Penetration(a,ad,radius,half,b,bd,.54f,.16f);
+                    Check(correction.Length>.5f,"overlap found for every form");
+                    a+=correction;Check(AquariumBodyCollision.Penetration(a,ad,radius,half,b,bd,.54f,.16f).Length<.003f,"contact fully resolved");
+                }
+            });
+            Test("coincident crowds settle without NaN and swallowed prey is exempt", () => {
+                var m=Match();m.Fish.Clear();var centre=new Point(2.3f,7,4);
+                m.Player(1).position=centre;m.Player(2).position=centre;
+                for(int i=0;i<5;i++)m.Fish.Add(new Prey{id=100+i,position=centre,facing=new Point(0,0,1),turnAt=float.MaxValue});
+                for(int i=0;i<12;i++)AquariumBodyCollision.Resolve(m.Players,m.Fish,m.Time);
+                for(int i=0;i<m.Fish.Count;i++)for(int j=i+1;j<m.Fish.Count;j++)
+                    Check(AquariumBodyCollision.Penetration(m.Fish[i].position,m.Fish[i].facing,.54f,.16f,m.Fish[j].position,m.Fish[j].facing,.54f,.16f).Length<.01f,"crowd remains separated");
+                var swallowed=new Prey{id=200,eaten=true,position=m.Player(1).position,eater=1};m.Fish.Add(swallowed);var before=swallowed.position;
+                AquariumBodyCollision.Resolve(m.Players,m.Fish,m.Time);Check((before-swallowed.position).Length<.0001f,"only captured prey may enter the mouth");
+            });
+            Test("sprinting players cannot cross through each other during a long tick", () => {
+                var m=Match(true);m.Fish.Clear();m.Fish.Add(new Prey{id=100,position=new Point(-24,8,0),turnAt=float.MaxValue});
+                var a=m.Player(1);var b=m.Player(3);a.position=new Point(2.3f,7,4);b.position=new Point(2.3f,7,6);
+                for(int i=0;i<16;i++)
+                {
+                    m.SetInput(1,new SwimInput{z=1,aimZ=1,sprint=true});m.SetInput(3,new SwimInput{z=-1,aimZ=-1,sprint=true});m.Tick(.1f);
+                    Check(a.position.z<b.position.z,"no tunnelling at maximum accepted tick");
+                }
+            });
+            Test("feeding blocks a new morph until chewing and mouth closure complete", () => {
+                var m=Match();var p=m.Player(1);p.species=0;p.revealUntil=0;m.Fish[0].position=At(1.5f,0);Act(m,1);
+                Check(p.visualAction=="Bite" && p.nextAction>=p.visualAt+AquariumModel.FishFeedingSeconds,"full feeding sequence reserved");
+                int species=p.species;m.Fish[1].position=At(1.5f,0);m.Fish[1].species=2;Advance(m,2.2f);Act(m,1,true);
+                Check(p.species==species,"chewing cannot be overwritten by held morph input");
+            });
             Test("sculpted sand stops swimmers and camera or projectile rays at its actual surface", () => {
                 float low=100,high=-100;
                 for(int x=-30;x<=30;x+=2)for(int z=-17;z<=17;z+=2)
@@ -180,6 +237,38 @@ public static class ModelTests
                 m.SetRole(2, Team.Seeker, false); Check(!m.StartRound(), "unready"); m.SetRole(2, Team.Seeker, true); Check(m.StartRound(), "valid lobby");
                 Check(m.AddPlayer(4, "Late", Team.Seeker) == null, "midround join");
             });
+            Test("animation snapshots identify the eater and preserve the victim origin", () => {
+                var m=Match();m.Player(1).species=0;m.Player(1).revealUntil=0;
+                m.Fish[0].position=At(1,0);var origin=m.Fish[0].position;Act(m,1);
+                var snapshot=m.Snapshot();var victim=Array.Find(snapshot.fish,f=>f.id==m.Fish[0].id);
+                Check(victim.eaten && victim.eater==1,"explicit victim relationship");
+                Check(victim.visualAt==m.Player(1).visualAt && victim.visualAt>=0,"shared authoritative timestamp");
+                Check(m.Player(1).visualAction=="Bite" && m.Player(1).visualTarget==victim.id,"disguised mouth action");
+                Advance(m,.5f);Check((victim.position-origin).Length<.2f,"victim origin retained during presentation");
+            });
+            Test("new catalog species participate without changing spawning rules", () => {
+                var m=new AquariumModel(73,5);
+                Check(m.Fish.Count==AquariumModel.FishCount && m.Fish.Exists(f=>f.species==4),"fifth species spawned");
+                Check(m.Fish.TrueForAll(f=>f.species>=0 && f.species<5),"catalog bounds respected");
+            });
+            Test("fish mouth is exclusive to an active fish disguise", () => {
+                var m=Match();var p=m.Player(1);p.species=0;p.revealUntil=m.Time+5;m.Fish[0].position=At(1,0);Act(m,1);
+                Check(p.visualAction=="TentacleEat" && !AquariumModel.HasFishDisguise(p,m.Time),"revealed alien never opens fish mouth");
+                p.species=-1;p.revealUntil=0;Check(!AquariumModel.HasFishDisguise(p,m.Time),"alien body cannot use fish mouth");
+                p.species=0;Check(AquariumModel.HasFishDisguise(p,m.Time),"active disguise can use mouth");
+                p.alive=false;Check(!AquariumModel.HasFishDisguise(p,m.Time),"death interrupts mouth eligibility");
+            });
+            Test("undisguised feeding selects tentacles and death has a stable timestamp", () => {
+                var m=Match();m.Player(1).species=-1;m.Fish[0].position=At(1,0);Act(m,1);
+                Check(m.Player(1).visualAction=="TentacleEat","tentacle action");
+                var k=Match();Advance(k,5.1f);k.Player(2).position=At(0,0);k.Player(1).position=At(2,0);Act(k,2);Advance(k,.3f);
+                var born=k.Player(1).deathAt;Check(born>=0 && k.Player(1).visualAction=="Harpoon","death event");
+                Advance(k,.4f);Check(k.Player(1).deathAt==born,"repeated snapshot does not restart death");
+            });
+            Test("morph snapshot retains previous species for continuous transitions", () => {
+                var m=Match();m.Player(1).species=0;m.Fish[0].species=2;m.Fish[0].position=At(1,0);Act(m,1,true);
+                Check(m.Player(1).morphFrom==0 && m.Player(1).species==2 && m.Player(1).morphAt>=0,"both endpoints and start time");
+            });
             Test("copy nearby living fish and brief reveal", () => {
                 var m = Match(); m.Fish[0].dead = false; m.Fish[0].species = 2; m.Fish[0].position = At(1, 0);
                 Act(m, 1, true); Check(m.Player(1).species == 2, "morph species"); Check(m.Player(1).revealUntil > m.Time, "reveal");
@@ -194,12 +283,49 @@ public static class ModelTests
             Test("three-second friendly swallow and six-second morph lock", () => {
                 var m = Match(true); var p = m.Player(3); p.position = At(1, 0);
                 Act(m, 1); Check(p.swallowedBy == 1, "swallowed"); Advance(m, 2.9f); Check(p.swallowedBy == 1, "early release");
-                Advance(m, 0.14f); Check(p.swallowedBy == 0 && p.position.x > 1, "released forward");
+                Advance(m, 0.14f); Check(p.swallowedBy == 0 && Point.Dot(p.position-m.Player(1).position,p.facing)>1.5f, "released forward with body clearance");
                 Check(p.revealUntil > m.Time && m.Player(1).revealUntil > m.Time && m.Effects.Exists(e => e.kind == "burp"), "burp reveal");
             });
             Test("carrier disconnect safely releases friend", () => {
                 var m = Match(true); m.Player(3).position = At(1, 0); Act(m, 1); m.RemovePlayer(1);
                 Check(m.Player(3).swallowedBy == 0 && m.Player(3).alive && m.Phase == RoundPhase.Playing, "disconnect release");
+            });
+            Test("release moves both aliens apart with continuous deceleration", () => {
+                var m=ReleasePair();var carrier=m.Player(1);var expelled=m.Player(3);
+                Check(carrier.visualAction=="SpitRecoil" && expelled.visualAction=="SpitOut" && carrier.visualAt==expelled.visualAt,"synchronized two-sided reaction");
+                Check(Point.Dot(carrier.facing,expelled.facing)>.99f && carrier.facing.x>.99f,"carrier faces the spit direction while recoiling backwards");
+                var a=carrier.position;var b=expelled.position;m.Tick(.1f);
+                float first=(carrier.position-a).Length;
+                Check(Point.Dot(carrier.position-a,new Point(-1,0))>.35f && Point.Dot(expelled.position-b,new Point(1,0))>.35f,"both leave the release position");
+                a=carrier.position;m.Tick(.1f);Check((carrier.position-a).Length<first,"water drag reduces the kick speed");
+                Advance(m,1);a=carrier.position;b=expelled.position;m.Tick(.1f);
+                Check((carrier.position-a).Length<.001f && (expelled.position-b).Length<.001f,"impulse ends without residual drift");
+            });
+            Test("release displacement is independent of roster order and tick rate", () => {
+                var a=ReleasePair(false,.01f);var b=ReleasePair(true,.05f);
+                var a0=a.Player(1).position;var a1=a.Player(3).position;var b0=b.Player(1).position;var b1=b.Player(3).position;
+                for(int i=0;i<100;i++)a.Tick(.01f);for(int i=0;i<20;i++)b.Tick(.05f);
+                Check(((a.Player(1).position-a0)-(b.Player(1).position-b0)).Length<.005f,"same carrier recoil");
+                Check(((a.Player(3).position-a1)-(b.Player(3).position-b1)).Length<.005f,"same ejected travel");
+                Check(Math.Abs((a.Player(1).position-a0).Length-1.53f)<.01f,"complete integrated kick distance");
+            });
+            Test("held controls cannot reverse a release impulse and resume afterwards", () => {
+                var m=ReleasePair();var carrier=m.Player(1);var expelled=m.Player(3);var a=carrier.position;var b=expelled.position;
+                m.SetInput(1,new SwimInput{x=1,aimX=1,sprint=true,action=true,morph=true});m.SetInput(3,new SwimInput{x=-1,aimX=-1,sprint=true});m.Tick(.1f);
+                Check(carrier.position.x<a.x && expelled.position.x>b.x && carrier.facing.x>0 && expelled.facing.x>0,"backward recoil preserves forward gaze despite held input");
+                Advance(m,1);a=carrier.position;m.SetInput(1,new SwimInput{z=1,aimZ=1});m.Tick(.1f);
+                Check(carrier.position.z>a.z+.3f && carrier.facing.z>.9f,"movement and aim resume");
+            });
+            Test("release beside glass stays contained and separates the two hulls", () => {
+                var m=Match(true);var carrier=m.Player(1);var expelled=m.Player(3);
+                carrier.position=AquariumModel.Constrain(At(90,0,7),.4f);carrier.facing=new Point(1,0);expelled.position=carrier.position;
+                expelled.swallowedBy=1;expelled.releaseAt=m.Time+.025f;m.Tick(.05f);
+                for(int i=0;i<60;i++)
+                {
+                    m.Tick(1f/60);
+                    Check((carrier.position-AquariumModel.Constrain(carrier.position,.4f)).Length<.01f && (expelled.position-AquariumModel.Constrain(expelled.position,.4f)).Length<.01f,"glass and terrain constraints");
+                    Check(AquariumBodyCollision.Penetration(carrier.position,carrier.facing,.62f,.25f,expelled.position,expelled.facing,.62f,.25f).Length<.03f,"released bodies do not overlap beside glass");
+                }
             });
             Test("seeker warmup and speed advantage", () => {
                 var m = Match(); var s = m.Player(2); s.position = At(0, 6);
@@ -282,7 +408,7 @@ public static class ModelTests
                 var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(0, 0);
                 var near = m.Fish[0]; near.position = At(4, 0);
                 var far = m.Fish[1]; far.position = At(-10, 0); // Clear water inside the curved gallery perimeter.
-                var dead = m.Fish[2]; dead.position = At(4, 0); dead.dead = true;
+                var dead = m.Fish[2]; dead.position = At(4, 0, 5); dead.dead = true;
                 m.SetInput(2, new SwimInput { aimX = 1, feed = true }); m.Tick(1f / 30);
                 var food = m.Effects.Find(e => e.kind == "feed"); Check(food != null && food.duration == 5, "feed spawned");
                 float ready = m.Player(2).nextFeed, before = (near.position - food.position).Length;
@@ -300,7 +426,7 @@ public static class ModelTests
                 Check(m.Effects.Count == 0 && m.Player(2).nextFeed == 0, "warmup and role restrictions");
                 Advance(m, 5.1f); Check(!m.Effects.Exists(e => e.kind == "feed"), "warmup click is not queued");
             });
-            Test("eating stuns movement and actions then resumes; red trace lasts five seconds", () => {
+            Test("eating resumes normally while red ink disperses for nine seconds", () => {
                 var m = Match(); var p = m.Player(1); m.Fish[0].position = At(1, 0); m.Fish[1].position = At(1.2f, 0);
                 Act(m, 1); var origin = p.position; float ateAt = m.Time;
                 Check(Math.Abs(p.stunnedUntil - ateAt - AquariumModel.EatStun) < 0.001f, "eat stun");
@@ -308,18 +434,18 @@ public static class ModelTests
                 Check((p.position - origin).Length < 0.001f && p.species == -1 && !m.Fish[1].eaten, "no movement, morph or bite during stun");
                 Advance(m, 2f); m.SetInput(1, new SwimInput { x = 1 }); m.Tick(0.1f);
                 Check(p.position.x > origin.x, "movement resumes");
-                Advance(m, 2f); Check(m.Effects.Exists(e => e.kind == "eat" && e.duration == 5), "trace persists after stun");
-                Advance(m, 1); Check(!m.Effects.Exists(e => e.kind == "eat"), "trace expires");
+                Advance(m, 4f); Check(m.Effects.Exists(e => e.kind == "eat" && e.duration == 9), "trace persists beyond the old five-second cutoff");
+                Advance(m, 3); Check(!m.Effects.Exists(e => e.kind == "eat"), "diluted trace expires");
             });
-            Test("swallowing stuns carrier and yellow spit trace lasts five seconds", () => {
+            Test("swallowing stuns carrier and yellow spit ink disperses for nine seconds", () => {
                 var m = Match(true); m.Player(3).position = At(1, 0); var p = m.Player(1); Act(m, 1);
                 var origin = p.position;
                 m.SetInput(1, new SwimInput { x = 1 }); m.Tick(0.1f);
                 Check((p.position - origin).Length < 0.001f && p.stunnedUntil > m.Time, "carrier is stunned");
                 Advance(m, 3); var trace = m.Effects.Find(e => e.kind == "burp");
-                Check(m.Player(3).swallowedBy == 0 && trace != null && trace.duration == 5, "automatic spit and yellow trace");
-                Advance(m, 4); Check(m.Effects.Contains(trace), "spit trace persists");
-                Advance(m, 1.1f); Check(!m.Effects.Contains(trace), "spit trace expires");
+                Check(m.Player(3).swallowedBy == 0 && trace != null && trace.duration == 9, "automatic spit and yellow trace");
+                Advance(m, 7); Check(m.Effects.Contains(trace), "spit ink persists while diluted");
+                Advance(m, 2.1f); Check(!m.Effects.Contains(trace), "spit trace expires");
             });
             Test("dead fish lower goal once and cannot be eaten again", () => {
                 var m = Match(); m.Fish[0].dead = true; m.Fish[0].position = At(1, 0); Act(m, 1);
@@ -329,8 +455,8 @@ public static class ModelTests
             });
             Test("last fish killed by diver completes alien goal", () => {
                 var m = Match(); Advance(m, 5.1f); for (int i = 1; i < m.Fish.Count; i++) m.Fish[i].eaten = true;
-                m.Player(2).position = At(0, 6); m.Fish[0].position = At(1.3f, 6);
-                Act(m, 2); Check(m.Fish[0].dead && m.Winner == (int)Team.Hider && m.WinReason == WinReason.FoodGoalReached, "last kill finishes goal");
+                m.Player(2).position = At(0, 6); m.Fish[0].position = At(2.1f, 6);
+                Act(m, 2); Advance(m,.12f);Check(m.Fish[0].dead && m.Winner == (int)Team.Hider && m.WinReason == WinReason.FoodGoalReached, "last kill finishes goal");
             });
             Test("finished review freezes gameplay for twenty seconds before rematch", () => {
                 var m = Match(true); m.Player(3).position = At(1, 0); Act(m, 1); m.RemovePlayer(2);
@@ -362,15 +488,15 @@ public static class ModelTests
                 var m = Match(true); var p = m.Player(1); Advance(m, 8); m.Fish[0].position = At(1, 0);
                 Act(m, 1); float meal = p.lastMealAt;
                 Check(Math.Abs(meal - m.Time) < 0.001f && p.personalEaten == 1 && p.score == 100, "normal meal rewards");
-                Advance(m, 2.1f); m.Player(3).position = At(1, 0); Act(m, 1);
+                Advance(m, AquariumModel.TentacleFeedingSeconds+.1f); m.Player(3).position = At(1, 0); Act(m, 1);
                 Check(p.lastMealAt == meal && p.personalEaten == 1 && p.score == -50 && m.Player(3).score == 0, "ally grants no hunger and only eater loses points");
             });
-            Test("ally stun ends before morph lock while both can sprint after release", () => {
+            Test("both resume sprinting after the release impulse while morph lock continues", () => {
                 var m = Match(true); var p = m.Player(1); var ally = m.Player(3); ally.position = At(1, 0); p.species = ally.species = 2;
                 Act(m, 1); float biteAt = m.Time;
                 Check(p.species == -1 && ally.species == -1 && Math.Abs(p.morphLockedUntil - biteAt - 6) < 0.001f && ally.morphLockedUntil == p.morphLockedUntil, "both unmorph for six seconds");
-                Advance(m, 3.1f); var before = p.position; m.SetInput(1, new SwimInput { z = 1, sprint = true }); m.Tick(0.1f);
-                Check((p.position - before).Length > 0.6f && p.stamina < 100 && ally.swallowedBy == 0, "sprint resumes after three seconds");
+                Advance(m, 4.1f); var before = p.position; m.SetInput(1, new SwimInput { z = 1, sprint = true }); m.Tick(0.1f);
+                Check((p.position - before).Length > 0.6f && p.stamina < 100 && ally.swallowedBy == 0, "sprint resumes after the release impulse");
                 p.position = At(0, 0); m.Fish[0].position = At(1, 0); Act(m, 1, true); Check(p.species == -1, "morph still blocked");
                 Advance(m, 3); m.Fish[0].position = At(1, 0); Act(m, 1, true); Check(p.species == 0, "morph resumes after six seconds");
             });
@@ -398,7 +524,7 @@ public static class ModelTests
                 var m = Match(); m.Player(1).species = 2; m.SetInput(1, new SwimInput { scan = true }); m.SetInput(2, new SwimInput { scan = true }); m.Tick(0.1f);
                 Check(m.Player(1).scanUntil == 0 && m.Player(2).scanUntil == 0, "role and countdown restrictions");
                 Advance(m, 5.1f); m.SetInput(2, new SwimInput { scan = true }); m.Tick(0.1f); var diver = m.Player(2);
-                float ready = diver.nextScan; Check(Math.Abs(diver.scanUntil - m.Time - 5) < 0.001f && Math.Abs(ready - m.Time - 18) < 0.001f, "scan timers");
+                float ready = diver.nextScan; Check(Math.Abs(diver.scanUntil-m.Time-5)<.001f && Math.Abs(ready-m.Time-18)<.001f, "scan timers");
                 Check(m.Player(1).species == 2 && m.Player(1).revealUntil == 0 && m.Player(1).score == 0, "scan alone does not reveal or score");
                 Advance(m, 5.1f); m.SetInput(2, new SwimInput { scan = true }); m.Tick(0.1f); Check(diver.nextScan == ready && diver.scanUntil < m.Time, "scan cannot be spammed");
             });
@@ -426,7 +552,8 @@ public static class ModelTests
                 dead.stamina = 0; dead.lastMealAt = -100; dead.personalEaten = 4; dead.score = 225; dead.eggUsed = true; dead.exposureScore = 50;
                 m.SetInput(1, new SwimInput { layEgg = true }); m.Tick(0.1f); var egg = m.Eggs[0];
                 Advance(m, 11.8f); Check(!dead.alive && m.Eggs.Count == 1, "not hatched early");
-                Advance(m, 0.3f); Check(dead.alive && m.Eggs.Count == 0 && (dead.position - egg.position).Length < 0.001f, "one teammate at egg position");
+                Advance(m, 0.3f); Check(dead.alive && m.Eggs.Count == 0 && (dead.position - egg.position).Length < 1.6f, "one teammate emerges beside the egg");
+                Check(AquariumBodyCollision.Penetration(dead.position,dead.facing,.62f,.25f,owner.position,owner.facing,.62f,.25f).Length<.01f,"revival separates from the carrier");
                 Check(dead.stamina == 100 && m.Time - dead.lastMealAt < 0.2f && dead.personalEaten == 4 && dead.score == 225 && dead.eggUsed && dead.exposureScore == 0, "new life keeps round stats");
                 Check(owner.score == 150, "owner receives hatch points");
             });
@@ -465,7 +592,7 @@ public static class ModelTests
                 m.Eggs.Add(new RevivalEgg { id = 99, owner = 1, revivePlayer = 3, position = At(1.3f, 0, 4), hatchAt = m.Time + 12 });
                 m.Tick(0.1f); Check(m.Eggs.Count == 0 && diver.nextAction > m.Time && m.Effects.Exists(e => e.kind == "eggBreak"), "visible egg counterplay");
             });
-            Console.WriteLine("RESULT: " + passed + " gameplay tests passed."); return 0;
+            Console.WriteLine("RESULT: " + passed + " gameplay tests passed; " + failed + " failed."); return failed==0?0:1;
         }
         catch (Exception ex) { Console.Error.WriteLine("FAIL " + ex.Message); return 1; }
     }

@@ -32,7 +32,7 @@ namespace PrototypeLab.Aquarium
         private void Awake()
         {
             Application.runInBackground = true; Application.targetFrameRate = 60;
-            session = new AquariumSession(); view = new AquariumView(transform); backdrop = new AquariumModel();
+            session = new AquariumSession(); view = new AquariumView(transform); backdrop = new AquariumModel(speciesCount: AquariumSpecies.Count);
             followCamera = new AquariumThirdPersonCamera(view.Camera);
             playerName = PlayerPrefs.GetString("Aquarium.Name", "Diver");
             audioSource = gameObject.AddComponent<AudioSource>(); audioSource.volume = 0.24f; audioSource.spatialBlend = 0;
