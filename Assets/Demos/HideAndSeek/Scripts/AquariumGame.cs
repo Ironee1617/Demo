@@ -203,6 +203,7 @@ namespace PrototypeLab.Aquarium
         {
             followCamera.Prepare(session.State, session.LocalId, session.SpectatingId);
             followCamera.UpdatePose(session.State, view, Time.unscaledDeltaTime);
+            view.PresentEquipment(session.State, followCamera.FollowId, followCamera.FirstPerson);
             var local = Local();
             morphTarget = !session.IsSpectator && session.State != null && session.State.phase == RoundPhase.Playing && local != null
                 && local.alive && local.team == Team.Hider && local.swallowedBy == 0

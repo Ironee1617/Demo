@@ -37,6 +37,8 @@ namespace PrototypeLab.Aquarium
             public int visibilitySamples;
             public string visibilityPhases;
             public bool swimLookUpRises, swimLookDownFalls, swimLevelKeepsHeight, swimIdleStops;
+            public bool equipmentVisible, equipmentOutbound, equipmentReturning, equipmentReloaded, equipmentTetherAttached;
+            public int equipmentTetherFrames, equipmentShots;
             public float swimUpHeight, swimDownHeight, swimLevelHeight, swimLevelDistance, swimIdleDrift, swimSettledDrift, swimStopSpeed;
             public int swimInputSamples;
             public string[] errors;
@@ -82,13 +84,16 @@ namespace PrototypeLab.Aquarium
         private float swimStageAt, swimUpHeight, swimDownHeight, swimLevelHeight, swimLevelDistance, swimIdleDrift, swimSettledDrift, swimStopSpeed;
         private Point swimStart, swimSettledPosition;
         private bool swimLookUpRises, swimLookDownFalls, swimLevelKeepsHeight, swimIdleStops, swimSettledSampled;
+        private bool equipmentVisible, equipmentOutbound, equipmentReturning, equipmentReloaded, equipmentTetherAttached = true;
+        private int equipmentTetherFrames, equipmentShots, equipmentLastShot;
+        private float equipmentNextShot;
         private bool SwimLookMode { get { return mode == "swimLookHider" || mode == "swimLookSeeker"; } }
         private bool ScenarioMode { get { return mode == "death" || mode == "terminal" || mode == "eggdeath" || mode == "target" || mode == "feed"; } }
         private bool RoomMode { get { return mode == "lobbyHost" || mode == "passwordClient" || mode == "wrongPassword" || mode == "roomHost" || mode == "observerClient" || mode == "rejoinClient"
             || mode == "roomCloudHost" || mode == "roomListClient" || mode == "roomCodeClient" || mode == "roomWrongPassword" || mode == "roomBrowser" || mode == "roomVisibility"; } }
         private bool LocalRoomMode { get { return mode == "host" || mode == "client" || mode == "lobbyHost" || mode == "passwordClient" || mode == "wrongPassword" || mode == "roomHost" || mode == "observerClient" || mode == "rejoinClient"; } }
         private bool ExpectedPasswordRejection { get { return mode == "wrongPassword" || mode == "roomWrongPassword"; } }
-        private bool ControlledMode { get { return ScenarioMode || SwimLookMode || mode == "revival" || RoomMode || autoRematch; } }
+        private bool ControlledMode { get { return ScenarioMode || SwimLookMode || mode == "harpoon" || mode == "revival" || RoomMode || autoRematch; } }
         private static readonly BindingFlags PrivateFields = BindingFlags.Instance | BindingFlags.NonPublic;
         private string Arg(string key)
         {
@@ -129,6 +134,7 @@ namespace PrototypeLab.Aquarium
                     case "roomVisibility": _ = TrackRoomVisibility(); break;
                     case "practice": session.StartPractice("Test swimmer", Team.Hider); break;
                     case "seeker": session.StartPractice("Test diver", Team.Seeker); break;
+                    case "harpoon": StartHarpoonScenario(); break;
                     case "revival": StartRevivalScenario(); break;
                     case "swimLookHider": case "swimLookSeeker": StartSwimLookScenario(); break;
                     case "death": case "terminal": case "eggdeath": case "target": case "feed": StartScenario(); break;
@@ -139,6 +145,7 @@ namespace PrototypeLab.Aquarium
             TrackRoomConnection(elapsed);
             if (ScenarioMode && session.Model != null) UpdateScenario(elapsed);
             if (SwimLookMode && session.Model != null) UpdateSwimLookScenario();
+            if (mode == "harpoon" && session.Model != null) UpdateHarpoonScenario();
             if (session.Code.Length > 0 && codePath.Length > 0) { File.WriteAllText(codePath, session.Code); codePath = ""; }
             if (session.Connected)
             {
@@ -193,6 +200,8 @@ namespace PrototypeLab.Aquarium
                 if (mode == "revival" && (!revivalEggCreated || !revived || !continuedPlaying))
                     errors.Add("Revival scenario failed: egg=" + revivalEggCreated + ", revived=" + revived + ", playing=" + continuedPlaying);
                 ValidateScenario();
+                if (mode == "harpoon" && (!equipmentVisible || !equipmentOutbound || !equipmentReturning || !equipmentReloaded || !equipmentTetherAttached || equipmentTetherFrames < 30 || equipmentShots < 2))
+                    errors.Add("Equipment flight/retrieval validation failed");
                 ValidateRoomScenario();
                 if (SwimLookMode && (!swimLookUpRises || !swimLookDownFalls || !swimLevelKeepsHeight || !swimIdleStops))
                     errors.Add("Look swimming failed: up=" + swimLookUpRises + ", down=" + swimLookDownFalls + ", level=" + swimLevelKeepsHeight
@@ -213,6 +222,8 @@ namespace PrototypeLab.Aquarium
                     minHeight = minHeight == float.MaxValue ? 0 : minHeight, maxHeight = maxHeight == float.MinValue ? 0 : maxHeight,
                     perspective = !view.Camera.orthographic, cameraFollowId = followCamera.FollowId, cameraYaw = followCamera.Yaw,
                     firstPerson = followCamera.FirstPerson, freeView = followCamera.FreeView, spectatingDiver = followCamera.SpectatingDiver,
+                    equipmentVisible = equipmentVisible, equipmentOutbound = equipmentOutbound, equipmentReturning = equipmentReturning, equipmentReloaded = equipmentReloaded,
+                    equipmentTetherAttached = equipmentTetherAttached, equipmentTetherFrames = equipmentTetherFrames, equipmentShots = equipmentShots,
                     realRuleDeath = realRuleDeath, deathReviewObserved = deathReviewObserved, corpseVisible = corpseVisible,
                     corpseMotionless = corpseMotionless && corpseTransforms.Count > 0, diverSpectateObserved = diverSpectateObserved, deathReviewDuration = deathReviewDuration,
                     terminalImmediate = terminalImmediate, terminalSkippedIntro = terminalSkippedIntro,
@@ -656,6 +667,7 @@ namespace PrototypeLab.Aquarium
         private void LateUpdate()
         {
             if (!initialized || !enabled) return;
+            if (mode == "harpoon") ObserveHarpoonTether();
             var state = session.State; var local = state == null ? null : Array.Find(state.players, p => p.id == session.LocalId);
             float elapsed = Time.realtimeSinceStartup - started;
             if (state != null) ObserveRoomScenario(state);
@@ -827,7 +839,7 @@ namespace PrototypeLab.Aquarium
             hudTarget = new RenderTexture(Screen.width, Screen.height, 24);
             previousTarget = RenderTexture.active;
             var cameraTarget = view.Camera.targetTexture;
-            view.Camera.targetTexture = hudTarget; view.Camera.Render(); view.Camera.targetTexture = cameraTarget;
+            view.RenderTo(hudTarget);
             RenderTexture.active = hudTarget;
             GL.PushMatrix(); GL.LoadPixelMatrix(0, Screen.width, Screen.height, 0);
             return true;
@@ -851,13 +863,44 @@ namespace PrototypeLab.Aquarium
             var pixels = new Texture2D(1440, 900, TextureFormat.RGB24, false);
             try
             {
-                view.Camera.targetTexture = target; view.Camera.Render(); RenderTexture.active = target;
+                view.RenderTo(target); RenderTexture.active = target;
                 pixels.ReadPixels(new Rect(0, 0, 1440, 900), 0, 0); pixels.Apply();
                 File.WriteAllBytes(capturePath, pixels.EncodeToPNG());
             }
             finally { view.Camera.targetTexture = cameraTarget; RenderTexture.active = previous; target.Release(); Destroy(target); Destroy(pixels); }
         }
         private void OnDestroy() { Application.logMessageReceived -= Log; }
+
+        private void StartHarpoonScenario()
+        {
+            session.StartPractice("Harpoon equipment check", Team.Seeker);
+            foreach (var p in session.Model.Players) { p.bot = false; p.velocity = new Point(); p.lastMealAt = float.MaxValue; }
+            while (session.Model.Time < session.Model.HuntAt + .1f) session.Model.Tick(1f / 30);
+            var diver = session.Model.Player(session.LocalId); diver.position = AquariumModel.Constrain(new Point(2.3f, 9, 4), .6f); diver.facing = new Point(0, 0, 1);
+            foreach (var p in session.Model.Players) if (p != diver) p.position = AquariumModel.Constrain(new Point(-20 + p.id * 2, 8, -5), .6f);
+            foreach (var f in session.Model.Fish) { f.position = AquariumModel.Constrain(new Point(-20, 8, -5), .6f); f.facing = new Point(1, 0); f.turnAt = float.MaxValue; }
+            equipmentNextShot = session.Model.Time + 1;
+        }
+        private void UpdateHarpoonScenario()
+        {
+            if (session.Model.Time >= equipmentNextShot)
+            { equipmentNextShot = session.Model.Time + 4; session.Input(new SwimInput { aimZ = 1, action = true }); }
+            var gun = view.Camera.GetComponentInChildren<AquariumHarpoonGun>();
+            equipmentVisible |= gun != null && followCamera.FirstPerson;
+            if (gun == null) return;
+            var shots = session.Model.Harpoons;
+            if (shots.Count == 0) { if (equipmentReturning && gun.loadedHarpoon.gameObject.activeSelf) equipmentReloaded = true; return; }
+            var h = shots[0]; equipmentOutbound |= !h.returning; equipmentReturning |= h.returning;
+            if (h.id != equipmentLastShot) { equipmentLastShot = h.id; equipmentShots++; }
+        }
+        private void ObserveHarpoonTether()
+        {
+            var gun = view.Camera.GetComponentInChildren<AquariumHarpoonGun>(); if (gun == null) return;
+            // The live camera and tether endpoints have both been updated in LateUpdate.
+            foreach (var line in gameObject.GetComponentsInChildren<LineRenderer>())
+                if (line.name == "Braided retrieval line" && line.positionCount > 0)
+                { equipmentTetherAttached &= Vector3.Distance(line.GetPosition(0), gun.ropeExit.position) < .03f; equipmentTetherFrames++; }
+        }
     }
 }
 #endif

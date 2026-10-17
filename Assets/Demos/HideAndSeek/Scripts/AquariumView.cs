@@ -15,6 +15,9 @@ namespace PrototypeLab.Aquarium
             public Transform[] tentacles;
             public string kind;
             public AquariumCreature creature;
+            public AquariumRig diver;
+            public AquariumHarpoonGun gun;
+            public LineRenderer tether;
             public CapsuleCollider bodyCollider;
             public Vector3 previousPosition;
             public float moveSpeed;
@@ -47,6 +50,7 @@ namespace PrototypeLab.Aquarium
         private readonly LineRenderer localRing;
         private readonly System.Random random = new System.Random(54);
         public Camera Camera { get; private set; }
+        private AquariumFirstPersonEquipment equipment;
 
         public AquariumView(Transform parent)
         {
@@ -76,6 +80,7 @@ namespace PrototypeLab.Aquarium
             Camera.clearFlags = CameraClearFlags.SolidColor; Camera.backgroundColor = new Color(0.025f, 0.12f, 0.18f);
             AquariumEnvironment.ConfigureCamera(Camera);
             AquariumEnvironment.ConfigureLighting(root);
+            equipment = new AquariumFirstPersonEquipment(Camera);
         }
 
         private Material Material(Color color, bool transparent = false)
@@ -167,21 +172,17 @@ namespace PrototypeLab.Aquarium
             }
             else if (kind == "diver")
             {
-                Ball("Diving suit", t, Vector3.zero, new Vector3(0.72f, 0.64f, 1.16f), dark);
-                Ball("Helmet", t, new Vector3(0, 0.1f, 0.49f), Vector3.one * 0.65f, teal);
-                Ball("Visor rim", t, new Vector3(0, 0.2f, 0.65f), new Vector3(0.56f, 0.34f, 0.3f), eggGold);
-                Ball("Visor", t, new Vector3(0, 0.23f, 0.71f), new Vector3(0.44f, 0.23f, 0.22f), steel);
-                Box("Oxygen tank", t, new Vector3(0, 0.36f, -0.12f), new Vector3(0.37f, 0.29f, 0.65f), steel);
-                Box("Tank strap", t, new Vector3(0, 0.38f, -0.12f), new Vector3(0.4f, 0.31f, 0.12f), dark);
-                for (int side = -1; side <= 1; side += 2)
-                    Box("Flipper", t, new Vector3(side * 0.24f, -0.05f, -0.79f), new Vector3(0.26f, 0.13f, 0.55f), eggGold);
-                Box("Harpoon grip", t, new Vector3(0.5f, 0, 0.46f), new Vector3(0.14f, 0.16f, 0.8f), dark);
-                Box("Harpoon barrel", t, new Vector3(0.5f, 0, 0.93f), new Vector3(0.065f, 0.065f, 0.6f), steel);
+                actor.diver = UnityEngine.Object.Instantiate(Resources.Load<GameObject>("AquariumEquipment/Diver"), t).GetComponent<AquariumRig>();
+                actor.gun = AquariumFirstPersonEquipment.CreateGun(t);
             }
             else if (kind == "harpoon")
             {
-                Box("Spear shaft", t, Vector3.zero, new Vector3(0.055f, 0.055f, 0.95f), steel);
-                var tip = Fin(t, new Vector3(0, 0, 0.65f), new Vector3(0.35f, 1, 0.4f), white); tip.localRotation = Quaternion.Euler(0, 180, 0);
+                UnityEngine.Object.Instantiate(Resources.Load<GameObject>("AquariumEquipment/HarpoonHead"), t);
+                actor.tether = new GameObject("Braided retrieval line").AddComponent<LineRenderer>(); actor.tether.transform.SetParent(t, false);
+                actor.tether.sharedMaterial = Resources.Load<Material>("AquariumEquipment/Rope");
+                actor.tether.positionCount = 25; actor.tether.useWorldSpace = true; actor.tether.widthMultiplier = .014f;
+                actor.tether.numCapVertices = 3; actor.tether.numCornerVertices = 2; actor.tether.textureMode = LineTextureMode.Tile;
+                actor.tether.generateLightingData = true; actor.tether.shadowCastingMode = ShadowCastingMode.Off;
             }
             else if (kind == "egg")
             {
@@ -263,6 +264,11 @@ namespace PrototypeLab.Aquarium
                 string kind=p.team==Team.Seeker?"diver":form<0?"alien":"fish"+form;
                 bool frozenPose=finished && actors.ContainsKey("p"+p.id);
                 var actor=Place("p"+p.id,kind,p.position,p.facing,dt,visualTime,deathPose);
+                if (actor.diver != null && !frozenPose)
+                {
+                    actor.diver.SamplePose(actor.moveSpeed > .65f ? "Swim" : "Idle", visualTime, visualTime);
+                    actor.gun.SetLoaded(visualTime >= p.nextAction);
+                }
                 if(actor.creature!=null && !frozenPose)
                 {
                     float actionLength=p.visualAction=="SpitRecoil"?AquariumModel.SpitAnimationSeconds:p.visualAction=="SpitOut"?AquariumModel.ReleaseKickSeconds:p.visualAction=="Bite"?AquariumModel.FishFeedingSeconds:p.visualAction=="TentacleEat"?AquariumModel.TentacleFeedingSeconds:2.4f;
@@ -361,6 +367,56 @@ namespace PrototypeLab.Aquarium
         {
             if(predator.creature==null)return;
             prey.creature.PresentIngestion(predator.creature,age);
+        }
+
+        public void PresentEquipment(AquariumSnapshot state, int followId, bool firstPerson)
+        {
+            Actor followed; actors.TryGetValue("p" + followId, out followed);
+            equipment.Present(state, followId, firstPerson, followed == null ? 0 : followed.moveSpeed);
+            if (state == null || state.phase == RoundPhase.Finished) return;
+            foreach (var shot in state.harpoons)
+            {
+                Actor projectile, owner;
+                if (!actors.TryGetValue("h" + shot.id, out projectile) || !actors.TryGetValue("p" + shot.owner, out owner) || owner.gun == null) continue;
+                var gun = equipment.Visible && equipment.Owner == shot.owner ? equipment.gun : owner.gun;
+                var tip = new Vector3(shot.position.x, shot.position.y, shot.position.z);
+                var direction = new Vector3(shot.direction.x, shot.direction.y, shot.direction.z).normalized;
+                var dockedTip = gun.muzzle.position + gun.muzzle.forward * gun.headLength * gun.transform.lossyScale.z;
+                if (!shot.returning) tip = Vector3.Lerp(dockedTip, tip, Mathf.Clamp01((state.time - shot.born) / .07f));
+                else
+                {
+                    float dock = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(shot.retrievedAt - .3f, shot.retrievedAt, state.time));
+                    tip = Vector3.Lerp(tip, dockedTip, dock); direction = Vector3.Slerp(direction, gun.muzzle.forward, dock);
+                }
+                projectile.root.transform.SetPositionAndRotation(tip - direction * gun.headLength, Quaternion.LookRotation(direction));
+                var from = gun.ropeExit.position; var to = projectile.root.transform.position;
+                float distance = Vector3.Distance(from, to);
+                float sag = Mathf.Min(.45f, distance * .035f) * (shot.returning ? 1 : .35f);
+                var side = Vector3.Cross((to - from).normalized, Vector3.up);
+                for (int i = 0; i < projectile.tether.positionCount; i++)
+                {
+                    float t = i / (float)(projectile.tether.positionCount - 1); float arc = Mathf.Sin(t * Mathf.PI);
+                    var ripple = side * (Mathf.Sin(t * 9 - state.time * 2.5f) * Mathf.Min(.045f, distance * .009f));
+                    projectile.tether.SetPosition(i, Vector3.Lerp(from, to, t) + (Vector3.down * sag + ripple) * arc);
+                }
+            }
+        }
+
+        // Render both passes for editor reviews and hidden-window smoke captures.
+        public void RenderTo(RenderTexture target)
+        {
+            var previous = Camera.targetTexture;
+            try
+            {
+                Camera.targetTexture = target; Camera.Render();
+                foreach (var overlay in Camera.GetComponentsInChildren<Camera>()) if (overlay != Camera && overlay.enabled)
+                {
+                    var old = overlay.targetTexture;
+                    try { overlay.targetTexture = target; overlay.Render(); }
+                    finally { overlay.targetTexture = old; }
+                }
+            }
+            finally { Camera.targetTexture = previous; }
         }
 
         public MorphTarget FindMorphTarget(AquariumSnapshot state, Swimmer caster, Point aim)
@@ -507,6 +563,7 @@ namespace PrototypeLab.Aquarium
         { if (actor == outlinedActor) ClearOutline(); if(Application.isPlaying)UnityEngine.Object.Destroy(actor.root);else UnityEngine.Object.DestroyImmediate(actor.root); }
         public void Dispose()
         {
+            equipment?.Dispose();
             Shader.SetGlobalFloat("_AquariumPreviewTimeEnabled", 0);
             ClearOutline();
             foreach (var actor in actors.Values) DestroyActor(actor);

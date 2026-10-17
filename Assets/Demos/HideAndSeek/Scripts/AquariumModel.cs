@@ -66,6 +66,9 @@ namespace PrototypeLab.Aquarium
         public int id, owner;
         public Point position, direction;
         public float life = 0.75f;
+        public float born, returnAt, retrievedAt;
+        public bool returning;
+        public Point returnFrom;
     }
 
     [Serializable]
@@ -565,7 +568,8 @@ namespace PrototypeLab.Aquarium
         private void Shoot(Swimmer p)
         {
             p.nextAction = Time + HarpoonCooldown;
-            Harpoons.Add(new Harpoon { id = ++nextHarpoon, owner = p.id, position = p.position + p.facing * 0.7f, direction = p.facing });
+            Harpoons.Add(new Harpoon { id = ++nextHarpoon, owner = p.id, position = p.position + p.facing * 0.7f, direction = p.facing,
+                born = Time, retrievedAt = p.nextAction });
             Effect("shot", p.position + p.facing, p.facing, 0.2f);
         }
 
@@ -636,7 +640,20 @@ namespace PrototypeLab.Aquarium
         {
             for (int i = Harpoons.Count - 1; i >= 0; i--)
             {
-                var h = Harpoons[i]; var start = h.position; var end = start + h.direction * (20f * dt);
+                var h = Harpoons[i]; var owner = Player(h.owner);
+                if (owner == null || !owner.alive || Time >= h.retrievedAt) { Harpoons.RemoveAt(i); continue; }
+                if (h.returning)
+                {
+                    // The host keeps a spent spear until the cooldown ends. It cannot hit twice.
+                    float t = Math.Min(1, Math.Max(0, (Time - h.returnAt) / Math.Max(.01f, h.retrievedAt - h.returnAt)));
+                    float reel = t * t * (3 - 2 * t);
+                    var socket = owner.position + owner.facing * .7f;
+                    h.position = h.returnFrom + (socket - h.returnFrom) * reel;
+                    var away = h.position - owner.position;
+                    if (away.Length > .01f) h.direction = away.Normalized;
+                    continue;
+                }
+                var start = h.position; var end = start + h.direction * (20f * Math.Min(dt, h.life));
                 h.life -= dt;
                 float first = 2f; Swimmer hitPlayer = null; Prey hitFish = null; RevivalEgg hitEgg = null;
                 // Segment collision prevents fast harpoons crossing thin targets between ticks.
@@ -655,12 +672,19 @@ namespace PrototypeLab.Aquarium
                     else if (hitFish != null) { hitFish.dead = true; hitFish.visualAt = Time; Effect("miss", h.position, h.direction, 0.8f); }
                     else if (hitEgg != null) { Eggs.Remove(hitEgg); Effect("eggBreak", h.position, h.direction, 1f); }
                     else Effect("miss", h.position, h.direction, 0.35f);
-                    Harpoons.RemoveAt(i);
+                    BeginHarpoonReturn(h);
                 }
-                else if (h.life <= 0 || !InsideTank(end) || end.y < AquariumSeabed.Height(end) || end.y > WaterHeight) Harpoons.RemoveAt(i);
-                else h.position = end;
+                else
+                {
+                    h.position = end;
+                    if (h.life <= 0 || !InsideTank(end) || end.y < AquariumSeabed.Height(end) || end.y > WaterHeight)
+                    { h.position = Constrain(end, .04f); BeginHarpoonReturn(h); }
+                }
             }
         }
+
+        private void BeginHarpoonReturn(Harpoon h)
+        { h.returning = true; h.returnAt = Time; h.returnFrom = h.position; }
 
         public static float HitTime(Point a, Point b, Point centre, float radius)
         {

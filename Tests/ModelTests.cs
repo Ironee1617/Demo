@@ -347,7 +347,8 @@ public static class ModelTests
             });
             Test("rock cover blocks harpoons", () => {
                 var m = Match(); Advance(m, 5.1f); m.Player(2).position = CoverSide(-3); m.Player(1).position = CoverSide(3);
-                Act(m, 2); Advance(m, 0.8f); Check(m.Player(1).alive && m.Harpoons.Count == 0, "cover");
+                Act(m, 2); Advance(m, 0.8f); Check(m.Player(1).alive && m.Harpoons.Count == 1 && m.Harpoons[0].returning, "cover stops damage and starts retrieval");
+                Advance(m, 2.3f); Check(m.Harpoons.Count == 0, "retrieved at end of cooldown");
             });
             Test("carrier death releases swallowed player", () => {
                 var m = Match(true); Advance(m, 5.1f); m.Player(1).position = At(2, 0); m.Player(3).position = At(3, 0); Act(m, 1);
@@ -405,6 +406,26 @@ public static class ModelTests
                 Check(Math.Abs(ready - m.Time - 3) < 0.001f, "3s cooldown");
                 Advance(m, 1); Act(m, 2); Check(m.Player(2).nextAction == ready, "early shot rejected");
                 Advance(m, 2.1f); Act(m, 2); Check(m.Player(2).nextAction > ready && m.Harpoons.Count == 1, "ready shot accepted");
+            });
+            Test("spent harpoon reels to moving owner without a second hit", () => {
+                var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(0, 0); m.Player(1).position = At(8, 5);
+                var prey = m.Fish[0]; prey.position = At(2, 0); prey.dead = false;
+                Act(m, 2); Advance(m, .25f);
+                Check(prey.dead && m.Harpoons.Count == 1 && m.Harpoons[0].returning, "hit retains spent tethered spear");
+                var h = m.Harpoons[0]; float ready = m.Player(2).nextAction;
+                Check(Math.Abs(h.retrievedAt - ready) < .001f, "retrieval uses authoritative cooldown");
+                m.Player(1).position = h.position; m.Player(2).position = At(-2, 1);
+                Advance(m, .4f); Check(m.Player(1).alive, "returning spear has no damage");
+                Advance(m, Math.Max(0, ready - m.Time - .12f));
+                Check(m.Harpoons.Count == 1 && (h.position - (m.Player(2).position + m.Player(2).facing * .7f)).Length < .15f, "reel follows moving owner");
+                Advance(m, .2f); Check(m.Harpoons.Count == 0, "only removed when fully retrieved");
+            });
+            Test("missed harpoon stops at range and remains tethered until ready", () => {
+                var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(0, 6);
+                Act(m, 2); var h = m.Harpoons[0]; var launch = h.position; Advance(m, .8f);
+                Check(h.returning && m.Harpoons.Count == 1 && (h.returnFrom - launch).Length <= 15.1f, "range limit starts return");
+                Advance(m, 1); Check(m.Harpoons.Count == 1, "rope remains during cooldown");
+                Advance(m, 1.3f); Check(m.Harpoons.Count == 0, "miss retrieved");
             });
             Test("feed attracts only nearby live fish for five seconds and cools down for twenty", () => {
                 var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(0, 0);
