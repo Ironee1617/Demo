@@ -27,10 +27,11 @@ namespace PrototypeLab.Aquarium
             else delta=delta/distance;
             return delta*(depth+.002f);
         }
-        sealed class Body
+        struct Body
         {
             public Swimmer player;public Prey fish;public Point position,direction;public float radius,half,weight,wallRadius;
         }
+        [ThreadStatic] private static List<Body> contactBodies;
         public static Point Move(Swimmer player,Point travel,List<Swimmer> players,List<Prey> fish,float time)
         {
             bool diver=player.team==Team.Seeker,alien=player.species<0 || player.revealUntil>time;
@@ -63,7 +64,7 @@ namespace PrototypeLab.Aquarium
         }
         public static void Resolve(List<Swimmer> players,List<Prey> fish,float time)
         {
-            var bodies=new List<Body>(players.Count+fish.Count);
+            var bodies=contactBodies??(contactBodies=new List<Body>(players.Count+fish.Count));bodies.Clear();
             foreach(var p in players)
             {
                 if(p.swallowedBy!=0 || !p.alive && time-p.deathAt>2.4f)continue;
@@ -83,10 +84,12 @@ namespace PrototypeLab.Aquarium
                     float fraction=a.weight+b.weight>.001f?a.weight/(a.weight+b.weight):.5f;
                     a.position=AquariumModel.Constrain(a.position+correction*fraction,a.wallRadius);
                     b.position=AquariumModel.Constrain(b.position-correction*(1-fraction),b.wallRadius);
+                    bodies[i]=a;bodies[j]=b;
                 }
                 if(!contact)break;
             }
             foreach(var body in bodies){if(body.player!=null)body.player.position=body.position;else body.fish.position=body.position;}
+            bodies.Clear();
         }
     }
 }

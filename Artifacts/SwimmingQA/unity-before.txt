@@ -1,0 +1,7 @@
+AQUARIUM_SWIMMING_CHECKS_OK AquariumEquipment/Diver pose_us=59.10 bytes_per_pose=0
+AquariumCharacters/Fish0 pose_us=76.40 bytes_per_pose=0
+AquariumCharacters/Alien pose_us=276.11 bytes_per_pose=0
+first_bite_ms=57.09 bytes=0
+first_ink_ms=94.43 bytes=0
+OK
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)

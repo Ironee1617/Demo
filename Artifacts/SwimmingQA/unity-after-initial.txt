@@ -1,0 +1,13 @@
+AQUARIUM_SWIMMING_CHECKS_OK AquariumEquipment/Diver pose_us=8.75
+cadence_60_144_difference=0.0122
+AquariumCharacters/Fish0 pose_us=14.57
+cadence_60_144_difference=0.0122
+AquariumCharacters/Alien pose_us=32.46
+cadence_60_144_difference=0.0122
+loading_cache_ms=2341.69
+first_bite_ms=1.52
+first_ink_ms=2.97
+ink_render_sync_ms=4.10
+ink_baseline_render_sync_ms=7.34
+OK
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)

@@ -1,0 +1,84 @@
+﻿
+﻿
+PASS cruising fish turn through a bounded arc instead of snapping
+PASS fish meals synchronize one red ink injection with the feeding owner
+PASS swallowing an alien emits yellow ink immediately before release
+PASS rounded hulls separate fish alien and diver in three dimensions
+PASS coincident crowds settle without NaN and swallowed prey is exempt
+PASS sprinting players cannot cross through each other during a long tick
+PASS feeding blocks a new morph until chewing and mouth closure complete
+PASS sculpted sand stops swimmers and camera or projectile rays at its actual surface
+PASS 12 metre water column is navigable above the reefs
+PASS giant limestone walls block swimmers, camera rays and swept harpoons
+PASS reference cantilever has a navigable undercut and solid projecting ledge
+PASS natural arch leaves a continuous diver-sized swimming passage
+PASS new terrain keeps generated actors outside all limestone masses
+PASS curved perimeter matches art and keeps swimmers inside at every heading
+PASS reference outline preserves the inlet and triangulates without overlap
+PASS full-depth walkway glass excludes swimmers and catches swept projectiles
+PASS rounded deck junctions share swim and swept projectile collision
+PASS spacious layout keeps reef dimensions and spreads valid spawns
+PASS lobby readiness and both roles
+PASS animation snapshots identify the eater and preserve the victim origin
+PASS new catalog species participate without changing spawning rules
+PASS fish mouth is exclusive to an active fish disguise
+PASS undisguised feeding selects tentacles and death has a stable timestamp
+PASS morph snapshot retains previous species for continuous transitions
+PASS copy nearby living fish and brief reveal
+PASS living fish count toward food victory
+PASS three-second friendly swallow and six-second morph lock
+PASS carrier disconnect safely releases friend
+PASS release moves both aliens apart with continuous deceleration
+PASS release displacement is independent of roster order and tick rate
+PASS held controls cannot reverse a release impulse and resume afterwards
+PASS release beside glass stays contained and separates the two hulls
+PASS seeker warmup and speed advantage
+PASS harpoon kills hider and seekers win
+PASS nearest fish intercepts harpoon before hider
+PASS rock cover blocks harpoons
+PASS carrier death releases swallowed player
+PASS timeout and rematch reset
+PASS input expiry, diagonal clamp and malformed input
+PASS seeker leaves: surviving hiders win
+PASS 3D movement normalizes all axes and bounds swimming height
+PASS bite uses depth and can eat directly above
+PASS 3D harpoon misses wrong height and hits an elevated target
+PASS rock volume permits swimming and shooting over it
+PASS harpoon enforces three-second host cooldown
+PASS spent harpoon reels to moving owner without a second hit
+PASS missed harpoon stops at range and remains tethered until ready
+PASS feed attracts only nearby live fish for five seconds and cools down for twenty
+PASS feed is restricted to divers after hiding countdown
+PASS eating resumes normally while red ink disperses for nine seconds
+PASS swallowing stuns carrier and yellow spit ink disperses for nine seconds
+PASS dead fish lower goal once and cannot be eaten again
+PASS last fish killed by diver completes alien goal
+PASS finished review freezes gameplay for twenty seconds before rematch
+PASS five-player roster fills four aliens and removes only fill bots for rematch
+PASS hunger begins after countdown and starvation is fatal
+PASS only normal meals refresh hunger and grant food points
+PASS both resume sprinting after the release impulse while morph lock continues
+PASS aimed morph accepts NPCs and disguised allies without identifying the target
+PASS sprint drains only while moving and restores when released for both roles
+PASS scan has role countdown and host cooldown without exposing identity
+PASS exposure points require diver view range and line of sight with fifty per life cap
+PASS laid egg sinks smoothly on the host and freezes with the finished scene
+PASS laid egg settles on the actual sand height and stays planted
+PASS sinking egg stops on a rounded reef without sliding through it
+PASS eggs require three personal meals dead teammate and once-only use
+PASS egg hatches after twelve seconds restores hunger and stamina but preserves lifetime stats
+PASS egg target reservations prevent duplicate revival and wipe waits for viable egg
+PASS one harpoon destroys an egg and completes wipe before hatching
+PASS NPCs flee a nearby diver but bait takes precedence
+PASS wipe condition takes priority over simultaneous food completion
+PASS practice diver acts on visible evidence and visible eggs only
+PASS countdown blocks human and bot meals including allies but permits movement and disguise
+PASS swimming accelerates gradually and stops within a short bounded distance
+PASS stun swallowed death and wall limits discard swimming momentum immediately
+PASS death records authoritative time and the visible species exactly once
+PASS finished review preserves effects harpoons eggs and positions at finishedAt
+PASS last death with a viable egg stays playing through death review
+PASS morph target selection prioritizes aim alignment then distance for NPCs and allies
+PASS explicit morph target stays locked across input coalescing and rejects invalid target without fallback
+PASS feed sound fades over three-dimensional distance and is silent at ten metres
+RESULT: 81 gameplay tests passed; 0 failed.

@@ -1,0 +1,16 @@
+AquariumEquipment/Diver pose_us=8.76
+cadence_60_144_difference=0.0122
+AquariumCharacters/Fish0 pose_us=14.10
+cadence_60_144_difference=0.0122
+AquariumCharacters/Alien pose_us=26.02
+cadence_60_144_difference=0.0122
+diver snapshot_20hz_render_60_speed=1.92..2.05
+fish0 snapshot_20hz_render_60_speed=1.92..2.05
+diver snapshot_20hz_render_144_speed=1.89..2.08
+fish0 snapshot_20hz_render_144_speed=1.89..2.08
+loading_cache_ms=605.80
+first_bite_ms=1.40
+first_ink_ms=2.27
+ink_render_sync_ms=3.65
+ink_baseline_render_sync_ms=6.87
+OK

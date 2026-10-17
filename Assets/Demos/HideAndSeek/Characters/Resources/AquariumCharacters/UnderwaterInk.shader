@@ -54,16 +54,18 @@ Shader "Aquarium/Underwater Ink Volume"
     float viewFactor=max(.001,-mul((float3x3)UNITY_MATRIX_V,ray).z);
     finish=min(finish,scene/viewFactor);
     if(finish<=entry)return 0;
-    float stepSize=(finish-entry)/48;
+    int steps=(int)lerp(16,28,saturate((finish-entry)/3));
+    float stepSize=(finish-entry)/steps;
     float jitter=frac(sin(dot(i.position.xy,float2(12.9898,78.233)))*43758.5453);
     float distance=entry+stepSize*jitter;float alpha=0;float3 color=0;
-    [loop]for(int step=0;step<48;step++)
+    [loop]for(int step=0;step<steps;step++)
     {
      float3 p=ro+rd*distance;float d=density(p);
+     if(d<.001){distance+=stepSize;continue;}
      float soft=saturate((finish-distance)*12);
      float a=1-exp(-d*stepSize*8*soft);
      float3 lightDirection=float3(-.35,.8,-.28);
-     float shade=exp(-2.5*(density(p+lightDirection*.16)*.65+density(p+lightDirection*.32)*.35));
+     float shade=exp(-2.5*(density(p+lightDirection*.22)));
      float3 pigment=lerp(_Pigment.rgb,_EdgeTint.rgb,shade*.72+.16);
      pigment*=.72+.28*saturate(p.y*.5+.5);
      color+=(1-alpha)*a*pigment;alpha+=(1-alpha)*a;

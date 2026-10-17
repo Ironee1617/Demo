@@ -19,8 +19,7 @@ namespace PrototypeLab.Aquarium
             public AquariumHarpoonGun gun;
             public LineRenderer tether;
             public CapsuleCollider bodyCollider;
-            public Vector3 previousPosition;
-            public float moveSpeed;
+            public float moveSpeed,bank;
         }
         private sealed class OutlinePart { public Renderer source, shell; }
         private readonly List<OutlinePart> outlineParts = new List<OutlinePart>();
@@ -28,7 +27,11 @@ namespace PrototypeLab.Aquarium
         private readonly Material outlineMaterial;
         private bool worldFrozen, freezeExistingPoses;
         private int frozenRound;
-        private float environmentTime;
+        private float environmentTime,presentationTime=-1,lastStateTime=-1;
+        private int presentationRound;
+        private readonly List<SkinnedMeshRenderer> outlineSkins=new List<SkinnedMeshRenderer>();
+        private readonly List<MeshFilter> outlineFilters=new List<MeshFilter>();
+        private readonly List<Renderer> cameraRenderers=new List<Renderer>();
         private readonly Transform root;
         private readonly Dictionary<string, Actor> actors = new Dictionary<string, Actor>();
         private readonly Dictionary<int, GameObject> effects = new Dictionary<int, GameObject>();
@@ -69,6 +72,7 @@ namespace PrototypeLab.Aquarium
             fishMaterials = new Material[3]; finMaterials = new Material[3];
             for (int i = 0; i < 3; i++) { fishMaterials[i] = Material(colors[i]); finMaterials[i] = Material(Color.Lerp(colors[i], Color.white, 0.38f)); }
             fanMesh = MakeFanMesh(); coneMesh = MakeConeMesh();
+            AquariumCreature.Prewarm();
             BuildEnvironment();
             localRing = Ring("Your swimmer", root, 0.68f, new Color(0.59f, 1f, 0.81f, 0.85f), 0.035f);
             Camera = UnityEngine.Camera.main;
@@ -209,6 +213,7 @@ namespace PrototypeLab.Aquarium
                 actor = MakeActor(kind); actors[key] = actor;
             }
             Vector3 target = new Vector3(at.x, at.y, at.z);
+            if((fresh || actor.kind!=kind) && key.StartsWith("p") && actor.creature!=null && kind.StartsWith("fish"))actor.creature.PrepareFeedingForms(int.Parse(kind.Substring(4)));
             actor.kind=kind;
             if(actor.bodyCollider!=null)
             {
@@ -216,14 +221,19 @@ namespace PrototypeLab.Aquarium
                 actor.bodyCollider.radius=radius;actor.bodyCollider.height=2*(radius+AquariumBodyCollision.Half(kind=="diver",kind=="alien"));
             }
             float blend = fresh || dead ? 1 : 1 - Mathf.Exp(-dt * 18);
-            actor.moveSpeed = fresh || dt <= 0 ? 0 : Vector3.Distance(target,actor.previousPosition)/dt;
-            actor.previousPosition=target;
-            if (fresh || !freezeExistingPoses) actor.root.transform.position = Vector3.Lerp(actor.root.transform.position, target, blend);
+            Vector3 before=actor.root.transform.position;
+            if (fresh || !freezeExistingPoses) actor.root.transform.position = Vector3.Lerp(before, target, blend);
+            float measured=fresh || dt<=0?0:Vector3.Distance(actor.root.transform.position,before)/dt;
+            actor.moveSpeed=Mathf.Lerp(actor.moveSpeed,measured,1-Mathf.Exp(-Mathf.Max(0,dt)*12));
             var direction = new Vector3(facing.x, facing.y, facing.z);
             if (direction.sqrMagnitude < 0.001f) direction = Vector3.forward;
             var rot = Quaternion.LookRotation(direction, Mathf.Abs(direction.normalized.y) > 0.99f ? Vector3.forward : Vector3.up);
             if (dead && actor.creature == null) rot *= Quaternion.Euler(0, 0, 180);
-            if (fresh || !freezeExistingPoses) actor.root.transform.rotation = fresh || dead ? rot : Quaternion.Slerp(actor.root.transform.rotation, rot, blend);
+            float turn=Vector3.SignedAngle(actor.root.transform.forward,direction,Vector3.up);
+            float wantedBank=actor.moveSpeed>.15f?Mathf.Clamp(-turn*.35f,-10,10):0;
+            actor.bank=Mathf.Lerp(actor.bank,wantedBank,1-Mathf.Exp(-Mathf.Max(0,dt)*6));
+            rot*=Quaternion.Euler(0,0,actor.bank);
+            if (fresh || !freezeExistingPoses) actor.root.transform.rotation = fresh || dead ? rot : Quaternion.Slerp(actor.root.transform.rotation, rot, 1-Mathf.Exp(-dt*8));
             if (actor.tail != null) actor.tail.localRotation = Quaternion.Euler(0, dead ? 0 : Mathf.Sin(time * 10 + at.z) * 22, 90);
             if (actor.tentacles != null) for (int i = 0; i < actor.tentacles.Length; i++)
                 actor.tentacles[i].localRotation = Quaternion.Euler(Mathf.Sin(time * 3 + i * 1.8f) * 15, 0, Mathf.Cos(time * 3 + i) * 12);
@@ -249,7 +259,10 @@ namespace PrototypeLab.Aquarium
             Shader.SetGlobalFloat("_AquariumPreviewTimeEnabled", 1);
             if (finished && worldFrozen && frozenRound == state.round) { CleanupFrozenWorld(state); return; }
             worldFrozen = finished; frozenRound = state.round; freezeExistingPoses = finished;
-            float visualTime = finished ? state.finishedAt : state.time;
+            if(presentationTime<0 || state.time<lastStateTime || state.round!=presentationRound)presentationTime=state.time;
+            else presentationTime=Mathf.Min(state.time+.05f,Mathf.Max(state.time-.1f,presentationTime+Mathf.Clamp(dt,0,.1f)));
+            lastStateTime=state.time;presentationRound=state.round;
+            float visualTime = finished ? state.finishedAt : presentationTime;
             if (finished) SetMorphTarget(null);
             visible.Clear();
             Swimmer local = null;
@@ -266,7 +279,7 @@ namespace PrototypeLab.Aquarium
                 var actor=Place("p"+p.id,kind,p.position,p.facing,dt,visualTime,deathPose);
                 if (actor.diver != null && !frozenPose)
                 {
-                    actor.diver.SamplePose(actor.moveSpeed > .65f ? "Swim" : "Idle", visualTime, visualTime);
+                    actor.diver.SampleLocomotion(actor.moveSpeed,visualTime,p.id*.37f);
                     actor.gun.SetLoaded(visualTime >= p.nextAction);
                 }
                 if(actor.creature!=null && !frozenPose)
@@ -465,7 +478,8 @@ namespace PrototypeLab.Aquarium
         {
             if(outlinedActor==null)return;
             // Forms and their bridge are created lazily; discover each skin once.
-            foreach(var skin in outlinedActor.root.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            outlinedActor.root.GetComponentsInChildren(true,outlineSkins);
+            foreach(var skin in outlineSkins)
             {
                 if(skin.sharedMesh==null || skin.name=="Candidate silhouette" || HasOutline(skin))continue;
                 var shell=new GameObject("Candidate silhouette");shell.transform.SetParent(skin.transform,false);
@@ -475,7 +489,8 @@ namespace PrototypeLab.Aquarium
                 renderer.shadowCastingMode=ShadowCastingMode.Off;renderer.receiveShadows=false;
                 outlineParts.Add(new OutlinePart{source=skin,shell=renderer});
             }
-            foreach (var filter in outlinedActor.root.GetComponentsInChildren<MeshFilter>(true))
+            outlinedActor.root.GetComponentsInChildren(true,outlineFilters);
+            foreach (var filter in outlineFilters)
             {
                 if (filter.sharedMesh == null || filter.gameObject.name == "Candidate silhouette") continue;
                 var sourceRenderer = filter.GetComponent<Renderer>();
@@ -556,7 +571,8 @@ namespace PrototypeLab.Aquarium
         {
             if (!hiddenByCamera.Add(actor)) return;
             // Only active renderers are touched: inactive feeding-mouth children keep their original state.
-            foreach (var renderer in actor.root.GetComponentsInChildren<Renderer>())
+            actor.root.GetComponentsInChildren(false,cameraRenderers);
+            foreach (var renderer in cameraRenderers)
             { hiddenRendererStates[renderer] = renderer.enabled; renderer.enabled = false; }
         }
         private void DestroyActor(Actor actor)

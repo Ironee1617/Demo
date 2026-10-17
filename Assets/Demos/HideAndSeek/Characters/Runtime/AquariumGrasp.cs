@@ -19,8 +19,8 @@ namespace PrototypeLab.Aquarium
                 int count=c==2||c==3?6:8;chains[c]=new int[count];lengths[c]=new float[count];
                 for(int j=0;j<count;j++)
                 {
-                    int k=Array.FindIndex(rig.skin.bones,b=>b.name==names[c]+j);chains[c][j]=k;
-                    int next=Array.FindIndex(rig.skin.bones,b=>b.name==names[c]+(j+1));
+                    int k=Array.FindIndex(rig.Bones,b=>b.name==names[c]+j);chains[c][j]=k;
+                    int next=Array.FindIndex(rig.Bones,b=>b.name==names[c]+(j+1));
                     if(next>=0)lengths[c][j]=rig.restPositions[next].magnitude;
                     else if(j>0)lengths[c][j]=lengths[c][j-1];
                 }
@@ -43,9 +43,9 @@ namespace PrototypeLab.Aquarium
                 var ids=chains[c];if(ids[0]<0)continue;
                 for(int j=0;j<ids.Length;j++)
                 {
-                    int k=ids[j];var bone=rig.skin.bones[k];bone.localPosition=rig.restPositions[k];bone.localRotation=rig.restRotations[k];bone.localScale=rig.restScales[k];
+                    int k=ids[j];var bone=rig.Bones[k];bone.localPosition=rig.restPositions[k];bone.localRotation=rig.restRotations[k];bone.localScale=rig.restScales[k];
                 }
-                int sign=c==0||c==2?-1:1,start=c==4?2:1;var root=rig.skin.bones[ids[start]];
+                int sign=c==0||c==2?-1:1,start=c==4?2:1;var root=rig.Bones[ids[start]];
                 Vector3 a=rig.transform.InverseTransformPoint(root.position),b,d,e;
                 if(c<2)
                 {
@@ -83,7 +83,7 @@ namespace PrototypeLab.Aquarium
                 float along=0;int segment=1;
                 for(int j=start;j<ids.Length;j++)
                 {
-                    var bone=rig.skin.bones[ids[j]];
+                    var bone=rig.Bones[ids[j]];
                     along+=lengths[c][j];while(segment<64 && distances[segment]<along)segment++;
                     Vector3 target=rig.transform.TransformPoint(Vector3.Lerp(path[segment-1],path[segment],Mathf.InverseLerp(distances[segment-1],distances[segment],along)));
                     Vector3 delta=target-bone.position;if(delta.sqrMagnitude<.000001f)continue;
@@ -93,7 +93,7 @@ namespace PrototypeLab.Aquarium
                 // Blend local joint rotations after solving the complete curve.
                 // Blending each world-space aim first can reverse the last joints.
                 float strength=reach*(c==2||c==3?.45f:c==4?.65f:1);
-                for(int j=start;j<ids.Length;j++){int k=ids[j];var bone=rig.skin.bones[k];bone.localRotation=Quaternion.Slerp(rig.restRotations[k],bone.localRotation,strength);}
+                for(int j=start;j<ids.Length;j++){int k=ids[j];var bone=rig.Bones[k];bone.localRotation=Quaternion.Slerp(rig.restRotations[k],bone.localRotation,strength);}
             }
         }
     }

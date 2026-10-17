@@ -257,6 +257,8 @@ namespace PrototypeLab.Aquarium
         private void StartSwimLookScenario()
         {
             session.StartPractice("Look swimming tester", mode == "swimLookSeeker" ? Team.Seeker : Team.Hider);
+            // Keep the movement measurement clear of NPC body contacts.
+            session.Model.Fish.Clear();session.Model.Fish.Add(new Prey{id=100,position=new Point(-25,10,-5),turnAt=float.MaxValue});
             foreach (var player in session.Model.Players)
             {
                 player.bot = false; player.velocity = new Point();

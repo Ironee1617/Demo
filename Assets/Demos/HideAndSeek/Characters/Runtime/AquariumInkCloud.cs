@@ -19,16 +19,20 @@ namespace PrototypeLab.Aquarium
         public void Initialize(int eventId,bool isYellow,bool wholeBody=false)
         {
             yellow=isYellow;concealTransformation=wholeBody;seed=Mathf.Repeat(eventId*0.6180339f,1);
+            Prewarm();
+            var cube=GameObject.CreatePrimitive(PrimitiveType.Cube);cube.name="Continuous ink volume";cube.transform.SetParent(transform,false);
+            var collider=cube.GetComponent<Collider>();if(Application.isPlaying)Destroy(collider);else DestroyImmediate(collider);
+            volume=cube.GetComponent<Renderer>();volume.sharedMaterial=material;volume.shadowCastingMode=ShadowCastingMode.Off;volume.receiveShadows=false;volume.enabled=false;
+            properties=new MaterialPropertyBlock();
+        }
+        public static void Prewarm()
+        {
             if(material==null)
             {
                 var shader=Resources.Load<Shader>("AquariumCharacters/UnderwaterInk");
                 material=new Material(shader){name="Underwater pigment density",hideFlags=HideFlags.HideAndDontSave};
                 noise=MakeNoise();material.SetTexture("_VolumeNoise",noise);
             }
-            var cube=GameObject.CreatePrimitive(PrimitiveType.Cube);cube.name="Continuous ink volume";cube.transform.SetParent(transform,false);
-            var collider=cube.GetComponent<Collider>();if(Application.isPlaying)Destroy(collider);else DestroyImmediate(collider);
-            volume=cube.GetComponent<Renderer>();volume.sharedMaterial=material;volume.shadowCastingMode=ShadowCastingMode.Off;volume.receiveShadows=false;volume.enabled=false;
-            properties=new MaterialPropertyBlock();
         }
 
         public void Present(float age,float duration,Vector3 mouth,Vector3 forward)

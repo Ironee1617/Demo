@@ -411,8 +411,9 @@ namespace PrototypeLab.Aquarium
             { Leave(); Status = "접속 시간이 초과되었습니다. 방 코드와 방장의 접속 상태를 확인해 주세요."; }
             if (Model == null) return;
             accumulator += Mathf.Min(dt, 0.2f);
-            while (accumulator >= 1f / 30f) { Model.Tick(1f / 30f); accumulator -= 1f / 30f; }
-            State = Model.Snapshot();
+            bool ticked=false;
+            while (accumulator >= 1f / 30f) { Model.Tick(1f / 30f); accumulator -= 1f / 30f;ticked=true; }
+            if(ticked || State==null)State = Model.Snapshot();
             snapshotTimer += dt;
             if (network != null && snapshotTimer >= 0.05f)
             {

@@ -1,0 +1,13 @@
+$ErrorActionPreference = 'Stop'
+$projectRoot = Split-Path -Parent $PSScriptRoot
+$version = ((Get-Content (Join-Path $projectRoot 'ProjectSettings/ProjectVersion.txt'))[0] -split ': ')[1]
+$monoRoot = "C:\Program Files\Unity\Hub\Editor\$version\Editor\Data\MonoBleedingEdge"
+$compiler = Join-Path $monoRoot 'lib/mono/4.5/csc.exe'
+if (!(Test-Path -LiteralPath $compiler)) { throw "Unity C# compiler missing: $compiler" }
+$testRoot = Join-Path $projectRoot 'Temp/AquariumTests'
+New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
+$binary = Join-Path $testRoot 'ModelPerformance.exe'
+& (Join-Path $monoRoot 'bin/mono.exe') $compiler /nologo /target:exe "/out:$binary" (Join-Path $projectRoot 'Assets/Demos/HideAndSeek/Scripts/AquariumModel.cs') (Join-Path $projectRoot 'Assets/Demos/HideAndSeek/Scripts/AquariumBodyCollision.cs') (Join-Path $projectRoot 'Assets/Demos/HideAndSeek/Environment/Runtime/AquariumMapOutline.cs') (Join-Path $projectRoot 'Assets/Demos/HideAndSeek/Environment/Runtime/AquariumWalkwayLayout.cs') (Join-Path $projectRoot 'Assets/Demos/HideAndSeek/Environment/Runtime/AquariumMonolithLayout.cs') (Join-Path $projectRoot 'Assets/Demos/HideAndSeek/Environment/Runtime/AquariumSeabed.cs') (Join-Path $PSScriptRoot 'ModelPerformance.cs')
+if ($LASTEXITCODE -ne 0) { throw 'Model performance failed to compile.' }
+& $binary
+if ($LASTEXITCODE -ne 0) { throw 'Model performance failed.' }

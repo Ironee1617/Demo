@@ -26,7 +26,7 @@ namespace PrototypeLab.Aquarium
         private Quaternion unstagedRotation;
         public int Form=>form;
         public bool Transitioning=>outgoing!=null;
-        public int BoneCount=>current==null?0:current.skin.bones.Length;
+        public int BoneCount=>current==null?0:current.Bones.Length;
         public Vector3 FeedingMouth=>FeedingAnchor(false);
         public Vector3 FeedingThroat=>FeedingAnchor(true);
         public Vector3 FeedingForward=>(FeedingMouth-FeedingThroat).normalized;
@@ -36,9 +36,7 @@ namespace PrototypeLab.Aquarium
                 var anchor=current!=null?(throat?current.throatAnchor:current.mouthAnchor):Vector3.zero;
                 if(!throat && form>=100 && form<200)anchor.z+=.14f*lipWrap-.045f*jawEmbrace;
                 if(current==null)return transform.TransformPoint(anchor);
-                for(int i=0;i<current.skin.bones.Length;i++)if(current.skin.bones[i].name=="Body")
-                    return current.skin.bones[i].TransformPoint(current.skin.sharedMesh.bindposes[i].MultiplyPoint3x4(anchor));
-                return transform.TransformPoint(anchor);
+                return current.BodyPoint(anchor);
         }
         public void Initialize(int initial,float seed)
         {
@@ -61,7 +59,7 @@ namespace PrototypeLab.Aquarium
         {
             if(stagedMeal){transform.localPosition=unstagedPosition;transform.localRotation=unstagedRotation;stagedMeal=false;}
             lipWrap=0;jawEmbrace=0;
-            if(current==null)Initialize(target,0);speed=Mathf.Lerp(speed,moveSpeed,.2f);
+            if(current==null)Initialize(target,0);speed=moveSpeed;
             if(motion=="Bite" && target>=100 && target<200 && now-born>=AquariumFeeding.ClosingSilhouette)target+=100;
             // A delayed snapshot must still complete the fish disguise before opening its mouth.
             if(form<0 && target>=100)target%=100;
@@ -84,7 +82,7 @@ namespace PrototypeLab.Aquarium
                 }
             }
             bool expelled=motion=="SpitOut";
-            string pose=expelled?"Swim":motion=="Locomotion"?(speed>.18f?"Swim":"Idle"):motion;
+            string pose=expelled?"Swim":motion;
             float poseTime=expelled?Mathf.Max(0,now-born)*1.65f+phase:motion=="Locomotion"?now+phase:Mathf.Max(0,now-born);
             if(outgoing==null)
             {current.gameObject.SetActive(true);Sample(current,pose,poseTime,0,now);Apply(current,form);transform.localScale=Vector3.one;}
@@ -140,7 +138,7 @@ namespace PrototypeLab.Aquarium
         {if(revealInk!=null){if(Application.isPlaying)Destroy(revealInk.gameObject);else DestroyImmediate(revealInk.gameObject);}}
         private void Sample(AquariumRig rig,string pose,float t,float shape,float now,bool sealedMouth=false)
         {
-            rig.SamplePose(pose,t,now);rig.Neutralize(shape/100);rig.skin.SetBlendShapeWeight(0,shape);
+            if(pose=="Locomotion")rig.SampleLocomotion(speed,now,phase);else rig.SamplePose(pose,t,now);rig.Neutralize(shape/100);rig.skin.SetBlendShapeWeight(0,shape);
             rig.skin.localBounds=new Bounds(Vector3.zero,Vector3.one*4);
             if(sealedMouth)
             {
@@ -186,8 +184,8 @@ namespace PrototypeLab.Aquarium
         private static float BodyRadius(AquariumRig rig)
         {
             var mesh=rig.skin.sharedMesh;if(bodyRadii.TryGetValue(mesh,out var radius))return radius;
-            var weights=mesh.boneWeights;var vertices=mesh.vertices;var core=new bool[rig.skin.bones.Length];
-            for(int i=0;i<core.Length;i++){string n=rig.skin.bones[i].name;core[i]=n=="Body"||n=="Head"||n=="Spine";}
+            var weights=mesh.boneWeights;var vertices=mesh.vertices;var core=new bool[rig.Bones.Length];
+            for(int i=0;i<core.Length;i++){string n=rig.Bones[i].name;core[i]=n=="Body"||n=="Head"||n=="Spine";}
             var bounds=new Bounds(mesh.bounds.center,Vector3.zero);
             for(int i=0;i<vertices.Length;i++)
             {
@@ -225,7 +223,7 @@ namespace PrototypeLab.Aquarium
         private void Apply(AquariumRig rig,int id)
         {properties.Clear();properties.SetColor("_Tint",Tint(id));properties.SetFloat("_Morph",rig.skin.GetBlendShapeWeight(0)/100);int maw=rig.skin.sharedMesh.GetBlendShapeIndex("BellyOpen");properties.SetFloat("_MawOpen",maw<0?0:rig.skin.GetBlendShapeWeight(maw)/100);rig.skin.SetPropertyBlock(properties);}
         private static float Smooth(float a,float b,float t)=>Mathf.SmoothStep(0,1,Mathf.InverseLerp(a,b,t));
-        private void MakeBridge(AquariumRig from,AquariumRig to,bool sealedMouth,bool direct)
+        private static Mesh TransitionMesh(AquariumRig from,AquariumRig to,bool sealedMouth,bool direct)
         {
             string key=from.envelope.name+"_"+to.envelope.name+(sealedMouth?"_Closed":"")+(direct?"_Direct":"");
             if(!transitionMeshes.TryGetValue(key,out var mesh) || mesh==null)
@@ -250,15 +248,41 @@ namespace PrototypeLab.Aquarium
                 mesh.ClearBlendShapes();mesh.AddBlendShapeFrame("Target silhouette",100,delta,normals,null);mesh.AddBlendShapeFrame("Organic relaxation",100,relaxA,normalA,null);mesh.SetUVs(2,targetColors);mesh.bounds=new Bounds(Vector3.zero,Vector3.one*3);transitionMeshes[key]=mesh;
                 }
             }
+            return mesh;
+        }
+        private void MakeBridge(AquariumRig from,AquariumRig to,bool sealedMouth,bool direct)
+        {
+            var mesh=TransitionMesh(from,to,sealedMouth,direct);
             if(bridge==null)
             {
                 var go=new GameObject("Opaque silhouette transition");go.transform.SetParent(transform,false);bridge=go.AddComponent<SkinnedMeshRenderer>();bridge.bones=new[]{transform};bridge.rootBone=transform;bridge.localBounds=new Bounds(Vector3.zero,Vector3.one*3);
                 bridge.sharedMaterial=Resources.Load<Material>("AquariumCharacters/Metamorphosis");
             }
-            bridge.bones=direct?from.skin.bones:new[]{transform};bridge.rootBone=direct?from.skin.rootBone:transform;
+            bridge.bones=direct?from.Bones:new[]{transform};bridge.rootBone=direct?from.skin.rootBone:transform;
             bridge.sharedMaterial=direct?from.skin.sharedMaterial:Resources.Load<Material>("AquariumCharacters/Metamorphosis");
             bridge.sharedMesh=mesh;bridge.SetBlendShapeWeight(0,0);
         }
+        // Shared geometry and turbulence are prepared during the loading screen.
+        public static void Prewarm()
+        {
+            AquariumInkCloud.Prewarm();
+            var go=new GameObject("Creature loading cache");go.SetActive(false);
+            try
+            {
+                var creature=go.AddComponent<AquariumCreature>();creature.Initialize(-1,0);var alienRig=creature.current;
+                foreach(var species in catalog)
+                {
+                    var normal=creature.GetForm(species.speciesId);var mouth=creature.GetForm(species.speciesId+100);var closed=creature.GetForm(species.speciesId+200);
+                    BodyRadius(normal);BodyRadius(alienRig);
+                    TransitionMesh(alienRig,normal,false,false);TransitionMesh(normal,alienRig,false,false);
+                    TransitionMesh(normal,mouth,false,false);TransitionMesh(mouth,closed,true,false);TransitionMesh(closed,normal,false,true);
+                    TransitionMesh(mouth,alienRig,false,false);TransitionMesh(closed,alienRig,false,false);
+                }
+            }
+            finally { if(Application.isPlaying)Destroy(go);else DestroyImmediate(go); }
+        }
+        public void PrepareFeedingForms(int species)
+        { if(species>=0){GetForm(species%100+100);GetForm(species%100+200);} }
         private void CreateSpear()
         {
             spear=GameObject.CreatePrimitive(PrimitiveType.Cylinder);spear.name="Embedded harpoon";if(Application.isPlaying)Destroy(spear.GetComponent<Collider>());else DestroyImmediate(spear.GetComponent<Collider>());spear.transform.SetParent(transform,false);

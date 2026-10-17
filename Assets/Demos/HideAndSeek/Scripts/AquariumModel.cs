@@ -19,6 +19,16 @@ namespace PrototypeLab.Aquarium
         public static Point operator -(Point a, Point b) { return new Point(a.x - b.x, a.y - b.y, a.z - b.z); }
         public static Point operator *(Point a, float b) { return new Point(a.x * b, a.y * b, a.z * b); }
         public static Point operator /(Point a, float b) { return new Point(a.x / b, a.y / b, a.z / b); }
+        public static Point TurnTowards(Point from,Point to,float radians)
+        {
+            if(to.Length<.0001f)return from;if(from.Length<.0001f)return to.Normalized;
+            from=from.Normalized;to=to.Normalized;
+            float dot=Math.Max(-1,Math.Min(1,Dot(from,to))),angle=(float)Math.Acos(dot);
+            if(angle<=radians)return to;
+            Point tangent=to-from*dot;
+            if(tangent.Length<.0001f){var up=Math.Abs(from.y)<.9f?new Point(0,1,0):new Point(1,0,0);tangent=up-from*Dot(up,from);}
+            return from*(float)Math.Cos(radians)+tangent.Normalized*(float)Math.Sin(radians);
+        }
         public static float Dot(Point a, Point b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
     }
 
@@ -58,6 +68,8 @@ namespace PrototypeLab.Aquarium
         public float visualAt = -100;
         public int eater;
         public float turnAt;
+        [NonSerialized] public Point steering;
+        [NonSerialized] public float swimSpeed;
     }
 
     [Serializable]
@@ -285,25 +297,29 @@ namespace PrototypeLab.Aquarium
             {
                 if (f.eaten) continue;
                 if (f.dead) { f.position = Constrain(f.position + new Point(0, -0.8f * dt, 0), 0.35f); continue; }
-                if (Time > f.turnAt) { f.facing = (f.facing + new Point(Range(-0.8f, 0.8f), Range(-0.3f, 0.3f), Range(-0.8f, 0.8f))).Normalized; f.turnAt = Time + Range(1.4f, 4.5f); }
+                if (Time > f.turnAt) { f.steering = (f.facing + new Point(Range(-0.8f, 0.8f), Range(-0.3f, 0.3f), Range(-0.8f, 0.8f))).Normalized; f.turnAt = Time + Range(1.4f, 4.5f); }
+                Point heading=f.steering.Length>.0001f?f.steering:f.facing;
                 WaterEffect food = null; float foodDistance = FeedRadius;
                 foreach (var e in Effects)
                     if (e.kind == "feed" && (e.position - f.position).Length < foodDistance)
                     { food = e; foodDistance = (e.position - f.position).Length; }
-                float travel = (1.4f + f.species * 0.18f) * dt;
+                float targetSpeed=1.4f+f.species*.18f;
                 if (food != null)
                 {
-                    if (foodDistance > 0.15f) f.facing = (food.position - f.position).Normalized;
-                    travel = Math.Min(travel, Math.Max(0, foodDistance - 0.15f));
+                    if (foodDistance > 0.15f) heading = (food.position - f.position).Normalized;
                 }
                 else if (Phase == RoundPhase.Playing && Time >= HuntAt)
                 {
-                    var diver = Players.Find(p => p.team == Team.Seeker && p.alive && (p.position - f.position).Length < 4.5f);
-                    if (diver != null) { f.facing = (f.position - diver.position).Normalized; travel *= 1.45f; }
+                    foreach(var diver in Players)if(diver.team==Team.Seeker && diver.alive && (diver.position-f.position).Length<4.5f)
+                    {heading=(f.position-diver.position).Normalized;targetSpeed*=1.45f;break;}
                 }
+                f.facing=Point.TurnTowards(f.facing,heading,2.8f*dt);
+                float speedStep=4f*dt;f.swimSpeed+=Math.Max(-speedStep,Math.Min(speedStep,targetSpeed-f.swimSpeed));
+                float travel=f.swimSpeed*dt;
+                if(food!=null)travel=Math.Min(travel,Math.Max(0,foodDistance-.15f));
                 var wanted = f.position + f.facing * travel;
                 var actual = Constrain(wanted, 0.35f);
-                if ((wanted - actual).Length > 0.001f) { f.facing = f.facing * -1; f.turnAt = Time + 0.9f; }
+                if ((wanted - actual).Length > 0.001f) { f.steering = (actual-wanted).Normalized; f.turnAt = Time + 0.9f; }
                 f.position = actual;
             }
             if (Phase != RoundPhase.Playing) { AquariumBodyCollision.Resolve(Players,Fish,Time); return; }
@@ -727,6 +743,7 @@ namespace PrototypeLab.Aquarium
 
         public static Point Constrain(Point p, float radius)
         {
+            if(FreeSpace(p,radius))return p;
             for(int pass=0;pass<8;pass++)
             {
             p = AquariumWalkwayLayout.Constrain(ConstrainPerimeter(p, radius),radius);

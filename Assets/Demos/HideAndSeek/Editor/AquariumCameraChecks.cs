@@ -35,6 +35,8 @@ namespace PrototypeLab.Aquarium.Editor
             Team otherRole = role == Team.Hider ? Team.Seeker : Team.Hider;
             model.AddPlayer(2, "Partner", otherRole); model.SetRole(2, otherRole, true); model.StartRound();
             foreach (var player in model.Players) player.bot = false;
+            // Isolate directional movement from roaming NPC contacts on the measured route.
+            model.Fish.Clear();model.Fish.Add(new Prey{id=100,position=new Point(-25,10,-5),turnAt=float.MaxValue});
             for (int i = 0; i < 160; i++) model.Tick(1f / 30);
             model.Player(1).position = new Point(0, 3.5f, 0); model.Player(1).facing = new Point(0, 0, 1);
             var camera = new AquariumThirdPersonCamera(unityCamera); Pose(camera, model.Snapshot());

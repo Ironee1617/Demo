@@ -39,6 +39,16 @@ public static class ModelTests
     {
         try
         {
+            Test("cruising fish turn through a bounded arc instead of snapping", () => {
+                var m=new AquariumModel(73);m.Fish.Clear();
+                var fish=new Prey{id=100,position=new Point(2.3f,9,-3),facing=new Point(0,0,1),turnAt=0};m.Fish.Add(fish);
+                for(int i=0;i<120;i++)
+                {
+                    var before=fish.facing;m.Tick(1f/30);
+                    Check(Point.Dot(before.Normalized,fish.facing.Normalized)>=(float)Math.Cos(2.8f/30+.002f),"heading must turn continuously at each host tick");
+                    Check(Math.Abs(fish.facing.Length-1)<.001f,"heading stays normalized");
+                }
+            });
             Test("fish meals synchronize one red ink injection with the feeding owner", () => {
                 var m=Match();m.Player(1).species=0;m.Fish[0].position=At(1,0);Act(m,1);
                 var ink=m.Effects.Find(e=>e.kind=="eat");Check(ink!=null && ink.owner==1 && ink.born==m.Player(1).visualAt,"red injection follows the feeding mouth");
@@ -436,8 +446,8 @@ public static class ModelTests
                 var food = m.Effects.Find(e => e.kind == "feed"); Check(food != null && food.duration == 5, "feed spawned");
                 float ready = m.Player(2).nextFeed, before = (near.position - food.position).Length;
                 Check(Math.Abs(ready - m.Time - 20) < 0.001f, "20s cooldown");
-                Advance(m, 0.5f);
-                Check((near.position - food.position).Length < before && far.position.x == -10 && dead.position.x == 4, "only nearby living fish converge");
+                Advance(m, 1.5f);
+                Check((near.position - food.position).Length < before && far.position.x == -10 && dead.position.x == 4, "only nearby living fish converge after a bounded turn");
                 m.SetInput(2, new SwimInput { feed = true }); m.Tick(1f / 30);
                 Check(m.Player(2).nextFeed == ready && m.Effects.FindAll(e => e.kind == "feed").Count == 1, "cannot spam food");
                 Advance(m, 5); Check(!m.Effects.Exists(e => e.kind == "feed"), "food expires");
@@ -628,7 +638,7 @@ public static class ModelTests
                 var m = Match(); Advance(m, 5.1f); var diver = m.Player(2); diver.position = At(0, 0); var fish = m.Fish[0]; fish.position = At(3, 0); fish.facing = new Point();
                 m.Tick(0.1f); Check(fish.position.x > 3, "flee diver");
                 m.SetInput(2, new SwimInput { aimX = 1, feed = true }); m.Tick(0.1f); float before = fish.position.x; m.Tick(0.1f);
-                Check(fish.position.x < before, "bait overrides flight");
+                Advance(m,1.3f);Check(fish.position.x < before, "bait overrides flight after a smooth turn");
             });
             Test("wipe condition takes priority over simultaneous food completion", () => {
                 var m = Match(); m.Player(1).alive = false; foreach (var fish in m.Fish) fish.eaten = true; m.Tick(0.1f);
