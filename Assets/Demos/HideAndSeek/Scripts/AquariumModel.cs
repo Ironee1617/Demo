@@ -828,8 +828,12 @@ namespace PrototypeLab.Aquarium
 
         public AquariumSnapshot Snapshot()
         {
-            int eaten = Fish.FindAll(f => f.eaten).Count;
-            int killed = Fish.FindAll(f => f.dead && !f.eaten).Count;
+            int eaten = 0, killed = 0;
+            foreach (var fish in Fish)
+            {
+                if (fish.eaten) eaten++;
+                else if (fish.dead) killed++;
+            }
             return new AquariumSnapshot { sequence = ++sequence, round = Round, time = Time, huntAt = HuntAt, endsAt = EndsAt, winner = Winner, phase = Phase,
                 winReason = WinReason, reviewEndsAt = ReviewEndsAt, finishedAt = FinishedAt, target = Fish.Count - killed, killed = killed,
                 remaining = Fish.Count - killed - eaten, eaten = eaten, players = Players.ToArray(), fish = Fish.ToArray(), harpoons = Harpoons.ToArray(), effects = Effects.ToArray(), eggs = Eggs.ToArray() };

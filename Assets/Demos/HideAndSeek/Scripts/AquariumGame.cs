@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Unity.Profiling;
 using UnityEngine.SceneManagement;
 
 namespace PrototypeLab.Aquarium
 {
     public sealed class AquariumGame : MonoBehaviour
     {
+        private static readonly ProfilerMarker drawMarker=new ProfilerMarker("Aquarium.Draw"),sessionMarker=new ProfilerMarker("Aquarium.Session"),cameraMarker=new ProfilerMarker("Aquarium.Camera"),targetMarker=new ProfilerMarker("Aquarium.Target");
         private AquariumSession session;
         private AquariumView view;
         private AquariumThirdPersonCamera followCamera;
@@ -164,15 +166,15 @@ namespace PrototypeLab.Aquarium
                 }
             }
             else { pendingAction = pendingMorph = pendingFeed = pendingScan = pendingEgg = false; }
-            session.Update(Time.unscaledDeltaTime);
+            using(sessionMarker.Auto())session.Update(Time.unscaledDeltaTime);
             if (!session.Connected)
             {
                 backdrop.Tick(Mathf.Min(Time.unscaledDeltaTime, 0.1f));
-                view.Draw(backdrop.Snapshot(), 0, Time.unscaledDeltaTime);
+                using(drawMarker.Auto())view.Draw(backdrop.Snapshot(), 0, Time.unscaledDeltaTime);
             }
             else
             {
-                view.Draw(session.State, session.LocalId, Time.unscaledDeltaTime);
+                using(drawMarker.Auto())view.Draw(session.State, session.LocalId, Time.unscaledDeltaTime);
                 bool finished = session.State.phase == RoundPhase.Finished;
                 if (finished && previousPhase != RoundPhase.Finished) { audioSource.Stop(); feedAudioSource.Stop(); }
                 foreach (var fx in session.State.effects)
@@ -202,13 +204,16 @@ namespace PrototypeLab.Aquarium
         private void LateUpdate()
         {
             followCamera.Prepare(session.State, session.LocalId, session.SpectatingId);
-            followCamera.UpdatePose(session.State, view, Time.unscaledDeltaTime);
+            using(cameraMarker.Auto())followCamera.UpdatePose(session.State, view, Time.unscaledDeltaTime);
             view.PresentEquipment(session.State, followCamera.FollowId, followCamera.FirstPerson);
             var local = Local();
+            using(targetMarker.Auto())
+            {
             morphTarget = !session.IsSpectator && session.State != null && session.State.phase == RoundPhase.Playing && local != null
                 && local.alive && local.team == Team.Hider && local.swallowedBy == 0
                 ? view.FindMorphTarget(session.State, local, followCamera.Aim(session.State, local)) : null;
             view.SetMorphTarget(morphTarget);
+            }
         }
 
         private void OnApplicationFocus(bool focused)

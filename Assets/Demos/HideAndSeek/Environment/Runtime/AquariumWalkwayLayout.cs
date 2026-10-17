@@ -8,6 +8,7 @@ namespace PrototypeLab.Aquarium
     {
         public static readonly float[] HalfWidths = { .57f * AquariumMapOutline.HorizontalScale, .56f * AquariumMapOutline.HorizontalScale, .58f * AquariumMapOutline.HorizontalScale };
         public static readonly Point[][] Paths = CreatePaths();
+        private static readonly AquariumClearanceGrid clearance=new AquariumClearanceGrid(-40,-26,40,26,p=>SignedDistance(p));
 
         private static Point[][] CreatePaths()
         {
@@ -55,6 +56,7 @@ namespace PrototypeLab.Aquarium
 
         public static bool Contains(Point p, float padding=0, int exceptPath=-1)
         {
+            bool atLeast;if(exceptPath==-1 && clearance.TryAtLeast(p,padding,out atLeast))return !atLeast;
             return SignedDistance(p,exceptPath)<padding;
         }
 
@@ -76,6 +78,7 @@ namespace PrototypeLab.Aquarium
 
         public static Point Constrain(Point p,float padding)
         {
+            if(!Contains(p,padding))return p;
             float height=p.y;
             for(int pass=0;pass<16;pass++)
             {

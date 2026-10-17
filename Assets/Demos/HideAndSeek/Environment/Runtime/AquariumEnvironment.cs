@@ -16,10 +16,10 @@ namespace PrototypeLab.Aquarium
         public static AquariumEnvironmentRoot Ensure(Transform parent)
         {
             var existing = UnityEngine.Object.FindFirstObjectByType<AquariumEnvironmentRoot>();
-            if (existing != null) return existing;
+            if (existing != null) { OptimizeRendering(existing); return existing; }
             var prefab = Resources.Load<GameObject>(ResourcePath);
-            if (prefab != null) return UnityEngine.Object.Instantiate(prefab, parent).GetComponent<AquariumEnvironmentRoot>();
-            return Create(parent);
+            var environment = prefab != null ? UnityEngine.Object.Instantiate(prefab, parent).GetComponent<AquariumEnvironmentRoot>() : Create(parent);
+            OptimizeRendering(environment);return environment;
         }
 
         public static void ConfigureCamera(Camera camera)

@@ -8,6 +8,13 @@ public static class ModelTests
     private static Point Layout(float x,float z,float y=1.6f) { return AquariumMapOutline.LayoutPoint(x,y,z); }
     private static Point CoverSide(float offset) { var p=AquariumModel.Rocks[1];return new Point(p.x+offset,1,p.z); }
     private static void Check(bool value, string message) { if (!value) throw new Exception(message); }
+    private static float FloatNeighbour(float value,int direction)
+    {
+        if(value==0)return direction<0?-float.Epsilon:float.Epsilon;
+        int bits=BitConverter.ToInt32(BitConverter.GetBytes(value),0);
+        bits+=(value>0)==(direction>0)?1:-1;
+        return BitConverter.ToSingle(BitConverter.GetBytes(bits),0);
+    }
     private static void Test(string name, Action test)
     { try { test(); passed++; Console.WriteLine("PASS " + name); } catch(Exception ex) { failed++;Console.Error.WriteLine("FAIL " + name + ": " + ex.Message); } }
     private static AquariumModel Match(bool friend = false, bool warmup = false)
@@ -39,6 +46,83 @@ public static class ModelTests
     {
         try
         {
+            Test("clearance caches preserve exact perimeter and walkway classification", () => {
+                var nearest=typeof(AquariumMapOutline).GetMethod("Nearest",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static);
+                var random=new Random(2451);var query=new object[4];
+                for(int i=0;i<4000;i++)
+                {
+                    var point=i<1000?AquariumMapOutline.PointOn(i/1000f):new Point((float)random.NextDouble()*84-42,(float)random.NextDouble()*56-28);
+                    float padding=new[]{-.12f,0,.002f,.35f,.54f,1.2f}[i%6];query[0]=point;query[1]=new Point();query[2]=new Point();query[3]=0f;
+                    bool inside=(bool)nearest.Invoke(null,query);float squared=(float)query[3];
+                    Check(AquariumMapOutline.Contains(point,padding)==(inside&&squared+.00001f>=padding*padding),"cached perimeter matches exact winding and clearance");
+                    for(int except=-1;except<3;except++)Check(AquariumWalkwayLayout.Contains(point,padding,except)==(AquariumWalkwayLayout.SignedDistance(point,except)<padding),"cached corridor matches exact rounded union");
+                }
+            });
+            Test("clearance cell corners and grid bounds preserve classification across adjacent floats", () => {
+                var flags=System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance;
+                var nearest=typeof(AquariumMapOutline).GetMethod("Nearest",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static);
+                var query=new object[4];int checkedPoints=0,cachedQueries=0;
+                foreach(bool perimeter in new[]{true,false})
+                {
+                    var owner=perimeter?typeof(AquariumMapOutline):typeof(AquariumWalkwayLayout);
+                    var grid=(AquariumClearanceGrid)owner.GetField("clearance",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static).GetValue(null);
+                    float originX=(float)typeof(AquariumClearanceGrid).GetField("originX",flags).GetValue(grid),originZ=(float)typeof(AquariumClearanceGrid).GetField("originZ",flags).GetValue(grid);
+                    var cells=(float[,])typeof(AquariumClearanceGrid).GetField("distance",flags).GetValue(grid);
+                    float cell=(float)typeof(AquariumClearanceGrid).GetField("Cell",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static).GetRawConstantValue();
+                    for(int x=0;x<=cells.GetLength(0);x++)for(int z=0;z<=cells.GetLength(1);z++)
+                    {
+                        float cornerX=originX+x*cell,cornerZ=originZ+z*cell;
+                        foreach(float px in new[]{FloatNeighbour(cornerX,-1),cornerX,FloatNeighbour(cornerX,1)})
+                        foreach(float pz in new[]{FloatNeighbour(cornerZ,-1),cornerZ,FloatNeighbour(cornerZ,1)})
+                        {
+                            var point=new Point(px,5.5f,pz);float exact=0;bool inside=false;float squared=0;
+                            if(perimeter)
+                            {
+                                query[0]=point;query[1]=new Point();query[2]=new Point();query[3]=0f;
+                                inside=(bool)nearest.Invoke(null,query);squared=(float)query[3];exact=(inside?1:-1)*(float)Math.Sqrt(squared);
+                            }
+                            else exact=AquariumWalkwayLayout.SignedDistance(point);
+                            foreach(float padding in new[]{0f,.002f,.35f,.54f,1.2f})
+                            {
+                                bool expected=perimeter?inside&&squared+.00001f>=padding*padding:exact<padding;
+                                bool actual=perimeter?AquariumMapOutline.Contains(point,padding):AquariumWalkwayLayout.Contains(point,padding);
+                                Check(actual==expected,"cell corner classification differs at "+px+","+pz+" padding="+padding+" perimeter="+perimeter);
+                                bool cached;float threshold=perimeter?(float)Math.Sqrt(Math.Max(0,padding*padding-.00001f)):padding;
+                                if(grid.TryAtLeast(point,threshold,out cached))
+                                {cachedQueries++;Check(cached==(exact>=threshold),"grid promised an incorrect signed-distance bound");}
+                            }
+                            checkedPoints++;
+                        }
+                    }
+                    bool ignored;
+                    Check(!grid.TryAtLeast(new Point(FloatNeighbour(originX,-1),originZ+cell/2),0,out ignored),"negative origin neighbour uses exact fallback");
+                    Check(!grid.TryAtLeast(new Point(originX+cell/2,FloatNeighbour(originZ,-1)),0,out ignored),"negative depth origin neighbour uses exact fallback");
+                    Check(!grid.TryAtLeast(new Point(FloatNeighbour(originX+cells.GetLength(0)*cell,1),originZ+cell/2),0,out ignored),"width end neighbour uses exact fallback");
+                    Check(!grid.TryAtLeast(new Point(originX+cell/2,FloatNeighbour(originZ+cells.GetLength(1)*cell,1)),0,out ignored),"depth end neighbour uses exact fallback");
+                }
+                Check(checkedPoints>1000&&cachedQueries>1000,"cell corner checks exercise both grids and their cached decisions");
+            });
+            Test("perimeter clamp preserves its stricter tolerance inside the contains acceptance band", () => {
+                var nearest=typeof(AquariumMapOutline).GetMethod("Nearest",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static);
+                var points=AquariumMapOutline.Sample(false,496);var query=new object[4];const float padding=.4f;int checkedPoints=0;
+                for(int i=0;i<points.Length;i++)
+                {
+                    var a=points[i];var b=points[(i+1)%points.Length];var edge=b-a;
+                    var inward=new Point(edge.z,0,-edge.x).Normalized;
+                    var point=(a+b)*.5f+inward*(padding-.000006f);point.y=7.25f;
+                    query[0]=point;query[1]=new Point();query[2]=new Point();query[3]=0f;
+                    bool inside=(bool)nearest.Invoke(null,query);float squared=(float)query[3];
+                    if(!inside||squared+.000001f>=padding*padding||squared+.00001f<padding*padding)continue;
+                    Check(AquariumMapOutline.Contains(point,padding),"regression point is accepted by the looser contains tolerance");
+                    var clamped=AquariumMapOutline.Clamp(point,padding);
+                    Check((clamped-point).Length>.0001f,"clamp must move a point that fails its original strict tolerance");
+                    query[0]=clamped;query[1]=new Point();query[2]=new Point();query[3]=0f;
+                    inside=(bool)nearest.Invoke(null,query);squared=(float)query[3];
+                    Check(inside&&squared+.000001f>=padding*padding,"clamp moves the point to a safe inset");
+                    Check(clamped.y==point.y,"clamp preserves height in the tolerance band");checkedPoints++;
+                }
+                Check(checkedPoints>=16,"regression samples cover multiple perimeter edges");
+            });
             Test("cruising fish turn through a bounded arc instead of snapping", () => {
                 var m=new AquariumModel(73);m.Fish.Clear();
                 var fish=new Prey{id=100,position=new Point(2.3f,9,-3),facing=new Point(0,0,1),turnAt=0};m.Fish.Add(fish);

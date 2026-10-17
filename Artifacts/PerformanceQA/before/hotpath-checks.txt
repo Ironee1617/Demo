@@ -1,0 +1,7 @@
+baseline=3e12b65
+grasp_equivalence_samples=1953 max_position=0.00000 max_rotation_degrees=0.00000
+grasp_start baseline_us=84.79350 current_us=88.80617 baseline_bytes_per_call=0 current_bytes_per_call=0
+grasp_active baseline_us=86.63639 current_us=86.81800 baseline_bytes_per_call=0 current_bytes_per_call=0
+grasp_settled baseline_us=84.65411 current_us=85.40928 baseline_bytes_per_call=0 current_bytes_per_call=0
+grasp_full_action baseline_us=83.57494 current_us=83.35711 baseline_bytes_per_call=0 current_bytes_per_call=0
+OK

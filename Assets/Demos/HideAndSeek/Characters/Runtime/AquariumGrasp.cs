@@ -45,6 +45,8 @@ namespace PrototypeLab.Aquarium
                 {
                     int k=ids[j];var bone=rig.Bones[k];bone.localPosition=rig.restPositions[k];bone.localRotation=rig.restRotations[k];bone.localScale=rig.restScales[k];
                 }
+                // At zero reach the final blend leaves every joint at rest.
+                if(reach<=0)continue;
                 int sign=c==0||c==2?-1:1,start=c==4?2:1;var root=rig.Bones[ids[start]];
                 Vector3 a=rig.transform.InverseTransformPoint(root.position),b,d,e;
                 if(c<2)

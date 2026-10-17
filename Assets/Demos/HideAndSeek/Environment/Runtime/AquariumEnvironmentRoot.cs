@@ -13,5 +13,9 @@ namespace PrototypeLab.Aquarium
         public int[] coralForms=new int[6], plantForms=new int[5], anemoneForms=new int[2];
         public Vector3 anemonePreviewPoint, mintAnemonePreviewPoint, biodiversityPreviewPoint;
         public Transform divePreparation, diveEdge, diveWaterTarget, diveCamera;
+        [System.NonSerialized] internal bool renderingOptimized;
+        [System.NonSerialized] internal AquariumEnvironment.RenderingOptimizationStats renderingStats;
+        public AquariumEnvironment.RenderingOptimizationStats RenderingStats => renderingStats;
+        private void Start() { AquariumEnvironment.OptimizeRendering(this); }
     }
 }

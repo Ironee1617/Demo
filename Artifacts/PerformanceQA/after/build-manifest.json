@@ -1,0 +1,26 @@
+{
+  "unity": "6000.3.21f1",
+  "baselineCommit": "3e12b655932c3080b81603d25c847fa8474ec16b",
+  "executable": "Build/Aquarium-v0.1/AquariumDemo.exe",
+  "package": "Build/Aquarium-v0.1-Windows-optimized.zip",
+  "packageBytes": 526107992,
+  "packageSHA256": "08407A09821C098C165BFDE989787E3DE9F33197A5C15F0ACBF9C5C89F8EA3F9",
+  "assemblySHA256": "14133FAE82D1A058244F9A527C3AE1217DC27FE2E7545AF4AD086D3F345DDE49",
+  "executableSHA256": "C8B0D73DC40E4F2CDDBF656CFB7257FCB8273DA22E44E12A8694CD8E275C6FB2",
+  "rulesPassed": 84,
+  "cameraChecksPassed": 58,
+  "graspEquivalentSamples": 1953,
+  "rayEquivalentSamples": 28410,
+  "identicalEnvironmentViews": 6,
+  "clientSnapshots": 455,
+  "smokeModes": [
+    "host",
+    "client",
+    "feed",
+    "target",
+    "terminal"
+  ],
+  "cpuProfileErrors": 0,
+  "smokeErrors": 0,
+  "measurement": "Player frame benchmark is CPU only in batch mode; explicit environment render comparison includes GPU readback."
+}

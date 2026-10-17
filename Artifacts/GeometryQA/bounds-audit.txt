@@ -1,0 +1,13 @@
+bounds_padding=0 safe=True max_excess=-0.019824 group=4
+bounds_padding=0.08 safe=False max_excess=0.013098 group=2
+bounds_padding=0.2 safe=False max_excess=0.068580 group=2
+bounds_padding=0.22 safe=False max_excess=0.077828 group=2
+bounds_padding=0.35 safe=False max_excess=0.119826 group=2
+bounds_padding=0.5 safe=False max_excess=0.155360 group=2
+bounds_padding=0.75 safe=False max_excess=0.214584 group=2
+bounds_padding=1 safe=False max_excess=0.273809 group=2
+bounds_padding=2 safe=False max_excess=0.510709 group=2
+bounds_padding=4 safe=False max_excess=1.371584 group=1
+bounds_padding=8 safe=False max_excess=3.336412 group=1
+bounds_padding=16 safe=False max_excess=7.266074 group=1
+broadphase_condition=padding==0; other_padding_uses_original_march; baseline=3e12b65 Hit loop with public Distance

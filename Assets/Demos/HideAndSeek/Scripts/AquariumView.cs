@@ -34,6 +34,14 @@ namespace PrototypeLab.Aquarium
         private readonly List<Renderer> cameraRenderers=new List<Renderer>();
         private readonly Transform root;
         private readonly Dictionary<string, Actor> actors = new Dictionary<string, Actor>();
+        private readonly Dictionary<int,string> playerKeys=new Dictionary<int,string>();
+        private readonly Dictionary<int,string> fishKeys=new Dictionary<int,string>();
+        private static readonly string[] fishKinds={"fish0","fish1","fish2"};
+        private string PlayerKey(int id)=>ActorKey(playerKeys,"p",id);
+        private string FishKey(int id)=>ActorKey(fishKeys,"f",id);
+        private static string ActorKey(Dictionary<int,string> cache,string prefix,int id)
+        {if(!cache.TryGetValue(id,out var key)){key=prefix+id;cache.Add(id,key);}return key;}
+        private static string FishKind(int species)=>species>=0 && species<fishKinds.Length?fishKinds[species]:"fish"+species;
         private readonly Dictionary<int, GameObject> effects = new Dictionary<int, GameObject>();
         private readonly List<Material> materials = new List<Material>();
 
@@ -261,6 +269,7 @@ namespace PrototypeLab.Aquarium
             worldFrozen = finished; frozenRound = state.round; freezeExistingPoses = finished;
             if(presentationTime<0 || state.time<lastStateTime || state.round!=presentationRound)presentationTime=state.time;
             else presentationTime=Mathf.Min(state.time+.05f,Mathf.Max(state.time-.1f,presentationTime+Mathf.Clamp(dt,0,.1f)));
+            if(presentationRound!=state.round)fishKeys.Clear();
             lastStateTime=state.time;presentationRound=state.round;
             float visualTime = finished ? state.finishedAt : presentationTime;
             if (finished) SetMorphTarget(null);
@@ -274,9 +283,9 @@ namespace PrototypeLab.Aquarium
                 bool deathPose=!p.alive;
                 bool morphing=visualTime-p.morphAt<1.4f;
                 int form=deathPose?p.deathSpecies:p.species<0 || p.revealUntil>visualTime && !morphing ? -1:p.species;
-                string kind=p.team==Team.Seeker?"diver":form<0?"alien":"fish"+form;
-                bool frozenPose=finished && actors.ContainsKey("p"+p.id);
-                var actor=Place("p"+p.id,kind,p.position,p.facing,dt,visualTime,deathPose);
+                string kind=p.team==Team.Seeker?"diver":form<0?"alien":FishKind(form);
+                bool frozenPose=finished && actors.ContainsKey(PlayerKey(p.id));
+                var actor=Place(PlayerKey(p.id),kind,p.position,p.facing,dt,visualTime,deathPose);
                 if (actor.diver != null && !frozenPose)
                 {
                     actor.diver.SampleLocomotion(actor.moveSpeed,visualTime,p.id*.37f);
@@ -301,22 +310,22 @@ namespace PrototypeLab.Aquarium
             {
                 float age=visualTime-p.visualAt;
                 if(p.swallowedBy==0 || age>=AquariumModel.SwallowVisualSeconds || state.phase==RoundPhase.Finished)continue;
-                var actor=Place("p"+p.id,"alien",p.swallowedFrom,p.facing,dt,visualTime);
+                var actor=Place(PlayerKey(p.id),"alien",p.swallowedFrom,p.facing,dt,visualTime);
                 actor.root.transform.localScale=Vector3.one;
                 actor.creature.Present(-1,"Eaten",p.visualAt,visualTime,0);
-                if(actors.TryGetValue("p"+p.swallowedBy,out var predator))IngestActor(actor,predator,age);
+                if(actors.TryGetValue(PlayerKey(p.swallowedBy),out var predator))IngestActor(actor,predator,age);
                 actor.bodyCollider.enabled=false;
             }
             foreach (var f in state.fish)
             {
                 float age=visualTime-f.visualAt;
                 if(finished && (f.eaten || f.dead) || f.eaten && age>=AquariumModel.SwallowVisualSeconds)continue;
-                bool frozenPose=finished && actors.ContainsKey("f"+f.id);
-                var actor=Place("f"+f.id,"fish"+f.species,f.position,f.facing,dt,visualTime,f.dead && age>2.4f);
+                bool frozenPose=finished && actors.ContainsKey(FishKey(f.id));
+                var actor=Place(FishKey(f.id),FishKind(f.species),f.position,f.facing,dt,visualTime,f.dead && age>2.4f);
                 if(frozenPose)continue;
                 actor.root.transform.localScale=Vector3.one;
                 actor.creature.Present(f.species,f.eaten?"Eaten":f.dead?"Harpoon":"Locomotion",f.visualAt,visualTime,actor.moveSpeed,f.dead);
-                if(f.eaten && actors.TryGetValue("p"+f.eater,out var predator))IngestActor(actor,predator,age);
+                if(f.eaten && actors.TryGetValue(PlayerKey(f.eater),out var predator))IngestActor(actor,predator,age);
                 actor.bodyCollider.enabled=!f.eaten;
             }
             foreach (var h in state.harpoons) Place("h" + h.id, "harpoon", h.position, h.direction, dt, visualTime);
@@ -359,7 +368,7 @@ namespace PrototypeLab.Aquarium
                 {
                     float seconds=visualTime-e.born-(e.kind=="burp"?0:.12f);
                     Vector3 source=new Vector3(e.position.x,e.position.y,e.position.z);
-                    if(e.owner!=0 && actors.TryGetValue("p"+e.owner,out var feeder) && feeder.creature!=null)
+                    if(e.owner!=0 && actors.TryGetValue(PlayerKey(e.owner),out var feeder) && feeder.creature!=null)
                         source=feeder.creature.FeedingMouth+feeder.root.transform.forward*.08f;
                     fx.GetComponent<AquariumInkCloud>().Present(seconds,e.duration-(e.kind=="burp"?0:.12f),source,new Vector3(e.direction.x,e.direction.y,e.direction.z));
                 }
@@ -384,13 +393,13 @@ namespace PrototypeLab.Aquarium
 
         public void PresentEquipment(AquariumSnapshot state, int followId, bool firstPerson)
         {
-            Actor followed; actors.TryGetValue("p" + followId, out followed);
+            Actor followed; actors.TryGetValue(PlayerKey(followId), out followed);
             equipment.Present(state, followId, firstPerson, followed == null ? 0 : followed.moveSpeed);
             if (state == null || state.phase == RoundPhase.Finished) return;
             foreach (var shot in state.harpoons)
             {
                 Actor projectile, owner;
-                if (!actors.TryGetValue("h" + shot.id, out projectile) || !actors.TryGetValue("p" + shot.owner, out owner) || owner.gun == null) continue;
+                if (!actors.TryGetValue("h" + shot.id, out projectile) || !actors.TryGetValue(PlayerKey(shot.owner), out owner) || owner.gun == null) continue;
                 var gun = equipment.Visible && equipment.Owner == shot.owner ? equipment.gun : owner.gun;
                 var tip = new Vector3(shot.position.x, shot.position.y, shot.position.z);
                 var direction = new Vector3(shot.direction.x, shot.direction.y, shot.direction.z).normalized;
@@ -448,7 +457,7 @@ namespace PrototypeLab.Aquarium
         {
             if (!AquariumModel.CanMorphTarget(caster, aim, position)) return;
             Actor actor;
-            if (!actors.TryGetValue((player ? "p" : "f") + id, out actor) || !actor.kind.StartsWith("fish")) return;
+            if (!actors.TryGetValue((player?PlayerKey(id):FishKey(id)), out actor) || !actor.kind.StartsWith("fish")) return;
             var rendered = actor.root.transform.position;
             var screen = Camera.WorldToViewportPoint(rendered);
             if (screen.z <= 0 || screen.x < 0 || screen.x > 1 || screen.y < 0 || screen.y > 1) return;
@@ -464,7 +473,7 @@ namespace PrototypeLab.Aquarium
         public void SetMorphTarget(MorphTarget target)
         {
             Actor actor = null;
-            if (!worldFrozen && target != null) actors.TryGetValue((target.player ? "p" : "f") + target.id, out actor);
+            if (!worldFrozen && target != null) actors.TryGetValue((target.player?PlayerKey(target.id):FishKey(target.id)), out actor);
             if (actor != null && !actor.kind.StartsWith("fish")) actor = null;
             if (actor == outlinedActor) { EnsureOutlineParts(); UpdateOutlineVisibility(); return; }
             ClearOutline();
@@ -525,8 +534,8 @@ namespace PrototypeLab.Aquarium
         {
             // Keep the captured poses and effects untouched while removing objects absent from the snapshot.
             visible.Clear();
-            foreach (var fish in state.fish) if (!fish.eaten && !fish.dead) visible.Add("f" + fish.id);
-            foreach (var player in state.players) if (player.alive && player.swallowedBy == 0) visible.Add("p" + player.id);
+            foreach (var fish in state.fish) if (!fish.eaten && !fish.dead) visible.Add(FishKey(fish.id));
+            foreach (var player in state.players) if (player.alive && player.swallowedBy == 0) visible.Add(PlayerKey(player.id));
             foreach (var harpoon in state.harpoons) visible.Add("h" + harpoon.id);
             if (state.eggs != null) foreach (var egg in state.eggs) visible.Add("e" + egg.id);
             removedActors.Clear();
@@ -542,7 +551,7 @@ namespace PrototypeLab.Aquarium
         public Vector3 PlayerPosition(Swimmer player)
         {
             Actor actor;
-            return actors.TryGetValue("p" + player.id, out actor) ? actor.root.transform.position : new Vector3(player.position.x, player.position.y, player.position.z);
+            return actors.TryGetValue(PlayerKey(player.id), out actor) ? actor.root.transform.position : new Vector3(player.position.x, player.position.y, player.position.z);
         }
         public void CameraOcclusion(int targetId, Vector3? target, bool hideTarget = false)
         {
@@ -559,7 +568,7 @@ namespace PrototypeLab.Aquarium
             if (target.HasValue)
             {
                 Actor actor;
-                if ((hideTarget || Vector3.Distance(Camera.transform.position, target.Value) < 0.9f) && actors.TryGetValue("p" + targetId, out actor)) HideNearCamera(actor);
+                if ((hideTarget || Vector3.Distance(Camera.transform.position, target.Value) < 0.9f) && actors.TryGetValue(PlayerKey(targetId), out actor)) HideNearCamera(actor);
                 // Fish that brush past the lens must not cover a death review or the free-view result scene.
                 foreach (var pair in actors)
                     if ((pair.Key.StartsWith("p") || pair.Key.StartsWith("f")) && (Camera.transform.position - pair.Value.root.transform.position).sqrMagnitude < 1.44f)

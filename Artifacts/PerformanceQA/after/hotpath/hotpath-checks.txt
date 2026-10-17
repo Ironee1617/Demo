@@ -1,0 +1,8 @@
+baseline=3e12b65
+allocation_measurement=unavailable_in_this_Unity_Mono_process
+grasp_equivalence_samples=1953 max_position=0.00000 max_rotation_degrees=0.00000
+grasp_start baseline_us=86.43706 current_us=5.92067
+grasp_active baseline_us=85.34183 current_us=86.05761
+grasp_settled baseline_us=85.76083 current_us=6.19711
+grasp_full_action baseline_us=84.83189 current_us=60.30633
+OK

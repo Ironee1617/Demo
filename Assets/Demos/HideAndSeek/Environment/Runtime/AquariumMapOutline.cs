@@ -36,6 +36,15 @@ namespace PrototypeLab.Aquarium
             {437,111,344,70}, {465,102,410,36}
         };
         private static readonly Point[] water = Sample(false, 496);
+        private static readonly AquariumClearanceGrid clearance=BuildClearance();
+        private static AquariumClearanceGrid BuildClearance()
+        {
+            float minX=float.MaxValue,minZ=float.MaxValue,maxX=float.MinValue,maxZ=float.MinValue;
+            foreach(var p in water){minX=Math.Min(minX,p.x);maxX=Math.Max(maxX,p.x);minZ=Math.Min(minZ,p.z);maxZ=Math.Max(maxZ,p.z);}
+            return new AquariumClearanceGrid(minX-2,minZ-2,maxX+2,maxZ+2,SignedClearance);
+        }
+        private static float SignedClearance(Point p)
+        {Point nearest,normal;float squared;bool inside=Nearest(p,out nearest,out normal,out squared);return (inside?1:-1)*(float)Math.Sqrt(squared);}
 
         private static Point Control(int index, bool outer)
         {
@@ -83,6 +92,8 @@ namespace PrototypeLab.Aquarium
 
         public static bool Contains(Point p,float padding=0)
         {
+            bool cached;float threshold=(float)Math.Sqrt(Math.Max(0,padding*padding-.00001f));
+            if(clearance.TryAtLeast(p,threshold,out cached))return cached;
             Point nearest,normal; float d;
             bool inside=Nearest(p,out nearest,out normal,out d);
             return inside && d+0.00001f>=padding*padding;
@@ -90,6 +101,8 @@ namespace PrototypeLab.Aquarium
 
         public static Point Clamp(Point p,float padding)
         {
+            bool cached;
+            if(clearance.TryAtLeast(p,Math.Abs(padding),out cached) && cached)return p;
             float height=p.y;
             for(int iteration=0;iteration<8;iteration++)
             {

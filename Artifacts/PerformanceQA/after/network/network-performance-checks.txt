@@ -1,0 +1,10 @@
+baseline=3e12b65
+managed_allocation_counter=GC.Alloc frame_aggregate recorder_valid=True probe_samples=1 probe_65536_observed_bytes=100 allocation_comparison=unsupported
+snapshot_baseline_us=1.389 current_us=2.060 baseline_bytes=unsupported current_bytes=unsupported
+four_recipient_packet_bytes=25568 host_sequence=1
+welcome_captures_fresh_sequence=true mid_round_observer=true
+host_tick_snapshots=1 serialized_state_reuses_host=true protocol=6
+four_peer_state_preparation_baseline_us=617.000 current_us=151.534 baseline_bytes=unsupported current_bytes=unsupported
+view_key_namespace=true warm_identity=true round_reset=true fish_kind_fallback=true
+warm_player_key_baseline_us=0.343 current_us=0.067 baseline_bytes=unsupported current_bytes=unsupported
+OK

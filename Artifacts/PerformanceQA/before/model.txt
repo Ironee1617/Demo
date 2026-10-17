@@ -1,0 +1,5 @@
+﻿
+cruise mean_ms=1.127 p95_ms=1.341 max_ms=1.786 bytes_per_tick=64
+feed mean_ms=1.173 p95_ms=1.352 max_ms=1.577 bytes_per_tick=64
+crowded_feed mean_ms=16.578 p95_ms=18.471 max_ms=24.649 bytes_per_tick=64
+round_cruise mean_ms=1.340 p95_ms=1.733 max_ms=2.361 bytes_per_tick=469

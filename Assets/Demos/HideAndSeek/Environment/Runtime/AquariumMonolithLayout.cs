@@ -185,6 +185,16 @@ namespace PrototypeLab.Aquarium
         {
             var ray=end-start;float length=ray.Length;
             if(length<.00001f)return Distance(start)<=padding?0:2;
+            // The unpadded field, including weathering and the hit tolerance,
+            // fits these bounds. Positive plane padding can grow corners by
+            // more than padding, so those rays retain the original march.
+            if(padding==0)
+            {
+                bool candidate=false;
+                for(int group=0;group<Groups.Length;group++)
+                    if(IntersectsBounds(start,ray,Minimum[group],Maximum[group])){candidate=true;break;}
+                if(!candidate)return 2;
+            }
             float t=0;
             for(int step=0;step<400&&t<=1;step++)
             {
@@ -193,6 +203,20 @@ namespace PrototypeLab.Aquarium
                 t+=Math.Max(.000001f,d*.38f/length);
             }
             return 2;
+        }
+        private static bool IntersectsBounds(Point start,Point ray,Point min,Point max)
+        {
+            const float tolerance=.002f;float first=0,last=1;
+            return IntersectsSlab(start.x,ray.x,min.x-tolerance,max.x+tolerance,ref first,ref last)
+                &&IntersectsSlab(start.y,ray.y,min.y-tolerance,max.y+tolerance,ref first,ref last)
+                &&IntersectsSlab(start.z,ray.z,min.z-tolerance,max.z+tolerance,ref first,ref last);
+        }
+        private static bool IntersectsSlab(float start,float direction,float min,float max,ref float first,ref float last)
+        {
+            if(direction==0)return start>=min&&start<=max;
+            float a=(min-start)/direction,b=(max-start)/direction;
+            first=Math.Max(first,Math.Min(a,b));last=Math.Min(last,Math.Max(a,b));
+            return first<=last;
         }
     }
 }

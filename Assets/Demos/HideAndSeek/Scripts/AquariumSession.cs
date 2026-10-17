@@ -73,6 +73,7 @@ namespace PrototypeLab.Aquarium
         private readonly Dictionary<ulong, int> peers = new Dictionary<ulong, int>();
         private readonly Dictionary<ulong, Hello> approved = new Dictionary<ulong, Hello>();
         private readonly Dictionary<int, AquariumObserver> waiting = new Dictionary<int, AquariumObserver>();
+        private readonly List<ulong> stateRecipients = new List<ulong>(AquariumModel.MaxPlayers - 1);
         private int generation, nextPlayer = 1;
         private int remoteHumans;
         private float accumulator, snapshotTimer, connectDeadline;
@@ -294,7 +295,7 @@ namespace PrototypeLab.Aquarium
 
         private Message StateMessage(string kind = "state", int player = 0)
         {
-            return new Message { kind = kind, player = player, state = Model.Snapshot(), observers = Observers,
+            return new Message { kind = kind, player = player, state = State, observers = Observers,
                 roomName = RoomName, hasPassword = HasPassword, humans = peers.Count };
         }
 
@@ -310,6 +311,7 @@ namespace PrototypeLab.Aquarium
             else waiting[id] = new AquariumObserver { id = id, name = AquariumModel.CleanName(hello.name), team = hello.team };
             peers[client] = id;
             UpdateObservers();
+            State = Model.Snapshot();
             Send(client, StateMessage("welcome", id));
             snapshotTimer = 1;
         }
@@ -375,6 +377,25 @@ namespace PrototypeLab.Aquarium
             }
         }
 
+        private void WriteState(FastBufferWriter writer)
+        {
+            writer.WriteValueSafe(JsonUtility.ToJson(StateMessage()));
+        }
+
+        private void BroadcastState()
+        {
+            if (network == null || !network.IsListening) return;
+            stateRecipients.Clear();
+            foreach (var peer in peers) if (peer.Key != NetworkManager.ServerClientId) stateRecipients.Add(peer.Key);
+            if (stateRecipients.Count == 0) return;
+            // The render snapshot and one encoded packet serve every remote peer.
+            using (var writer = new FastBufferWriter(PacketLimit, Allocator.Temp))
+            {
+                WriteState(writer);
+                network.CustomMessagingManager.SendNamedMessage(Channel, stateRecipients, writer, NetworkDelivery.ReliableFragmentedSequenced);
+            }
+        }
+
         public void Input(SwimInput input)
         {
             if (IsSpectator) return;
@@ -418,8 +439,7 @@ namespace PrototypeLab.Aquarium
             if (network != null && snapshotTimer >= 0.05f)
             {
                 snapshotTimer = 0;
-                var message = StateMessage();
-                foreach (var peer in peers) if (peer.Key != NetworkManager.ServerClientId) Send(peer.Key, message);
+                BroadcastState();
             }
             MaintainDirectory();
         }
@@ -486,7 +506,7 @@ namespace PrototypeLab.Aquarium
                 network.Shutdown(); UnityEngine.Object.Destroy(networkObject);
             }
             network = null; networkObject = null; Model = null; State = null; LocalId = 0; Code = "";
-            Busy = Practice = false; peers.Clear(); approved.Clear(); nextPlayer = 1; accumulator = snapshotTimer = connectDeadline = 0;
+            Busy = Practice = false; peers.Clear(); approved.Clear(); stateRecipients.Clear(); nextPlayer = 1; accumulator = snapshotTimer = connectDeadline = 0;
             waiting.Clear(); Observers = new AquariumObserver[0];
             ReceivedSnapshots = 0; leaving = false;
         }
