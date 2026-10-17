@@ -20,6 +20,8 @@ namespace PrototypeLab.Aquarium.Editor
             var parent=new GameObject("Two-sided release check");var view=new AquariumView(parent.transform);
             var model=new AquariumModel();model.AddPlayer(1,"Carrier",Team.Hider);model.AddPlayer(2,"Diver",Team.Seeker);model.SetRole(2,Team.Seeker,true);model.AddPlayer(3,"Swallowed",Team.Hider);model.SetRole(3,Team.Hider,true);
             if(!model.StartRound())throw new Exception("Release review failed to start");model.Players.RemoveAll(p=>p.filled);
+            // Meals are disabled during the shared hiding countdown.
+            while(model.Time<model.HuntAt+.1f)model.Tick(1f/30);
             var carrier=model.Player(1);var expelled=model.Player(3);
             carrier.position=new Point(2.3f,7,4);carrier.facing=new Point(1,0,0);expelled.position=new Point(3.6f,7,4);expelled.facing=new Point(-1,0,0);model.Player(2).position=new Point(-20,8,-5);
             for(int i=0;i<model.Fish.Count;i++){var fish=model.Fish[i];fish.position=AquariumModel.Constrain(new Point(-25+(i%4)*1.6f,8,-6+(i/4)*1.5f),.6f);fish.facing=new Point();fish.turnAt=float.MaxValue;}

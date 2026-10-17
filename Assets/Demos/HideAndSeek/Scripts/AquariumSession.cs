@@ -5,19 +5,24 @@ using System.Threading.Tasks;
 using Unity.Collections;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
-using Unity.Services.Authentication;
-using Unity.Services.Core;
 using Unity.Services.Relay;
 using Unity.Services.Relay.Models;
 using UnityEngine;
 
 namespace PrototypeLab.Aquarium
 {
+    [Serializable] public sealed class AquariumObserver
+    {
+        public int id;
+        public string name;
+        public Team team;
+    }
+
     // Only the host simulates movement, hits, eating, role changes and victory.
     public sealed class AquariumSession : IDisposable
     {
-        private const int Protocol = 4;
-        [Serializable] private class Hello { public int protocol = Protocol; public string name; public Team team; }
+        private const int Protocol = 6;
+        [Serializable] private class Hello { public int protocol = Protocol; public string name, password; public Team team; }
         [Serializable] private class Message
         {
             public string kind;
@@ -26,8 +31,12 @@ namespace PrototypeLab.Aquarium
             public bool ready;
             public SwimInput input;
             public AquariumSnapshot state;
+            public AquariumObserver[] observers;
+            public string roomName;
+            public bool hasPassword;
+            public int humans;
         }
-        private const string Channel = "aquarium.v4";
+        private const string Channel = "aquarium.v6";
         private const int PacketLimit = 60000;
         public AquariumModel Model { get; private set; }
         public AquariumSnapshot State { get; private set; }
@@ -39,13 +48,39 @@ namespace PrototypeLab.Aquarium
         public bool IsHost { get { return Model != null; } }
         public bool Connected { get { return LocalId != 0 && State != null; } }
         public int ReceivedSnapshots { get; private set; }
+        public IReadOnlyList<AquariumRoom> Rooms { get; private set; } = new List<AquariumRoom>();
+        public bool RoomsBusy { get; private set; }
+        public string RoomsStatus { get; private set; } = "";
+        public string RoomName { get; private set; } = "";
+        public string RoomId { get { return lobbyId; } }
+        public bool HasPassword { get; private set; }
+        public int HumanCount { get { return Practice ? 1 : Model != null ? peers.Count : remoteHumans; } }
+        public AquariumObserver[] Observers { get; private set; } = new AquariumObserver[0];
+        public int SpectatorCount { get { return Observers.Length; } }
+        public bool IsSpectator { get { return LocalId != 0 && Array.Exists(Observers, p => p.id == LocalId); } }
+        public int SpectatingId
+        {
+            get
+            {
+                if (!IsSpectator || State == null) return 0;
+                var target = Array.Find(State.players, p => p.alive && p.team == Team.Seeker)
+                    ?? Array.Find(State.players, p => p.alive) ?? Array.Find(State.players, p => p.team == Team.Seeker);
+                return target == null ? 0 : target.id;
+            }
+        }
         private NetworkManager network;
         private GameObject networkObject;
         private readonly Dictionary<ulong, int> peers = new Dictionary<ulong, int>();
         private readonly Dictionary<ulong, Hello> approved = new Dictionary<ulong, Hello>();
+        private readonly Dictionary<int, AquariumObserver> waiting = new Dictionary<int, AquariumObserver>();
         private int generation, nextPlayer = 1;
+        private int remoteHumans;
         private float accumulator, snapshotTimer, connectDeadline;
         private bool leaving;
+        private string lobbyId = "", roomPassword = "", publishedPhase = "";
+        private bool ownsLobby, heartbeatPending, directoryPending;
+        private float nextHeartbeat, nextDirectory;
+        private Task connectionOperation = Task.CompletedTask, cleanupOperation = Task.CompletedTask;
 
         public void StartPractice(string name, Team team)
         {
@@ -61,65 +96,141 @@ namespace PrototypeLab.Aquarium
             Model.StartRound(); State = Model.Snapshot(); Status = "";
         }
 
-        public async Task OpenInternet(bool host, string code, string name, Team team)
+        public async Task RefreshRooms()
         {
-            if (Busy || Connected) return;
-            Leave(); Busy = true; Status = "Unity Relay에 연결하는 중…";
-            int request = generation;
+            if (RoomsBusy || Busy || Connected) return;
+            RoomsBusy = true; RoomsStatus = "방 목록을 불러오는 중…";
             try
             {
-                if (string.IsNullOrEmpty(Application.cloudProjectId))
-                    throw new InvalidOperationException("Unity Cloud 연결이 필요합니다. Edit → Project Settings → Services에서 프로젝트를 연결해 주세요.");
-                if (UnityServices.State != ServicesInitializationState.Initialized)
-                    await UnityServices.InitializeAsync(new InitializationOptions().SetProfile("aquarium_" + Guid.NewGuid().ToString("N").Substring(0, 12)));
+                var rooms = await AquariumRooms.QueryAsync();
+                if (!Connected && !Busy)
+                { Rooms = rooms; RoomsStatus = rooms.Count == 0 ? "대기 중인 방이 없습니다. 새 방을 만들어 보세요." : ""; }
+            }
+            catch (Exception ex) { RoomsStatus = "목록을 불러오지 못했습니다. " + FriendlyError(ex); }
+            finally { RoomsBusy = false; }
+        }
+
+        public Task CreateRoom(string roomName, string password, string name, Team team)
+        {
+            return BeginConnection(async request =>
+            {
+                var allocation = await RelayService.Instance.CreateAllocationAsync(AquariumModel.MaxPlayers - 1);
                 if (request != generation) return;
-                if (!AuthenticationService.Instance.IsSignedIn) await AuthenticationService.Instance.SignInAnonymouslyAsync();
+                string code = await RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
                 if (request != generation) return;
-                CreateNetwork(name, team);
-                var transport = network.GetComponent<UnityTransport>();
-                if (host)
-                {
-                    var allocation = await RelayService.Instance.CreateAllocationAsync(AquariumModel.MaxPlayers - 1);
-                    if (request != generation) return;
-                    transport.SetRelayServerData(AllocationUtils.ToRelayServerData(allocation, "dtls"));
-                    Code = await RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
-                    if (request != generation) return;
-                    StartHost(name, team);
-                }
-                else
-                {
-                    Code = code.Trim().ToUpperInvariant();
-                    var allocation = await RelayService.Instance.JoinAllocationAsync(Code);
-                    if (request != generation) return;
-                    transport.SetRelayServerData(AllocationUtils.ToRelayServerData(allocation, "dtls"));
-                    StartClient();
-                }
+                var lobby = await AquariumRooms.CreateAsync(roomName, password, code, allocation.AllocationId.ToString());
+                if (request != generation) { await CleanupLobby(lobby.Id, true); return; }
+                lobbyId = lobby.Id; ownsLobby = true;
+                var description = AquariumRooms.Describe(lobby);
+                RoomName = description.name; HasPassword = description.hasPassword; roomPassword = password ?? "";
+                Code = code; publishedPhase = "Waiting"; nextHeartbeat = Time.realtimeSinceStartup + 15;
+                CreateNetwork(name, team, password);
+                network.GetComponent<UnityTransport>().SetRelayServerData(AllocationUtils.ToRelayServerData(allocation, "dtls"));
+                StartHost(name, team);
+            });
+        }
+
+        public Task JoinRoom(string roomId, string password, string name, Team team)
+        { return BeginConnection(request => JoinInternet(request, roomId, null, password, name, team)); }
+
+        // The displayed Relay code remains valid through rematches and participant departures.
+        public Task OpenInternet(bool host, string code, string name, Team team, string password = "")
+        {
+            return host ? CreateRoom(AquariumModel.CleanName(name) + "의 수조", password, name, team)
+                : BeginConnection(request => JoinInternet(request, null, code, password, name, team));
+        }
+
+        private Task BeginConnection(Func<int, Task> connect)
+        {
+            if (Busy || Connected) return Task.CompletedTask;
+            var previous = connectionOperation;
+            Leave(); Busy = true; Status = "온라인 방에 연결하는 중…";
+            connectionOperation = RunConnection(generation, previous, connect);
+            return connectionOperation;
+        }
+
+        private async Task RunConnection(int request, Task previous, Func<int, Task> connect)
+        {
+            try
+            {
+                // A cancelled cloud join must clean up before a new join uses the same account.
+                await previous; await cleanupOperation;
+                if (request != generation) return;
+                await AquariumRooms.EnsureServicesAsync();
+                if (request != generation) return;
+                await connect(request);
             }
             catch (Exception ex)
             {
                 if (request != generation) return;
-                Leave();
-                Status = "접속 실패: " + FriendlyError(ex);
-                Debug.LogWarning("Aquarium connection: " + ex.GetType().Name + " / " + ex.Message);
+                Leave(); Status = "접속 실패: " + FriendlyError(ex);
+                Debug.LogWarning("Aquarium connection: " + ex.GetType().Name);
             }
+        }
+
+        private async Task JoinInternet(int request, string roomId, string code, string password, string name, Team team)
+        {
+            AquariumRoom room = null;
+            if (string.IsNullOrEmpty(roomId))
+            {
+                var found = await AquariumRooms.FindByCodeAsync((code ?? "").Trim().ToUpperInvariant());
+                if (request != generation) return;
+                if (found == null) throw new InvalidOperationException("방을 찾을 수 없습니다. 최신 방 코드와 게임 버전을 확인해 주세요.");
+                room = AquariumRooms.Describe(found); roomId = found.Id;
+            }
+            else
+            {
+                foreach (var candidate in Rooms) if (candidate.id == roomId) { room = candidate; break; }
+                if (room == null)
+                {
+                    var rooms = await AquariumRooms.QueryAsync();
+                    if (request != generation) return;
+                    room = rooms.Find(candidate => candidate.id == roomId);
+                }
+                if (room == null) throw new InvalidOperationException("방이 종료되었거나 목록이 바뀌었습니다. 새로고침해 주세요.");
+            }
+            // Associate this connection's Relay allocation when joining Lobby, so the service
+            // can also remove the matching membership after an unexpected disconnection.
+            var allocation = await RelayService.Instance.JoinAllocationAsync(room.code);
+            if (request != generation) return;
+            var lobby = await AquariumRooms.JoinAsync(roomId, password, allocation.AllocationId.ToString());
+            if (request != generation) { await CleanupLobby(lobby.Id, false); return; }
+            lobbyId = lobby.Id; ownsLobby = false;
+            var description = AquariumRooms.Describe(lobby);
+            RoomName = description.name; HasPassword = description.hasPassword; Code = description.code;
+            CreateNetwork(name, team, password);
+            network.GetComponent<UnityTransport>().SetRelayServerData(AllocationUtils.ToRelayServerData(allocation, "dtls"));
+            StartClient();
         }
 
         private static string FriendlyError(Exception ex)
         {
             if (ex is InvalidOperationException) return ex.Message;
-            return "방 코드와 인터넷 연결을 확인해 주세요. Cloud 프로젝트의 Authentication과 Relay도 활성화되어야 합니다.\n" + ex.Message;
+            var lobbyError = ex as Unity.Services.Lobbies.LobbyServiceException;
+            if (lobbyError != null)
+            {
+                string reason = lobbyError.Reason.ToString();
+                if (reason.IndexOf("Password", StringComparison.OrdinalIgnoreCase) >= 0) return "비밀번호가 맞지 않습니다. 다시 입력해 주세요.";
+                if (reason.IndexOf("Full", StringComparison.OrdinalIgnoreCase) >= 0) return "방이 가득 찼습니다. 다른 방을 선택해 주세요.";
+                if (reason.IndexOf("NotFound", StringComparison.OrdinalIgnoreCase) >= 0) return "방이 종료되었거나 사라졌습니다. 목록을 새로고침해 주세요.";
+                if (reason.IndexOf("RateLimit", StringComparison.OrdinalIgnoreCase) >= 0) return "잠시 기다린 뒤 다시 시도해 주세요.";
+            }
+            if (ex is ArgumentException) return ex.Message;
+            return "인터넷 연결과 온라인 서비스 설정을 확인한 뒤 다시 시도해 주세요.";
         }
 
         // Used by the two-process smoke test; normal players use Relay codes.
-        public void OpenLocalTest(bool host, string name, Team team, ushort port = 7779)
+        public void OpenLocalTest(bool host, string name, Team team, ushort port = 7779, string password = "")
         {
-            Leave(); CreateNetwork(name, team);
+            Leave(); RoomName = "로컬 검사 수조"; HasPassword = !string.IsNullOrEmpty(password);
+            roomPassword = host ? password ?? "" : "";
+            CreateNetwork(name, team, password);
             network.GetComponent<UnityTransport>().SetConnectionData("127.0.0.1", port);
             Code = "LOCAL TEST";
             if (host) StartHost(name, team); else StartClient();
         }
 
-        private void CreateNetwork(string name, Team team)
+        private void CreateNetwork(string name, Team team, string password = "")
         {
             networkObject = new GameObject("Aquarium Relay Session");
             var transport = networkObject.AddComponent<UnityTransport>();
@@ -129,7 +240,7 @@ namespace PrototypeLab.Aquarium
             {
                 NetworkTransport = transport, EnableSceneManagement = false, ConnectionApproval = true,
                 TickRate = 30, ClientConnectionBufferTimeout = 20, ProtocolVersion = Protocol,
-                ConnectionData = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new Hello { name = AquariumModel.CleanName(name), team = team }))
+                ConnectionData = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new Hello { name = AquariumModel.CleanName(name), team = team, password = password ?? "" }))
             };
             network.ConnectionApprovalCallback += Approve;
             network.OnClientConnectedCallback += OnConnected;
@@ -159,14 +270,14 @@ namespace PrototypeLab.Aquarium
             string reason = "";
             Hello hello = null;
             try { if (request.Payload.Length <= 512) hello = JsonUtility.FromJson<Hello>(Encoding.UTF8.GetString(request.Payload)); } catch { }
-            if (hello == null || hello.protocol != Protocol) reason = "기획서 v0.1이 적용된 같은 버전의 데모로 접속해 주세요.";
-            else if (Model == null || Model.Phase != RoundPhase.Lobby) reason = "진행 중인 방입니다. 다음 라운드 대기실에서 접속해 주세요.";
-            else if (Model.Players.Count + approved.Count >= AquariumModel.MaxPlayers) reason = "방이 가득 찼습니다. 외계인 4명과 잠수부 1명, 최대 5명입니다.";
+            if (hello == null || hello.protocol != Protocol) reason = "방 목록 기능이 포함된 같은 버전의 데모로 접속해 주세요.";
+            else if (!string.Equals(roomPassword, hello.password ?? "", StringComparison.Ordinal)) reason = "비밀번호가 맞지 않습니다. 다시 입력해 주세요.";
+            else if (Model == null) reason = "방이 종료되었습니다.";
+            else if (peers.Count + approved.Count >= AquariumModel.MaxPlayers) reason = "방이 가득 찼습니다. 관전자를 포함해 최대 5명입니다.";
             else if (hello.team != Team.Hider && hello.team != Team.Seeker) reason = "외계인 또는 잠수부 역할을 선택해 주세요.";
-            else if (RoleCount(hello.team) >= (hello.team == Team.Seeker ? 1 : 4))
-                reason = hello.team == Team.Seeker ? "잠수부는 1명만 참가할 수 있습니다. 외계인을 선택해 다시 접속해 주세요." : "외계인 4자리가 모두 찼습니다. 잠수부를 선택해 다시 접속해 주세요.";
+            else if (Model.Phase == RoundPhase.Lobby) hello.team = AvailableTeam(hello.team);
             response.Approved = reason.Length == 0; response.Reason = reason;
-            if (response.Approved) approved[request.ClientNetworkId] = hello;
+            if (response.Approved) { hello.password = null; approved[request.ClientNetworkId] = hello; }
         }
 
         private int RoleCount(Team team)
@@ -176,6 +287,17 @@ namespace PrototypeLab.Aquarium
             return count;
         }
 
+        private Team AvailableTeam(Team requested)
+        { return RoleCount(requested) < (requested == Team.Seeker ? 1 : 4) ? requested : requested == Team.Seeker ? Team.Hider : Team.Seeker; }
+
+        private void UpdateObservers() { Observers = new List<AquariumObserver>(waiting.Values).ToArray(); }
+
+        private Message StateMessage(string kind = "state", int player = 0)
+        {
+            return new Message { kind = kind, player = player, state = Model.Snapshot(), observers = Observers,
+                roomName = RoomName, hasPassword = HasPassword, humans = peers.Count };
+        }
+
         private void OnConnected(ulong client)
         {
             if (Model == null || client == NetworkManager.ServerClientId) return;
@@ -183,10 +305,12 @@ namespace PrototypeLab.Aquarium
             if (!approved.TryGetValue(client, out hello)) return;
             approved.Remove(client);
             int id = ++nextPlayer;
-            if (Model.AddPlayer(id, hello.name, hello.team == Team.Seeker ? Team.Seeker : Team.Hider) == null)
-            { network.DisconnectClient(client, "이미 경기가 시작됐습니다. 다음 대기실에서 참가해 주세요."); return; }
+            while (Model.Player(id) != null || waiting.ContainsKey(id)) id = ++nextPlayer;
+            if (Model.Phase == RoundPhase.Lobby) Model.AddPlayer(id, hello.name, AvailableTeam(hello.team));
+            else waiting[id] = new AquariumObserver { id = id, name = AquariumModel.CleanName(hello.name), team = hello.team };
             peers[client] = id;
-            Send(client, new Message { kind = "welcome", player = id, state = Model.Snapshot() });
+            UpdateObservers();
+            Send(client, StateMessage("welcome", id));
             snapshotTimer = 1;
         }
 
@@ -195,7 +319,12 @@ namespace PrototypeLab.Aquarium
             if (leaving) return;
             if (Model != null)
             {
-                int id; if (peers.TryGetValue(client, out id)) { Model.RemovePlayer(id); peers.Remove(client); }
+                int id;
+                if (peers.TryGetValue(client, out id))
+                {
+                    if (waiting.ContainsKey(id)) waiting.Remove(id); else Model.RemovePlayer(id);
+                    peers.Remove(client); UpdateObservers(); snapshotTimer = 1;
+                }
                 approved.Remove(client);
             }
             else
@@ -217,6 +346,7 @@ namespace PrototypeLab.Aquarium
             if (Model != null)
             {
                 int id; if (!peers.TryGetValue(sender, out id)) return;
+                if (waiting.ContainsKey(id)) return;
                 if (message.kind == "input") Model.SetInput(id, message.input);
                 else if (message.kind == "role") Model.SetRole(id, message.team, message.ready);
             }
@@ -224,7 +354,13 @@ namespace PrototypeLab.Aquarium
             {
                 if (message.kind == "welcome") LocalId = message.player;
                 if (message.state != null && (State == null || message.state.sequence > State.sequence))
-                { State = message.state; ReceivedSnapshots++; Busy = false; Status = ""; }
+                {
+                    bool entering = Busy;
+                    State = message.state; Observers = message.observers ?? new AquariumObserver[0];
+                    RoomName = message.roomName ?? RoomName; HasPassword = message.hasPassword; remoteHumans = message.humans;
+                    ReceivedSnapshots++; Busy = false;
+                    if (entering) Status = IsSpectator ? "경기 중인 방에 관전으로 입장했습니다. 다음 판부터 플레이합니다." : "";
+                }
             }
         }
 
@@ -241,11 +377,13 @@ namespace PrototypeLab.Aquarium
 
         public void Input(SwimInput input)
         {
+            if (IsSpectator) return;
             if (Model != null) Model.SetInput(LocalId, input);
             else if (Connected) Send(NetworkManager.ServerClientId, new Message { kind = "input", input = input });
         }
         public void Role(Team team, bool ready)
         {
+            if (IsSpectator) return;
             if (Model != null) Model.SetRole(LocalId, team, ready);
             else Send(NetworkManager.ServerClientId, new Message { kind = "role", team = team, ready = ready });
         }
@@ -257,7 +395,15 @@ namespace PrototypeLab.Aquarium
             if (problem.Length == 0) Model.StartRound();
             return problem;
         }
-        public void Rematch() { if (Model != null) Model.ReturnToLobby(); }
+        public void Rematch()
+        {
+            if (Model == null) return;
+            Model.ReturnToLobby();
+            if (Model.Phase != RoundPhase.Lobby) return;
+            var entrants = new List<AquariumObserver>(waiting.Values); entrants.Sort((a, b) => a.id.CompareTo(b.id));
+            foreach (var entrant in entrants) Model.AddPlayer(entrant.id, entrant.name, AvailableTeam(entrant.team));
+            waiting.Clear(); UpdateObservers(); snapshotTimer = 1;
+        }
 
         public void Update(float dt)
         {
@@ -268,17 +414,70 @@ namespace PrototypeLab.Aquarium
             while (accumulator >= 1f / 30f) { Model.Tick(1f / 30f); accumulator -= 1f / 30f; }
             State = Model.Snapshot();
             snapshotTimer += dt;
-            if (network != null && snapshotTimer >= 0.1f)
+            if (network != null && snapshotTimer >= 0.05f)
             {
                 snapshotTimer = 0;
-                var message = new Message { kind = "state", state = State };
+                var message = StateMessage();
                 foreach (var peer in peers) if (peer.Key != NetworkManager.ServerClientId) Send(peer.Key, message);
             }
+            MaintainDirectory();
         }
+
+        private void MaintainDirectory()
+        {
+            if (!ownsLobby || string.IsNullOrEmpty(lobbyId)) return;
+            float now = Time.realtimeSinceStartup;
+            if (!heartbeatPending && now >= nextHeartbeat)
+            {
+                nextHeartbeat = now + 15; heartbeatPending = true;
+                _ = Heartbeat(generation, lobbyId);
+            }
+            string phase = Model.Phase == RoundPhase.Lobby ? "Waiting" : Model.Phase.ToString();
+            if (!directoryPending && phase != publishedPhase && now >= nextDirectory)
+            {
+                nextDirectory = now + 1.2f; directoryPending = true;
+                _ = PublishPhase(generation, lobbyId, phase);
+            }
+        }
+
+        private async Task Heartbeat(int request, string id)
+        {
+            try { await AquariumRooms.HeartbeatAsync(id); }
+            catch (Exception) { if (request == generation) Status = "방 목록 연결이 지연되고 있습니다. 인터넷 연결을 확인해 주세요."; }
+            finally { if (request == generation) heartbeatPending = false; }
+        }
+
+        private async Task PublishPhase(int request, string id, string phase)
+        {
+            try { await AquariumRooms.UpdateAsync(id, phase); if (request == generation) publishedPhase = phase; }
+            catch (Exception) { if (request == generation) Status = "방 상태 갱신이 지연되고 있습니다."; }
+            finally { if (request == generation) directoryPending = false; }
+        }
+
+        private static async Task CleanupLobby(string id, bool host)
+        {
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                try { await AquariumRooms.LeaveAsync(id, host); return; }
+                catch (Exception ex)
+                {
+                    if (attempt == 2) { Debug.LogWarning("Aquarium room cleanup: " + ex.GetType().Name); return; }
+                    await Task.Delay(500 * (attempt + 1));
+                }
+            }
+        }
+
+        private static async Task CleanupAfter(Task previous, string id, bool host)
+        { await previous; await CleanupLobby(id, host); }
 
         public void Leave()
         {
             generation++; leaving = true;
+            if (!string.IsNullOrEmpty(lobbyId)) cleanupOperation = CleanupAfter(cleanupOperation, lobbyId, ownsLobby);
+            lobbyId = ""; ownsLobby = false; roomPassword = ""; publishedPhase = "";
+            RoomName = ""; HasPassword = heartbeatPending = directoryPending = false;
+            Status = "";
+            nextHeartbeat = nextDirectory = 0; remoteHumans = 0;
             if (network != null)
             {
                 network.OnClientConnectedCallback -= OnConnected; network.OnClientDisconnectCallback -= OnDisconnected;
@@ -287,8 +486,11 @@ namespace PrototypeLab.Aquarium
             }
             network = null; networkObject = null; Model = null; State = null; LocalId = 0; Code = "";
             Busy = Practice = false; peers.Clear(); approved.Clear(); nextPlayer = 1; accumulator = snapshotTimer = connectDeadline = 0;
+            waiting.Clear(); Observers = new AquariumObserver[0];
             ReceivedSnapshots = 0; leaving = false;
         }
+        public async Task ShutdownAsync()
+        { Leave(); await connectionOperation; await cleanupOperation; }
         public void Dispose() { Leave(); }
     }
 }
