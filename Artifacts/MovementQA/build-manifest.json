@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-18",
+  "unity": "6000.3.21f1",
+  "baseCommit": "f75d59fdda573bde78e7501c599d84739db64b76",
+  "workingTreeChanges": true,
+  "exe": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\Build\\Aquarium-smooth-movement\\AquariumDemo.exe",
+  "exeSHA256": "C8B0D73DC40E4F2CDDBF656CFB7257FCB8273DA22E44E12A8694CD8E275C6FB2",
+  "assemblySHA256": "A5DDC1DF59B2A5C6EF1A08C33AC081F78C90DBD39F0C5B60545858620E2D2706",
+  "sourceSHA256": {
+    "Assets/Demos/HideAndSeek/Scripts/AquariumSession.cs": "E410CCCC28AFDBAAA89D6D928E3C57B56882797E614AB13E1EF26CBC25B73BF4",
+    "Assets/Demos/HideAndSeek/Scripts/AquariumThirdPersonCamera.cs": "CCD4940016794905D0F697960D7B454E940285B3D579CF944E0F1775483738FD",
+    "Assets/Demos/HideAndSeek/Scripts/AquariumGame.cs": "750625DEAC21E816832F897A955A3041C566DBF0E765F34E551EF087837B8CB4",
+    "Assets/Demos/HideAndSeek/Scripts/AquariumView.cs": "88DFB37162A16B24871BC74ABF3FAD5FC7202BDAC1349FCA37FDA58A315B9E02"
+  },
+  "checks": {
+    "movement": "12 form/cadence/FPS combinations plus practice at 60 and 144 FPS passed",
+    "camera": 58,
+    "gameplay": 84,
+    "swimming": "passed",
+    "playerScenario": "swimLookHider",
+    "playerErrors": 0
+  }
+}

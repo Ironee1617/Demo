@@ -40,6 +40,12 @@ namespace PrototypeLab.Aquarium
         private const int PacketLimit = 60000;
         public AquariumModel Model { get; private set; }
         public AquariumSnapshot State { get; private set; }
+        // Draw between completed ticks; simulation and hit detection remain authoritative.
+        public float PresentationTime
+        {
+            get { return State == null ? 0 : Model != null ? State.time + accumulator - 1f / 30f
+                : float.IsNaN(remotePresentationTime) ? State.time - .05f : remotePresentationTime; }
+        }
         public int LocalId { get; private set; }
         public string Code { get; private set; } = "";
         public string Status { get; private set; } = "";
@@ -77,6 +83,7 @@ namespace PrototypeLab.Aquarium
         private int generation, nextPlayer = 1;
         private int remoteHumans;
         private float accumulator, snapshotTimer, connectDeadline;
+        private float remotePresentationTime = float.NaN;
         private bool leaving;
         private string lobbyId = "", roomPassword = "", publishedPhase = "";
         private bool ownsLobby, heartbeatPending, directoryPending;
@@ -358,6 +365,8 @@ namespace PrototypeLab.Aquarium
                 if (message.state != null && (State == null || message.state.sequence > State.sequence))
                 {
                     bool entering = Busy;
+                    if (State == null || State.round != message.state.round || State.phase != message.state.phase || message.state.time < State.time)
+                        remotePresentationTime = message.state.time - .05f;
                     State = message.state; Observers = message.observers ?? new AquariumObserver[0];
                     RoomName = message.roomName ?? RoomName; HasPassword = message.hasPassword; remoteHumans = message.humans;
                     ReceivedSnapshots++; Busy = false;
@@ -430,7 +439,15 @@ namespace PrototypeLab.Aquarium
         {
             if (Busy && network != null && Model == null && connectDeadline > 0 && Time.realtimeSinceStartup > connectDeadline)
             { Leave(); Status = "접속 시간이 초과되었습니다. 방 코드와 방장의 접속 상태를 확인해 주세요."; }
-            if (Model == null) return;
+            if (Model == null)
+            {
+                if (State != null)
+                {
+                    if (float.IsNaN(remotePresentationTime)) remotePresentationTime = State.time - .05f;
+                    remotePresentationTime = Mathf.Clamp(remotePresentationTime + Mathf.Clamp(dt, 0, .2f), State.time - .15f, State.time);
+                }
+                return;
+            }
             accumulator += Mathf.Min(dt, 0.2f);
             bool ticked=false;
             while (accumulator >= 1f / 30f) { Model.Tick(1f / 30f); accumulator -= 1f / 30f;ticked=true; }
@@ -438,7 +455,7 @@ namespace PrototypeLab.Aquarium
             snapshotTimer += dt;
             if (network != null && snapshotTimer >= 0.05f)
             {
-                snapshotTimer = 0;
+                snapshotTimer %= 0.05f;
                 BroadcastState();
             }
             MaintainDirectory();
@@ -508,7 +525,7 @@ namespace PrototypeLab.Aquarium
             network = null; networkObject = null; Model = null; State = null; LocalId = 0; Code = "";
             Busy = Practice = false; peers.Clear(); approved.Clear(); stateRecipients.Clear(); nextPlayer = 1; accumulator = snapshotTimer = connectDeadline = 0;
             waiting.Clear(); Observers = new AquariumObserver[0];
-            ReceivedSnapshots = 0; leaving = false;
+            ReceivedSnapshots = 0; remotePresentationTime = float.NaN; leaving = false;
         }
         public async Task ShutdownAsync()
         { Leave(); await connectionOperation; await cleanupOperation; }
