@@ -1,0 +1,28 @@
+손과 외계인 수정 R4
+
+적용 대상: Demo 프로젝트 / Aquarium-CoralGallery 실행 빌드
+
+1인칭 손
+- 사용자 스케치의 넓은 벙어리장갑 부분, 짧은 검지, 짧은 엄지를 하나의 연속 표면으로 제작했습니다.
+- 손등에 튀어나오던 테두리와 엄지 뿌리의 접힘, 손 안에서 팔 끝이 튀어나오던 부분을 제거했습니다.
+- 손잡이 옆을 가볍게 감싸는 자세이며, 손과 작살총의 삼각형 교차 검사를 통과했습니다.
+- 1인칭에는 작살총을 든 팔만 표시합니다. 3인칭 잠수부 본체와 오리발은 이번 수정 대상에 포함하지 않았습니다.
+
+외계인
+- 얼굴, 눈꺼풀, 머리 장식, 아래쪽 입을 유지하고 촉수와 연결부를 다시 구성했습니다.
+- 여섯 촉수의 중심선과 둥근 단면을 별도로 계산하여 각도 변화가 두께를 눌러버리지 않도록 했습니다.
+- 움직일 때 촉수를 뒤로 모으고, 서로 닿지 않도록 위아래 간격을 둔 상태에서 끝부분만 부드럽게 흔듭니다.
+- 촉수 아래의 작은 이빨과 반점을 유지했습니다. 얼굴과 촉수 경계의 정점과 법선을 이어 처리했습니다.
+- 수영 전환에는 8개의 중간 자세를 사용합니다. 수영 중간 자세 35개에서 표면 교차가 없으며, 촉수 단면 반경 변화는 약 -1.22% ~ +1.14%입니다.
+
+원본 및 재생성
+- Source/first_person_hands.blend: 하나로 연결된 손·팔과 펼친 손의 참고 형태.
+- Source/alien_compact.blend: 외계인 원본과 Rounded trailing swim 미리보기 액션. 1~73 프레임, 30 fps.
+- Tools/build_fps.py 및 sketch_surface.py: Blender 5.2로 손 생성.
+- Tools/rebuild_alien.py: Python + NumPy + Pillow로 외계인 생성.
+- Tools/save_alien_source.py: 생성된 외계인을 Blender 원본으로 저장.
+- Source/BeforeSketchFix/Alien.*: 재생성에 필요한 이전 얼굴·입·눈꺼풀 및 텍스처 원본.
+- Unity AquariumCartoonImport.Run으로 Export 데이터를 프로젝트 에셋과 애니메이션으로 다시 가져올 수 있습니다.
+
+검증 자료: Artifacts/CartoonSketchFix-R4
+실행 파일: Build/Aquarium-CoralGallery/AquariumDemo.exe

@@ -92,6 +92,8 @@ namespace PrototypeLab.Aquarium.Editor
         [MenuItem("Aquarium/Characters/Validate and Render")]
         public static void Run()
         {
+            var current=Resources.Load<GameObject>("AquariumCharacters/Alien");
+            if(current!=null && current.GetComponent<AquariumRig>().cartoon){AquariumCartoonChecks.Run();return;}
             string output=Environment.GetEnvironmentVariable("AQUARIUM_CHARACTER_QA");if(string.IsNullOrEmpty(output))output="Temp/CharacterQA";Directory.CreateDirectory(output);
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
             RenderSettings.ambientMode=AmbientMode.Flat;RenderSettings.ambientLight=new Color(.46f,.53f,.63f);RenderSettings.fog=false;

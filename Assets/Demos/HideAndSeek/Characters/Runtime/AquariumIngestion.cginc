@@ -1,7 +1,7 @@
 // Head-first, opaque surface deformation, shared by skin and morph surfaces.
 float _Ingest;
 float4 _IngestOrigin, _IngestAxis, _IngestMouth;
-float _IngestHalfLength, _IngestDepth;
+float _IngestHalfLength, _IngestDepth, _IngestSeal;
 float3 IngestWorld(float3 p)
 {
     float3 delta=p-_IngestOrigin.xyz;
@@ -11,13 +11,13 @@ float3 IngestWorld(float3 p)
     float distance=dot(_IngestOrigin.xyz-_IngestMouth.xyz,_IngestAxis.xyz);
     float travel=max(.08,distance+_IngestHalfLength+.08)*smoothstep(0,1,saturate(_Ingest));
     float section=distance+axial-travel;
-    float3 centre=_IngestMouth.xyz+_IngestAxis.xyz*max(-.06,section);
+    float3 centre=_IngestMouth.xyz+_IngestAxis.xyz*max(lerp(-.06,.012,_IngestSeal),section);
     float3 radial=delta-_IngestAxis.xyz*axial;
     float depth=max(.06,_IngestDepth);
-    float limit=_IngestMouth.w+max(0,section-depth)*1.15;
+    float limit=_IngestMouth.w*lerp(1,.97,_IngestSeal)+max(0,section-depth)*lerp(1.15,.52,_IngestSeal);
     float ratio=length(radial)/max(.001,limit);
     float fit=pow(1+pow(min(ratio,100),8),-1.0/8.0);
-    float inside=smoothstep(0,1,saturate((depth-section)/(depth+.06)));
+    float inside=smoothstep(0,1,saturate((depth-section)/(depth+.06*(1-_IngestSeal))));
     radial*=lerp(1,fit*(1-inside),smoothstep(0,.06,_Ingest));
     return centre+radial;
 }

@@ -12,13 +12,13 @@ namespace PrototypeLab.Aquarium
         private Renderer volume;
         private MaterialPropertyBlock properties;
         private Vector3 origin, direction;
-        private bool anchored, yellow, concealTransformation;
+        private bool anchored, yellow, concealTransformation, oralJet, capture;
         private float seed,previousAge=-100;
         public static bool IsInk(string kind)=>kind=="eat" || kind=="allyEat" || kind=="burp";
 
-        public void Initialize(int eventId,bool isYellow,bool wholeBody=false)
+        public void Initialize(int eventId,bool isYellow,bool wholeBody=false,bool jet=false,bool tentacleCapture=false)
         {
-            yellow=isYellow;concealTransformation=wholeBody;seed=Mathf.Repeat(eventId*0.6180339f,1);
+            yellow=isYellow;concealTransformation=wholeBody;oralJet=jet;capture=tentacleCapture;seed=Mathf.Repeat(eventId*0.6180339f,1);
             Prewarm();
             var cube=GameObject.CreatePrimitive(PrimitiveType.Cube);cube.name="Continuous ink volume";cube.transform.SetParent(transform,false);
             var collider=cube.GetComponent<Collider>();if(Application.isPlaying)Destroy(collider);else DestroyImmediate(collider);
@@ -50,9 +50,21 @@ namespace PrototypeLab.Aquarium
             transform.position=origin+direction*(.025f+drift*.12f)+Vector3.up*(drift*.22f)+side*(Mathf.Sin(seed*6.28f+flowAge*.8f)*drift*.10f);
             transform.rotation=Quaternion.LookRotation(direction,Mathf.Abs(direction.y)>.95f?Vector3.right:Vector3.up);
             transform.localScale=new Vector3(1.10f+expand*1.40f+drift*.36f,1.05f+expand*1.30f+drift*.40f,1.10f+expand*1.35f+drift*.28f)*(concealTransformation?1.12f:1);
+            if(oralJet)
+            {
+                // Start with a narrow directed puff at the actual lower lip,
+                // then let the plume spread after the expelled body clears it.
+                float jet=1-Mathf.Exp(-age*4),bloom=Mathf.Max(0,age-.45f);
+                if(age<.35f)direction=forward.normalized;
+                transform.rotation=Quaternion.LookRotation(direction,Mathf.Abs(direction.y)>.95f?Vector3.right:Vector3.up);
+                transform.localScale=new Vector3(.18f+jet*.55f+bloom*.45f,.18f+jet*.55f+bloom*.45f,.35f+jet*1.65f+bloom*.2f);
+                transform.position=origin+direction*(transform.localScale.z*.42f)+Vector3.up*bloom*.12f;
+            }
             properties.Clear();properties.SetFloat("_Age",flowAge);properties.SetFloat("_Seed",seed);
             float fade=Mathf.SmoothStep(0,1,Mathf.InverseLerp(duration*.36f,duration,age));
-            properties.SetFloat("_Density",Mathf.SmoothStep(0,1,age/.14f)*1.65f*Mathf.Exp(-drift*.33f)*(1-fade));
+            // Keep the held body and the leading end leaving the lip readable.
+            float visibility=capture?.30f:oralJet?.75f:1;
+            properties.SetFloat("_Density",Mathf.SmoothStep(0,1,age/.14f)*1.65f*Mathf.Exp(-drift*.33f)*(1-fade)*visibility);
             properties.SetColor("_Pigment",yellow?new Color(.68f,.31f,.008f):new Color(.13f,.0015f,.008f));
             properties.SetColor("_EdgeTint",yellow?new Color(.98f,.73f,.045f):new Color(.48f,.010f,.027f));
             volume.SetPropertyBlock(properties);

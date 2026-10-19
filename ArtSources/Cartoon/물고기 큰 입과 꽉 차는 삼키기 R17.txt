@@ -1,0 +1,23 @@
+R17 — 물고기 입을 더 크게, 먹히는 대상이 입을 꽉 채우며 빨려 들어가게
+
+입 (Fish0 블렌드셰이프 Alien_Mouth_Open)
+- 입 구멍 반지름 약 0.15 → 약 0.22로 열립니다. 입술이 깔때기 모양으로 크게 벌어지고 안쪽은 더 깊어졌습니다.
+- 눈과 눈 주변은 움직이지 않습니다(입 벌림 중 눈 이동 0.00003 이하).
+- 입은 입 부분(앞쪽 돌출부)만 벌어지고 몸통·지느러미는 그대로입니다.
+- 삼킬 때 몸이 불룩해지는 Swallow를 2배로 키웠습니다.
+
+먹히는 대상
+- 물고기 입 기준점(mouthAnchor)을 입술 앞면으로 옮겼습니다. 대상은 입술 위치에서 입 구멍 크기로 눌려 들어갑니다.
+- AquariumCreature.FeedingRadius: 카툰 물고기는 현재 입 벌림 정도에 맞춰 반지름을 계산합니다
+  (feedingMouthRadius 0.17 × 입 벌림). 빨아들이는 동안 입이 다 벌어져 있어 대상이 입을 꽉 채운 채 목구멍으로 사라집니다.
+- 기존에 물고기 형태에서 반지름을 줄이던 lipWrap/jawEmbrace 축소는 카툰 물고기에는 적용하지 않습니다.
+- Species0~2.feedingMouthRadius = 0.17 (AquariumCartoonImport의 값도 0.17로 맞춤).
+
+적용
+- Editor/Fish0MawR17.cs가 Demo 프로젝트를 다음에 열거나 스크립트가 다시 컴파일될 때 한 번 자동 실행됩니다.
+  Fish0만 다시 만들고, 열린 씬은 건드리지 않습니다. 플레이 중이면 플레이가 끝난 뒤 실행됩니다.
+- 다시 실행: Aquarium > Characters > Apply fish0 wide maw (R17)
+- 콘솔에 FISH0_R17_APPLIED 가 나오면 적용된 것입니다.
+
+되돌리기
+- R16 상태: 이 파일과 함께 백업된 Source/BeforeFish0R17_* 의 파일을 Export에 복사하고 위 메뉴를 실행합니다.

@@ -381,6 +381,17 @@ public static class ModelTests
                 Advance(m, 0.14f); Check(p.swallowedBy == 0 && Point.Dot(p.position-m.Player(1).position,p.facing)>1.5f, "released forward with body clearance");
                 Check(p.revealUntil > m.Time && m.Player(1).revealUntil > m.Time && m.Effects.Exists(e => e.kind == "burp"), "burp reveal");
             });
+            Test("captured disguise survives in snapshots until alien expulsion", () => {
+                for(int species=0;species<5;species++)
+                {
+                    var m=Match(true);var p=m.Player(3);p.position=At(1,0);p.species=species;p.revealUntil=0;
+                    Act(m,1);Check(p.swallowedBy==1 && p.swallowedSpecies==species,"capture retains visible fish species");
+                    Advance(m,1.7f);Check(Array.Find(m.Snapshot().players,x=>x.id==3).swallowedSpecies==species,"remote snapshot retains eaten fish");
+                    Advance(m,1.4f);Check(p.swallowedBy==0 && p.species==-1 && p.swallowedSpecies==-1 && p.visualAction=="SpitOut","release changes to alien inside carrier");
+                }
+                var exposed=Match(true);var ally=exposed.Player(3);ally.position=At(1,0);ally.species=2;ally.revealUntil=exposed.Time+4;
+                Act(exposed,1);Check(ally.swallowedSpecies==-1,"already exposed alien must not regain a fish disguise when eaten");
+            });
             Test("carrier disconnect safely releases friend", () => {
                 var m = Match(true); m.Player(3).position = At(1, 0); Act(m, 1); m.RemovePlayer(1);
                 Check(m.Player(3).swallowedBy == 0 && m.Player(3).alive && m.Phase == RoundPhase.Playing, "disconnect release");
@@ -388,6 +399,8 @@ public static class ModelTests
             Test("release moves both aliens apart with continuous deceleration", () => {
                 var m=ReleasePair();var carrier=m.Player(1);var expelled=m.Player(3);
                 Check(carrier.visualAction=="SpitRecoil" && expelled.visualAction=="SpitOut" && carrier.visualAt==expelled.visualAt,"synchronized two-sided reaction");
+                Check(expelled.releaseSource==carrier.id && Array.Find(m.Snapshot().players,p=>p.id==expelled.id).releaseSource==carrier.id,"snapshot retains carrier for mouth-origin emergence");
+                Check(m.Effects.Exists(e=>e.kind=="burp" && e.owner==carrier.id),"release plume follows carrier lower mouth");
                 Check(Point.Dot(carrier.facing,expelled.facing)>.99f && carrier.facing.x>.99f,"carrier faces the spit direction while recoiling backwards");
                 var a=carrier.position;var b=expelled.position;m.Tick(.1f);
                 float first=(carrier.position-a).Length;

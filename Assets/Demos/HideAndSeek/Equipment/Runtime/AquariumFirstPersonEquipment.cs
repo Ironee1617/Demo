@@ -24,7 +24,7 @@ namespace PrototypeLab.Aquarium
             pivot = new GameObject("First person diver equipment").transform;
             pivot.SetParent(camera.transform, false);
             hands = UnityEngine.Object.Instantiate(Resources.Load<GameObject>("AquariumEquipment/DiverHands"), pivot).GetComponent<AquariumRig>();
-            gun = CreateGun(pivot);
+            gun = CreateGun(pivot, hands);
             foreach (var t in pivot.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = Layer;
             foreach (var r in pivot.GetComponentsInChildren<Renderer>(true)) { r.shadowCastingMode = ShadowCastingMode.Off; r.receiveShadows = false; }
             var light = new GameObject("Equipment soft fill").AddComponent<Light>(); light.transform.SetParent(pivot, false);
@@ -37,10 +37,11 @@ namespace PrototypeLab.Aquarium
             pivot.gameObject.SetActive(false); overlay.enabled = false;
         }
 
-        public static AquariumHarpoonGun CreateGun(Transform parent)
+        public static AquariumHarpoonGun CreateGun(Transform parent, AquariumRig rig = null)
         {
-            var result = UnityEngine.Object.Instantiate(Resources.Load<GameObject>("AquariumEquipment/HarpoonGun"), parent).GetComponent<AquariumHarpoonGun>();
-            result.transform.localPosition = Grip; result.transform.localRotation = Quaternion.identity; return result;
+            string asset = "HarpoonGun";
+            var result = UnityEngine.Object.Instantiate(Resources.Load<GameObject>("AquariumEquipment/" + asset), rig != null && rig.gunSocket != null ? rig.gunSocket : parent).GetComponent<AquariumHarpoonGun>();
+            result.transform.localPosition = rig != null && rig.gunSocket != null ? Vector3.zero : Grip; result.transform.localRotation = Quaternion.identity; return result;
         }
 
         public void Present(AquariumSnapshot state, int followId, bool firstPerson, float speed)
@@ -57,10 +58,11 @@ namespace PrototypeLab.Aquarium
             float movement = Mathf.Clamp01(speed / 4.7f);
             float bob = Mathf.Sin(time * 5) * .004f * movement;
             float recovering = age > .3f && time < player.nextAction ? Mathf.Sin(Mathf.PI * Mathf.InverseLerp(.3f, AquariumModel.HarpoonCooldown, age)) : 0;
-            pivot.localPosition = new Vector3(.065f + bob, -.15f - recovering * .025f + Mathf.Cos(time * 3.2f) * .002f, .20f - recoil * .07f);
+            // Place the original character wrist below the viewport's lower edge.
+            pivot.localPosition = new Vector3(.065f + bob, -.20f - recovering * .025f + Mathf.Cos(time * 3.2f) * .002f, .18f - recoil * .07f);
             pivot.localRotation = Quaternion.Euler(-recoil * 7 + recovering * 2, bob * 70, -recovering * 2);
             pivot.localScale = Vector3.one * .72f;
-            hands.SamplePose("Idle", time, time);
+            hands.SamplePose(hands.cartoon ? "FPSIdle" : "Idle", time, time);
             gun.SetLoaded(time >= player.nextAction);
         }
 
