@@ -43,3 +43,8 @@ sysinfo.txt
 /ArtSources/Cartoon/Source/PrePolish/
 /ArtSources/Cartoon/Source/OctoAlienV2/*log*.txt
 *.blend1
+
+# Unity Pipeline local connection and temporary build resources.
+.unity-pipeline-runtime-port
+/Assets/Settings/Pipeline/Resources/RuntimePipelineConfig.asset*
+/Assets/Settings/Pipeline/Resources/RuntimePipelineBuildInfo.asset*

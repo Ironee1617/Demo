@@ -51,6 +51,8 @@ W 바라보는 방향으로 전진 · 마우스 시점 · Shift 질주 · 외계
 
 ## 열기
 
+Unity CLI를 통한 에디터 연결과 제어는 [Unity CLI 사용 안내](Docs/Unity-CLI.md)를 참고하세요.
+
 
 
 1. Unity Hub에서 **Add project from disk**로 이 폴더를 추가합니다.
