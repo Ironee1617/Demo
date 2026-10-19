@@ -32,7 +32,12 @@ namespace PrototypeLab.Aquarium
             public Swimmer player;public Prey fish;public Point position,direction;public float radius,half,weight,wallRadius;
         }
         [ThreadStatic] private static List<Body> contactBodies;
-        public static Point Move(Swimmer player,Point travel,List<Swimmer> players,List<Prey> fish,float time)
+        private static bool Tethered(int id,bool player,List<Harpoon> harpoons)
+        {
+            if(harpoons!=null)foreach(var h in harpoons)if((player?h.caughtPlayer:h.caughtFish)==id)return true;
+            return false;
+        }
+        public static Point Move(Swimmer player,Point travel,List<Swimmer> players,List<Prey> fish,float time,List<Harpoon> harpoons=null)
         {
             bool diver=player.team==Team.Seeker,alien=player.species<0 || player.revealUntil>time;
             float radius=Radius(diver,alien),half=Half(diver,alien),wallRadius=diver?.5f:.4f;Point position=player.position;
@@ -45,7 +50,7 @@ namespace PrototypeLab.Aquarium
                     bool hit=false;
                     foreach(var other in players)
                     {
-                        if(other==player || other.swallowedBy!=0 || !other.alive && time-other.deathAt>2.4f)continue;
+                        if(other==player || other.swallowedBy!=0 || !other.alive && (time-other.deathAt>2.4f || Tethered(other.id,true,harpoons)))continue;
                         bool od=other.team==Team.Seeker,oa=other.species<0 || other.revealUntil>time;
                         if((position-other.position).Length>radius+half+Radius(od,oa)+Half(od,oa))continue;
                         var correction=Penetration(position,player.facing,radius,half,other.position,other.facing,Radius(od,oa),Half(od,oa));
@@ -53,7 +58,7 @@ namespace PrototypeLab.Aquarium
                     }
                     foreach(var other in fish)
                     {
-                        if(other.eaten || (position-other.position).Length>radius+half+FishRadius+FishHalf)continue;
+                        if(other.eaten || other.dead && (other.harpoonOwner==player.id || Tethered(other.id,false,harpoons)) || (position-other.position).Length>radius+half+FishRadius+FishHalf)continue;
                         var correction=Penetration(position,player.facing,radius,half,other.position,other.facing,FishRadius,FishHalf);
                         if(correction.Length>.001f){position+=correction;hit=true;}
                     }
@@ -62,16 +67,16 @@ namespace PrototypeLab.Aquarium
             }
             return position;
         }
-        public static void Resolve(List<Swimmer> players,List<Prey> fish,float time)
+        public static void Resolve(List<Swimmer> players,List<Prey> fish,float time,List<Harpoon> harpoons=null)
         {
             var bodies=contactBodies??(contactBodies=new List<Body>(players.Count+fish.Count));bodies.Clear();
             foreach(var p in players)
             {
-                if(p.swallowedBy!=0 || !p.alive && time-p.deathAt>2.4f)continue;
+                if(p.swallowedBy!=0 || !p.alive && (time-p.deathAt>2.4f || Tethered(p.id,true,harpoons)))continue;
                 bool diver=p.team==Team.Seeker,alien=p.species<0 || p.revealUntil>time;
                 bodies.Add(new Body{player=p,position=p.position,direction=p.facing,radius=Radius(diver,alien),half=Half(diver,alien),wallRadius=diver?.5f:.4f,weight=time<p.stunnedUntil?0:diver?.6f:1});
             }
-            foreach(var f in fish)if(!f.eaten)bodies.Add(new Body{fish=f,position=f.position,direction=f.facing,radius=FishRadius,half=FishHalf,wallRadius=.35f,weight=2});
+            foreach(var f in fish)if(!f.eaten && !(f.dead && Tethered(f.id,false,harpoons)))bodies.Add(new Body{fish=f,position=f.position,direction=f.facing,radius=FishRadius,half=FishHalf,wallRadius=.35f,weight=2});
             // Repeated projected contacts handle crowds and contacts beside glass/rocks.
             for(int pass=0;pass<8;pass++)
             {
@@ -79,6 +84,9 @@ namespace PrototypeLab.Aquarium
                 for(int i=0;i<bodies.Count;i++)for(int j=i+1;j<bodies.Count;j++)
                 {
                     var a=bodies[i];var b=bodies[j];if((a.position-b.position).Length>a.radius+b.radius+a.half+b.half)continue;
+                    // A retrieved catch can sink past its owner without shoving the diver backwards.
+                    if(a.player!=null && b.fish!=null && b.fish.dead && b.fish.harpoonOwner==a.player.id
+                        || b.player!=null && a.fish!=null && a.fish.dead && a.fish.harpoonOwner==b.player.id)continue;
                     Point correction=Penetration(a.position,a.direction,a.radius,a.half,b.position,b.direction,b.radius,b.half);
                     if(correction.Length<.001f)continue;contact=true;
                     float fraction=a.weight+b.weight>.001f?a.weight/(a.weight+b.weight):.5f;

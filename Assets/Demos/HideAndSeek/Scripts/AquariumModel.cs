@@ -66,7 +66,7 @@ namespace PrototypeLab.Aquarium
         public Point position, facing;
         public bool dead, eaten;
         public float visualAt = -100;
-        public int eater;
+        public int eater, harpoonOwner;
         public float turnAt;
         [NonSerialized] public Point steering;
         [NonSerialized] public float swimSpeed;
@@ -81,6 +81,8 @@ namespace PrototypeLab.Aquarium
         public float born, returnAt, retrievedAt;
         public bool returning;
         public Point returnFrom;
+        public int caughtFish, caughtPlayer;
+        public Point catchOffset;
     }
 
     [Serializable]
@@ -128,7 +130,7 @@ namespace PrototypeLab.Aquarium
     public sealed class AquariumModel
     {
         public const int MaxPlayers = 5, FishCount = 32, EggFoodRequired = 3;
-        public const float HiderSpeed = 4f, SeekerSpeed = 4.7f, RoundSeconds = 180f;
+        public const float FishSpeed = 4f, HiderSpeed = FishSpeed, SeekerSpeed = 4.7f, RoundSeconds = 180f;
         public const float HarpoonCooldown = 3f, FeedCooldown = 20f, FeedRadius = 6f, FeedDuration = 5f;
         public const float HungerSeconds = 60f, EatStun = 2f, AllyStun = 3f, MorphLock = 6f, HatchSeconds = 12f;
         public const float ScanDuration = 5f, ScanCooldown = 18f, MaxStamina = 100f;
@@ -296,14 +298,20 @@ namespace PrototypeLab.Aquarium
             foreach (var f in Fish)
             {
                 if (f.eaten) continue;
-                if (f.dead) { f.position = Constrain(f.position + new Point(0, -0.8f * dt, 0), 0.35f); continue; }
+                if (f.dead)
+                {
+                    bool tethered = false;
+                    foreach (var h in Harpoons) if (h.caughtFish == f.id) { tethered = true; break; }
+                    if (!tethered) f.position = Constrain(f.position + new Point(0, -0.8f * dt, 0), 0.35f);
+                    continue;
+                }
                 if (Time > f.turnAt) { f.steering = (f.facing + new Point(Range(-0.8f, 0.8f), Range(-0.3f, 0.3f), Range(-0.8f, 0.8f))).Normalized; f.turnAt = Time + Range(1.4f, 4.5f); }
                 Point heading=f.steering.Length>.0001f?f.steering:f.facing;
                 WaterEffect food = null; float foodDistance = FeedRadius;
                 foreach (var e in Effects)
                     if (e.kind == "feed" && (e.position - f.position).Length < foodDistance)
                     { food = e; foodDistance = (e.position - f.position).Length; }
-                float targetSpeed=1.4f+f.species*.18f;
+                float targetSpeed=FishSpeed;
                 if (food != null)
                 {
                     if (foodDistance > 0.15f) heading = (food.position - f.position).Normalized;
@@ -311,7 +319,7 @@ namespace PrototypeLab.Aquarium
                 else if (Phase == RoundPhase.Playing && Time >= HuntAt)
                 {
                     foreach(var diver in Players)if(diver.team==Team.Seeker && diver.alive && (diver.position-f.position).Length<4.5f)
-                    {heading=(f.position-diver.position).Normalized;targetSpeed*=1.45f;break;}
+                    {heading=(f.position-diver.position).Normalized;break;}
                 }
                 f.facing=Point.TurnTowards(f.facing,heading,2.8f*dt);
                 float speedStep=4f*dt;f.swimSpeed+=Math.Max(-speedStep,Math.Min(speedStep,targetSpeed-f.swimSpeed));
@@ -322,7 +330,7 @@ namespace PrototypeLab.Aquarium
                 if ((wanted - actual).Length > 0.001f) { f.steering = (actual-wanted).Normalized; f.turnAt = Time + 0.9f; }
                 f.position = actual;
             }
-            if (Phase != RoundPhase.Playing) { AquariumBodyCollision.Resolve(Players,Fish,Time); return; }
+            if (Phase != RoundPhase.Playing) { AquariumBodyCollision.Resolve(Players,Fish,Time,Harpoons); return; }
             // Release before either player consumes input, regardless of roster order.
             foreach (var p in Players) if (p.alive && p.swallowedBy != 0)
             {
@@ -360,7 +368,7 @@ namespace PrototypeLab.Aquarium
                 float accelerationStep = 32f * dt;
                 p.velocity += velocityChange.Length <= accelerationStep ? velocityChange : velocityChange.Normalized * accelerationStep;
                 var wanted = p.position + p.velocity * dt;
-                var movedTo = AquariumBodyCollision.Move(p, p.velocity * dt, Players, Fish, Time);
+                var movedTo = AquariumBodyCollision.Move(p, p.velocity * dt, Players, Fish, Time,Harpoons);
                 if ((wanted - movedTo).Length > 0.001f) p.velocity = new Point();
                 bool moved = Point.Dot(movedTo - p.position, move) > 0.001f;
                 if (sprinting && moved) p.stamina = Math.Max(0, p.stamina - 25f * dt);
@@ -377,7 +385,7 @@ namespace PrototypeLab.Aquarium
                 if (input.layEgg && p.team == Team.Hider && Time >= p.stunnedUntil) LayEgg(p);
                 input.action = input.morph = input.feed = input.scan = input.layEgg = false;
             }
-            AquariumBodyCollision.Resolve(Players,Fish,Time);
+            AquariumBodyCollision.Resolve(Players,Fish,Time,Harpoons);
             TickHarpoons(dt);
             TickEggs(dt);
             TickExposure(dt);
@@ -573,7 +581,7 @@ namespace PrototypeLab.Aquarium
             float travel=ReleaseTravel(age)-ReleaseTravel(age-dt);
             // The carrier keeps looking at the expelled alien while its body recoils.
             float sign=player.visualAction=="SpitRecoil"?-1:1;
-            if (travel>0) player.position=AquariumBodyCollision.Move(player,player.facing*(travel*sign),Players,Fish,Time);
+            if (travel>0) player.position=AquariumBodyCollision.Move(player,player.facing*(travel*sign),Players,Fish,Time,Harpoons);
             // The impulse has priority over held movement/aim; action edges are not queued.
             SwimInput blocked;
             if (inputs.TryGetValue(player.id,out blocked)) blocked.action=blocked.morph=blocked.feed=blocked.scan=blocked.layEgg=false;
@@ -618,6 +626,7 @@ namespace PrototypeLab.Aquarium
                 egg.position += (fallingTo - egg.position) * Math.Min(1, Math.Max(0, surface));
                 if (Time < egg.hatchAt) continue;
                 target.alive = true; target.position = egg.position; target.species = -1; target.swallowedBy = 0;
+                foreach (var h in Harpoons) if (h.caughtPlayer == target.id) h.caughtPlayer = 0;
                 target.visualAction = ""; target.visualAt = target.deathAt = target.morphAt = -100;
                 target.stamina = MaxStamina; target.lastMealAt = Time; target.deathReason = "";
                 target.velocity = new Point(); target.diedAt = 0; target.deathSpecies = -1;
@@ -657,7 +666,7 @@ namespace PrototypeLab.Aquarium
             for (int i = Harpoons.Count - 1; i >= 0; i--)
             {
                 var h = Harpoons[i]; var owner = Player(h.owner);
-                if (owner == null || !owner.alive || Time >= h.retrievedAt) { Harpoons.RemoveAt(i); continue; }
+                if (owner == null || !owner.alive) { Harpoons.RemoveAt(i); continue; }
                 if (h.returning)
                 {
                     // The host keeps a spent spear until the cooldown ends. It cannot hit twice.
@@ -667,8 +676,11 @@ namespace PrototypeLab.Aquarium
                     h.position = h.returnFrom + (socket - h.returnFrom) * reel;
                     var away = h.position - owner.position;
                     if (away.Length > .01f) h.direction = away.Normalized;
+                    MoveHarpoonCatch(h);
+                    if (Time >= h.retrievedAt) Harpoons.RemoveAt(i);
                     continue;
                 }
+                if (Time >= h.retrievedAt) { Harpoons.RemoveAt(i); continue; }
                 var start = h.position; var end = start + h.direction * (20f * Math.Min(dt, h.life));
                 h.life -= dt;
                 float first = 2f; Swimmer hitPlayer = null; Prey hitFish = null; RevivalEgg hitEgg = null;
@@ -684,8 +696,16 @@ namespace PrototypeLab.Aquarium
                 if (first <= 1f)
                 {
                     h.position = start + (end - start) * first;
-                    if (hitPlayer != null) Kill(hitPlayer, "harpoon");
-                    else if (hitFish != null) { hitFish.dead = true; hitFish.visualAt = Time; Effect("miss", h.position, h.direction, 0.8f); }
+                    if (hitPlayer != null)
+                    {
+                        Kill(hitPlayer, "harpoon"); h.caughtPlayer = hitPlayer.id; h.catchOffset = hitPlayer.position - h.position;
+                    }
+                    else if (hitFish != null)
+                    {
+                        hitFish.dead = true; hitFish.visualAt = Time; hitFish.harpoonOwner = h.owner;
+                        h.caughtFish = hitFish.id; h.catchOffset = hitFish.position - h.position;
+                        Effect("miss", h.position, h.direction, 0.8f);
+                    }
                     else if (hitEgg != null) { Eggs.Remove(hitEgg); Effect("eggBreak", h.position, h.direction, 1f); }
                     else Effect("miss", h.position, h.direction, 0.35f);
                     BeginHarpoonReturn(h);
@@ -701,6 +721,22 @@ namespace PrototypeLab.Aquarium
 
         private void BeginHarpoonReturn(Harpoon h)
         { h.returning = true; h.returnAt = Time; h.returnFrom = h.position; }
+
+        private void MoveHarpoonCatch(Harpoon h)
+        {
+            if (h.caughtFish != 0)
+            {
+                var fish = Fish.Find(f => f.id == h.caughtFish);
+                if (fish != null && fish.dead && !fish.eaten) fish.position = h.position + h.catchOffset;
+                else h.caughtFish = 0;
+            }
+            if (h.caughtPlayer != 0)
+            {
+                var player = Player(h.caughtPlayer);
+                if (player != null && !player.alive && player.deathReason == "harpoon") player.position = h.position + h.catchOffset;
+                else h.caughtPlayer = 0;
+            }
+        }
 
         public static float HitTime(Point a, Point b, Point centre, float radius)
         {

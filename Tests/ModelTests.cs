@@ -422,6 +422,24 @@ public static class ModelTests
                     Check(AquariumBodyCollision.Penetration(carrier.position,carrier.facing,.62f,.25f,expelled.position,expelled.facing,.62f,.25f).Length<.03f,"released bodies do not overlap beside glass");
                 }
             });
+            Test("every fish species cruises at the alien base swim speed", () => {
+                foreach(int species in new[]{0,1,2,17,98})
+                {
+                    var m=Match();m.Fish.Clear();var alien=m.Player(1);
+                    alien.position=At(0,0,7);alien.velocity=new Point();
+                    m.Player(2).position=At(18,12,7);
+                    var fish=new Prey{id=100,species=species,position=At(0,6,7),facing=new Point(1,0),turnAt=float.MaxValue};m.Fish.Add(fish);
+                    for(int i=0;i<12;i++){m.SetInput(1,new SwimInput{x=1,aimX=1});m.Tick(.1f);}
+                    var fishBefore=fish.position;var alienBefore=alien.position;
+                    m.SetInput(1,new SwimInput{x=1,aimX=1});m.Tick(.1f);
+                    float fishTravel=(fish.position-fishBefore).Length,alienTravel=(alien.position-alienBefore).Length;
+                    Check(Math.Abs(fishTravel-AquariumModel.HiderSpeed*.1f)<.001f,"fish reaches shared cruising speed for species "+species);
+                    Check(Math.Abs(fishTravel-alienTravel)<.001f,"fish and alien travel equally at base speed for species "+species);
+                    m.Player(2).position=fish.position-new Point(2,0);fishBefore=fish.position;alienBefore=alien.position;
+                    m.SetInput(1,new SwimInput{x=1,aimX=1});m.Tick(.1f);
+                    Check(Math.Abs((fish.position-fishBefore).Length-(alien.position-alienBefore).Length)<.001f,"fleeing fish keeps the shared speed for species "+species);
+                }
+            });
             Test("seeker warmup and speed advantage", () => {
                 var m = Match(warmup: true); var s = m.Player(2); s.position = At(0, 6);
                 m.SetInput(2, new SwimInput { x = 1 }); m.Tick(0.1f); Check(s.position.x == 0, "head start freeze"); Advance(m, 5);
@@ -514,6 +532,39 @@ public static class ModelTests
                 Check(m.Harpoons.Count == 1 && (h.position - (m.Player(2).position + m.Player(2).facing * .7f)).Length < .15f, "reel follows moving owner");
                 Advance(m, .2f); Check(m.Harpoons.Count == 0, "only removed when fully retrieved");
             });
+            Test("harpooned fish corpse follows the spear and is delivered to a moving diver", () => {
+                var m = Match(); var diver = m.Player(2); diver.position = At(0, 0, 7); m.Player(1).position = At(8, 5, 7);
+                var prey = m.Fish[0]; prey.position = At(2, 0, 7); prey.dead = false; prey.facing = new Point();
+                Act(m, 2); Advance(m, .1f); Check(prey.dead && m.Harpoons.Count == 1, "fish is impaled");
+                var h = m.Harpoons[0]; var offset = prey.position - h.position; var origin = prey.position;
+                diver.position = At(-2, 1, 7); Advance(m, 1);
+                Check((prey.position - h.position - offset).Length < .001f, "corpse stays attached during return");
+                Check((prey.position - origin).Length > .2f && !prey.eaten, "corpse is reeled without counting as food");
+                Advance(m, Math.Max(0, h.retrievedAt - m.Time + .02f));
+                Check(m.Harpoons.Count == 0 && (prey.position - (diver.position + diver.facing * .7f + offset)).Length < .08f, "corpse arrives with spear before detaching");
+                Check((diver.position - At(-2, 1, 7)).Length < .01f, "reeled corpse does not push its owner");
+                float deliveredHeight = prey.position.y; Advance(m, .2f);
+                Check(prey.position.y < deliveredHeight - .1f, "delivered fish resumes sinking");
+                Check((diver.position - At(-2, 1, 7)).Length < .01f, "detached catch does not push its owner");
+            });
+            Test("harpooned disguised alien corpse follows the returning spear", () => {
+                var m = Match(true); var diver = m.Player(2); var alien = m.Player(1);
+                diver.position = At(0, 0, 7); alien.position = At(2, 0, 7); alien.species = 1; alien.revealUntil = 0;
+                m.Player(3).position = At(8, 5, 7); Act(m, 2); Advance(m, .1f);
+                Check(!alien.alive && alien.deathSpecies == 1 && m.Phase == RoundPhase.Playing, "disguised corpse is available during play");
+                var h = m.Harpoons[0]; var offset = alien.position - h.position; var origin = alien.position;
+                diver.position = At(-2, 1, 7); Advance(m, 1);
+                Check((alien.position - h.position - offset).Length < .001f && (alien.position - origin).Length > .2f, "alien corpse is reeled with spear");
+            });
+            Test("revival detaches a harpooned alien before the spear finishes returning", () => {
+                var m = Match(true); var diver = m.Player(2); var alien = m.Player(1);
+                diver.position = At(0, 0, 7); alien.position = At(2, 0, 7); m.Player(3).position = At(8, 5, 7);
+                Act(m, 2); Advance(m, .1f); var h = m.Harpoons[0];
+                Check(!alien.alive && h.caughtPlayer == alien.id, "alien corpse is tethered");
+                m.Eggs.Add(new RevivalEgg { id = 99, owner = 3, revivePlayer = alien.id, position = At(8, 2, 7), hatchAt = m.Time + .1f });
+                Advance(m, .2f); var revivedAt = alien.position; Advance(m, .3f);
+                Check(alien.alive && h.caughtPlayer == 0 && (alien.position - revivedAt).Length < .001f, "revived alien is free of the returning spear");
+            });
             Test("missed harpoon stops at range and remains tethered until ready", () => {
                 var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(0, 6);
                 Act(m, 2); var h = m.Harpoons[0]; var launch = h.position; Advance(m, .8f);
@@ -522,10 +573,10 @@ public static class ModelTests
                 Advance(m, 1.3f); Check(m.Harpoons.Count == 0, "miss retrieved");
             });
             Test("feed attracts only nearby live fish for five seconds and cools down for twenty", () => {
-                var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(0, 0);
-                var near = m.Fish[0]; near.position = At(4, 0);
-                var far = m.Fish[1]; far.position = At(-10, 0); // Clear water inside the curved gallery perimeter.
-                var dead = m.Fish[2]; dead.position = At(4, 0, 5); dead.dead = true;
+                var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(0, 0, 7);
+                var near = m.Fish[0]; near.position = At(4, 0, 7);
+                var far = m.Fish[1]; far.position = At(-10, 0, 7); // Clear water inside the curved gallery perimeter.
+                var dead = m.Fish[2]; dead.position = At(4, 3, 9); dead.dead = true; // Inside bait range, beside the living fish's turn arc.
                 m.SetInput(2, new SwimInput { aimX = 1, feed = true }); m.Tick(1f / 30);
                 var food = m.Effects.Find(e => e.kind == "feed"); Check(food != null && food.duration == 5, "feed spawned");
                 float ready = m.Player(2).nextFeed, before = (near.position - food.position).Length;
@@ -787,7 +838,8 @@ public static class ModelTests
                 Act(m, 2); Advance(m, 0.2f);
                 Check(!p.alive && p.deathSpecies == 2 && p.diedAt > m.HuntAt && p.velocity.Length == 0, "visible fish body and death clock captured");
                 float diedAt = p.diedAt; var bodyAt = p.position; p.species = 0; p.revealUntil = m.Time + 10; Advance(m, 3.1f);
-                Check(p.deathSpecies == 2 && p.diedAt == diedAt && (p.position - bodyAt).Length == 0, "corpse appearance and clock do not follow later reveal changes");
+                Check(p.deathSpecies == 2 && p.diedAt == diedAt, "corpse appearance and clock do not follow later reveal changes");
+                Check((p.position - bodyAt).Length > .1f && m.Harpoons.Count == 0, "corpse was delivered by the returning spear");
                 ally.position = At(2, 0); ally.species = 1; ally.revealUntil = m.Time + 1; Act(m, 2); Advance(m, 0.2f);
                 Check(!ally.alive && ally.deathSpecies == -1, "exposed alien dies as alien body");
                 Advance(m, 3); Check(ally.deathSpecies == -1, "expired reveal does not turn corpse into fish");
