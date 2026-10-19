@@ -1,0 +1,43 @@
+deterministic real Draw + PlayerPosition + camera; speed=2 metres/second
+alien snapshot_30hz render_60 player_speed=1.7022..2.2978 camera_speed=1.7626..2.2373
+alien snapshot_30hz render_60 stop_max_frame_motion=0.0000 finish/reset checked
+alien snapshot_30hz render_144 player_speed=1.4891..2.6093 camera_speed=1.5802..2.5356
+alien snapshot_20hz render_60 player_speed=1.4382..2.6205 camera_speed=1.6448..2.4908
+alien snapshot_20hz render_144 player_speed=1.2078..2.8973 camera_speed=1.4728..2.8058
+fish snapshot_30hz render_60 player_speed=1.7022..2.2978 camera_speed=1.7626..2.2373
+fish snapshot_30hz render_60 stop_max_frame_motion=0.0000 finish/reset checked
+fish snapshot_30hz render_144 player_speed=1.4891..2.6093 camera_speed=1.5802..2.5356
+fish snapshot_20hz render_60 player_speed=1.4382..2.6205 camera_speed=1.6448..2.4908
+fish snapshot_20hz render_144 player_speed=1.2078..2.8973 camera_speed=1.4728..2.8058
+diver snapshot_30hz render_60 player_speed=1.7022..2.2978 camera_speed=1.9460..2.0540
+diver snapshot_30hz render_60 stop_max_frame_motion=0.0000 finish/reset checked
+diver snapshot_30hz render_144 player_speed=1.4891..2.6093 camera_speed=1.8899..2.0718
+diver snapshot_20hz render_60 player_speed=1.4382..2.6205 camera_speed=1.8599..2.0934
+diver snapshot_20hz render_144 player_speed=1.2078..2.8973 camera_speed=1.8019..2.1293
+FAILURES=26
+FAIL alien snapshot_30hz render_60 displayed player speed has snapshot ripple
+FAIL alien snapshot_30hz render_60 camera speed has snapshot ripple
+FAIL alien snapshot_30hz render_60 new round carries old displayed position
+FAIL alien snapshot_30hz render_60 lobby-to-play reset carries old displayed position
+FAIL alien snapshot_30hz render_144 displayed player speed has snapshot ripple
+FAIL alien snapshot_30hz render_144 camera speed has snapshot ripple
+FAIL alien snapshot_20hz render_60 displayed player speed has snapshot ripple
+FAIL alien snapshot_20hz render_60 camera speed has snapshot ripple
+FAIL alien snapshot_20hz render_144 displayed player speed has snapshot ripple
+FAIL alien snapshot_20hz render_144 camera speed has snapshot ripple
+FAIL fish snapshot_30hz render_60 displayed player speed has snapshot ripple
+FAIL fish snapshot_30hz render_60 camera speed has snapshot ripple
+FAIL fish snapshot_30hz render_60 new round carries old displayed position
+FAIL fish snapshot_30hz render_60 lobby-to-play reset carries old displayed position
+FAIL fish snapshot_30hz render_144 displayed player speed has snapshot ripple
+FAIL fish snapshot_30hz render_144 camera speed has snapshot ripple
+FAIL fish snapshot_20hz render_60 displayed player speed has snapshot ripple
+FAIL fish snapshot_20hz render_60 camera speed has snapshot ripple
+FAIL fish snapshot_20hz render_144 displayed player speed has snapshot ripple
+FAIL fish snapshot_20hz render_144 camera speed has snapshot ripple
+FAIL diver snapshot_30hz render_60 displayed player speed has snapshot ripple
+FAIL diver snapshot_30hz render_60 new round carries old displayed position
+FAIL diver snapshot_30hz render_60 lobby-to-play reset carries old displayed position
+FAIL diver snapshot_30hz render_144 displayed player speed has snapshot ripple
+FAIL diver snapshot_20hz render_60 displayed player speed has snapshot ripple
+FAIL diver snapshot_20hz render_144 displayed player speed has snapshot ripple

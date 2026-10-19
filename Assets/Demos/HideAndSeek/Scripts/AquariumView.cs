@@ -8,6 +8,41 @@ namespace PrototypeLab.Aquarium
     // Procedural artwork stays separate from the host-authoritative game rules.
     public sealed class AquariumView : IDisposable
     {
+        // Keep value samples: host snapshots share mutable Swimmer/Prey objects.
+        private sealed class PositionHistory
+        {
+            private struct Sample { public Vector3 position; public float time; }
+            private readonly Sample[] samples = new Sample[6];
+            private int count;
+            public void Clear() { count = 0; }
+            public Vector3 Present(Vector3 position, float sampleTime, float renderTime, bool reset, out bool snapped)
+            {
+                snapped = reset || count == 0 || sampleTime < samples[0].time;
+                if (!snapped)
+                {
+                    float gap = sampleTime - samples[0].time;
+                    snapped = Vector3.Distance(position, samples[0].position) > Mathf.Max(3, gap * 10);
+                }
+                if (snapped)
+                {
+                    count = 1; samples[0] = new Sample { position = position, time = sampleTime };
+                    return position;
+                }
+                if (sampleTime > samples[0].time)
+                {
+                    for (int i = Mathf.Min(count, samples.Length - 1); i > 0; i--) samples[i] = samples[i - 1];
+                    count = Mathf.Min(count + 1, samples.Length);
+                }
+                samples[0] = new Sample { position = position, time = sampleTime };
+                // Hold at the newest authoritative position instead of predicting through a wall.
+                if (renderTime >= samples[0].time) return samples[0].position;
+                for (int i = 1; i < count; i++)
+                    if (renderTime >= samples[i].time)
+                        return Vector3.Lerp(samples[i].position, samples[i - 1].position,
+                            Mathf.InverseLerp(samples[i].time, samples[i - 1].time, renderTime));
+                return samples[count - 1].position;
+            }
+        }
         private sealed class Actor
         {
             public GameObject root, normalMouth, predatorMouth;
@@ -20,6 +55,8 @@ namespace PrototypeLab.Aquarium
             public LineRenderer tether;
             public CapsuleCollider bodyCollider;
             public float moveSpeed,bank;
+            public readonly PositionHistory positions = new PositionHistory();
+            public bool dead, carried;
         }
         private sealed class OutlinePart { public Renderer source, shell; }
         private readonly List<OutlinePart> outlineParts = new List<OutlinePart>();
@@ -29,6 +66,7 @@ namespace PrototypeLab.Aquarium
         private int frozenRound;
         private float environmentTime,presentationTime=-1,lastStateTime=-1;
         private int presentationRound;
+        private RoundPhase presentationPhase;
         private readonly List<SkinnedMeshRenderer> outlineSkins=new List<SkinnedMeshRenderer>();
         private readonly List<MeshFilter> outlineFilters=new List<MeshFilter>();
         private readonly List<Renderer> cameraRenderers=new List<Renderer>();
@@ -210,7 +248,8 @@ namespace PrototypeLab.Aquarium
             }
             return actor;
         }
-        private Actor Place(string key, string kind, Point at, Point facing, float dt, float time, bool dead = false)
+        private Actor Place(string key, string kind, Point at, Point facing, float dt, float time, bool dead = false,
+            float sampleTime = float.NaN, float renderTime = float.NaN)
         {
             visible.Add(key); Actor actor;
             bool creatureKind=kind=="alien" || kind.StartsWith("fish");
@@ -228,11 +267,15 @@ namespace PrototypeLab.Aquarium
                 float radius=AquariumBodyCollision.Radius(kind=="diver",kind=="alien");
                 actor.bodyCollider.radius=radius;actor.bodyCollider.height=2*(radius+AquariumBodyCollision.Half(kind=="diver",kind=="alien"));
             }
-            float blend = fresh || dead ? 1 : 1 - Mathf.Exp(-dt * 18);
-            Vector3 before=actor.root.transform.position;
-            if (fresh || !freezeExistingPoses) actor.root.transform.position = Vector3.Lerp(before, target, blend);
-            float measured=fresh || dt<=0?0:Vector3.Distance(actor.root.transform.position,before)/dt;
-            actor.moveSpeed=Mathf.Lerp(actor.moveSpeed,measured,1-Mathf.Exp(-Mathf.Max(0,dt)*12));
+            if (actor.dead != dead) actor.positions.Clear();
+            actor.dead = dead;
+            if (float.IsNaN(sampleTime)) sampleTime = time;
+            if (float.IsNaN(renderTime)) renderTime = time;
+            Vector3 before = actor.root.transform.position;
+            Vector3 displayed = actor.positions.Present(target, sampleTime, renderTime, fresh || dead, out bool snapped);
+            if (fresh || !freezeExistingPoses) actor.root.transform.position = displayed;
+            float measured = snapped || dt <= 0 ? 0 : Vector3.Distance(actor.root.transform.position, before) / dt;
+            actor.moveSpeed = snapped ? 0 : Mathf.Lerp(actor.moveSpeed, measured, 1 - Mathf.Exp(-Mathf.Max(0, dt) * 12));
             var direction = new Vector3(facing.x, facing.y, facing.z);
             if (direction.sqrMagnitude < 0.001f) direction = Vector3.forward;
             var rot = Quaternion.LookRotation(direction, Mathf.Abs(direction.normalized.y) > 0.99f ? Vector3.forward : Vector3.up);
@@ -257,7 +300,7 @@ namespace PrototypeLab.Aquarium
             return line;
         }
 
-        public void Draw(AquariumSnapshot state, int localId, float dt)
+        public void Draw(AquariumSnapshot state, int localId, float dt, float renderTime = float.NaN)
         {
             if (state == null) return;
             bool finished = state.phase == RoundPhase.Finished;
@@ -267,11 +310,15 @@ namespace PrototypeLab.Aquarium
             Shader.SetGlobalFloat("_AquariumPreviewTimeEnabled", 1);
             if (finished && worldFrozen && frozenRound == state.round) { CleanupFrozenWorld(state); return; }
             worldFrozen = finished; frozenRound = state.round; freezeExistingPoses = finished;
-            if(presentationTime<0 || state.time<lastStateTime || state.round!=presentationRound)presentationTime=state.time;
+            bool resetMotion = lastStateTime < 0 || state.time < lastStateTime || state.round != presentationRound || state.phase != presentationPhase;
+            if (resetMotion)
+                foreach (var actor in actors.Values) { actor.positions.Clear(); actor.moveSpeed = 0; }
+            if(presentationTime<0 || resetMotion)presentationTime=state.time;
             else presentationTime=Mathf.Min(state.time+.05f,Mathf.Max(state.time-.1f,presentationTime+Mathf.Clamp(dt,0,.1f)));
             if(presentationRound!=state.round)fishKeys.Clear();
-            lastStateTime=state.time;presentationRound=state.round;
+            lastStateTime=state.time;presentationRound=state.round;presentationPhase=state.phase;
             float visualTime = finished ? state.finishedAt : presentationTime;
+            float renderAt = float.IsNaN(renderTime) ? presentationTime - .05f : renderTime;
             if (finished) SetMorphTarget(null);
             visible.Clear();
             Swimmer local = null;
@@ -285,7 +332,9 @@ namespace PrototypeLab.Aquarium
                 int form=deathPose?p.deathSpecies:p.species<0 || p.revealUntil>visualTime && !morphing ? -1:p.species;
                 string kind=p.team==Team.Seeker?"diver":form<0?"alien":FishKind(form);
                 bool frozenPose=finished && actors.ContainsKey(PlayerKey(p.id));
-                var actor=Place(PlayerKey(p.id),kind,p.position,p.facing,dt,visualTime,deathPose);
+                if (actors.TryGetValue(PlayerKey(p.id), out var released) && released.carried)
+                { released.positions.Clear(); released.carried = false; }
+                var actor=Place(PlayerKey(p.id),kind,p.position,p.facing,dt,visualTime,deathPose,state.time,renderAt);
                 if (actor.diver != null && !frozenPose)
                 {
                     float remaining=p.nextAction-visualTime;
@@ -321,7 +370,8 @@ namespace PrototypeLab.Aquarium
                 float age=visualTime-p.visualAt;
                 if(p.swallowedBy==0 || age>=AquariumModel.SwallowVisualSeconds || state.phase==RoundPhase.Finished)continue;
                 int capturedForm=p.swallowedSpecies;
-                var actor=Place(PlayerKey(p.id),capturedForm<0?"alien":FishKind(capturedForm),p.swallowedFrom,p.facing,dt,visualTime);
+                var actor=Place(PlayerKey(p.id),capturedForm<0?"alien":FishKind(capturedForm),p.swallowedFrom,p.facing,dt,visualTime,false,state.time,renderAt);
+                actor.carried = true;
                 actor.root.transform.localScale=Vector3.one;
                 actor.creature.Present(capturedForm,"Eaten",p.visualAt,visualTime,0);
                 if(actors.TryGetValue(PlayerKey(p.swallowedBy),out var predator))IngestActor(actor,predator,age);
@@ -332,17 +382,17 @@ namespace PrototypeLab.Aquarium
                 float age=visualTime-f.visualAt;
                 if(finished && (f.eaten || f.dead) || f.eaten && age>=AquariumModel.SwallowVisualSeconds)continue;
                 bool frozenPose=finished && actors.ContainsKey(FishKey(f.id));
-                var actor=Place(FishKey(f.id),FishKind(f.species),f.position,f.facing,dt,visualTime,f.dead && age>2.4f);
+                var actor=Place(FishKey(f.id),FishKind(f.species),f.position,f.facing,dt,visualTime,f.dead && age>2.4f,state.time,renderAt);
                 if(frozenPose)continue;
                 actor.root.transform.localScale=Vector3.one;
                 actor.creature.Present(f.species,f.eaten?"Eaten":f.dead?"Harpoon":"Locomotion",f.visualAt,visualTime,actor.moveSpeed,f.dead);
                 if(f.eaten && actors.TryGetValue(PlayerKey(f.eater),out var predator))IngestActor(actor,predator,age);
                 actor.bodyCollider.enabled=!f.eaten;
             }
-            foreach (var h in state.harpoons) Place("h" + h.id, "harpoon", h.position, h.direction, dt, visualTime);
+            foreach (var h in state.harpoons) Place("h" + h.id, "harpoon", h.position, h.direction, dt, visualTime,false,state.time,renderAt);
             if (state.eggs != null) foreach (var egg in state.eggs)
             {
-                var actor = Place("e" + egg.id, "egg", egg.position, new Point(0, 1), dt, visualTime);
+                var actor = Place("e" + egg.id, "egg", egg.position, new Point(0, 1), dt, visualTime,false,state.time,renderAt);
                 float urgency = Mathf.Clamp01(1 - (egg.hatchAt - visualTime) / AquariumModel.HatchSeconds);
                 float pulse = Mathf.Sin(visualTime * (3 + urgency * 5) + egg.id) * (0.025f + urgency * 0.025f);
                 // Pulse sideways while keeping the shell's foot planted on the collision surface.
@@ -352,7 +402,8 @@ namespace PrototypeLab.Aquarium
             foreach (var pair in actors) if (!visible.Contains(pair.Key)) { DestroyActor(pair.Value); removedActors.Add(pair.Key); }
             foreach (var key in removedActors) actors.Remove(key);
             localRing.gameObject.SetActive(state.phase == RoundPhase.Playing && local != null && local.team == Team.Hider && local.alive && local.swallowedBy == 0);
-            if (local != null) localRing.transform.position = new Vector3(local.position.x, 0.25f, local.position.z);
+            if (local != null)
+            { var displayed = PlayerPosition(local); localRing.transform.position = new Vector3(displayed.x, 0.25f, displayed.z); }
             activeEffects.Clear();
             foreach (var e in state.effects)
             {

@@ -1,0 +1,19 @@
+deterministic real Draw + PlayerPosition + camera; speed=2 metres/second
+alien snapshot_30hz render_60 player_speed=2.0000..2.0000 camera_speed=2.0000..2.0000
+alien snapshot_30hz render_60 stop_max_frame_motion=0.0000 finish/reset/release/revival checked
+alien snapshot_30hz render_144 player_speed=2.0000..2.0000 camera_speed=1.9999..2.0001
+alien snapshot_20hz render_60 player_speed=2.0000..2.0000 camera_speed=2.0000..2.0000
+alien snapshot_20hz render_144 player_speed=2.0000..2.0000 camera_speed=1.9999..2.0001
+fish snapshot_30hz render_60 player_speed=2.0000..2.0000 camera_speed=2.0000..2.0000
+fish snapshot_30hz render_60 stop_max_frame_motion=0.0000 finish/reset/release/revival checked
+fish snapshot_30hz render_144 player_speed=2.0000..2.0000 camera_speed=1.9999..2.0001
+fish snapshot_20hz render_60 player_speed=2.0000..2.0000 camera_speed=2.0000..2.0000
+fish snapshot_20hz render_144 player_speed=2.0000..2.0000 camera_speed=1.9999..2.0001
+diver snapshot_30hz render_60 player_speed=2.0000..2.0000 camera_speed=2.0000..2.0000
+diver snapshot_30hz render_60 stop_max_frame_motion=0.0000 finish/reset/release/revival checked
+diver snapshot_30hz render_144 player_speed=2.0000..2.0000 camera_speed=2.0000..2.0000
+diver snapshot_20hz render_60 player_speed=2.0000..2.0000 camera_speed=2.0000..2.0000
+diver snapshot_20hz render_144 player_speed=2.0000..2.0000 camera_speed=2.0000..2.0000
+practice render_60 player_speed=4.0000..4.0000 max_lag_metres=0.1333
+practice render_144 player_speed=3.9998..4.0001 max_lag_metres=0.1278
+OK

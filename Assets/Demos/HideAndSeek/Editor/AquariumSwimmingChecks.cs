@@ -118,7 +118,7 @@ namespace PrototypeLab.Aquarium.Editor
                     for(int frame=0;frame<fps*3;frame++)
                     {
                         float time=frame/(float)fps,sample=Mathf.Floor(time*20)/20;
-                        var actor=place.Invoke(view,new object[]{"p1",kind,new Point(0,0,sample*2),new Point(0,0,1),1f/fps,time,false});
+                        var actor=place.Invoke(view,new object[]{"p1",kind,new Point(0,0,sample*2),new Point(0,0,1),1f/fps,time,false,sample,time-.05f});
                         float speed=(float)actor.GetType().GetField("moveSpeed").GetValue(actor);
                         if(frame>fps){min=Mathf.Min(min,speed);max=Mathf.Max(max,speed);}
                     }

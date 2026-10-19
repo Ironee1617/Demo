@@ -173,14 +173,16 @@ namespace PrototypeLab.Aquarium
                 var horizontal = new Vector3(wanted.x - pivot.x, 0, wanted.z - pivot.z);
                 if (horizontal.magnitude < 2) wanted = new Vector3(pivot.x, wanted.y, pivot.z) + horizontal.normalized * 2;
             }
-            Vector3 delta = wanted - pivot;
+            // Measure boom length from the same eased origin that produced wanted.
+            // Subject lag is not an obstruction and must not instantly compress the boom.
+            Vector3 delta = wanted - followPivot;
             float travel = 1;
             float rock = AquariumModel.ObstacleHit(ToPoint(pivot), ToPoint(wanted), 0.22f);
             if (rock <= 1) travel = Mathf.Min(travel, Mathf.Max(0, rock - 0.04f));
             float safeLength = delta.magnitude * travel;
             // The orbit stays centred while the subject eases. Obstructions compress instantly.
             boomLength = snap || safeLength < boomLength ? safeLength : Mathf.Lerp(boomLength, safeLength, 1 - Mathf.Exp(-dt * 16));
-            var candidate = pivot + delta.normalized * boomLength;
+            var candidate = followPivot + delta.normalized * boomLength;
             candidate.y = Mathf.Max(AquariumSeabed.Height(candidate.x,candidate.z) + 0.22f, candidate.y);
             float blocked = AquariumModel.ObstacleHit(ToPoint(pivot), ToPoint(candidate), 0.2f);
             if (blocked <= 1) candidate = Vector3.Lerp(pivot, candidate, Mathf.Max(0, blocked - 0.04f));

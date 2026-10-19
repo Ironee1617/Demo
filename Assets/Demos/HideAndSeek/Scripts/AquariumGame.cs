@@ -145,9 +145,9 @@ namespace PrototypeLab.Aquarium
                 pendingScan |= control && p.team == Team.Seeker && Input.GetKeyDown(KeyCode.R);
                 pendingEgg |= control && p.team == Team.Hider && Input.GetKeyDown(KeyCode.R);
                 inputTimer += Time.unscaledDeltaTime;
-                if (inputTimer >= 1f / 30f)
+                if (session.IsHost || inputTimer >= 1f / 30f)
                 {
-                    inputTimer = 0;
+                    inputTimer %= 1f / 30f;
                     var aim = followCamera.Aim(session.State, p);
                     var move = control ? followCamera.Movement(
                         (Input.GetKey(KeyCode.D) ? 1 : 0) - (Input.GetKey(KeyCode.A) ? 1 : 0),
@@ -174,7 +174,7 @@ namespace PrototypeLab.Aquarium
             }
             else
             {
-                using(drawMarker.Auto())view.Draw(session.State, session.LocalId, Time.unscaledDeltaTime);
+                using(drawMarker.Auto())view.Draw(session.State, session.LocalId, Time.unscaledDeltaTime, session.PresentationTime);
                 bool finished = session.State.phase == RoundPhase.Finished;
                 if (finished && previousPhase != RoundPhase.Finished) { audioSource.Stop(); feedAudioSource.Stop(); }
                 foreach (var fx in session.State.effects)
