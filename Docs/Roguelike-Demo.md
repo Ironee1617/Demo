@@ -100,6 +100,8 @@ Tab의 **영웅과 동료의 능력** 화면에서 플레이어 또는 동료 �
 
 ## 빌드와 검증
 
+Unity CLI 에디터 전투 검증은 `Tests/Run-TowerEditorSmoke.ps1 -Suite All`로 실행합니다. 동료 15명의 실제 기본 공격·스킬·해고 처리와 보스 탄막을 검사하며, [실행 결과와 보정 범위](../Artifacts/TowerEditor/README.md)를 함께 기록합니다. 전위 동료는 실제 검격 방향의 적에게만 기본 타격을 적용하고, 보스의 왕관·쌍나선 경고는 피격으로 이동한 발사 위치와 잠금 조준 방향을 따라갑니다. 강타의 착지 표식은 고정 위치를 유지합니다.
+
 Unity 메뉴 `Roguelike > Build Windows Demo`로 로그라이크만 빌드합니다. 기존 프로젝트의 빌드 설정은 빌드 후 복원합니다.
 
 `Tests/Build-TowerDemo.ps1`은 `.validation/TowerDemoProject`에 필요한 소스와 에셋을 독립 복사한 후 Unity 배치 빌드를 수행합니다. 이 검증 프로젝트는 원본의 Temp/Library/obj/Build 밖에 있으며 링크를 사용하지 않습니다.

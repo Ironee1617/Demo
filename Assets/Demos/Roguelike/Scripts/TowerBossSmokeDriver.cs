@@ -15,24 +15,38 @@ namespace PrototypeLab.Roguelike
             public string mode = "towerBossSmoke", finishedUtc;
             public bool success, floorCountsMonotone, regularCountsMatch, bossCadence, bossesGroundTargetable, regularHealthScaling, regularDamageScaling, regularMovementScaling, regularBulletScaling, regularAttackRateScaling, bossHealthScaling;
             public bool patternsDistinct, telegraphsLocked, warningsBeforeDamage, patternDelays, crownGap, spiralGap, slamCollision, attackMotionsDistinct, pauseFreezesBoss, resetCleansBoss;
+            public bool warningTracksKnockback;
             public bool actualBossKilled, bossDeathWaitsForAdds, actualAddsKilled, rewardExactlyOnce, cameraNoShake;
             public int sampledFloors, sampledBosses, actualCombatKills, healthRefills;
             public float restoredHealth;
             public List<string> floorSamples = new List<string>(), statSamples = new List<string>(), patternChecks = new List<string>(), screenshots = new List<string>(), errors = new List<string>();
+            public List<string> warningTrackingChecks = new List<string>();
         }
         private readonly BossReport report = new BossReport();
         private TowerGame game; private TowerSmokeDriver capture;
-        private string prefix, reportPath; private bool finishing, battleActive; private float deadline;
+        private string prefix, reportPath; private bool finishing, battleActive, quitOnComplete = true; private float deadline;
+        public bool IsFinished { get { return finishing; } }
+        public bool Succeeded { get { return finishing && report.success; } }
         private static readonly BindingFlags Hidden = BindingFlags.Instance | BindingFlags.NonPublic;
         private IList Shots { get { return (IList)typeof(TowerGame).GetField("shots", Hidden).GetValue(game); } }
         private object Call(string name, params object[] values) { return typeof(TowerGame).GetMethod(name, Hidden).Invoke(game, values); }
         private static T Field<T>(object value, string name) { return (T)value.GetType().GetField(name).GetValue(value); }
         public void Initialize(TowerGame tower, TowerSmokeDriver captureDriver)
         {
-            game = tower; capture = captureDriver; game.SmokeControlled = true;
             string[] args = Environment.GetCommandLineArgs();
-            prefix = Arg(args, "-towerBossCapture") ?? Path.Combine(Application.persistentDataPath, "tower-boss");
-            reportPath = Arg(args, "-towerBossReport") ?? Path.Combine(Application.persistentDataPath, "tower-boss.json");
+            Initialize(tower, captureDriver,
+                Arg(args, "-towerBossCapture") ?? Path.Combine(Application.persistentDataPath, "tower-boss"),
+                Arg(args, "-towerBossReport") ?? Path.Combine(Application.persistentDataPath, "tower-boss.json"), true);
+        }
+        public void Initialize(TowerGame tower, TowerSmokeDriver captureDriver, string capturePrefix, string outputReportPath, bool quitOnComplete = false)
+        {
+            if (game != null) throw new InvalidOperationException("Create a new boss driver for each suite run.");
+            if (tower == null) throw new ArgumentNullException(nameof(tower));
+            if (captureDriver == null) throw new ArgumentNullException(nameof(captureDriver));
+            if (!Path.IsPathRooted(capturePrefix) || !Path.IsPathRooted(outputReportPath)) throw new ArgumentException("Suite capture and report paths must be absolute.");
+            game = tower; capture = captureDriver; prefix = capturePrefix; reportPath = outputReportPath; this.quitOnComplete = quitOnComplete;
+            if (!quitOnComplete) capture.PrepareForSuite(tower);
+            game.SmokeControlled = true; enabled = true;
             Application.logMessageReceived += RecordLog; deadline = Time.realtimeSinceStartup + 240;
             StartCoroutine(Guard(Suite()));
         }
@@ -136,7 +150,63 @@ namespace PrototypeLab.Roguelike
         }
         private IEnumerator PatternsAndMotions()
         {
-            yield return VerifyBossPatterns(); yield return PauseResetAndCamera();
+            yield return VerifyBossPatterns(); yield return VerifyWarningTracksKnockback(); yield return PauseResetAndCamera();
+        }
+        private IEnumerator VerifyWarningTracksKnockback()
+        {
+            // Real Update/input and normal ally basic attacks supply the damage and push.
+            // These fixtures do not call damage, slash, attack-release or pattern-hit routines.
+            for (int pattern = 0; pattern < 2; pattern++) for (int attacker = 0; attacker < 2; attacker++)
+            {
+                SetFloor(pattern == 0 ? 3 : 6); var boss = Boss;
+                Place(game.hero, new Vector2(0, TowerWorld.Ground)); game.hero.facing = 1;
+                Place(boss, new Vector2(2, TowerWorld.Ground)); boss.hp = boss.maxHp = 1000000;
+                foreach (var add in game.enemies) if (!add.isBoss) { Place(add, new Vector2(25, TowerWorld.Ground)); add.stunTime = add.cooldown = 999; }
+                if (attacker == 1)
+                {
+                    var companions = (IList)typeof(TowerRun).GetField("companions", Hidden).GetValue(game.run);
+                    companions.Add(new CompanionState(TowerRun.GetDefinition("rook"))); game.ReconcileLoadout();
+                    foreach (var ally in game.allies) { ally.cooldown = 0; ally.basicPending = false; }
+                }
+                boss.cooldown = 0; Call("TickBoss", boss, .01f);
+                string patternName = (string)Call("BossPatternName", boss), attackerName = attacker == 0 ? "player slash" : "rook basic";
+                Require((float)Call("BossTelegraphRemaining", boss) > 1, "Knockback fixture did not begin a full boss warning.");
+                var states = (IDictionary)typeof(TowerGame).GetField("bossCombat", Hidden).GetValue(game);
+                var warning = Field<object>(states[boss], "warning"); var guideList = (IList)warning.GetType().GetField("guides").GetValue(warning);
+                Require(guideList.Count > 0, "Boss warning had no production guide renderers.");
+                var guides = new SpriteRenderer[guideList.Count]; var positions = new Vector2[guideList.Count]; var angles = new float[guideList.Count];
+                for (int i = 0; i < guides.Length; i++) { guides[i] = (SpriteRenderer)guideList[i]; positions[i] = guides[i].transform.position; angles[i] = guides[i].transform.eulerAngles.z; }
+                Vector2 aim = (Vector2)Call("BossLockedAim", boss), origin = boss.pos + Vector2.up * 1.4f, direction = (aim + Vector2.up - origin).normalized;
+                float beforeHp = boss.hp, beforeX = boss.pos.x, limit = Time.realtimeSinceStartup + 2.5f;
+                game.AttackOverride = attacker == 0; game.enabled = true;
+                while (boss.hp == beforeHp)
+                {
+                    Require(Time.realtimeSinceStartup < limit && (float)Call("BossTelegraphRemaining", boss) > 0,
+                        patternName + " / " + attackerName + " did not produce a normal attack hit during the warning.");
+                    yield return null;
+                }
+                ResetControls();
+                // Ally hits resolve after TickBoss, so allow the next real update to sync the warning.
+                yield return null; game.enabled = false;
+                Require(boss.pos.x > beforeX + .1f && boss.hp < beforeHp, patternName + " / " + attackerName + " did not cause real knockback.");
+                Require((float)Call("BossTelegraphRemaining", boss) > 0 && (Vector2)Call("BossLockedAim", boss) == aim,
+                    "The knockback tracking check lost its warning or changed the locked aim.");
+                Vector2 movedOrigin = boss.pos + Vector2.up * 1.4f, movedDirection = (aim + Vector2.up - movedOrigin).normalized;
+                float rotation = Vector2.SignedAngle(direction, movedDirection), maxPositionError = 0, maxAngleError = 0;
+                Quaternion turn = Quaternion.Euler(0, 0, rotation);
+                for (int i = 0; i < guides.Length; i++)
+                {
+                    Require(guides[i] != null, "A boss warning guide disappeared before release.");
+                    Vector2 expected = movedOrigin + (Vector2)(turn * (Vector3)(positions[i] - origin));
+                    maxPositionError = Mathf.Max(maxPositionError, Vector2.Distance(guides[i].transform.position, expected));
+                    maxAngleError = Mathf.Max(maxAngleError, Mathf.Abs(Mathf.DeltaAngle(angles[i] + rotation, guides[i].transform.eulerAngles.z)));
+                }
+                string result = patternName + " / " + attackerName + ": push=" + (boss.pos.x - beforeX).ToString("F3") +
+                    ", guide position error=" + maxPositionError.ToString("F3") + ", angle error=" + maxAngleError.ToString("F3");
+                report.warningTrackingChecks.Add(result);
+                Require(maxPositionError <= .05f && maxAngleError <= .5f, "Boss warning did not follow the actual pushed emitter and fixed aim: " + result);
+            }
+            report.warningTracksKnockback = true;
         }
         private IEnumerator VerifyBossPatterns()
         {
@@ -278,7 +348,9 @@ namespace PrototypeLab.Roguelike
             if (finishing) return; finishing = true; battleActive = false;
             if (error != null) report.errors.Add(error is TargetInvocationException && error.InnerException != null ? error.InnerException.ToString() : error.ToString());
             report.finishedUtc = DateTime.UtcNow.ToString("o"); report.success = error == null && report.errors.Count == 0; ResetControls();
-            Directory.CreateDirectory(Path.GetDirectoryName(reportPath)); File.WriteAllText(reportPath, JsonUtility.ToJson(report, true)); Application.Quit(report.success ? 0 : 1);
+            Directory.CreateDirectory(Path.GetDirectoryName(reportPath)); File.WriteAllText(reportPath, JsonUtility.ToJson(report, true));
+            Application.logMessageReceived -= RecordLog;
+            if (quitOnComplete) Application.Quit(report.success ? 0 : 1);
         }
     }
 }

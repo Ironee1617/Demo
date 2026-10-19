@@ -33,6 +33,7 @@ sysinfo.txt
 /Artifacts/Tower/
 /Artifacts/TowerArt/
 /Artifacts/TowerDemo/
+/Artifacts/TowerEditor/
 
 # Local art backups and generated visual validation output.
 /Artifacts/Cartoon*/

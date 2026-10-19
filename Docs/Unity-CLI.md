@@ -38,6 +38,35 @@ unity recompile --project-path "$projectRoot" --timeout 120 --json
 
 팀에 공유하는 파일은 `Packages/manifest.json`, `Packages/packages-lock.json` 및 이 안내입니다. 연결 정보는 각 PC에서 자동 생성됩니다. Editor 연결 파일은 `Library/Pipeline/` 아래에 있으며 Git에서 제외합니다. Runtime 연결 파일과 빌드 중 생성되는 Pipeline 리소스도 `.gitignore`에서 제외합니다. 이번 연결은 에디터용이며, 빌드에 Runtime 서버를 활성화하지 않습니다.
 
+## Codex MCP 연결
+
+같은 공식 Unity CLI를 MCP 서버로도 사용할 수 있습니다. 프로젝트 루트의 PowerShell에서 다음 명령으로 이 프로젝트에 연결할 서버를 등록합니다.
+
+```powershell
+$projectRoot = (Get-Location).Path
+$unityCli = (Get-Command unity).Source
+codex mcp add unityMCP -- "$unityCli" mcp --project-path "$projectRoot"
+codex mcp get unityMCP
+```
+
+Codex의 사용자 설정에 있는 기존 `unityMCP` 항목을 공식 CLI의 stdio 서버로 교체합니다. 사용자 설정 파일과 로컬 인증 토큰은 저장소에 넣지 않습니다. 새 MCP 설정은 Codex의 새 연결에서 도구 목록에 반영됩니다. 기존 Coplay Unity MCP, Python 또는 UV를 다시 설치하지 않습니다.
+
+2026-10-19에 실제 stdio MCP 초기화, 도구 160개 조회, `editor_status` 호출을 확인했습니다. 응답은 Unity `6000.3.21f1`, `ready`, 실행 중지 상태였습니다.
+
+## CLI로 로그라이크 전투 검증
+
+`20_Roguelike` 씬을 열고 Play를 중지한 상태에서 실행합니다. 각 시나리오는 CLI로 Play에 진입해 실제 게임 Update를 실행하고 종료 후 Stop으로 돌아갑니다.
+
+```powershell
+./Tests/Run-TowerEditorSmoke.ps1 -Suite Companions
+./Tests/Run-TowerEditorSmoke.ps1 -Suite Combat
+./Tests/Run-TowerEditorSmoke.ps1 -Suite Boss
+```
+
+`-Suite All`은 세 시나리오를 차례로 실행합니다. 결과 JSON과 화면은 로컬 `Artifacts/TowerEditor/`에 저장됩니다. 고정 배치·체력·동료 구성 등 검증용 보정은 보고서와 검증 컴포넌트에 명시하며 일반 플레이에는 적용하지 않습니다.
+
+2026-10-19 최종 실행은 동료 25개 사례, 일반 전투 24개 판정, 보스 26개 판정을 통과했습니다. 실제 피해·쿨타임·탄막과 수정한 두 회귀 사례의 범위는 [전투 검증 기록](../Artifacts/TowerEditor/README.md)에 정리했습니다.
+
 ## 연결 검증 기록
 
 2026-10-19 KST, Unity CLI `1.0.0-beta.13`과 Unity `6000.3.21f1`에서 확인했습니다.
@@ -55,3 +84,4 @@ unity recompile --project-path "$projectRoot" --timeout 120 --json
 - [Unity Pipeline 설치](https://docs.unity.com/en-us/unity-cli/unity-pipeline/unity-pipeline-package)
 - [연결과 로컬 파일](https://docs.unity3d.com/Packages/com.unity.pipeline@0.8/manual/connectivity.html)
 - [에디터 제어 명령](https://docs.unity3d.com/Packages/com.unity.pipeline@0.8/manual/commands/editor-lifecycle-and-observability.html)
+- [Codex MCP 설정](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)

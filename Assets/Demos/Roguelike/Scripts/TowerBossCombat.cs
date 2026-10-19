@@ -12,7 +12,7 @@ namespace PrototypeLab.Roguelike
             public BossPattern pattern;
             public BossStage stage;
             public int cycle, step, releases;
-            public float clock, nextStep, jumpTime, lastRelease = -1;
+            public float clock, nextStep, jumpTime, warningAngle, lastRelease = -1;
             public Vector2 jumpFrom, jumpTo;
             public Transform shadow;
             public readonly EnemyState warning = new EnemyState();
@@ -142,6 +142,7 @@ namespace PrototypeLab.Roguelike
             }
             actor.pos.x = Mathf.Clamp(actor.pos.x, TowerWorld.Left + 1.6f, TowerWorld.Right - 1.6f);
             actor.root.transform.position = actor.pos;
+            UpdateBossWarningPose(actor, state);
             UpdateBossShadow(actor, state);
             actor.art.SetLocomotion(actor.grounded, actor.velocityY, false, moving ? 1.25f * actor.moveScale : 0);
             actor.art.SetPose(moving, actor.windup > 0 || actor.attackPose > 0, actor.hurt > 0, actor.facing, dt);
@@ -254,6 +255,8 @@ namespace PrototypeLab.Roguelike
             Vector2 origin = actor.pos + Vector2.up * 1.4f;
             Vector2 direction = (actor.strikePoint + Vector2.up - origin).normalized;
             if (direction.sqrMagnitude < .1f) direction = Vector2.right * actor.facing;
+            state.warningAngle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+            if (state.pattern != BossPattern.LeapingSlam) state.warning.telegraph.transform.position = origin;
             if (state.pattern == BossPattern.CrownVolley)
             {
                 foreach (float angle in new[] { -32f, -16f, 0f, 16f, 32f })
@@ -283,6 +286,18 @@ namespace PrototypeLab.Roguelike
                     AddEnemyGuide(state.warning, landing + Vector2.right * side * 1.2f + Vector2.up * .12f, new Vector2(.4f, .07f), side * 25, new Color(1, .7f, .24f, .7f));
                 }
             }
+        }
+
+        private static void UpdateBossWarningPose(Fighter actor, BossState state)
+        {
+            // Projectile warnings follow a pushed emitter while retaining the locked aim.
+            // Slam markers stay at their fixed landing point.
+            if (state.pattern == BossPattern.LeapingSlam || !state.warning.telegraph) return;
+            Vector2 origin = actor.pos + Vector2.up * 1.4f;
+            Vector2 direction = (actor.strikePoint + Vector2.up - origin).normalized;
+            if (direction.sqrMagnitude < .1f) direction = Vector2.right * actor.facing;
+            float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+            state.warning.telegraph.transform.SetPositionAndRotation(origin, Quaternion.Euler(0, 0, angle - state.warningAngle));
         }
 
         private static void UpdateBossShadow(Fighter actor, BossState state)

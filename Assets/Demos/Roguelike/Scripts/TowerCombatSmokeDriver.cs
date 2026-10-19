@@ -22,7 +22,9 @@ namespace PrototypeLab.Roguelike
         }
         private readonly CombatReport report = new CombatReport();
         private TowerGame game; private TowerSmokeDriver capture;
-        private string prefix, reportPath; private bool finishing;
+        private string prefix, reportPath; private bool finishing, quitOnComplete = true;
+        public bool IsFinished { get { return finishing; } }
+        public bool Succeeded { get { return finishing && report.success; } }
         private float deadline;
         private static readonly BindingFlags Hidden = BindingFlags.NonPublic | BindingFlags.Instance;
         private IList Shots { get { return (IList)typeof(TowerGame).GetField("shots", Hidden).GetValue(game); } }
@@ -32,10 +34,20 @@ namespace PrototypeLab.Roguelike
         { return (T)value.GetType().GetField(name).GetValue(value); }
         public void Initialize(TowerGame tower, TowerSmokeDriver captureDriver)
         {
-            game = tower; capture = captureDriver; game.SmokeControlled = true;
             string[] args = Environment.GetCommandLineArgs();
-            prefix = Argument(args, "-towerCombatCapture") ?? Path.Combine(Application.persistentDataPath, "tower-combat");
-            reportPath = Argument(args, "-towerCombatReport") ?? Path.Combine(Application.persistentDataPath, "tower-combat.json");
+            Initialize(tower, captureDriver,
+                Argument(args, "-towerCombatCapture") ?? Path.Combine(Application.persistentDataPath, "tower-combat"),
+                Argument(args, "-towerCombatReport") ?? Path.Combine(Application.persistentDataPath, "tower-combat.json"), true);
+        }
+        public void Initialize(TowerGame tower, TowerSmokeDriver captureDriver, string capturePrefix, string outputReportPath, bool quitOnComplete = false)
+        {
+            if (game != null) throw new InvalidOperationException("Create a new combat driver for each suite run.");
+            if (tower == null) throw new ArgumentNullException(nameof(tower));
+            if (captureDriver == null) throw new ArgumentNullException(nameof(captureDriver));
+            if (!Path.IsPathRooted(capturePrefix) || !Path.IsPathRooted(outputReportPath)) throw new ArgumentException("Suite capture and report paths must be absolute.");
+            game = tower; capture = captureDriver; prefix = capturePrefix; reportPath = outputReportPath; this.quitOnComplete = quitOnComplete;
+            if (!quitOnComplete) capture.PrepareForSuite(tower);
+            game.SmokeControlled = true; enabled = true;
             Application.logMessageReceived += RecordLog; deadline = Time.realtimeSinceStartup + 180;
             StartCoroutine(Guard(Suite()));
         }
@@ -255,15 +267,52 @@ namespace PrototypeLab.Roguelike
             Require(game.hero.hp < game.PlayerMaxHealth, "Relative swept collision missed a hero crossing a stationary hostile bullet.");
             Place(game.hero, new Vector2(0, TowerWorld.Ground)); game.enabled = true;
             ClearShots(); game.hero.hp = game.PlayerMaxHealth; game.invulnerable = 0;
-            yield return Wait(1.8f); Vector3 camera = game.view.transform.position;
-            Fire(game.hero.pos + Vector2.up, game.hero.pos + Vector2.up, 0, 12, true); yield return Wait(.04f);
-            for (int i = 0; i < 15; i++) { Require(game.view.transform.position == camera, "A hit shook the stationary camera."); yield return null; }
-            report.cameraStableOnHit = true;
+            yield return Wait(1.8f); VerifyCameraHitAgainstControl();
             ClearShots(); game.hero.hp = 1; game.invulnerable = 0;
             Fire(new Vector2(-5, TowerWorld.Ground + 1), new Vector2(5, TowerWorld.Ground + 1), 2000, 1000, true);
             yield return Wait(.2f);
             Require(game.hero.hp == 0 && !game.run.IsRewardPending && !game.run.IsFloorCleared, "A swept hostile shot failed to kill or death cleared the floor."); report.hostileBulletDeath = true;
             report.checks.Add("Identical production bullets hit a stationary hero and miss after actual JumpOverride input; DashOverride grants invulnerability; fast swept shots hit/kill; hit camera remains fixed.");
+        }
+        private void VerifyCameraHitAgainstControl()
+        {
+            bool wasEnabled = game.enabled, attack = game.AttackOverride, jump = game.JumpOverride, dash = game.DashOverride, focus = game.FocusOverride;
+            float move = game.MoveOverride; game.enabled = false;
+            game.MoveOverride = 0; game.AttackOverride = game.JumpOverride = game.DashOverride = game.FocusOverride = false;
+            try
+            {
+                Require(game.dashTime <= 0 && game.attackTimer <= 0 && game.hero.castRemaining <= 0, "Camera control fixture still had an active player action.");
+                ClearShots(); game.hero.hp = game.PlayerMaxHealth; game.invulnerable = 0;
+                Vector2 heroPosition = game.hero.pos; int facing = game.hero.facing;
+                Vector3 start = game.view.transform.position; var control = new Vector3[15];
+                float controlMaxMotion = 0;
+                // Both paths run in this same Unity frame, using the real Update and identical frame delta.
+                // Comparing paths allows ordinary camera tracking to settle without duplicating its formula.
+                for (int i = 0; i < control.Length; i++)
+                {
+                    Call("Update"); control[i] = game.view.transform.position;
+                    controlMaxMotion = Mathf.Max(controlMaxMotion, Vector3.Distance(start, control[i]));
+                }
+                Require(game.hero.hp == game.PlayerMaxHealth && game.hero.pos == heroPosition && game.hero.facing == facing,
+                    "The no-hit camera control did not keep its stationary hero unchanged.");
+                game.view.transform.position = start; game.hero.hp = game.PlayerMaxHealth; game.invulnerable = 0;
+                Fire(game.hero.pos + Vector2.up, game.hero.pos + Vector2.up, 0, 12, true);
+                float maxPathError = 0;
+                for (int i = 0; i < control.Length; i++)
+                {
+                    Call("Update"); maxPathError = Mathf.Max(maxPathError, Vector3.Distance(control[i], game.view.transform.position));
+                }
+                float damage = game.PlayerMaxHealth - game.hero.hp;
+                report.checks.Add("Paired camera control: samples=" + control.Length + ", frameDelta=" + Time.unscaledDeltaTime.ToString("F6") +
+                    ", noHitMaxMotion=" + controlMaxMotion.ToString("F6") + ", hitPathMaxError=" + maxPathError.ToString("F6") + ", actualDamage=" + damage.ToString("F3"));
+                Require(damage > 0 && game.hero.pos == heroPosition && game.hero.facing == facing, "Camera hit path did not damage its stationary hero.");
+                Require(maxPathError <= .00001f, "A hit changed the camera path relative to its no-hit control."); report.cameraStableOnHit = true;
+            }
+            finally
+            {
+                game.enabled = wasEnabled; game.MoveOverride = move;
+                game.AttackOverride = attack; game.JumpOverride = jump; game.DashOverride = dash; game.FocusOverride = focus;
+            }
         }
         private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
         private void Finish(Exception error)
@@ -272,7 +321,9 @@ namespace PrototypeLab.Roguelike
             if (error != null) report.errors.Add(error is TargetInvocationException && error.InnerException != null ? error.InnerException.ToString() : error.ToString());
             report.finishedUtc = DateTime.UtcNow.ToString("o"); report.success = error == null && report.errors.Count == 0;
             game.MoveOverride = 0; game.AttackOverride = game.JumpOverride = game.DashOverride = false;
-            Directory.CreateDirectory(Path.GetDirectoryName(reportPath)); File.WriteAllText(reportPath, JsonUtility.ToJson(report, true)); Application.Quit(report.success ? 0 : 1);
+            Directory.CreateDirectory(Path.GetDirectoryName(reportPath)); File.WriteAllText(reportPath, JsonUtility.ToJson(report, true));
+            Application.logMessageReceived -= RecordLog;
+            if (quitOnComplete) Application.Quit(report.success ? 0 : 1);
         }
     }
 }

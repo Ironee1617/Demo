@@ -37,7 +37,7 @@ namespace PrototypeLab.Roguelike
         private readonly SmokeReport report = new SmokeReport();
         private TowerGame game;
         private string capturePrefix, reportPath;
-        private bool active, finishing, captureOnly;
+        private bool active, finishing, captureOnly, quitOnCaptureFailure = true;
         private float deadline;
         private bool capturePending, captureInProgress;
         private string capturePath, lastCapturePath;
@@ -86,6 +86,17 @@ namespace PrototypeLab.Roguelike
             deadline = Time.realtimeSinceStartup + 240;
             game.SmokeControlled = true;
             StartCoroutine(Guard(Smoke()));
+        }
+
+        // Enables the shared camera/IMGUI capture host for an explicitly started suite.
+        public void PrepareForSuite(TowerGame tower)
+        {
+            if (tower == null) throw new ArgumentNullException(nameof(tower));
+            if (captureInProgress) throw new InvalidOperationException("Wait for the current HUD capture before starting another suite.");
+            StopAllCoroutines(); Application.logMessageReceived -= RecordLog;
+            game = tower; active = captureOnly = true; finishing = false; quitOnCaptureFailure = false;
+            capturePending = false; capturePath = lastCapturePath = null; probeActive = false; probeTarget = null;
+            game.SmokeControlled = true; enabled = true;
         }
 
         private static string Argument(string[] args, string key)
@@ -601,6 +612,12 @@ namespace PrototypeLab.Roguelike
             report.success = false;
             report.errors.Add(error.ToString());
             if (game != null) { game.MoveOverride = 0; game.AttackOverride = game.JumpOverride = game.DashOverride = false; }
+            if (captureOnly)
+            {
+                Debug.LogError("Tower suite HUD capture failed: " + error);
+                if (quitOnCaptureFailure) Application.Quit(1);
+                return;
+            }
             try { WriteReport(); }
             catch (Exception writeError) { Debug.LogError("Tower smoke report could not be saved: " + writeError); }
             Application.Quit(1);
