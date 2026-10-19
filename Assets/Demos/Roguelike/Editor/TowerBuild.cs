@@ -19,6 +19,8 @@ namespace PrototypeLab.Roguelike.Editor
                 throw new InvalidOperationException("Missing tower scene: " + ScenePath);
             if (Resources.Load<Font>("Tower/Font") == null)
                 throw new InvalidOperationException("Missing Korean font at Resources/Tower/Font.");
+            if (Resources.Load<TextAsset>("Tower/Font-License") == null)
+                throw new InvalidOperationException("Missing redistributable font license at Resources/Tower/Font-License.");
             if (Resources.LoadAll<Texture2D>("Tower").Length == 0)
                 throw new InvalidOperationException("Missing tower art in Resources/Tower.");
             if (Resources.Load<TextAsset>("Tower/ArtData") == null)
@@ -98,6 +100,8 @@ namespace PrototypeLab.Roguelike.Editor
                 });
                 if (report.summary.result != BuildResult.Succeeded)
                     throw new InvalidOperationException("Tower build failed: " + report.summary.result);
+                File.Copy(Path.Combine(Application.dataPath, "Demos/Roguelike/Resources/Tower/Font-License.txt"),
+                    Path.Combine(Path.GetDirectoryName(path), "Font-License.txt"), true);
                 Debug.Log("TOWER_BUILD_OK " + path);
             }
             finally

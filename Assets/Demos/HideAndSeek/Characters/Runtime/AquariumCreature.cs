@@ -24,17 +24,44 @@ namespace PrototypeLab.Aquarium
         private bool stagedMeal;
         private Vector3 unstagedPosition;
         private Quaternion unstagedRotation;
+        private Vector3 engulfOffset,engulfApplied;
+        private Quaternion engulfAim=Quaternion.identity;
+        private float engulfBorn=float.NegativeInfinity,motionBorn,engulfSwell=1,engulfAppliedSwell=1;
         public int Form=>form;
         public bool Transitioning=>outgoing!=null;
         public int BoneCount=>current==null?0:current.Bones.Length;
         public Vector3 FeedingMouth=>FeedingAnchor(false);
         public Vector3 FeedingThroat=>FeedingAnchor(true);
         public Vector3 FeedingForward=>(FeedingMouth-FeedingThroat).normalized;
-        public float FeedingRadius=>(form<0?.115f:Species(form%100).feedingMouthRadius*(1-.28f*lipWrap)*(1-.32f*jawEmbrace))*Mathf.Max(Mathf.Abs(transform.lossyScale.x),Mathf.Abs(transform.lossyScale.y));
+        public float FeedingRadius
+        {
+            get
+            {
+                if(form<0 && current!=null && current.cartoon)
+                {
+                    Vector3 x=current.BodyPoint(Vector3.right)-current.BodyPoint(Vector3.zero),z=current.BodyPoint(Vector3.forward)-current.BodyPoint(Vector3.zero);
+                    return .095f*Mathf.Min(x.magnitude,z.magnitude);
+                }
+                if(form>=0 && current!=null && current.cartoon)
+                {
+                    // R17: the cartoon fish opens a wide funnel maw. The meal is squeezed to
+                    // the current opening so it fills the mouth while it is drawn in.
+                    int maw=current.skin.sharedMesh.GetBlendShapeIndex("Alien_Mouth_Open");
+                    float open=maw<0?1:Mathf.Clamp01(current.skin.GetBlendShapeWeight(maw)*.01f);
+                    return Species(form%100).feedingMouthRadius*Mathf.Lerp(.35f,1,open)*Mathf.Max(Mathf.Abs(transform.lossyScale.x),Mathf.Abs(transform.lossyScale.y));
+                }
+                return (form<0?.095f:Species(form%100).feedingMouthRadius*(1-.28f*lipWrap)*(1-.32f*jawEmbrace))*Mathf.Max(Mathf.Abs(transform.lossyScale.x),Mathf.Abs(transform.lossyScale.y));
+            }
+        }
         private Vector3 FeedingAnchor(bool throat)
         {
                 var anchor=current!=null?(throat?current.throatAnchor:current.mouthAnchor):Vector3.zero;
-                if(!throat && form>=100 && form<200)anchor.z+=.14f*lipWrap-.045f*jawEmbrace;
+                if(current!=null && current.cartoon && form<0)
+                {
+                    int key=current.skin.sharedMesh.GetBlendShapeIndex("BellyOpen");
+                    if(key>=0)anchor.y-=.015f*(1-Smooth(-.20f,-.12f,anchor.y))*current.skin.GetBlendShapeWeight(key)*.01f;
+                }
+                if(!throat && (current==null || !current.cartoon) && form>=100 && form<200)anchor.z+=.14f*lipWrap-.045f*jawEmbrace;
                 if(current==null)return transform.TransformPoint(anchor);
                 return current.BodyPoint(anchor);
         }
@@ -50,6 +77,8 @@ namespace PrototypeLab.Aquarium
         private static Color Tint(int id)=>id<0?new Color(.91f,.82f,1):Species(id%100).tint;
         private AquariumRig GetForm(int id)
         {
+            // The cartoon fish opens its existing surface; all mouth stages share one rig.
+            if(alien!=null && alien.GetComponent<AquariumRig>().cartoon && id>=0)id%=100;
             if(forms.TryGetValue(id,out var rig))return rig;
             var s=id<0?null:Species(id%100);var prefab=id<0?alien:id>=200?(s.closedFeeding!=null?s.closedFeeding:s.normal):id>=100?s.feeding:s.normal;
             if(prefab==null)throw new System.InvalidOperationException("Missing aquarium form "+id);
@@ -58,11 +87,25 @@ namespace PrototypeLab.Aquarium
         public void Present(int target,string motion,float born,float now,float moveSpeed,bool impaled=false)
         {
             if(stagedMeal){transform.localPosition=unstagedPosition;transform.localRotation=unstagedRotation;stagedMeal=false;}
+            engulfApplied=Vector3.zero;engulfAppliedSwell=1;motionBorn=born;
             lipWrap=0;jawEmbrace=0;
             if(current==null)Initialize(target,0);speed=moveSpeed;
+            // The fish disguise changes inside the closed carrier, not in front
+            // of its mouth. A partial ordinary morph must not leak into SpitOut.
+            // Capture also settles an unfinished disguise into its fish endpoint,
+            // so the victim cannot keep folding into a transition shape in the grip.
+            bool fixedMealForm=motion=="SpitOut" && target<0 || motion=="Eaten" && target>=0;
+            if(fixedMealForm && (form!=target || outgoing!=null))
+            {
+                foreach(var rig in forms.Values){rig.gameObject.SetActive(false);rig.skin.enabled=true;}
+                outgoing=null;if(bridge!=null)bridge.gameObject.SetActive(false);
+                form=target;current=GetForm(target);current.gameObject.SetActive(true);current.SetCartoonFold(0);
+                revealInkAt=-100;
+            }
             if(motion=="Bite" && target>=100 && target<200 && now-born>=AquariumFeeding.ClosingSilhouette)target+=100;
             // A delayed snapshot must still complete the fish disguise before opening its mouth.
             if(form<0 && target>=100)target%=100;
+            if(current.cartoon && target>=0 && form>=0 && target%100==form%100)form=target;
             if(target!=form && outgoing==null)
             {
                 previousForm=form;outgoing=current;form=target;current=GetForm(form);
@@ -70,7 +113,7 @@ namespace PrototypeLab.Aquarium
                 transitionAt=now;transitionDuration=changingMouth?(previousForm>=100 && previousForm<200 && form>=200?.35f:.60f):1.4f;
                 closedMouthReturn=changingMouth && previousForm>=100 && previousForm<200 && (form<100 || form>=200);
                 directMouthReturn=changingMouth && previousForm>=200 && form<100;
-                MakeBridge(outgoing,current,closedMouthReturn,directMouthReturn);
+                if(!current.cartoon)MakeBridge(outgoing,current,closedMouthReturn,directMouthReturn);
                 if(previousForm>=0 && form<0)
                 {
                     if(revealInk==null)
@@ -82,14 +125,24 @@ namespace PrototypeLab.Aquarium
                 }
             }
             bool expelled=motion=="SpitOut";
-            string pose=expelled?"Swim":motion;
-            float poseTime=expelled?Mathf.Max(0,now-born)*1.65f+phase:motion=="Locomotion"?now+phase:Mathf.Max(0,now-born);
+            string pose=motion;
+            float poseTime=motion=="Locomotion"?now+phase:Mathf.Max(0,now-born);
+            if(current.cartoon && (motion=="TentacleEat" || motion=="Eaten"))poseTime=AquariumFeeding.CapturePoseTime(poseTime);
             if(outgoing==null)
             {current.gameObject.SetActive(true);Sample(current,pose,poseTime,0,now);Apply(current,form);transform.localScale=Vector3.one;}
             else
             {
                 float u=Mathf.Clamp01((now-transitionAt)/transitionDuration);
-                if(directMouthReturn)
+                if(current.cartoon && outgoing.cartoon)
+                {
+                    // Both meshes meet the authored identical midpoint before the handoff.
+                    bool first=u<.5f;outgoing.gameObject.SetActive(first);current.gameObject.SetActive(!first);
+                    var active=first?outgoing:current;Sample(active,pose,poseTime,0,now);
+                    var morph=active.GetComponent<AquariumMorphMotion>();if(morph!=null)morph.Overlay(active,first,u);
+                    active.SetCartoonFold(first?Smooth(0,.5f,u):1-Smooth(.5f,1,u));Apply(active,first?previousForm:form);transform.localScale=Vector3.one;
+                    if(u>=1){outgoing.gameObject.SetActive(false);outgoing=null;current.SetCartoonFold(0);}
+                }
+                else if(directMouthReturn)
                 {
                     // Both closed forms share UVs, weights and vertex order.
                     // Relax only the muzzle, preserving all fin/scale detail.
@@ -123,16 +176,32 @@ namespace PrototypeLab.Aquarium
             }
             // A brief body reaction settles into the normal swimming pose.
             float recoil=expelled?Mathf.Pow(1-Mathf.Clamp01((now-born)/AquariumModel.ReleaseKickSeconds),2):0;
-            transform.localRotation=Quaternion.Euler(-10*recoil,0,7*recoil);
-            if(expelled && outgoing==null)transform.localScale=new Vector3(1-.035f*recoil,1-.025f*recoil,1+.065f*recoil);
+            transform.localRotation=Quaternion.Euler(-14*recoil,0,9*recoil);
+            if(expelled && outgoing==null)transform.localScale=new Vector3(1-.16f*recoil,1-.13f*recoil,1+.22f*recoil);
             if(impaled && spear==null)CreateSpear();if(spear!=null)spear.SetActive(impaled);
             if(revealInk!=null)revealInk.Present(now-revealInkAt+.08f,AquariumModel.TraceDuration,transform.position,transform.forward);
-            if(form<0 && outgoing==null && (motion=="TentacleEat" || motion=="Bite"))
+            if(form<0 && !current.cartoon && outgoing==null && (motion=="TentacleEat" || motion=="Bite"))
             {
                 if(grasp==null)grasp=new AquariumGrasp(current);
                 grasp.Present(now-born,transform.forward,.18f*transform.lossyScale.x,.36f*transform.lossyScale.x);
             }
             if(form>=100 && form<200 && motion=="Bite")jawEmbrace=.60f*Smooth(.76f,1.25f,now-born);
+            if(motion=="TentacleEat" && Mathf.Abs(engulfBorn-born)<.001f)
+            {
+                SaveMealTransform();
+                float remaining=1-Smooth(AquariumModel.SwallowVisualSeconds,2.95f,now-born);
+                engulfAppliedSwell=Mathf.Lerp(1,engulfSwell,remaining);
+                current.Bones[1].localScale*=engulfAppliedSwell;
+                transform.localRotation=Quaternion.Slerp(unstagedRotation,engulfAim,remaining);
+                var offset=engulfOffset*remaining;
+                engulfApplied=transform.parent==null?offset:transform.parent.TransformVector(offset);
+                transform.position+=engulfApplied;
+            }
+        }
+        private void SaveMealTransform()
+        {
+            if(stagedMeal)return;
+            unstagedPosition=transform.localPosition;unstagedRotation=transform.localRotation;stagedMeal=true;
         }
         private void OnDestroy()
         {if(revealInk!=null){if(Application.isPlaying)Destroy(revealInk.gameObject);else DestroyImmediate(revealInk.gameObject);}}
@@ -151,6 +220,7 @@ namespace PrototypeLab.Aquarium
         }
         public void PresentIngestion(AquariumCreature predator,float age)
         {
+            if(predator.form<0 && predator.current.cartoon){PresentTentacleIngestion(predator,age);return;}
             Vector3 mouth=predator.FeedingThroat,outward=predator.FeedingForward;float radius=predator.FeedingRadius;
             var bounds=current.skin.sharedMesh.bounds;var frame=current.skin.transform;
             Vector3 source=frame.TransformPoint(bounds.center);
@@ -177,9 +247,92 @@ namespace PrototypeLab.Aquarium
             float fitted=Mathf.Min(radial,available);
             predator.EnvelopMeal(age,axis,fitted,contact,radial);
             mouth=predator.FeedingThroat;radius=predator.FeedingRadius;depth=Mathf.Max(.06f,Vector3.Dot(predator.FeedingMouth-mouth,axis));
-            IngestSkin(current.skin,origin,axis,half,mouth,radius,depth,progress);
-            if(outgoing!=null)IngestSkin(outgoing.skin,origin,axis,half,mouth,radius,depth,progress);
-            if(bridge!=null && bridge.gameObject.activeSelf)IngestSkin(bridge,origin,axis,half,mouth,radius,depth,progress);
+            bool sealedCavity=predator.current.cartoon;
+            IngestSkin(current.skin,origin,axis,half,mouth,radius,depth,progress,sealedCavity);
+            if(outgoing!=null)IngestSkin(outgoing.skin,origin,axis,half,mouth,radius,depth,progress,sealedCavity);
+            if(bridge!=null && bridge.gameObject.activeSelf)IngestSkin(bridge,origin,axis,half,mouth,radius,depth,progress,sealedCavity);
+        }
+        private static Quaternion OralFacing(Vector3 forward,Transform carrier)
+        {
+            Vector3 up=Vector3.ProjectOnPlane(carrier.up,forward);
+            if(up.sqrMagnitude<.001f)up=Vector3.ProjectOnPlane(carrier.forward,forward);
+            return Quaternion.LookRotation(forward,up.normalized);
+        }
+        private void PresentTentacleIngestion(AquariumCreature predator,float age)
+        {
+            float rawAge=age;
+            age=AquariumFeeding.CapturePoseTime(age);
+            predator.transform.position-=predator.engulfApplied;predator.engulfApplied=Vector3.zero;
+            if(predator.stagedMeal)predator.transform.localRotation=predator.unstagedRotation;
+            predator.SaveMealTransform();
+            // A small, uniform gulp expansion leaves room for the fish's fins
+            // without flattening either the tentacles or the swallowed body.
+            predator.engulfSwell=1+(form>=0?.12f:.04f)*Smooth(0,.45f,age);
+            predator.current.Bones[1].localScale*=predator.engulfSwell/predator.engulfAppliedSwell;
+            predator.engulfAppliedSwell=predator.engulfSwell;
+            var frame=current.skin.transform;var bounds=current.skin.sharedMesh.bounds;
+            Vector3 head=current.cartoonKind=="Alien"?current.BodyPoint(new Vector3(0,.22f,0)):frame.TransformPoint(bounds.center);
+            Vector3 source=head;
+            // Aim the ventral mouth from the current idle position. Turning in
+            // place precedes a short forward approach, never an overhead orbit.
+            Vector3 pivot=predator.current.BodyPoint(Vector3.zero),toMeal=source-pivot;
+            if(toMeal.sqrMagnitude>.0001f)
+            {
+                Quaternion aimed=Quaternion.FromToRotation(predator.FeedingForward,toMeal.normalized)*predator.transform.rotation;
+                predator.transform.rotation=Quaternion.Slerp(predator.transform.rotation,aimed,Smooth(0,.72f,rawAge));
+            }
+            predator.engulfAim=predator.transform.localRotation;
+            Vector3 mouth=predator.FeedingThroat,axis=predator.FeedingForward;
+            if(!stagedMeal){unstagedPosition=transform.localPosition;unstagedRotation=transform.localRotation;stagedMeal=true;}
+            Quaternion facing=OralFacing(-axis,predator.transform);
+            if(current.cartoonKind=="Alien")
+            {
+                Vector3 forward=Vector3.ProjectOnPlane(predator.transform.forward,axis);
+                if(forward.sqrMagnitude<.001f)forward=Vector3.ProjectOnPlane(predator.transform.up,axis);
+                facing=Quaternion.LookRotation(forward.normalized,-axis);
+            }
+            transform.rotation=Quaternion.Slerp(transform.rotation,facing,Smooth(0,AquariumFeeding.AlienAlignmentEnd,age));
+            float scale=Mathf.Max(.001f,predator.transform.lossyScale.x)*predator.engulfSwell;
+            float distance=Mathf.Lerp(.78f,.66f,AquariumFeeding.AlienPull(age))*scale;
+            Vector3 approach=(source-mouth-axis*distance)*Smooth(.60f,1.08f,rawAge);
+            predator.engulfBorn=predator.motionBorn;
+            predator.engulfOffset=predator.transform.parent==null?approach:predator.transform.parent.InverseTransformVector(approach);
+            predator.engulfApplied=approach;predator.transform.position+=approach;
+            mouth=predator.FeedingThroat;
+            head=current.cartoonKind=="Alien"?current.BodyPoint(new Vector3(0,.22f,0)):frame.TransformPoint(bounds.center);
+            transform.position+=source-head;
+            // Bound both the folded tail and the head. The old rest bounds left
+            // the long swimming arms outside the fully swallowed endpoint.
+            Vector3 origin=frame.TransformPoint(bounds.center);var e=bounds.extents;
+            float half=Mathf.Abs(Vector3.Dot(axis,frame.TransformVector(Vector3.right*e.x)))+Mathf.Abs(Vector3.Dot(axis,frame.TransformVector(Vector3.up*e.y)))+Mathf.Abs(Vector3.Dot(axis,frame.TransformVector(Vector3.forward*e.z)));
+            if(current.cartoonKind=="Alien")half=Mathf.Max(half,1.65f*Mathf.Abs(frame.lossyScale.z));
+            float depth=Mathf.Max(.06f,Vector3.Dot(predator.FeedingMouth-mouth,axis));
+            float opening=predator.current.skin.GetBlendShapeWeight(predator.current.skin.sharedMesh.GetBlendShapeIndex("BellyOpen"))*.01f;
+            float radius=predator.FeedingRadius*(1+.6f*opening),progress=AquariumFeeding.AlienSuction(age);
+            IngestSkin(current.skin,origin,axis,half,mouth,radius,depth,progress,true);
+            if(outgoing!=null)IngestSkin(outgoing.skin,origin,axis,half,mouth,radius,depth,progress,true);
+        }
+        public void PresentExpulsion(AquariumCreature carrier,float age)
+        {
+            if(age<0 || age>=AquariumFeeding.ExpulsionEnd || current==null)return;
+            if(!stagedMeal){unstagedPosition=transform.localPosition;unstagedRotation=transform.localRotation;stagedMeal=true;}
+            Vector3 mouth=carrier.FeedingThroat,axis=carrier.FeedingForward;
+            var frame=current.skin.transform;var bounds=current.skin.sharedMesh.bounds;
+            Vector3 destination=frame.TransformPoint(bounds.center);
+            float half=(current.cartoonKind=="Alien"?1.65f:bounds.extents.z*1.1f)*Mathf.Abs(frame.lossyScale.z);
+            float leave=Smooth(.62f,AquariumFeeding.ExpulsionEnd,age);
+            Vector3 up=Vector3.ProjectOnPlane(carrier.transform.up,axis);
+            if(up.sqrMagnitude<.001f)up=Vector3.ProjectOnPlane(carrier.transform.forward,axis);
+            transform.rotation=Quaternion.Slerp(Quaternion.LookRotation(axis,up.normalized),transform.rotation,leave);
+            Vector3 staged=carrier.FeedingMouth+axis*(half+.20f);
+            transform.position+=Vector3.Lerp(staged,destination,leave)-frame.TransformPoint(bounds.center);
+            Vector3 origin=frame.TransformPoint(bounds.center);
+            float depth=Mathf.Max(.06f,Vector3.Dot(carrier.FeedingMouth-mouth,axis));
+            // Reverse the continuous oral deformation: the leading end clears
+            // the lower lip first, followed by the torso and trailing tentacles.
+            float concealed=1-Smooth(.08f,.72f,age);
+            IngestSkin(current.skin,origin,axis,half,mouth,carrier.FeedingRadius*1.6f,depth,concealed,carrier.form<0&&carrier.current.cartoon);
+            if(outgoing!=null)IngestSkin(outgoing.skin,origin,axis,half,mouth,carrier.FeedingRadius*1.6f,depth,concealed,carrier.form<0&&carrier.current.cartoon);
         }
         private static float BodyRadius(AquariumRig rig)
         {
@@ -199,6 +352,7 @@ namespace PrototypeLab.Aquarium
             if(outgoing!=null)return;
             if(form<0)
             {
+                if(current.cartoon)return;
                 if(grasp==null)grasp=new AquariumGrasp(current);
                 grasp.Present(age,axis,radius,distance);
             }
@@ -213,15 +367,15 @@ namespace PrototypeLab.Aquarium
                 if(key>=0)current.skin.SetBlendShapeWeight(key,Mathf.Sin(Mathf.PI*Smooth(.82f,1.65f,age))*65);
             }
         }
-        private void IngestSkin(SkinnedMeshRenderer skin,Vector3 origin,Vector3 axis,float half,Vector3 mouth,float radius,float depth,float progress)
+        private void IngestSkin(SkinnedMeshRenderer skin,Vector3 origin,Vector3 axis,float half,Vector3 mouth,float radius,float depth,float progress,bool sealedCavity=false)
         {
             skin.GetPropertyBlock(properties);properties.SetFloat("_Ingest",progress);properties.SetVector("_IngestOrigin",origin);properties.SetVector("_IngestAxis",axis);
             properties.SetFloat("_IngestHalfLength",Mathf.Max(.01f,half*1.1f));properties.SetVector("_IngestMouth",new Vector4(mouth.x,mouth.y,mouth.z,radius));
-            properties.SetFloat("_IngestDepth",depth);skin.SetPropertyBlock(properties);
+            properties.SetFloat("_IngestDepth",depth);properties.SetFloat("_IngestSeal",sealedCavity?1:0);skin.SetPropertyBlock(properties);
             var bounds=new Bounds(Vector3.zero,Vector3.one*4);bounds.Encapsulate(skin.transform.InverseTransformPoint(mouth));skin.localBounds=bounds;
         }
         private void Apply(AquariumRig rig,int id)
-        {properties.Clear();properties.SetColor("_Tint",Tint(id));properties.SetFloat("_Morph",rig.skin.GetBlendShapeWeight(0)/100);int maw=rig.skin.sharedMesh.GetBlendShapeIndex("BellyOpen");properties.SetFloat("_MawOpen",maw<0?0:rig.skin.GetBlendShapeWeight(maw)/100);rig.skin.SetPropertyBlock(properties);}
+        {properties.Clear();properties.SetColor("_Tint",rig.cartoon?Color.Lerp(id<0?Color.white:Tint(id),Color.white,rig.CartoonFold):Tint(id));properties.SetFloat("_Morph",rig.skin.GetBlendShapeWeight(0)/100);int maw=rig.skin.sharedMesh.GetBlendShapeIndex("BellyOpen");properties.SetFloat("_MawOpen",maw<0?0:rig.skin.GetBlendShapeWeight(maw)/100);rig.skin.SetPropertyBlock(properties);}
         private static float Smooth(float a,float b,float t)=>Mathf.SmoothStep(0,1,Mathf.InverseLerp(a,b,t));
         private static Mesh TransitionMesh(AquariumRig from,AquariumRig to,bool sealedMouth,bool direct)
         {
@@ -274,6 +428,7 @@ namespace PrototypeLab.Aquarium
                 {
                     var normal=creature.GetForm(species.speciesId);var mouth=creature.GetForm(species.speciesId+100);var closed=creature.GetForm(species.speciesId+200);
                     BodyRadius(normal);BodyRadius(alienRig);
+                    if(alienRig.cartoon)continue;
                     TransitionMesh(alienRig,normal,false,false);TransitionMesh(normal,alienRig,false,false);
                     TransitionMesh(normal,mouth,false,false);TransitionMesh(mouth,closed,true,false);TransitionMesh(closed,normal,false,true);
                     TransitionMesh(mouth,alienRig,false,false);TransitionMesh(closed,alienRig,false,false);

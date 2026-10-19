@@ -146,7 +146,7 @@ namespace PrototypeLab.Aquarium
         {
             var go = GameObject.CreatePrimitive(type); go.name = name; go.transform.SetParent(parent, false);
             go.transform.localPosition = at; go.transform.localScale = size;
-            UnityEngine.Object.Destroy(go.GetComponent<Collider>());
+            ReleaseObject(go.GetComponent<Collider>());
             var renderer = go.GetComponent<Renderer>(); renderer.sharedMaterial = mat;
             if (mat == glass)
             {
@@ -223,7 +223,7 @@ namespace PrototypeLab.Aquarium
             else if (kind == "diver")
             {
                 actor.diver = UnityEngine.Object.Instantiate(Resources.Load<GameObject>("AquariumEquipment/Diver"), t).GetComponent<AquariumRig>();
-                actor.gun = AquariumFirstPersonEquipment.CreateGun(t);
+                actor.gun = AquariumFirstPersonEquipment.CreateGun(t, actor.diver);
             }
             else if (kind == "harpoon")
             {
@@ -344,7 +344,10 @@ namespace PrototypeLab.Aquarium
                 var actor=Place(PlayerKey(p.id),kind,p.position,p.facing,dt,visualTime,deathPose,state.time,renderAt);
                 if (actor.diver != null && !frozenPose)
                 {
-                    actor.diver.SampleLocomotion(actor.moveSpeed,visualTime,p.id*.37f);
+                    float remaining=p.nextAction-visualTime;
+                    if(actor.diver.cartoon && remaining>2.5f)actor.diver.SamplePose("Fire",3-remaining,visualTime);
+                    else if(actor.diver.cartoon && remaining>0)actor.diver.SamplePose("Reload",3-remaining,visualTime);
+                    else actor.diver.SampleLocomotion(actor.moveSpeed,visualTime,p.id*.37f);
                     actor.gun.SetLoaded(visualTime >= p.nextAction);
                 }
                 if(actor.creature!=null && !frozenPose)
@@ -362,14 +365,22 @@ namespace PrototypeLab.Aquarium
             }
             // Resolve swallowed players after every predator mouth has its current
             // pose, independent of player roster order and network interpolation.
+            foreach(var released in state.players)
+            {
+                float age=visualTime-released.visualAt;
+                if(released.visualAction!="SpitOut" || age<0 || age>=AquariumFeeding.ExpulsionEnd || released.releaseSource==0)continue;
+                if(actors.TryGetValue(PlayerKey(released.id),out var prey) && actors.TryGetValue(PlayerKey(released.releaseSource),out var carrier) && prey.creature!=null && carrier.creature!=null)
+                    prey.creature.PresentExpulsion(carrier.creature,age);
+            }
             foreach(var p in state.players)
             {
                 float age=visualTime-p.visualAt;
                 if(p.swallowedBy==0 || age>=AquariumModel.SwallowVisualSeconds || state.phase==RoundPhase.Finished)continue;
-                var actor=Place(PlayerKey(p.id),"alien",p.swallowedFrom,p.facing,dt,visualTime,false,state.time,renderAt);
+                int capturedForm=p.swallowedSpecies;
+                var actor=Place(PlayerKey(p.id),capturedForm<0?"alien":FishKind(capturedForm),p.swallowedFrom,p.facing,dt,visualTime,false,state.time,renderAt);
                 actor.carried = true;
                 actor.root.transform.localScale=Vector3.one;
-                actor.creature.Present(-1,"Eaten",p.visualAt,visualTime,0);
+                actor.creature.Present(capturedForm,"Eaten",p.visualAt,visualTime,0);
                 if(actors.TryGetValue(PlayerKey(p.swallowedBy),out var predator))IngestActor(actor,predator,age);
                 actor.bodyCollider.enabled=false;
             }
@@ -410,7 +421,7 @@ namespace PrototypeLab.Aquarium
                     if (AquariumInkCloud.IsInk(e.kind))
                     {
                         fx=new GameObject(e.kind+" volumetric ink");fx.transform.SetParent(root,false);
-                        fx.AddComponent<AquariumInkCloud>().Initialize(e.id,e.kind!="eat");
+                        fx.AddComponent<AquariumInkCloud>().Initialize(e.id,e.kind!="eat",false,e.kind=="burp",e.kind=="allyEat");
                     }
                     else
                     {
@@ -425,10 +436,10 @@ namespace PrototypeLab.Aquarium
                 if(AquariumInkCloud.IsInk(e.kind))
                 {
                     float seconds=visualTime-e.born-(e.kind=="burp"?0:.12f);
-                    Vector3 source=new Vector3(e.position.x,e.position.y,e.position.z);
+                    Vector3 source=new Vector3(e.position.x,e.position.y,e.position.z),direction=new Vector3(e.direction.x,e.direction.y,e.direction.z);
                     if(e.owner!=0 && actors.TryGetValue(PlayerKey(e.owner),out var feeder) && feeder.creature!=null)
-                        source=feeder.creature.FeedingMouth+feeder.root.transform.forward*.08f;
-                    fx.GetComponent<AquariumInkCloud>().Present(seconds,e.duration-(e.kind=="burp"?0:.12f),source,new Vector3(e.direction.x,e.direction.y,e.direction.z));
+                    {direction=feeder.creature.FeedingForward;source=feeder.creature.FeedingMouth+direction*.015f;}
+                    fx.GetComponent<AquariumInkCloud>().Present(seconds,e.duration-(e.kind=="burp"?0:.12f),source,direction);
                 }
                 else
                 {
@@ -438,7 +449,7 @@ namespace PrototypeLab.Aquarium
                 }
             }
             expiredEffects.Clear();
-            foreach (var e in effects) if (!activeEffects.Contains(e.Key)) { UnityEngine.Object.Destroy(e.Value); expiredEffects.Add(e.Key); }
+            foreach (var e in effects) if (!activeEffects.Contains(e.Key)) { ReleaseObject(e.Value); expiredEffects.Add(e.Key); }
             foreach (int id in expiredEffects) effects.Remove(id);
 
         }
@@ -468,7 +479,9 @@ namespace PrototypeLab.Aquarium
                     float dock = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(shot.retrievedAt - .3f, shot.retrievedAt, state.time));
                     tip = Vector3.Lerp(tip, dockedTip, dock); direction = Vector3.Slerp(direction, gun.muzzle.forward, dock);
                 }
-                projectile.root.transform.SetPositionAndRotation(tip - direction * gun.headLength, Quaternion.LookRotation(direction));
+                float weaponScale=gun.transform.lossyScale.z;
+                projectile.root.transform.localScale=Vector3.one*weaponScale;
+                projectile.root.transform.SetPositionAndRotation(tip - direction * gun.headLength*weaponScale, Quaternion.LookRotation(direction));
                 // Equipment docking adjusts the rendered tip after the world pose is drawn.
                 if (shot.caughtFish != 0) PinHarpoonCatch(FishKey(shot.caughtFish), tip, shot.catchOffset);
                 if (shot.caughtPlayer != 0) PinHarpoonCatch(PlayerKey(shot.caughtPlayer), tip, shot.catchOffset);
@@ -588,7 +601,7 @@ namespace PrototypeLab.Aquarium
         private void ClearOutline()
         {
             foreach (var part in outlineParts) if (part.shell != null)
-            { part.shell.gameObject.SetActive(false); UnityEngine.Object.Destroy(part.shell.gameObject); }
+            { part.shell.gameObject.SetActive(false); ReleaseObject(part.shell.gameObject); }
             outlineParts.Clear(); outlinedActor = null;
         }
         private void CleanupFrozenWorld(AquariumSnapshot state)
@@ -605,7 +618,7 @@ namespace PrototypeLab.Aquarium
             activeEffects.Clear();
             foreach (var effect in state.effects) activeEffects.Add(effect.id);
             expiredEffects.Clear();
-            foreach (var effect in effects) if (!activeEffects.Contains(effect.Key)) { UnityEngine.Object.Destroy(effect.Value); expiredEffects.Add(effect.Key); }
+            foreach (var effect in effects) if (!activeEffects.Contains(effect.Key)) { ReleaseObject(effect.Value); expiredEffects.Add(effect.Key); }
             foreach (int id in expiredEffects) effects.Remove(id);
             localRing.gameObject.SetActive(false);
         }
@@ -647,15 +660,17 @@ namespace PrototypeLab.Aquarium
         }
         private void DestroyActor(Actor actor)
         { if (actor == outlinedActor) ClearOutline(); if(Application.isPlaying)UnityEngine.Object.Destroy(actor.root);else UnityEngine.Object.DestroyImmediate(actor.root); }
+        private static void ReleaseObject(UnityEngine.Object value)
+        { if(value==null)return;if(Application.isPlaying)UnityEngine.Object.Destroy(value);else UnityEngine.Object.DestroyImmediate(value); }
         public void Dispose()
         {
             equipment?.Dispose();
             Shader.SetGlobalFloat("_AquariumPreviewTimeEnabled", 0);
             ClearOutline();
             foreach (var actor in actors.Values) DestroyActor(actor);
-            foreach (var mat in materials) UnityEngine.Object.Destroy(mat);
-            UnityEngine.Object.Destroy(fanMesh); UnityEngine.Object.Destroy(coneMesh);
-            UnityEngine.Object.Destroy(root.gameObject);
+            foreach (var mat in materials) ReleaseObject(mat);
+            ReleaseObject(fanMesh); ReleaseObject(coneMesh);
+            ReleaseObject(root.gameObject);
         }
     }
 }

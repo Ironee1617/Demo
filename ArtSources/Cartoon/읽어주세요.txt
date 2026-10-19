@@ -1,0 +1,14 @@
+카툰 캐릭터 교체 및 애니메이션
+
+실행 모델은 Assets/Demos/HideAndSeek 안의 Characters/Resources/AquariumCharacters 및 Equipment/Resources/AquariumEquipment에 있습니다.
+외계인과 물고기는 승인된 원본 형태와 변신 중간 형태를 사용합니다. 변신 과정에서 생기던 정점 돌출을 수정했습니다.
+잠수부는 17개 본으로 움직이며, 몸통·팔·손가락·다리·오리발을 연속된 표면으로 연결했습니다. 몸을 수평으로 눕혀 양쪽 다리를 번갈아 차고, 발목과 오리발 끝이 시간차를 두고 굽혀집니다.
+작살총은 손 본의 소켓을 따라 움직입니다. 1인칭 장비, 발사·회수·재장전 및 기존 게임 상태와 연결되어 있습니다.
+
+편집용 메시 원본: ArtSources/Cartoon/Source/diver_connected_fins.blend
+Unity 리깅·클립 재생성 입력: ArtSources/Cartoon/Export
+Unity 메뉴: Aquarium > Characters > Import approved cartoon models
+Blender 파일은 연결부를 편집하기 위한 메시 원본이며, 실행용 리깅과 애니메이션은 Unity 프리팹과 클립에 저장되어 있습니다.
+
+미리보기와 검사 결과: Artifacts/CartoonReplacement-R1
+교체 전 프로젝트 파일 백업: C:/Users/shern/Documents/ChatGPT/수족관/Aquarium-CartoonReplacement-R1/BeforeProject

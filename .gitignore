@@ -33,3 +33,13 @@ sysinfo.txt
 /Artifacts/Tower/
 /Artifacts/TowerArt/
 /Artifacts/TowerDemo/
+
+# Local art backups and generated visual validation output.
+/Artifacts/Cartoon*/
+/Backups/
+/Assets/Demos/HideAndSeek/Characters/Backup/
+/Assets/Demos/HideAndSeek/Characters/Backup.meta
+/ArtSources/Cartoon/Source/Before*/
+/ArtSources/Cartoon/Source/PrePolish/
+/ArtSources/Cartoon/Source/OctoAlienV2/*log*.txt
+*.blend1

@@ -41,14 +41,14 @@ namespace PrototypeLab.Aquarium
         public bool ready, alive = true, bot, filled, eggUsed;
         public Point position, velocity, facing = new Point(0, 1);
         public Point swallowedFrom;
-        public int species = -1, swallowedBy, deathSpecies = -1;
+        public int species = -1, swallowedBy, deathSpecies = -1, swallowedSpecies = -1;
         public float releaseAt, revealUntil, nextAction, nextMorph, nextFeed, stunnedUntil;
         public float stamina = 100, lastMealAt, nextScan, scanUntil, morphLockedUntil, exposureSeconds, diedAt;
         public int personalEaten, score, exposureScore;
         public string deathReason = "";
         public string visualAction = "";
         public float visualAt = -100, deathAt = -100, morphAt = -100;
-        public int visualTarget, morphFrom = -1;
+        public int visualTarget, releaseSource, morphFrom = -1;
     }
 
     [Serializable]
@@ -135,7 +135,7 @@ namespace PrototypeLab.Aquarium
         public const float HungerSeconds = 60f, EatStun = 2f, AllyStun = 3f, MorphLock = 6f, HatchSeconds = 12f;
         public const float ScanDuration = 5f, ScanCooldown = 18f, MaxStamina = 100f;
         public const float TraceDuration = 9f, ReviewSeconds = 20f;
-        public const float FishFeedingSeconds = 4.2f, TentacleFeedingSeconds = 3.0f, SwallowVisualSeconds = 2.05f;
+        public const float FishFeedingSeconds = 4.2f, TentacleFeedingSeconds = 3.0f, SwallowVisualSeconds = 2.45f;
         public const float ReleaseKickSeconds = .85f, ReleaseKickSpeed = 5.4f, SpitAnimationSeconds = 1.2f;
         public const float DeathReviewSeconds = 2.5f, FeedSoundRadius = 10f;
         public const float EggSinkSpeed = 1.2f, EggRadius = 0.4f;
@@ -235,7 +235,7 @@ namespace PrototypeLab.Aquarium
             int hider = 0, seeker = 0;
             foreach (var p in Players)
             {
-                p.alive = true; p.swallowedBy = 0; p.species = p.bot && p.team == Team.Hider ? 0 : -1;
+                p.alive = true; p.swallowedBy = 0; p.swallowedSpecies = -1; p.species = p.bot && p.team == Team.Hider ? 0 : -1;
                 p.releaseAt = p.revealUntil = p.nextAction = p.nextMorph = p.nextFeed = p.stunnedUntil = 0;
                 p.visualAction = ""; p.visualAt = p.deathAt = p.morphAt = -100; p.visualTarget = 0;
                 p.stamina = MaxStamina; p.lastMealAt = HuntAt; p.personalEaten = p.score = p.exposureScore = 0;
@@ -255,7 +255,7 @@ namespace PrototypeLab.Aquarium
             Players.RemoveAll(p => p.filled);
             foreach (var p in Players)
             {
-                p.ready = p.bot || p.id == 1; p.alive = true; p.swallowedBy = 0; p.species = -1;
+                p.ready = p.bot || p.id == 1; p.alive = true; p.swallowedBy = 0; p.swallowedSpecies = -1; p.species = -1;
                 p.releaseAt = p.revealUntil = p.nextAction = p.nextMorph = p.nextFeed = p.stunnedUntil = 0;
                 p.stamina = MaxStamina; p.nextScan = p.scanUntil = p.morphLockedUntil = 0; p.deathReason = "";
                 p.velocity = new Point(); p.diedAt = 0; p.deathSpecies = -1;
@@ -520,6 +520,9 @@ namespace PrototypeLab.Aquarium
                 p.morphLockedUntil = friend.morphLockedUntil = Time + MorphLock;
                 p.visualAction = "TentacleEat"; p.visualAt = Time;
                 friend.visualAction = "Eaten"; friend.visualAt = Time;
+                // Preserve the visible disguise through capture; the forced reveal
+                // happens out of sight inside the carrier before expulsion.
+                friend.swallowedSpecies = friend.species >= 0 && (friend.revealUntil <= Time || Time-friend.morphAt < 1.4f) ? friend.species : -1;
                 p.species = friend.species = -1; p.revealUntil = friend.revealUntil = Time + MorphLock;
                 p.score -= 150;
                 Effect("allyEat",p.position,p.facing,TraceDuration,p.id);
@@ -548,7 +551,8 @@ namespace PrototypeLab.Aquarium
         {
             var direction = carrier == null || carrier.facing.Length < .001f ? new Point(0, 1) : carrier.facing.Normalized;
             var at = carrier == null ? swallowed.position : carrier.position;
-            swallowed.swallowedBy = 0; swallowed.releaseAt = 0;
+            swallowed.swallowedBy = 0; swallowed.releaseAt = 0; swallowed.swallowedSpecies = -1; swallowed.species = -1;
+            swallowed.releaseSource = carrier != null ? carrier.id : 0;
             swallowed.velocity = new Point();
             // Emerge just outside the two rounded hulls, then travel continuously.
             swallowed.position = Constrain(at + direction * (2*(AquariumBodyCollision.AlienRadius+AquariumBodyCollision.AlienHalf)+.03f), .4f);
@@ -559,7 +563,7 @@ namespace PrototypeLab.Aquarium
                 BeginReleaseKick(swallowed,direction,"SpitOut");
                 if (carrier != null && carrier.alive) BeginReleaseKick(carrier,direction,"SpitRecoil");
             }
-            Effect("burp", at, direction, TraceDuration);
+            Effect("burp", at, direction, TraceDuration,carrier != null ? carrier.id : 0);
         }
 
         public static bool IsReleaseKick(string motion) { return motion=="SpitOut" || motion=="SpitRecoil"; }
@@ -625,7 +629,7 @@ namespace PrototypeLab.Aquarium
                 float surface = ObstacleHit(egg.position, fallingTo, EggRadius);
                 egg.position += (fallingTo - egg.position) * Math.Min(1, Math.Max(0, surface));
                 if (Time < egg.hatchAt) continue;
-                target.alive = true; target.position = egg.position; target.species = -1; target.swallowedBy = 0;
+                target.alive = true; target.position = egg.position; target.species = -1; target.swallowedBy = 0; target.swallowedSpecies = -1;
                 foreach (var h in Harpoons) if (h.caughtPlayer == target.id) h.caughtPlayer = 0;
                 target.visualAction = ""; target.visualAt = target.deathAt = target.morphAt = -100;
                 target.stamina = MaxStamina; target.lastMealAt = Time; target.deathReason = "";

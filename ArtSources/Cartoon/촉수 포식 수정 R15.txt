@@ -1,0 +1,11 @@
+﻿촉수로 입에 먹이를 넣는 포식 동작 R15
+
+물고기가 들어가는 구간에서 여섯 촉수를 입 앞에 모읍니다.
+촉수 끝을 안쪽으로 말아 입 방향으로 함께 약 0.09~0.12 모델 단위 밀어 넣고, 잠시 유지한 다음 부드럽게 펼칩니다.
+촉수의 길이와 둥근 단면을 유지합니다. 대기·수영·뱉기와 물고기 모델은 R14 그대로입니다.
+
+Blender: Source/alien_mouth_assist_r15.blend
+포식 편집 구간은 91~181프레임이며 미리보기 구간으로 설정했습니다.
+Shape Keys의 Grasp_00~96이 촉수 포즈입니다.
+Unity는 실제 대상 위치를 기준으로 몸의 방향을 조절합니다.
+Blender 저장만으로 게임이 바뀌지는 않습니다. Export 데이터를 생성한 뒤 Unity의 Aquarium > Characters > Import approved cartoon models로 반영합니다.

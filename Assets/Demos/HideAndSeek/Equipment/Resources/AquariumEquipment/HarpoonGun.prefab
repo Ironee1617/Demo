@@ -1,5 +1,95 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1056790110422165143
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8876332311511501942}
+  - component: {fileID: 200433239882835304}
+  - component: {fileID: 4846069909160165962}
+  m_Layer: 0
+  m_Name: Loaded spear
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8876332311511501942
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1056790110422165143}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.142, z: 0.37499928}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4895999289663759908}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!33 &200433239882835304
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1056790110422165143}
+  m_Mesh: {fileID: 4300000, guid: fdb96e63c7c3a024992f89e50b5461a7, type: 2}
+--- !u!23 &4846069909160165962
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1056790110422165143}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 1f3bbeafe3606884faff2075d8bfa09e, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &2798040880815163299
 GameObject:
   m_ObjectHideFlags: 0
@@ -25,7 +115,7 @@ Transform:
   m_GameObject: {fileID: 2798040880815163299}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.012, y: 0.17859575, z: 0.55007493}
+  m_LocalPosition: {x: 0.012, y: 0.124, z: 0.37499928}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -61,10 +151,10 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 7761757199412569444}
+  - {fileID: 5117453603467713926}
   - {fileID: 1185097262996192231}
   - {fileID: 4796191981645748039}
-  - {fileID: 4935123418240211774}
+  - {fileID: 8876332311511501942}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &671666869726199785
@@ -81,104 +171,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PrototypeLab.Aquarium.AquariumHarpoonGun
   muzzle: {fileID: 1185097262996192231}
   ropeExit: {fileID: 4796191981645748039}
-  loadedHarpoon: {fileID: 4935123418240211774}
-  headLength: 0.3142604
---- !u!1 &3449730883298431730
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 4935123418240211774}
-  - component: {fileID: 3052292492987193698}
-  - component: {fileID: 8026193290048065596}
-  m_Layer: 0
-  m_Name: HarpoonHead surface
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &4935123418240211774
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3449730883298431730}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.19390397, z: 0.5429311}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 4895999289663759908}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &3052292492987193698
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3449730883298431730}
-  m_Mesh: {fileID: 4300000, guid: fdb96e63c7c3a024992f89e50b5461a7, type: 2}
---- !u!23 &8026193290048065596
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3449730883298431730}
-  m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 2100000, guid: 3ad5a31c200b27843a5aa6853365c97c, type: 2}
-  - {fileID: 2100000, guid: 0d1737a73676bc8458f49da91e3a8859, type: 2}
-  - {fileID: 2100000, guid: 3bf492b4e94a45f41b5c3006f1400ac8, type: 2}
-  - {fileID: 2100000, guid: 6e3480b790c9dd14cab0c22af7c8e7e2, type: 2}
-  - {fileID: 2100000, guid: b20e0e934a05f224895d6e3331705fb1, type: 2}
-  - {fileID: 2100000, guid: 8821b615895f0524fa88f917264893f0, type: 2}
-  - {fileID: 2100000, guid: d121112f572902546867953dcb0588f1, type: 2}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 0
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
+  loadedHarpoon: {fileID: 8876332311511501942}
+  headLength: 0.23008507
 --- !u!1 &3919018466177433714
 GameObject:
   m_ObjectHideFlags: 0
@@ -204,13 +198,13 @@ Transform:
   m_GameObject: {fileID: 3919018466177433714}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.19390397, z: 0.5429311}
+  m_LocalPosition: {x: 0, y: 0.142, z: 0.37499928}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 4895999289663759908}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &5361439634240208798
+--- !u!1 &5896106720246370440
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -218,23 +212,23 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 7761757199412569444}
-  - component: {fileID: 7495747100847429207}
-  - component: {fileID: 8728575809625702710}
+  - component: {fileID: 5117453603467713926}
+  - component: {fileID: 1533852043515757631}
+  - component: {fileID: 7989683087351922264}
   m_Layer: 0
-  m_Name: HarpoonGun surface
+  m_Name: Cartoon barrel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &7761757199412569444
+--- !u!4 &5117453603467713926
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5361439634240208798}
+  m_GameObject: {fileID: 5896106720246370440}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -243,21 +237,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 4895999289663759908}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &7495747100847429207
+--- !u!33 &1533852043515757631
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5361439634240208798}
+  m_GameObject: {fileID: 5896106720246370440}
   m_Mesh: {fileID: 4300000, guid: 53b37e7ad361cfe438b2acc389802025, type: 2}
---- !u!23 &8728575809625702710
+--- !u!23 &7989683087351922264
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5361439634240208798}
+  m_GameObject: {fileID: 5896106720246370440}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -276,13 +270,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 3ad5a31c200b27843a5aa6853365c97c, type: 2}
-  - {fileID: 2100000, guid: 0d1737a73676bc8458f49da91e3a8859, type: 2}
-  - {fileID: 2100000, guid: 3bf492b4e94a45f41b5c3006f1400ac8, type: 2}
-  - {fileID: 2100000, guid: 6e3480b790c9dd14cab0c22af7c8e7e2, type: 2}
-  - {fileID: 2100000, guid: b20e0e934a05f224895d6e3331705fb1, type: 2}
-  - {fileID: 2100000, guid: 8821b615895f0524fa88f917264893f0, type: 2}
-  - {fileID: 2100000, guid: d121112f572902546867953dcb0588f1, type: 2}
+  - {fileID: 2100000, guid: 1f3bbeafe3606884faff2075d8bfa09e, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0

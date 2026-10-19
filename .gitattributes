@@ -13,3 +13,7 @@
 *.blend binary
 *.wav binary
 *.mp3 binary
+
+# Large character mesh and editable import source.
+Assets/Demos/HideAndSeek/Characters/Resources/AquariumCharacters/Alien.asset filter=lfs diff=lfs merge=lfs -text
+ArtSources/Cartoon/Export/Alien.cartoon filter=lfs diff=lfs merge=lfs -text

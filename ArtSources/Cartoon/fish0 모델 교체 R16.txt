@@ -1,0 +1,21 @@
+R16 — Fish0 캐릭터를 fish0 모델(D:\수족관술래잡기\fish0\Untitled.obj)로 교체
+
+무엇이 바뀌었나
+- 게임의 Fish0 표면을 새 모델로 바꿨습니다. 크기와 위치는 기존 Fish0에 맞췄습니다(×1.25, 입·눈 위치 일치).
+- 기존 Fish0 리그(Root/Body 본 + 블렌드셰이프 15개)를 새 표면으로 전이했습니다.
+  수영(Swim_Left/Right), 지느러미(Fin_Up/Down), 삼키기(Swallow), 변신 8단계(To_Matched_0125~1000), Metamorphosis.
+- 입 벌리기(Alien_Mouth_Open)는 새 입 모양에 맞춰 다시 만들었습니다. 둥근 입이 크게 열리고 기존 송곳니·혀가 안에서 나옵니다.
+- 변신 끝(To_Matched_1000) 표면은 기존과 같은 중간 형태라 외계인 전환이 이어집니다.
+- 텍스처: Fish0_Atlas.png 위쪽 절반에 새 베이스컬러, 아래쪽 절반은 기존 아틀라스(송곳니·혀용)를 그대로 둡니다.
+- 정점 12,667 / 삼각형 17,382 (기존 19,218 / 37,151).
+- Unity에서는 Fish0만 다시 생성했습니다(외계인·잠수부·작살총은 그대로). Fish0 프리팹의 AquariumMorphMotion(FishOcto_MorphLeave/Arrive)은 유지했습니다.
+
+백업
+- Export 원본: Source/BeforeFish0Tripo_20261019_1741
+- Unity 에셋: Demo/Backups/Fish0_BeforeTripo_20261019_1741
+  되돌리려면 위 Export 파일 3개를 Export에 다시 복사하고 Fish0만 재생성하면 됩니다.
+
+재생성
+- Tools/build_fish0_from_obj.py (python3, numpy/scipy/pillow 필요)로 Export/Fish0.cartoon, Fish0.json, Fish0_Atlas.png를 만듭니다.
+  입력은 백업 폴더의 기존 Fish0 리그와 fish0 모델·텍스처입니다.
+- 그다음 Unity 메뉴 Aquarium > Characters > Import approved cartoon models (전체 재생성) 또는 Fish0만 재생성합니다.

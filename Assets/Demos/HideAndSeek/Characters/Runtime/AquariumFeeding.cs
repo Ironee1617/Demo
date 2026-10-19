@@ -6,6 +6,20 @@ namespace PrototypeLab.Aquarium
         public const float AlignmentEnd=.62f, SuctionStart=.66f, SuctionEnd=1.62f;
         public const float MouthClosed=2.20f, ReturnToFish=2.45f, ChewStart=3.10f;
         public const float ClosingSilhouette=1.85f;
+        public const float AlienAlignmentEnd=.45f, AlienSuctionStart=1.18f, AlienSuctionEnd=1.98f, ExpulsionEnd=.90f;
+        public static float AlienPull(float age)=>Mathf.SmoothStep(0,1,Mathf.InverseLerp(.72f,1.20f,age));
+        public static float AlienSuction(float age)=>Mathf.Clamp01((age-AlienSuctionStart)/(AlienSuctionEnd-AlienSuctionStart));
+        // Give the carrier time to turn in place and approach. Match velocity at
+        // the timing joins, then settle before the 3-second spit.
+        public static float CapturePoseTime(float age)
+        {
+            if(age<=.85f)return Hermite(age/.85f,0,.45f,.85f*.53f,.85f*.72f);
+            if(age<=2.38f)return Hermite((age-.85f)/1.53f,.45f,1.98f,1.53f*.72f,1.53f*1.25f);
+            return Hermite(Mathf.Clamp01((age-2.38f)/.62f),1.98f,3,.62f*1.25f,.62f*1.65f);
+        }
+        private static float Hermite(float t,float a,float b,float da,float db)
+        {float t2=t*t,t3=t2*t;return (2*t3-3*t2+1)*a+(t3-2*t2+t)*da+(-2*t3+3*t2)*b+(t3-t2)*db;}
+
         public static float Suction(float age)=>Mathf.Clamp01((age-SuctionStart)/(SuctionEnd-SuctionStart));
         // Move outside the predator first, turn on a clear orbit, then approach
         // the front staging point. A rear meal never cuts across the torso.
@@ -26,19 +40,19 @@ namespace PrototypeLab.Aquarium
         }
         // CPU reference for geometry QA; the skin and transition shaders share
         // the equivalent mapping in AquariumIngestion.cginc.
-        public static Vector3 IngestPoint(Vector3 p,Vector3 origin,Vector3 axis,float halfLength,Vector3 mouth,float radius,float depth,float progress)
+        public static Vector3 IngestPoint(Vector3 p,Vector3 origin,Vector3 axis,float halfLength,Vector3 mouth,float radius,float depth,float progress,bool sealedCavity=false)
         {
             if(progress<=0)return p;
             Vector3 delta=p-origin;float axial=Vector3.Dot(delta,axis);
             float distance=Vector3.Dot(origin-mouth,axis);
             float travel=Mathf.Max(.08f,distance+halfLength+.08f)*Mathf.SmoothStep(0,1,Mathf.Clamp01(progress));
             float section=distance+axial-travel;
-            Vector3 centre=mouth+axis*Mathf.Max(-.06f,section);
+            Vector3 centre=mouth+axis*Mathf.Max(sealedCavity?.012f:-.06f,section);
             Vector3 radial=delta-axis*axial;depth=Mathf.Max(.06f,depth);
-            float limit=radius+Mathf.Max(0,section-depth)*1.15f;
+            float limit=radius*(sealedCavity?.97f:1)+Mathf.Max(0,section-depth)*(sealedCavity?.52f:1.15f);
             float ratio=radial.magnitude/Mathf.Max(.001f,limit);
             float fit=Mathf.Pow(1+Mathf.Pow(Mathf.Min(ratio,100),8),-1f/8);
-            float inside=Mathf.SmoothStep(0,1,Mathf.Clamp01((depth-section)/(depth+.06f)));
+            float inside=Mathf.SmoothStep(0,1,Mathf.Clamp01((depth-section)/(depth+(sealedCavity?0:.06f))));
             radial*=Mathf.Lerp(1,fit*(1-inside),Mathf.SmoothStep(0,1,Mathf.Clamp01(progress/.06f)));
             return centre+radial;
         }

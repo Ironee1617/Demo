@@ -4,6 +4,8 @@ Unity 6000.3.21f1 Windows64 Development 빌드입니다. 실행 파일은 `Build
 
 층별 몬스터 수·능력치 상승과 3층 주기 보스를 적용한 PROTOTYPE 05입니다. 최종 실행 시각은 `build-report.json`, `playtest-report.json`, `art-report.json`, `combat-report.json`, `boss-report.json`에 기록됩니다.
 
+2026-10-19 21:14:15 KST에 NanumGothic Regular(SIL OFL 1.1) 교체본을 독립 재빌드하고, 21:14:51~21:15:32 KST에 네 가지 smoke를 모두 다시 통과했습니다. 한글 증강·영웅 상세·보스 HUD·갤러리를 확인했고 최신 화면 24개를 갱신했습니다. 폰트 메타 GUID를 유지했으며, `Font-License.txt`는 검증 복사본과 실행 파일 옆 배포 폴더에도 원문 그대로 포함됩니다.
+
 ## 빌드 범위와 안전성
 
 - 원본 Unity 프로젝트를 동시에 열어 빌드하지 않았습니다.
@@ -12,7 +14,8 @@ Unity 6000.3.21f1 Windows64 Development 빌드입니다. 실행 파일은 `Build
 - 빌드는 로그라이크 장면만 포함합니다. 빌드 도구는 변경한 PlayerSettings와 Always Included Shaders를 복구합니다.
 - 최종 런타임·에디터 C# 파일과 폰트 `.meta`의 원본/복사본 해시 일치를 확인했습니다.
 - 이미지·글꼴 원본 바이트와 모든 리소스 메타 GUID도 일치합니다. Unity가 복사본의 PNG `.meta`에 추가한 spriteID 및 피벗 소수 정규화는 정상적인 임포트 결과입니다.
-- `source-snapshot-report.json`: 복사한 콘텐츠 255개 해시 불일치 0개, 장면·리소스 메타 GUID 불일치 0개, Git 추적 Assets 파일 799개 중 누락 0개입니다. 빌드 전에는 복사본의 메타 GUID가 올바른 32자리인지도 검사합니다.
+- `source-snapshot-report.json`: 폰트 라이선스를 포함한 복사 콘텐츠 256개 해시 불일치 0개, 장면·리소스 메타 GUID 불일치 0개, 검증 시점 Git 추적 Assets 파일 1813개 중 누락 0개입니다. 빌드 전에는 복사본의 메타 GUID가 올바른 32자리인지도 검사합니다.
+- 재현용 원본은 `ArtSources.json`에 기록한 PNG·스켈레톤, 필수 효과 원본과 Castle ZIP 및 메타데이터를 선별하여 보관합니다. 이 범위로 원본 바이트 대조와 추출 도구를 새 복제본에서도 실행할 수 있습니다.
 
 ## 검증 결과
 
@@ -112,3 +115,5 @@ Unity 6000.3.21f1 Windows64 Development 빌드입니다. 실행 파일은 `Build
 ```
 
 빌드 로그는 `unity-windows.log`, 실행 로그는 `player.log`, `art-player.log`, `combat-player.log`, `boss-player.log`, 결과는 `build-report.json`, `playtest-report.json`, `art-report.json`, `combat-report.json`, `boss-report.json`, `source-art-report.json`, `source-snapshot-report.json`에 저장됩니다. 숨김 창 자동 검증에서 Graphics Ring Buffer 공간 안내가 기록되었으나 예외·오류 없이 종료했고 화면 저장과 검증을 완료했습니다. 이전 `d3d11-*`, `playtest-reward-05.png`, `playtest-upgrade-20.png`, `playtest-recruit-25.png`는 이전 버전의 진단 자료입니다.
+
+JSON과 로그는 위 명령으로 로컬에서 재생성하는 기록입니다. 저장소에는 이 요약과 표에 나오는 최신 화면 24개를 보관합니다.

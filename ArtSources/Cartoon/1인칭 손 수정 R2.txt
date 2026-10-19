@@ -1,0 +1,13 @@
+1인칭 손·팔 수정 R2
+
+양쪽 손을 둥근 벙어리장갑 형태로 정리했습니다. 검지와 엄지는 짧고 통통하게 만들고, 작살총을 쥔 손의 손등 돌출과 깊은 패임을 줄였습니다.
+팔부터 손바닥과 손가락까지 각 팔마다 하나의 닫힌 메시로 이어집니다. 기존 몸통에서 잘라낸 팔을 크게 꺾거나 화면 밖으로 당기던 보정은 제거했습니다.
+1인칭 전용 8개 본으로 팔을 부드럽게 움직이며, 손바닥·손가락은 총 소켓과 함께 움직입니다. 3인칭 잠수부의 17개 본과 수평 수영·유연한 오리발 리깅은 유지됩니다.
+작살총의 실제 실행 메시를 기준으로 손의 접촉면에 작은 여유를 두었습니다. 손 내부 및 손과 총 사이의 삼각형 관통, 열린 메시 경계는 검사에서 0개입니다.
+
+실행 프리팹: Assets/Demos/HideAndSeek/Equipment/Resources/AquariumEquipment/DiverHands.prefab
+편집 메시: ArtSources/Cartoon/Source/first_person_hands.blend (Unity 좌표 기준; 실행 리깅과 클립은 프리팹에 저장)
+생성 스크립트: ArtSources/Cartoon/Tools/build_fps.py
+Unity 재가져오기: Aquarium > Characters > Import approved cartoon models
+게임 화면 및 검사 결과: Artifacts/CartoonHandFix-R2
+수정 전 파일 백업: C:/Users/shern/Documents/ChatGPT/수족관/Aquarium-HandFix-R2/BeforeProject
