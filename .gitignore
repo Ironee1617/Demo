@@ -23,3 +23,13 @@
 sysinfo.txt
 *.pidb
 *.booproj
+
+# Local authoring library; selected original art and metadata are tracked explicitly.
+/Assets/Demos/Roguelike/RPGAsset/
+/Assets/Demos/Roguelike/Resources/Tower/Portraits/
+/Assets/Demos/Roguelike/Resources/Tower/Portraits.meta
+
+# Generated Tower reports and captures; review evidence is tracked explicitly.
+/Artifacts/Tower/
+/Artifacts/TowerArt/
+/Artifacts/TowerDemo/

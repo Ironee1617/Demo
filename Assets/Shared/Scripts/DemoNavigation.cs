@@ -25,7 +25,7 @@ namespace PrototypeLab
         private void OnGUI()
         {
             var sceneName = SceneManager.GetActiveScene().name;
-            if (sceneName == HideAndSeek) return;
+            if (sceneName == HideAndSeek || sceneName == Roguelike) return;
             var width = Mathf.Min(400f, Screen.width - 32f);
             var height = sceneName == Hub ? 225f : 145f;
             var area = new Rect(16f, 16f, width, height);
@@ -38,7 +38,7 @@ namespace PrototypeLab
                 OpenButton("Survivors", Survivors);
                 OpenButton("Roguelike", Roguelike);
                 OpenButton("Hide and Seek", HideAndSeek);
-                GUILayout.Label("Each scene is an empty workspace for one demo.");
+                GUILayout.Label("Select a demo to play.");
             }
             else
             {
