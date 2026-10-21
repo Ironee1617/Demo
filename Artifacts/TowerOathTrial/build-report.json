@@ -1,0 +1,11 @@
+{
+  "startedAt": "2026-10-20T20:55:15.6633055+09:00",
+  "finishedAt": "2026-10-20T20:55:37.0986981+09:00",
+  "validationProject": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\.validation\\TowerDemoProject",
+  "sourceProject": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab",
+  "method": "Windows",
+  "exitCode": 0,
+  "succeeded": true,
+  "log": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\Artifacts\\TowerOathTrial\\unity-windows.log",
+  "executable": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\Build\\TowerOathTrial\\TowerOathTrial.exe"
+}

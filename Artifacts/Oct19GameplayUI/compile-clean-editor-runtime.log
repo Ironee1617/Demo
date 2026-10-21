@@ -1,0 +1,2 @@
+Assets\Demos\HideAndSeek\Scripts\AquariumPerformanceDriver.cs(35,42): warning CS0108: 'AquariumPerformanceDriver.camera' hides inherited member 'Component.camera'. Use the new keyword if hiding was intended.
+COMPILE_OK EditorRuntime sources=32 synthetic_hud=False

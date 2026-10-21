@@ -1,0 +1,1274 @@
+{
+  "imagePolicy": "All active character and monster PNGs are independent, byte-identical copies. No new character image files are generated. Portraits are runtime camera captures of these same original weighted meshes.",
+  "sampleRate": 24,
+  "sourceFormat": "Spine 4.2.43",
+  "artDataSha256": "01f865a0b4535390e08630875544d9acc8bae5c20937406da7d649217ca79208",
+  "files": [
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_000/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_000/arml.png",
+      "sha256": "972019fad2b4b0eef80519bd6ee13a57bda2160e8275d3937e9936bdb1829f36",
+      "bytes": 2957
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_000/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_000/armr.png",
+      "sha256": "9a761ec2def413aa2dd26b309712211a9d13ab99fdb81475da9d1a8f2e0266ed",
+      "bytes": 2961
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_000/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_000/body.png",
+      "sha256": "0bc27cb4931dbc86ac2711e7bc720b6a0b271118f0f1b70276dc1261941ea4b1",
+      "bytes": 3546
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_000/cape.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_000/cape.png",
+      "sha256": "3bfdf82f90de64f62f9b6a5060b24e8acdf9f1950673c679b9460b5ba2d457e5",
+      "bytes": 3619
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_000/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_000/die.png",
+      "sha256": "0ea9a9a96374236da9ee81839146325618d3b9ba6ac3b8721e5a93ea6e0831e8",
+      "bytes": 3902
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_000/hair.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_000/hair.png",
+      "sha256": "821a50f8299b0bfa9b1a6fa7bb2857818b3ed24db9ebeea77c7a710ac8b6c208",
+      "bytes": 3577
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_000/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_000/handl.png",
+      "sha256": "ced6f47bd691cc4d2990abf3c80505e357045c2b6bfde5051e85fa01a878053a",
+      "bytes": 2921
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_000/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_000/handr.png",
+      "sha256": "6d89a0159787c376bad7538fc161557bdd57496fe79bc4a7f372002b9795ed28",
+      "bytes": 2917
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_000/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_000/head.png",
+      "sha256": "df5aec7840bc37a991823402bedf32cb03221596b2bf9ada76c46638c5c4ce7e",
+      "bytes": 3915
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_000/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_000/legl.png",
+      "sha256": "579ca8cf4fa326e771f9dde53444b118b9fb6d83bac453cfcfcb50939007b5be",
+      "bytes": 3055
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_000/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_000/legr.png",
+      "sha256": "5bc9f0af1670875ac023cd190cfbcad5530b553575af56ab62c05af779c029d0",
+      "bytes": 3060
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_000/sword.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_000/sword.png",
+      "sha256": "81e0cfa957d8487328c7e7226047efdb0bb9e5e88652b25ce0dc37d836b08b89",
+      "bytes": 3301
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_001/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_001/arml.png",
+      "sha256": "66074fcda3cc975c28bcfe7d09d1c27124804b85300c2b9709b4a92462fbd5e6",
+      "bytes": 2971
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_001/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_001/armr.png",
+      "sha256": "8efb7e74fc3829c44e602c3fe14446f8e76ba9ec9bc31f2808abab08b1b9aba1",
+      "bytes": 2960
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_001/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_001/body.png",
+      "sha256": "89018f3ccd27fd253fd802d8bf2cd6b9770880ce038a8a67c359feafaa38249e",
+      "bytes": 3645
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_001/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_001/die.png",
+      "sha256": "fb8219cefafa576a7828eb78f023277a298f39e01b8761aaa584a9740ccb6722",
+      "bytes": 3569
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_001/hair.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_001/hair.png",
+      "sha256": "9e48daf4ba74e8e2162a920cd787f5ce5e11590ef9cdd3f66184644d6ed6e07c",
+      "bytes": 3467
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_001/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_001/handl.png",
+      "sha256": "b0a6e0e7bd64334d38dfa9ef902664e940230aa3e0b1bac61aefcebb1411fef6",
+      "bytes": 2957
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_001/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_001/handr.png",
+      "sha256": "e533c581347b6cd4d9dfc73e796c4fccc23f8beecfdb5bb35ce30dff51216160",
+      "bytes": 2943
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_001/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_001/head.png",
+      "sha256": "5eb25a5b3056f6ea81c37fad80f8d210400c7994912d9ca4253959b810e92564",
+      "bytes": 3582
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_001/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_001/legl.png",
+      "sha256": "eccee2b8412e68445be59f196450a0544a1172f8e5978cf82e64f1eb0bea4aa2",
+      "bytes": 2976
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_001/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_001/legr.png",
+      "sha256": "423f5e3ec92c1d63d428e1f993d501dd6a765c2e950f3e885e2c0c46f687d886",
+      "bytes": 3001
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_002/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_002/arml.png",
+      "sha256": "6776cdc634c4afb312a3654e4f66e223ae224e49179488728b9e505ea0153f3e",
+      "bytes": 2895
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_002/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_002/armr.png",
+      "sha256": "2b3880a72f3d4ae0632a1476c817117577bc411fe5d496554393e245f21b0965",
+      "bytes": 2902
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_002/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_002/body.png",
+      "sha256": "7e7760ec39d865bb21de754357b290d594e0b4ac053428f8ea888718b6f884d6",
+      "bytes": 3490
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_002/cape.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_002/cape.png",
+      "sha256": "6c563f63fd8d6f7d5c678931e8bdbbf5aadbe89bba3a8b89c1703ec3278c9b49",
+      "bytes": 3616
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_002/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_002/die.png",
+      "sha256": "a09cf7a163bc69b0feb76a3ee32501aa010c2a6907288cd34166268c2059c299",
+      "bytes": 1310
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_002/etc.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_002/etc.png",
+      "sha256": "371bac6da99da06c445a0591382fc8ffc29cd5f0473c0935478f8dea031d4d48",
+      "bytes": 2864
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_002/hair.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_002/hair.png",
+      "sha256": "7558db7103148b2281e256894e4184d5116c36055c75176e417fdd87117bd2df",
+      "bytes": 3983
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_002/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_002/handl.png",
+      "sha256": "f88834944f80550630a9803ebc8ab0a848ee4e461b36cc4283c25c3e4e013097",
+      "bytes": 2966
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_002/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_002/handr.png",
+      "sha256": "9ce9ce04f7f7dc165b077dbe3ef76793bd6c7f0854cae14262f44288790975e7",
+      "bytes": 2961
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_002/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_002/head.png",
+      "sha256": "f9435a146e1acec726dbc7c77b264d47b9b507d07455d895b6d936345e6b06d8",
+      "bytes": 3869
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_002/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_002/legl.png",
+      "sha256": "8827276286a77aced04fa31c7ad87ae18811b43fdd71aa9148aea4dbd44f5c60",
+      "bytes": 3029
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_002/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_002/legr.png",
+      "sha256": "46cc9c76541336a4dfebe19acf41ea43fa2619f63b9f3beb7bbcb87c1b9e5b90",
+      "bytes": 3026
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_002/sword.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_002/sword.png",
+      "sha256": "ea479bc41fd7b27bc4adeb4a238d753f319146080544d707b7ae27f54792e757",
+      "bytes": 3913
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_003/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_003/arml.png",
+      "sha256": "85764f0152fdb27350270f8eaa3f058f872c865515080115e8c5b481c338c926",
+      "bytes": 2868
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_003/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_003/armr.png",
+      "sha256": "1e6c4b2e2b75cf6c4b8113f282a6899253e4774218bd4505067ceae18fed7b37",
+      "bytes": 2888
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_003/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_003/body.png",
+      "sha256": "d557324f20580b07f0ff7a654e882bddd121020e3ab021af42b1d46477ae2d44",
+      "bytes": 2104
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_003/cape.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_003/cape.png",
+      "sha256": "ff06487bafb84e0c8cc4173bb22c471f18c0d3d1d0451e37fd37dd2f071a7212",
+      "bytes": 723
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_003/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_003/die.png",
+      "sha256": "c957def031dae82641c79c6b7f9804013a33508375684bb660a295867a2de9f1",
+      "bytes": 3643
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_003/etc.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_003/etc.png",
+      "sha256": "31a1e5f93110e46742e7bcf51de82d32e8a93cfc2338cd1f232e79ca9a9da1cf",
+      "bytes": 1853
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_003/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_003/handl.png",
+      "sha256": "a9618bc47871c6d9748dcd7f691eb904de3fbd487ec4af8d545e3a4d4345bfb4",
+      "bytes": 2915
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_003/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_003/handr.png",
+      "sha256": "af4c063ce7f0a3d5dbe75365fe80bec597ca9d0205f7beb40adb0607d4f4d634",
+      "bytes": 2921
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_003/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_003/head.png",
+      "sha256": "cdd044238781099711aaceede61bbdb13b07c3eb083658c9971e90322c01e091",
+      "bytes": 3687
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_003/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_003/legl.png",
+      "sha256": "888bb618bd3b27fa54c0cc1280ae3f93d971c479d1e0d0215f960114b2daecef",
+      "bytes": 2900
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_003/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_003/legr.png",
+      "sha256": "7f89a047d9bedd0da04feafa94cc21181cafa733934935164913a3453f0a98d4",
+      "bytes": 2892
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_003/skirtB.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_003/skirtB.png",
+      "sha256": "0b64b43aed0072fd64904f33ff2854a9a306534133aac12d8ac658d348513155",
+      "bytes": 420
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_003/sword.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_003/sword.png",
+      "sha256": "7fa7b3185969716d4768576792631e8291f001cd2eff5f88d3e00963b0b51a85",
+      "bytes": 490
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_004/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_004/arml.png",
+      "sha256": "a98891a7d1409f7473b95f61b3b3253bae41895128d849105f3662da3f0db003",
+      "bytes": 2928
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_004/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_004/armr.png",
+      "sha256": "30dc46b2e48f8173dcbbe1e0c50a87ca82f19b05f595f657645545d012d5fa90",
+      "bytes": 2940
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_004/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_004/body.png",
+      "sha256": "7986afd1f625e2fd08e95b4c100e52014c05c5f0aa90f94d3a4affa708bdb87b",
+      "bytes": 3643
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_004/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_004/die.png",
+      "sha256": "91121e94d25b48da19811c8591cd2cb8bbcd00c0155b3c376d5d403e2962ff7e",
+      "bytes": 3493
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_004/etc.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_004/etc.png",
+      "sha256": "278386791b7de1392c8e2989b042f12f6bf35084c30fbc69ea1dd2193f09e7ec",
+      "bytes": 2877
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_004/hair.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_004/hair.png",
+      "sha256": "9913188e1b4fc46c056e4487cb4776ac968b172f889f207030089fd822f90b4a",
+      "bytes": 3501
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_004/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_004/handl.png",
+      "sha256": "a19e5ebf6d1435deec19fc5b558d5bbb7f2856de7b65c6b09a667f8bcc6dd14f",
+      "bytes": 2942
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_004/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_004/handr.png",
+      "sha256": "6332b895e70fc9210092b6d30dbffb59c7eb144683558871e6eea7e78a7dc9e0",
+      "bytes": 2947
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_004/hat.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_004/hat.png",
+      "sha256": "9e64159d0d0a7851111cc416e6f140758b73456582fef5e82109fb330422a721",
+      "bytes": 3657
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_004/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_004/head.png",
+      "sha256": "b51f3b7c2b9e313403d1b4908803abfcb62aa4efff1ce6cb413701f8bfb42f01",
+      "bytes": 3515
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_004/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_004/legl.png",
+      "sha256": "b87d47156a9b74c148de5797a97f53aff359e716cd329fc60f2499ad57f7e972",
+      "bytes": 2964
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_004/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_004/legr.png",
+      "sha256": "99c801acb19e2f7b275d1e0c87a3fe56ec8fea2468eb3ad11a5fc3d3e6ed4d7f",
+      "bytes": 2958
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_004/sword.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_004/sword.png",
+      "sha256": "815c781bb6d0d50d1bd0de857fd3a835151a099a90c0bf02a9558279aac9664c",
+      "bytes": 3903
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_005/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_005/arml.png",
+      "sha256": "f881d67ac65b6fd9cee7cb456595011b70d0cc7b1154002a6b35a4be214bd622",
+      "bytes": 2982
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_005/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_005/armr.png",
+      "sha256": "a94c44a33bc87046114c6087dc12a9d58faff2006334b590fc2b409baaf38c2d",
+      "bytes": 2863
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_005/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_005/body.png",
+      "sha256": "4112a94a6e797c6287a3d99e8af24dad3cd5dded8860f5edb4b3d75e2ff40124",
+      "bytes": 3400
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_005/cape.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_005/cape.png",
+      "sha256": "580a51797e8594a4fda35b820562786008f2d1dbcdedb80454e86ef1284be963",
+      "bytes": 3217
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_005/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_005/die.png",
+      "sha256": "9824c8323255b6e74ed4ac12e490d6ccdb9a34d7473e376a74610c6a2da11315",
+      "bytes": 3682
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_005/etc.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_005/etc.png",
+      "sha256": "ee9df1784676e48cb379c815d712b8e71c2f92b76c43046d7d4fda783002fd75",
+      "bytes": 2786
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_005/hair.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_005/hair.png",
+      "sha256": "5d5c199fd818d656dcf70a719d203e55d0472cff493cce441354bc8156010161",
+      "bytes": 3495
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_005/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_005/handl.png",
+      "sha256": "475415a4fae77272169eff3359c96755ec91a4b1e7093f54a3630b7497d6e68b",
+      "bytes": 2928
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_005/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_005/handr.png",
+      "sha256": "a718e75db35d59d05e99daf65072507ab404e8ab7a8306dd2267f13101968577",
+      "bytes": 2931
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_005/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_005/head.png",
+      "sha256": "81699f8e727783ef65181de647e713b43c0c2dc998379e0aa01f9fd7f9617965",
+      "bytes": 3727
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_005/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_005/legl.png",
+      "sha256": "d4f62044911d1e9b59318a28614795de45323054462d3bd1c174bc7062e8301e",
+      "bytes": 3062
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_005/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_005/legr.png",
+      "sha256": "a0a568662011bf1baab5de49b2d389daf6361b9f81cebb21c89c3a34ac90c2ea",
+      "bytes": 3064
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_006/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_006/arml.png",
+      "sha256": "e72422f271910ea8222ba328636b5c67256674f34a0afb0bb52d50f5db08450c",
+      "bytes": 2955
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_006/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_006/armr.png",
+      "sha256": "a849dfcd7f47df1489d1ce1cedacb449798dc0d3a2c03f2cdca02fb6f84ec444",
+      "bytes": 3040
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_006/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_006/body.png",
+      "sha256": "7ec439c574e3c6aa62844de993e8920e8fdc3354afdf3ba7824ddef07c3b799d",
+      "bytes": 3534
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_006/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_006/die.png",
+      "sha256": "8bf6850c23220b3f62c664d9e980a9adaf20e599ebd78f22816b68656f606b92",
+      "bytes": 3815
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_006/etc.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_006/etc.png",
+      "sha256": "9e1a98915707e8c0453f20503469b15ffa439d50f96b3b7ccad74bc05ad560ac",
+      "bytes": 3043
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_006/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_006/handl.png",
+      "sha256": "aac5de83ab1d0eb9fc820adccd8115febddd4d2fd1bec3fd1b90887b168ba986",
+      "bytes": 2966
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_006/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_006/handr.png",
+      "sha256": "ce846d313092b6bf4bfb75acb36b63565db12f49c1d6e7c0444907e9655c5207",
+      "bytes": 2979
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_006/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_006/head.png",
+      "sha256": "66760ccaad13167df9be3f49a8b8eed21f6717fd36160106983b1159452ca23f",
+      "bytes": 3854
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_006/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_006/legl.png",
+      "sha256": "13141fd31de04231ac73e1a949817d62afa8110729c0e63f787b38087b4d6950",
+      "bytes": 3043
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_006/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_006/legr.png",
+      "sha256": "3f470e724c96ee8609464d8e8f12f7d9e40e88d2b586312f37b3a32b2648b029",
+      "bytes": 3045
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_006/sword.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_006/sword.png",
+      "sha256": "16f8433b5ebe5f19278a7e8ab70fb729e631fa61bb7285d810e1f5998ef4c6ed",
+      "bytes": 3513
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_006/wingR.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_006/wingR.png",
+      "sha256": "19fa98078cc587a73c3dd8f706a000c85e89fd8f204b403a7fb431f68978c96b",
+      "bytes": 779
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_007/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_007/arml.png",
+      "sha256": "2902fa5d59868b9ef1afbb0312b5fd4bfa1c710f2bc15c3c4d991a58b79f08c9",
+      "bytes": 3010
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_007/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_007/armr.png",
+      "sha256": "6d753adc7627cae8a649698d98d1046a15e3a45f2f44c35180c3319c05c2bdd4",
+      "bytes": 3037
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_007/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_007/body.png",
+      "sha256": "248a6f307a62895b37a5cd3d8715807d9cb5a8e7c3aefda2419359a962ee0be1",
+      "bytes": 3608
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_007/cape.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_007/cape.png",
+      "sha256": "cf81896c39629da3abacd0608143f284ea18d80251777e81e7bc4917e099ba74",
+      "bytes": 646
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_007/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_007/die.png",
+      "sha256": "41f3e66f824b48a62d21acf888f288681baf5276839926613daa1812bd031515",
+      "bytes": 4121
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_007/etc.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_007/etc.png",
+      "sha256": "8d012b11568266c17453ea1f369e2945d2e7e6172234aff8c7f659ab31b790ff",
+      "bytes": 3241
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_007/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_007/handl.png",
+      "sha256": "0ef61604fd8621145e5ae975636add3f73b27b6356aa82643209176862f79ef6",
+      "bytes": 2875
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_007/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_007/handr.png",
+      "sha256": "76b00b6a5e93feccba174abcab5ab541d5a241d5466a396a7502c3336758019d",
+      "bytes": 2882
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_007/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_007/head.png",
+      "sha256": "4aa53828e03d3be5b0f009f95d121b466dfee07348d943929d5231e2760f1ab4",
+      "bytes": 4154
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_007/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_007/legl.png",
+      "sha256": "f55f5d06a2d6b7ca374734eb845217b8b698813268426b6f77313968840979a5",
+      "bytes": 3007
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_007/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_007/legr.png",
+      "sha256": "35210cb149a3977e4b44e16bd5511897a8e97c5b4336d136686fd70be9da6ac7",
+      "bytes": 3022
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_007/sword.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_007/sword.png",
+      "sha256": "fb862cf8f9b7d308cd8cecce67545f87e1796a6abd32aeb1b24cbb349097e54c",
+      "bytes": 3665
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_007/wingR.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_007/wingR.png",
+      "sha256": "420796200e21e3e10959cf26d45caaf62b1bc0710889e9aa3425ea9f90bf1854",
+      "bytes": 1957
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_008/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_008/arml.png",
+      "sha256": "9928e45b3bc194ec2b430b5c43b62f78124237bdae93b60809bfe463463a8c0a",
+      "bytes": 2885
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_008/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_008/armr.png",
+      "sha256": "561c46140bd9f19b366ccdbcc0730f93240dfedc4af78f960daddb662a3728bd",
+      "bytes": 2876
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_008/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_008/body.png",
+      "sha256": "ac85a674c763b7c71bc17d1210d989b9af0210be977a8c0f71df1cef487efd47",
+      "bytes": 3324
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_008/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_008/die.png",
+      "sha256": "fd086a430dfdec22f173ec3ad4df8ca13f52e47b084b06bc80118830fa7adf47",
+      "bytes": 3739
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_008/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_008/handl.png",
+      "sha256": "4582b06ad63d6770a51e5451b876db2fa638a677825277fb1c7329f783a666b7",
+      "bytes": 2920
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_008/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_008/handr.png",
+      "sha256": "8c8ff7c050103a504d931d0af34aa1262e2ca4845b3dbbaef83fa77d70deaaf3",
+      "bytes": 2921
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_008/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_008/head.png",
+      "sha256": "28ec4b56527167ad09f38686653d51fd70d2e2f5a55c48772b012311d6e60fc0",
+      "bytes": 3775
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_008/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_008/legl.png",
+      "sha256": "1de254b0153744b9e84c19dfdd3f33e85a62d32ff7311bf4e2a9037155da1c27",
+      "bytes": 3022
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_008/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_008/legr.png",
+      "sha256": "e2f12d4f79884cf8cec84dafb67cdd163ecab8dd9ac7e2449fa75ad1382c89a3",
+      "bytes": 3032
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_008/sword.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_008/sword.png",
+      "sha256": "9e8d6a2c15ca9e05c4ea0d898a6a4599ee0654eccaced33647f8c0a0c6ec89d2",
+      "bytes": 3044
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_009/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_009/arml.png",
+      "sha256": "2a90a7313aba6e838568a397a33c589b9e92630416d0bfe6207447947f57ce59",
+      "bytes": 2951
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_009/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_009/armr.png",
+      "sha256": "1cff16be95df968d8a9fdf06ed97fc4f8a1dc8c32a615dd3f8b221b488954f45",
+      "bytes": 2951
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_009/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_009/body.png",
+      "sha256": "3789fefa5b5dbbc444600ac6fdf692202c666661b9023a4a33a01aa33affe4fa",
+      "bytes": 3652
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_009/cape.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_009/cape.png",
+      "sha256": "19b302ed5caacbb508c9c00477c6a50bacc286bba6959b2c413a710b03594ece",
+      "bytes": 456
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_009/etc.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_009/etc.png",
+      "sha256": "1988bfc454fac0684bf37baa352dd59d7356447b35257b071ab5d1471abb69f3",
+      "bytes": 216
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_009/hair.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_009/hair.png",
+      "sha256": "1b70a2e480dc7a985f3ed8440366c21a88e6e7c075307f86c7965bdad0e188d5",
+      "bytes": 3003
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_009/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_009/handl.png",
+      "sha256": "c30c232a4a615e36287a77bd87e6e821f3bab6599794bc0597eeadd98343cdb4",
+      "bytes": 2978
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_009/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_009/handr.png",
+      "sha256": "2b5a54b16d7daf33128a5afce620eff8208f72d59c3ea2d5e6b4f0b01cb304c0",
+      "bytes": 2975
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_009/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_009/head.png",
+      "sha256": "9cf864c0e554db7059d606d510adac9648e2b4eb3c4f98b65c3564a78563ce6a",
+      "bytes": 3821
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_009/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_009/legl.png",
+      "sha256": "ddeaefbc22ac4acd163374fd114e5337f3506800a48ccf27ef49ce3b66a0625f",
+      "bytes": 3003
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_009/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_009/legr.png",
+      "sha256": "a6a5475002d1d78833cb2e6dceaa5d46cb4814515a2ee3e328e1f72678905baf",
+      "bytes": 2979
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_009/skirtB.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_009/skirtB.png",
+      "sha256": "d17c5ed1e0081292432efc231b855b6bae1d774a8491bd4a56422ad5c9c7cd98",
+      "bytes": 309
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_009/sword.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_009/sword.png",
+      "sha256": "43e6ab00081382a34e1073cd3d27b61cdd41ed0a101ee271923366e257a6066c",
+      "bytes": 585
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_010/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_010/arml.png",
+      "sha256": "1b57e628c5320411f1cc7cea4111cfeb6bee7a12a16066447d4bf6763c32b115",
+      "bytes": 2971
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_010/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_010/armr.png",
+      "sha256": "a75f30bf2185741f6bb773b3f6d2ee1fa4ec0461b729499930eb53b36d90baca",
+      "bytes": 2965
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_010/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_010/body.png",
+      "sha256": "9b8237671aa78022337b51241fc4b822646b926aab223339396b0d4778f7a1f7",
+      "bytes": 3559
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_010/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_010/die.png",
+      "sha256": "ee6b175b25eacde6fec2f1a93c410f7197c0f4b9905d477712d17dbda7c96324",
+      "bytes": 3760
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_010/hair.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_010/hair.png",
+      "sha256": "fe99c0fe69abd7c81d6c2ef312ca867095fd36ee4443ee68cc188fae4dc5dc81",
+      "bytes": 2986
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_010/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_010/handl.png",
+      "sha256": "c0bc9f1c72b348662f5a8fa6e6369a20c85dae547289f3f7749ac24d07efa3ea",
+      "bytes": 2889
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_010/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_010/handr.png",
+      "sha256": "ed9e3ee2bcf5192ca547f1461de3c92437b11511346c3e3362ce1329ad754f9b",
+      "bytes": 2887
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_010/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_010/head.png",
+      "sha256": "3b830c8132943f2cbf8977c0346ecc5cd53a891e3fedf31786cf49305aac1507",
+      "bytes": 3776
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_010/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_010/legl.png",
+      "sha256": "fe6b231282b7291ded4345e7b71649d2f53e670f27ae4ed2ea0d807d6c3d0d5e",
+      "bytes": 3012
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_010/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_010/legr.png",
+      "sha256": "a3b549eefe5d6173275c8454788634f1d8c8075230aa8324836710b770c801eb",
+      "bytes": 2945
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_010/sword.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_010/sword.png",
+      "sha256": "4ff7c2b02227f2abb04a4643e6d61ee3b85d56d81c68af8d58ea9667f4aa5820",
+      "bytes": 2865
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_011/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_011/arml.png",
+      "sha256": "2644fdd6fe43ac847b7cf19cc8fdaf93981d5ace38c0d11d25c909d6faffe3e1",
+      "bytes": 2996
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_011/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_011/armr.png",
+      "sha256": "cb5851e8a2b72af175da59e421c8e1f3330c7edb08dbc58f40eac9398b4f0c0e",
+      "bytes": 2991
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_011/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_011/body.png",
+      "sha256": "a3f2d8089a6e9956759b12abaf2724ea45be5a9d3df75cd7269f0eba9f12b05a",
+      "bytes": 3405
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_011/cape.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_011/cape.png",
+      "sha256": "be242756ec852e1bcda58f025e08c4c2bb57c6bb331d7b256f8651de4bcb500a",
+      "bytes": 3453
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_011/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_011/die.png",
+      "sha256": "8658718faf3ed971291f623ef7048889bff6fad5d6f0e3f43fbc09da1d27c349",
+      "bytes": 3985
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_011/etc.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_011/etc.png",
+      "sha256": "84ba039eaf6b3476d7345f8fa295b22355f4035a24b2f6e79fbbb10251ed5d3f",
+      "bytes": 2832
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_011/hair.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_011/hair.png",
+      "sha256": "66932c81467dbef26b1b09774c87002632790ca34261c9f790e1a91062816f26",
+      "bytes": 3567
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_011/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_011/handl.png",
+      "sha256": "109fb012fb879291452a9a01478deea2b574ced4ca09c935c8bcf634919c496b",
+      "bytes": 2919
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_011/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_011/handr.png",
+      "sha256": "504e8472d11eef7106105ce3a2b15b542379b616884cee881a78ffdb000c49ce",
+      "bytes": 2933
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_011/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_011/head.png",
+      "sha256": "9be1bd150225c33d0bdd81643dc81073a029625d3d4e3275ebd02a6a338a8bdb",
+      "bytes": 4065
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_011/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_011/legl.png",
+      "sha256": "ba94223a140cd9b6d9d865295cc3f848565a18d56c44117fc82e83d3485a3291",
+      "bytes": 2983
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_011/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_011/legr.png",
+      "sha256": "41c66bdea0c2bd5fd5c8ad4f2cc8b46eb07913cde23641f3e8fae53b6e9e380b",
+      "bytes": 2984
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_011/sword.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_011/sword.png",
+      "sha256": "478e97a44178e492dcbd746ddb734191dd9baf8aa60629a102810568b153f4c5",
+      "bytes": 3205
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_012/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_012/arml.png",
+      "sha256": "0025e490fd806ce9475fabfa1b2cfc316718d1dbd0c1046d500c29c88305e5b4",
+      "bytes": 2968
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_012/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_012/armr.png",
+      "sha256": "b0691913264ddc1c64e7c1edb8f16b6e498735c65b19bcb5b04da63fd4ca386b",
+      "bytes": 2982
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_012/bat.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_012/bat.png",
+      "sha256": "9385ae6e59e2c6a2a8bc6c3db62efdbb4df5fe2db12543d188b07e99fc1ea757",
+      "bytes": 2004
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_012/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_012/body.png",
+      "sha256": "4f8f12555cd93551a783d43e97ea6dd869e5dbff4c11f84879f8c9640c349857",
+      "bytes": 2667
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_012/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_012/die.png",
+      "sha256": "4c8cddcbdeeb12381abb7bb0e143012b802e6a5bece3991dfe64876e5e1b59ab",
+      "bytes": 3709
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_012/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_012/handl.png",
+      "sha256": "99ca0e086589f4e71c7af7aeeee24ecd8c893486342da6a00c7e3dd4dfc84c56",
+      "bytes": 2919
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_012/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_012/handr.png",
+      "sha256": "759e67032db735b83cea2670701061d7125c68cf1b4cc2651817caa5fe06ea6c",
+      "bytes": 2914
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_012/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_012/head.png",
+      "sha256": "fe3134c6c3247649d7f7777cb8c130241d09697fc075b2bd79c6bc2783c5e136",
+      "bytes": 3792
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_012/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_012/legl.png",
+      "sha256": "95b9f104d0823ccb1c3db48d7a7ed07f82ecd81a0745cda888b1a370ea3db107",
+      "bytes": 2933
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_012/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_012/legr.png",
+      "sha256": "6b73b1801e6c37505d71b6606b53d35b3613ed0401bc9c54b1ced3fe4f4065f1",
+      "bytes": 2933
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_012/skirtB.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_012/skirtB.png",
+      "sha256": "72add9cd879fbfd1a2f1b396e8dfaf33cccc6f02336ee0c3df5491d8ed625664",
+      "bytes": 1759
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_012/sword.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_012/sword.png",
+      "sha256": "7e738dd0dac256f4acfb9e29f071634cb998dd4a05d46cb3bb1bdb29741a5294",
+      "bytes": 2004
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_012/sword2.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_012/sword2.png",
+      "sha256": "d0aa07c0bc65dec43dc95f969d649988ba188f1b27a369647a0100532a2d9c65",
+      "bytes": 1558
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_013/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_013/arml.png",
+      "sha256": "3a25babd0d46532811a38e45ec2b5cdc5116d9cb80076fb634ad3e87581e4af4",
+      "bytes": 3015
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_013/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_013/armr.png",
+      "sha256": "4c6c147a57f276cbeedc9dfcd12b16378cf00537591fe8d9121fc1656950958e",
+      "bytes": 3016
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_013/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_013/body.png",
+      "sha256": "de578387459169a65416c3241fe690c94d96ac1741af52413a333027ba6bb5a0",
+      "bytes": 3600
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_013/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_013/die.png",
+      "sha256": "6ce84fe58bbb3092f6a1735f4fd280bf1706330b2929746e8e2c77fab0c9d6a3",
+      "bytes": 3570
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_013/hair.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_013/hair.png",
+      "sha256": "3d82dc118ca7b584cffe477584f6430843393dbd4defe03067f6707bfe727371",
+      "bytes": 3294
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_013/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_013/handl.png",
+      "sha256": "efd9a163f8a813802aeafd89d7e436011e888134545f504461666a3cf3869750",
+      "bytes": 2981
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_013/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_013/handr.png",
+      "sha256": "34177fbc800150ee389dd33000ff79bb649518c611085aff8ccc1316e5d8affa",
+      "bytes": 2983
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_013/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_013/head.png",
+      "sha256": "139dc9900da1c227d655632a12e49ecdc5710bf386473494c40f05d92dc13c39",
+      "bytes": 3620
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_013/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_013/legl.png",
+      "sha256": "2eece14435e482ae100fa79d32763d57c30dda4714d805e9d74c562c46e569d8",
+      "bytes": 3003
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_013/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_013/legr.png",
+      "sha256": "18e4ca9eb8de6c2f855b73b301720e2e7b6c4a9969bff43d3849e61999df7c5b",
+      "bytes": 2987
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_013/skirtB.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_013/skirtB.png",
+      "sha256": "bf7870a83cae4fa709421cb78c584a5e011a1fd77085eff50caad38c1ea63684",
+      "bytes": 1623
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_014/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_014/arml.png",
+      "sha256": "6eed2d6dcfa46cb7b47db628902ea1b7495d548f2b1ab5e71522a9dc0c6097fc",
+      "bytes": 3018
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_014/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_014/armr.png",
+      "sha256": "49fd33551b5020d49d5970f3c2a3013e63c46d2169ed72122c8b46aecf0a5936",
+      "bytes": 3008
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_014/arrow.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_014/arrow.png",
+      "sha256": "16bf1fba9cc16a29f6635575b836696fbc4ad75390910b030e2b5b5c1b65e5c6",
+      "bytes": 2904
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_014/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_014/body.png",
+      "sha256": "c75a4ab5dccfbc5c10b385e697ddf63f5cb5b57c0d00a51023257ea185da54d5",
+      "bytes": 3631
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_014/cape.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_014/cape.png",
+      "sha256": "7eb1dc0c67bf7c669012499030a72074ac0ff56452c75e3ecd85a7b9632bdb08",
+      "bytes": 2942
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_014/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_014/die.png",
+      "sha256": "fdec8dfc5e921d2b70a0e1503b19ed89281e2a182fc97da6a0958404d04860c0",
+      "bytes": 3928
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_014/hair.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_014/hair.png",
+      "sha256": "510e987c1576cb7a1987effd8c94653b0247033de22423d493bb9afab389e6e3",
+      "bytes": 3672
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_014/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_014/handl.png",
+      "sha256": "da0d9025d175b3ef0fcb259faedc232d0fe7034d85b2b4689fd225e11d7c84f1",
+      "bytes": 2902
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_014/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_014/handr.png",
+      "sha256": "6c278daf6743e98262d2970a7e02a10ce5e4a5a850096c8cb7fae49e3299d39d",
+      "bytes": 2900
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_014/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_014/head.png",
+      "sha256": "38bcb75d5fadca91f6c1893a50ed57e13848d2cc042bc869aafd10c5d1c46f7b",
+      "bytes": 3947
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_014/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_014/legl.png",
+      "sha256": "5a526e72f62ffcb6f9724d790df8027baa24a2c6099b6288d51efb75248d82f6",
+      "bytes": 3059
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_014/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_014/legr.png",
+      "sha256": "af11fc9c80de0f07d615d2079fc6dd4bbfe476d5a0ba90635127f35d187396c6",
+      "bytes": 3061
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_014/st.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_014/st.png",
+      "sha256": "ccae18c42c68b0407839fcc8fa4ce3649934bc9b85902ba66a35238e52dd6963",
+      "bytes": 191
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_014/sword.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_014/sword.png",
+      "sha256": "f3df52505f29139d91e9a4cf5b599da451a0e89405088b42aa6a7dff2b842606",
+      "bytes": 3383
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_015/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_015/head.png",
+      "sha256": "e6c0ac080a97f8d57e183a7bcdbf77d64f461269381cb04d8727929e05d9bae2",
+      "bytes": 1276
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_016/arml.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_016/arml.png",
+      "sha256": "2dde4e4ae284291ff8e918a66ce981ee16a573ec58ea38e56489ee2c7f0e4c2b",
+      "bytes": 2915
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_016/armr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_016/armr.png",
+      "sha256": "304508a0908449e3d9d848a86fc55a2efa95bb99f4cf39776757f60e971b54bc",
+      "bytes": 2914
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_016/body.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_016/body.png",
+      "sha256": "6bb5c8c62e0c88bd6c237073912461fe6ee029ef36e959679f2a861d3cf1b94d",
+      "bytes": 3245
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_016/die.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_016/die.png",
+      "sha256": "d1762ba82b05b3b88526a3d37f127238aabaeef3afa4d791ef3a00d701948e66",
+      "bytes": 3410
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_016/h0.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_016/h0.png",
+      "sha256": "1da5c64cf30fa8ff2de1620b92e3ce6892df54d4f8e197dc25dbf9467ef634ab",
+      "bytes": 937
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_016/handl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_016/handl.png",
+      "sha256": "c3c2dc6d6ec9292147ba8421598af1e42127712d8659ff48ba72d36398ba17d3",
+      "bytes": 2918
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_016/handr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_016/handr.png",
+      "sha256": "87377bece5bbff01b65e72eb9eda7f6afba35754a44ebbaec64d1017d058e355",
+      "bytes": 2919
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_016/head.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_016/head.png",
+      "sha256": "21ad092735884264661eb05950fddf3925ab5fc167a9cb6fd3e1b59b608b1ecd",
+      "bytes": 3423
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_016/legl.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_016/legl.png",
+      "sha256": "0c2fec7c4ac3188531cd4e70e6ec46431c912167f86ae958ff756820c9b4b635",
+      "bytes": 3006
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_016/legr.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_016/legr.png",
+      "sha256": "dac234e276fbda1c8796a7d93d24dd87cb969d68060947d387659225429d8d32",
+      "bytes": 2992
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/spine/cha_016/sword.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Actors/cha_016/sword.png",
+      "sha256": "f05c41e5e53ad30f62b72087aeb0959583f3ce55d6a9f5125d1685ab11cfe8da",
+      "bytes": 2927
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/mobIcon/Stage_0_0.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Monsters/monster_0.png",
+      "sha256": "1302188661716d95dfa1cf52e05ee754f7cd77e36f94bfc208fb475e53d67f1a",
+      "bytes": 876
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/mobIcon/Stage_0_1.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Monsters/monster_1.png",
+      "sha256": "4c05ebb664db168914ff9398d4c04774f1bbaeee2bafd918850f8714a88405ea",
+      "bytes": 1038
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/mobIcon/Stage_0_2.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Monsters/monster_2.png",
+      "sha256": "3348f30431f8e9215c31f12c73b887a97da9a59aa8229ba01f3c5e8cd4085c70",
+      "bytes": 1224
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/mobIcon/Stage_1_Boss.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Monsters/monster_3.png",
+      "sha256": "53f3b9b9da2f5ce975d69535e52294661f7574faf3b8b9d09436babb60de3402",
+      "bytes": 2335
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/mobIcon/Stage_0_Boss.png",
+      "runtime": "Assets/Demos/Roguelike/Resources/Tower/Monsters/monster_4.png",
+      "sha256": "8d757a4370997acd17ba4e5f3d381311d300c39137844a9ee7f8ff30b30acb9b",
+      "bytes": 5018
+    }
+  ],
+  "skeletons": [
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_000/cha_000.skel.bytes",
+      "sha256": "dfdcd9f1d29cbec0aaf61e0530ac0f8a1a4e604e9c14dd63ed68ead736445bd2"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_001/cha_001.skel.bytes",
+      "sha256": "1c58dd206427ded181dfd5fe1af33dc1b7d7a5dc6db1b26caa80cd431936a217"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_002/cha_002.skel.bytes",
+      "sha256": "89b92f1d308309dd355e694e625f7ef9d65b216d01f24bc4a9e0b8d2fa79d7b8"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_003/cha_003.skel.bytes",
+      "sha256": "a16e07ce69f284748cb22d1ae29b7e601dc667cd860cc5c5f5ad556493746811"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_004/cha_004.skel.bytes",
+      "sha256": "4bf80b877411817673293433b82750150f9428e9050308fe6fac732db4f48c57"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_005/cha_005.skel.bytes",
+      "sha256": "004b9e03281864ce8303dd054beee7c27ff948fe77c29cc9106004dfb9d13c42"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_006/cha_006.skel.bytes",
+      "sha256": "fd66777f251ec5edf7f1355adec42e467c11c9bbf0ea0ced15073e279153ee22"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_007/cha_007.skel.bytes",
+      "sha256": "58dfe05a53e8c46ede180771f80c18477ab8243496ae495152a7d9aac72dbc3d"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_008/cha_008.skel.bytes",
+      "sha256": "11ea0caa6da3dcb563866568f533941bd26c9f3636b2af7159ba890fa84e7b48"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_009/cha_009.skel.bytes",
+      "sha256": "8a9be2eded4c4632d09dd5fa7f38cefef9a0da22e267f0381f7daa2153910f67"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_010/cha_010.skel.bytes",
+      "sha256": "19c140cb4ea51c7ae3bbda2bb788e4701ebef32507193f41a71cdc6e10e85711"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_011/cha_011.skel.bytes",
+      "sha256": "a1bf7dafb9fc600d5ea7139351dc5ff59a1dff2606c9cb11c53b1614e76bc0d6"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_012/cha_012.skel.bytes",
+      "sha256": "59628bbf9d6bae17b4036a09fb0c355e3b20619f7e18ee0f55f76c676f0da59b"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_013/cha_013.skel.bytes",
+      "sha256": "4dbfc04b9df8b27dadbdc56de8988c38b27face28777c578cb1b74661eba4fdd"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_014/cha_014.skel.bytes",
+      "sha256": "67441f2961bcbf93ee217fb2b17897d9d136d98e8a9c38117e2cd79f96926132"
+    },
+    {
+      "source": "Assets/Demos/Roguelike/RPGAsset/unity/cha_016/cha_016.skel.bytes",
+      "sha256": "77df2eada3bc322f699de1ebfcfa84d2cedd84b1a0b5442e893e6035f339afe8"
+    }
+  ]
+}

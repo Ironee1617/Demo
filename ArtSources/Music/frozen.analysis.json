@@ -1,0 +1,33 @@
+{
+  "id": "frozen",
+  "title": "Prism Blizzard",
+  "title_ko": "프리즘 눈보라",
+  "bpm": 136,
+  "bars": 64,
+  "note_events": 3376,
+  "production": "recorded-band-v2",
+  "master": {
+    "seconds": 112.941179,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.514,
+    "rms_dbfs": -15.363,
+    "loop_seam_delta": 0.007001,
+    "minimum_half_second_rms": 0.008841,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg": {
+    "seconds": 112.941179,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.313,
+    "rms_dbfs": -15.332,
+    "loop_seam_delta": 0.007284,
+    "minimum_half_second_rms": 0.008881,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg_bytes": 2806289,
+  "sha256": "d0bbead53311e40fb72de4e107635df21830c5646504dc7afb25f3591029556f"
+}

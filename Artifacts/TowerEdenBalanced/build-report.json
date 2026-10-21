@@ -1,0 +1,11 @@
+{
+  "startedAt": "2026-10-21T08:12:11.5626320+09:00",
+  "finishedAt": "2026-10-21T08:12:58.7183265+09:00",
+  "validationProject": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\.validation\\TowerDemoProject",
+  "sourceProject": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab",
+  "method": "Windows",
+  "exitCode": 0,
+  "succeeded": true,
+  "log": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\Artifacts\\TowerEdenBalanced\\unity-windows.log",
+  "executable": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\Build\\TowerEdenBalanced\\TowerEdenBalanced.exe"
+}

@@ -290,6 +290,13 @@ namespace PrototypeLab.Aquarium
                 actor.tentacles[i].localRotation = Quaternion.Euler(Mathf.Sin(time * 3 + i * 1.8f) * 15, 0, Mathf.Cos(time * 3 + i) * 12);
             return actor;
         }
+        private void PinHarpoonCatch(string key, Vector3 tip, Point offset)
+        {
+            if (!actors.TryGetValue(key, out var corpse)) return;
+            corpse.root.transform.position = tip + new Vector3(offset.x, offset.y, offset.z);
+            if (corpse.bodyCollider != null) corpse.bodyCollider.enabled = false;
+        }
+
         private LineRenderer Ring(string name, Transform parent, float radius, Color color, float width)
         {
             var go = new GameObject(name); go.transform.SetParent(parent, false);
@@ -481,6 +488,9 @@ namespace PrototypeLab.Aquarium
                 float weaponScale=gun.transform.lossyScale.z;
                 projectile.root.transform.localScale=Vector3.one*weaponScale;
                 projectile.root.transform.SetPositionAndRotation(tip - direction * gun.headLength*weaponScale, Quaternion.LookRotation(direction));
+                // Equipment docking adjusts the rendered tip after the world pose is drawn.
+                if (shot.caughtFish != 0) PinHarpoonCatch(FishKey(shot.caughtFish), tip, shot.catchOffset);
+                if (shot.caughtPlayer != 0) PinHarpoonCatch(PlayerKey(shot.caughtPlayer), tip, shot.catchOffset);
                 var from = gun.ropeExit.position; var to = projectile.root.transform.position;
                 float distance = Vector3.Distance(from, to);
                 float sag = Mathf.Min(.45f, distance * .035f) * (shot.returning ? 1 : .35f);

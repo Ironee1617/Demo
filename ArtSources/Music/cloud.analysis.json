@@ -1,0 +1,33 @@
+{
+  "id": "cloud",
+  "title": "Skyward Vector",
+  "title_ko": "천공의 벡터",
+  "bpm": 156,
+  "bars": 64,
+  "note_events": 4355,
+  "production": "recorded-band-v2",
+  "master": {
+    "seconds": 98.461542,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.514,
+    "rms_dbfs": -15.221,
+    "loop_seam_delta": 0.004234,
+    "minimum_half_second_rms": 0.020404,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg": {
+    "seconds": 98.461542,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.314,
+    "rms_dbfs": -15.208,
+    "loop_seam_delta": 0.005432,
+    "minimum_half_second_rms": 0.02045,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg_bytes": 2447605,
+  "sha256": "23bee91862f7407d6cee418cc725df37c01789bebee5d3ee470e8a7efab83c47"
+}

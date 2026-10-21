@@ -36,7 +36,7 @@ public static class ModelTests
     { m.SetInput(id, new SwimInput { aimX = 1, action = !morph, morph = morph }); m.Tick(1f / 30); }
     private static AquariumModel ReleasePair(bool reversed=false,float step=1f/30)
     {
-        var m=Match(true);m.Player(1).position=At(0,0,7);m.Player(3).position=At(1.3f,0,7);
+        var m=Match(true);m.Player(1).position=At(0,0,7);m.Player(3).position=At(1.3f,0,7);m.Player(3).species=0;
         Act(m,1);Check(m.Player(3).swallowedBy==1,"release setup swallowed the ally");
         if(reversed)m.Players.Reverse();
         for(int i=0;i<400 && m.Player(3).swallowedBy!=0;i++)m.Tick(step);
@@ -140,7 +140,7 @@ public static class ModelTests
                 Check(Array.Exists(m.Snapshot().effects,e=>e.kind=="eat" && e.owner==1),"network snapshot includes plume owner");
             });
             Test("swallowing an alien emits yellow ink immediately before release", () => {
-                var m=Match(true);m.Player(3).position=At(1,0);var capturedFrom=m.Player(3).position;Act(m,1);
+                var m=Match(true);m.Player(3).position=At(1,0);m.Player(3).species=0;var capturedFrom=m.Player(3).position;Act(m,1);
                 Check((m.Player(3).swallowedFrom-capturedFrom).Length<.001f,"swallowed alien retains its capture location for head-first suction");
                 var ink=m.Effects.Find(e=>e.kind=="allyEat");Check(ink!=null && ink.owner==1 && ink.born==m.Player(1).visualAt,"yellow injection starts at swallowing");
                 Check(m.Player(3).swallowedBy==1 && !m.Effects.Exists(e=>e.kind=="burp" || e.kind=="eat"),"distinct from red meal and later release");
@@ -376,7 +376,7 @@ public static class ModelTests
                 m.Tick(1f / 30); Check(m.Winner == (int)Team.Hider && m.WinReason == WinReason.FoodGoalReached, "all eaten victory");
             });
             Test("three-second friendly swallow and six-second morph lock", () => {
-                var m = Match(true); var p = m.Player(3); p.position = At(1, 0);
+                var m = Match(true); var p = m.Player(3); p.position = At(1, 0); p.species = 0;
                 Act(m, 1); Check(p.swallowedBy == 1, "swallowed"); Advance(m, 2.9f); Check(p.swallowedBy == 1, "early release");
                 Advance(m, 0.14f); Check(p.swallowedBy == 0 && Point.Dot(p.position-m.Player(1).position,p.facing)>1.5f, "released forward with body clearance");
                 Check(p.revealUntil > m.Time && m.Player(1).revealUntil > m.Time && m.Effects.Exists(e => e.kind == "burp"), "burp reveal");
@@ -390,10 +390,48 @@ public static class ModelTests
                     Advance(m,1.4f);Check(p.swallowedBy==0 && p.species==-1 && p.swallowedSpecies==-1 && p.visualAction=="SpitOut","release changes to alien inside carrier");
                 }
                 var exposed=Match(true);var ally=exposed.Player(3);ally.position=At(1,0);ally.species=2;ally.revealUntil=exposed.Time+4;
-                Act(exposed,1);Check(ally.swallowedSpecies==-1,"already exposed alien must not regain a fish disguise when eaten");
+                Act(exposed,1);Check(ally.swallowedBy==0 && ally.swallowedSpecies==-1 && !exposed.Effects.Exists(e=>e.kind=="allyEat"),"already exposed alien cannot be swallowed");
+            });
+            Test("undisguised and revealing allies cannot be swallowed", () => {
+                foreach(int state in new[]{0,1,2})
+                {
+                    var m=Match(true);var ally=m.Player(3);ally.position=At(1.3f,0,7);m.Player(1).position=At(0,0,7);
+                    if(state>0){ally.species=1;ally.revealUntil=m.Time+(state==1?4f:.65f);}
+                    if(state==2)ally.morphAt=m.Time;
+                    Act(m,1);
+                    Check(ally.swallowedBy==0 && ally.alive && ally.visualAction!="Eaten","visible alien remains free for state "+state);
+                    Check(m.Player(1).score==0 && !m.Effects.Exists(e=>e.kind=="allyEat"),"no mistaken-meal penalty or ink");
+                }
+            });
+            Test("fish carrier keeps its disguise through expulsion and reveals afterward", () => {
+                var m=Match(true);var carrier=m.Player(1);var ally=m.Player(3);
+                carrier.position=At(0,0,7);ally.position=At(1.3f,0,7);carrier.species=2;ally.species=1;
+                Act(m,1);
+                Check(carrier.species==2 && carrier.visualAction=="AllyGulp" && ally.swallowedBy==1,"fish gulps the disguised ally");
+                Check(ally.swallowedSpecies==1 && carrier.score==-150,"captured form and penalty are retained");
+                Advance(m,AquariumModel.AllyStun+.1f);
+                Check(ally.swallowedBy==0 && ally.visualAction=="SpitOut" && carrier.species==2 && carrier.visualAction=="SpitRecoil","fish expels ally before losing disguise");
+                Advance(m,Math.Max(0,carrier.revealAt-m.Time-.1f));
+                Check(carrier.species==2,"disguise survives until the delayed reveal");
+                Advance(m,.2f);
+                Check(carrier.species==-1 && carrier.revealAt==0 && carrier.morphLockedUntil>m.Time,"reveal preserves remaining morph lock");
+            });
+            Test("feeding lunge moves the eater without moving its captured meal", () => {
+                foreach(int form in new[]{-1,0})
+                {
+                    var m=Match();var eater=m.Player(1);eater.position=At(0,0,7);eater.species=form;
+                    var meal=m.Fish[0];meal.position=At(1.4f,0,7);Act(m,1);Check(meal.eaten,"meal captured");
+                    var mealOrigin=meal.position;float before=(mealOrigin-eater.position).Length;
+                    m.SetInput(1,new SwimInput{x=-1,aimX=-1,sprint=true});m.Tick(.1f);
+                    var toward=mealOrigin-eater.position;
+                    Check(toward.Length<before && eater.stunnedUntil>m.Time,"automatic lunge closes the gap during stun");
+                    Check((meal.position-mealOrigin).Length<.001f,"captured meal stays at its original position");
+                    Check(Point.Dot(eater.facing,toward.Normalized)>.99f,"held opposite aim cannot turn away from the meal");
+                }
             });
             Test("carrier disconnect safely releases friend", () => {
-                var m = Match(true); m.Player(3).position = At(1, 0); Act(m, 1); m.RemovePlayer(1);
+                var m = Match(true); m.Player(3).position = At(1, 0); m.Player(3).species = 0; Act(m, 1);
+                Check(m.Player(3).swallowedBy == 1, "disconnect scenario captures its ally first"); m.RemovePlayer(1);
                 Check(m.Player(3).swallowedBy == 0 && m.Player(3).alive && m.Phase == RoundPhase.Playing, "disconnect release");
             });
             Test("release moves both aliens apart with continuous deceleration", () => {
@@ -435,6 +473,24 @@ public static class ModelTests
                     Check(AquariumBodyCollision.Penetration(carrier.position,carrier.facing,.62f,.25f,expelled.position,expelled.facing,.62f,.25f).Length<.03f,"released bodies do not overlap beside glass");
                 }
             });
+            Test("every fish species cruises at the alien base swim speed", () => {
+                foreach(int species in new[]{0,1,2,17,98})
+                {
+                    var m=Match();m.Fish.Clear();var alien=m.Player(1);
+                    alien.position=At(0,0,7);alien.velocity=new Point();
+                    m.Player(2).position=At(18,12,7);
+                    var fish=new Prey{id=100,species=species,position=At(0,6,7),facing=new Point(1,0),turnAt=float.MaxValue};m.Fish.Add(fish);
+                    for(int i=0;i<12;i++){m.SetInput(1,new SwimInput{x=1,aimX=1});m.Tick(.1f);}
+                    var fishBefore=fish.position;var alienBefore=alien.position;
+                    m.SetInput(1,new SwimInput{x=1,aimX=1});m.Tick(.1f);
+                    float fishTravel=(fish.position-fishBefore).Length,alienTravel=(alien.position-alienBefore).Length;
+                    Check(Math.Abs(fishTravel-AquariumModel.HiderSpeed*.1f)<.001f,"fish reaches shared cruising speed for species "+species);
+                    Check(Math.Abs(fishTravel-alienTravel)<.001f,"fish and alien travel equally at base speed for species "+species);
+                    m.Player(2).position=fish.position-new Point(2,0);fishBefore=fish.position;alienBefore=alien.position;
+                    m.SetInput(1,new SwimInput{x=1,aimX=1});m.Tick(.1f);
+                    Check(Math.Abs((fish.position-fishBefore).Length-(alien.position-alienBefore).Length)<.001f,"fleeing fish keeps the shared speed for species "+species);
+                }
+            });
             Test("seeker warmup and speed advantage", () => {
                 var m = Match(warmup: true); var s = m.Player(2); s.position = At(0, 6);
                 m.SetInput(2, new SwimInput { x = 1 }); m.Tick(0.1f); Check(s.position.x == 0, "head start freeze"); Advance(m, 5);
@@ -458,7 +514,8 @@ public static class ModelTests
                 Advance(m, 2.3f); Check(m.Harpoons.Count == 0, "retrieved at end of cooldown");
             });
             Test("carrier death releases swallowed player", () => {
-                var m = Match(true); Advance(m, 5.1f); m.Player(1).position = At(2, 0); m.Player(3).position = At(3, 0); Act(m, 1);
+                var m = Match(true); Advance(m, 5.1f); m.Player(1).position = At(2, 0); m.Player(3).position = At(3, 0); m.Player(3).species = 0; Act(m, 1);
+                Check(m.Player(3).swallowedBy == 1, "death scenario captures its ally first");
                 m.Player(2).position = At(0, 0); Act(m, 2); Advance(m, 0.2f);
                 Check(!m.Player(1).alive && m.Player(3).alive && m.Player(3).swallowedBy == 0, "death release");
             });
@@ -527,6 +584,39 @@ public static class ModelTests
                 Check(m.Harpoons.Count == 1 && (h.position - (m.Player(2).position + m.Player(2).facing * .7f)).Length < .15f, "reel follows moving owner");
                 Advance(m, .2f); Check(m.Harpoons.Count == 0, "only removed when fully retrieved");
             });
+            Test("harpooned fish corpse follows the spear and is delivered to a moving diver", () => {
+                var m = Match(); var diver = m.Player(2); diver.position = At(0, 0, 7); m.Player(1).position = At(8, 5, 7);
+                var prey = m.Fish[0]; prey.position = At(2, 0, 7); prey.dead = false; prey.facing = new Point();
+                Act(m, 2); Advance(m, .1f); Check(prey.dead && m.Harpoons.Count == 1, "fish is impaled");
+                var h = m.Harpoons[0]; var offset = prey.position - h.position; var origin = prey.position;
+                diver.position = At(-2, 1, 7); Advance(m, 1);
+                Check((prey.position - h.position - offset).Length < .001f, "corpse stays attached during return");
+                Check((prey.position - origin).Length > .2f && !prey.eaten, "corpse is reeled without counting as food");
+                Advance(m, Math.Max(0, h.retrievedAt - m.Time + .02f));
+                Check(m.Harpoons.Count == 0 && (prey.position - (diver.position + diver.facing * .7f + offset)).Length < .08f, "corpse arrives with spear before detaching");
+                Check((diver.position - At(-2, 1, 7)).Length < .01f, "reeled corpse does not push its owner");
+                float deliveredHeight = prey.position.y; Advance(m, .2f);
+                Check(prey.position.y < deliveredHeight - .1f, "delivered fish resumes sinking");
+                Check((diver.position - At(-2, 1, 7)).Length < .01f, "detached catch does not push its owner");
+            });
+            Test("harpooned disguised alien corpse follows the returning spear", () => {
+                var m = Match(true); var diver = m.Player(2); var alien = m.Player(1);
+                diver.position = At(0, 0, 7); alien.position = At(2, 0, 7); alien.species = 1; alien.revealUntil = 0;
+                m.Player(3).position = At(8, 5, 7); Act(m, 2); Advance(m, .1f);
+                Check(!alien.alive && alien.deathSpecies == 1 && m.Phase == RoundPhase.Playing, "disguised corpse is available during play");
+                var h = m.Harpoons[0]; var offset = alien.position - h.position; var origin = alien.position;
+                diver.position = At(-2, 1, 7); Advance(m, 1);
+                Check((alien.position - h.position - offset).Length < .001f && (alien.position - origin).Length > .2f, "alien corpse is reeled with spear");
+            });
+            Test("revival detaches a harpooned alien before the spear finishes returning", () => {
+                var m = Match(true); var diver = m.Player(2); var alien = m.Player(1);
+                diver.position = At(0, 0, 7); alien.position = At(2, 0, 7); m.Player(3).position = At(8, 5, 7);
+                Act(m, 2); Advance(m, .1f); var h = m.Harpoons[0];
+                Check(!alien.alive && h.caughtPlayer == alien.id, "alien corpse is tethered");
+                m.Eggs.Add(new RevivalEgg { id = 99, owner = 3, revivePlayer = alien.id, position = At(8, 2, 7), hatchAt = m.Time + .1f });
+                Advance(m, .2f); var revivedAt = alien.position; Advance(m, .3f);
+                Check(alien.alive && h.caughtPlayer == 0 && (alien.position - revivedAt).Length < .001f, "revived alien is free of the returning spear");
+            });
             Test("missed harpoon stops at range and remains tethered until ready", () => {
                 var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(0, 6);
                 Act(m, 2); var h = m.Harpoons[0]; var launch = h.position; Advance(m, .8f);
@@ -535,10 +625,10 @@ public static class ModelTests
                 Advance(m, 1.3f); Check(m.Harpoons.Count == 0, "miss retrieved");
             });
             Test("feed attracts only nearby live fish for five seconds and cools down for twenty", () => {
-                var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(0, 0);
-                var near = m.Fish[0]; near.position = At(4, 0);
-                var far = m.Fish[1]; far.position = At(-10, 0); // Clear water inside the curved gallery perimeter.
-                var dead = m.Fish[2]; dead.position = At(4, 0, 5); dead.dead = true;
+                var m = Match(); Advance(m, 5.1f); m.Player(2).position = At(0, 0, 7);
+                var near = m.Fish[0]; near.position = At(4, 0, 7);
+                var far = m.Fish[1]; far.position = At(-10, 0, 7); // Clear water inside the curved gallery perimeter.
+                var dead = m.Fish[2]; dead.position = At(4, 3, 9); dead.dead = true; // Inside bait range, beside the living fish's turn arc.
                 m.SetInput(2, new SwimInput { aimX = 1, feed = true }); m.Tick(1f / 30);
                 var food = m.Effects.Find(e => e.kind == "feed"); Check(food != null && food.duration == 5, "feed spawned");
                 float ready = m.Player(2).nextFeed, before = (near.position - food.position).Length;
@@ -558,18 +648,22 @@ public static class ModelTests
             });
             Test("eating resumes normally while red ink disperses for nine seconds", () => {
                 var m = Match(); var p = m.Player(1); m.Fish[0].position = At(1, 0); m.Fish[1].position = At(1.2f, 0);
-                Act(m, 1); var origin = p.position; float ateAt = m.Time;
+                Act(m, 1); float ateAt = m.Time;
                 Check(Math.Abs(p.stunnedUntil - ateAt - AquariumModel.EatStun) < 0.001f, "eat stun");
+                Advance(m, AquariumModel.LungeSeconds + .1f); var origin = p.position;
                 m.SetInput(1, new SwimInput { x = 1, action = true, morph = true }); m.Tick(0.1f);
                 Check((p.position - origin).Length < 0.001f && p.species == -1 && !m.Fish[1].eaten, "no movement, morph or bite during stun");
-                Advance(m, 2f); m.SetInput(1, new SwimInput { x = 1 }); m.Tick(0.1f);
-                Check(p.position.x > origin.x, "movement resumes");
+                Advance(m, 2f); var beforeMove = p.position;
+                // Move sideways: the second uneaten fish still blocks forward travel after the lunge.
+                m.SetInput(1, new SwimInput { z = 1 }); m.Tick(0.1f);
+                Check(p.position.z > beforeMove.z, "movement resumes on a clear path");
                 Advance(m, 4f); Check(m.Effects.Exists(e => e.kind == "eat" && e.duration == 9), "trace persists beyond the old five-second cutoff");
                 Advance(m, 3); Check(!m.Effects.Exists(e => e.kind == "eat"), "diluted trace expires");
             });
             Test("swallowing stuns carrier and yellow spit ink disperses for nine seconds", () => {
-                var m = Match(true); m.Player(3).position = At(1, 0); var p = m.Player(1); Act(m, 1);
-                var origin = p.position;
+                var m = Match(true); m.Player(3).position = At(1, 0); m.Player(3).species = 0; var p = m.Player(1); Act(m, 1);
+                Check(m.Player(3).swallowedBy == 1, "ink scenario captures its ally first");
+                Advance(m, AquariumModel.LungeSeconds + .1f); var origin = p.position;
                 m.SetInput(1, new SwimInput { x = 1 }); m.Tick(0.1f);
                 Check((p.position - origin).Length < 0.001f && p.stunnedUntil > m.Time, "carrier is stunned");
                 Advance(m, 3); var trace = m.Effects.Find(e => e.kind == "burp");
@@ -589,7 +683,8 @@ public static class ModelTests
                 Act(m, 2); Advance(m,.12f);Check(m.Fish[0].dead && m.Winner == (int)Team.Hider && m.WinReason == WinReason.FoodGoalReached, "last kill finishes goal");
             });
             Test("finished review freezes gameplay for twenty seconds before rematch", () => {
-                var m = Match(true); m.Player(3).position = At(1, 0); Act(m, 1); m.RemovePlayer(2);
+                var m = Match(true); m.Player(3).position = At(1, 0); m.Player(3).species = 0; Act(m, 1);
+                Check(m.Player(3).swallowedBy == 1, "finish scenario captures its ally first"); m.RemovePlayer(2);
                 Check(m.WinReason == WinReason.DiversLeft && m.Player(3).swallowedBy == 0, "finish releases swallowed alien");
                 Check(Math.Abs(m.ReviewEndsAt - m.Time - 20) < 0.001f && m.Snapshot().reviewEndsAt == m.ReviewEndsAt, "20s synchronized timer");
                 var origin = m.Player(1).position; m.SetInput(1, new SwimInput { x = 1, action = true });
@@ -618,14 +713,15 @@ public static class ModelTests
                 var m = Match(true); var p = m.Player(1); Advance(m, 8); m.Fish[0].position = At(1, 0);
                 Act(m, 1); float meal = p.lastMealAt;
                 Check(Math.Abs(meal - m.Time) < 0.001f && p.personalEaten == 1 && p.score == 100, "normal meal rewards");
-                Advance(m, AquariumModel.TentacleFeedingSeconds+.1f); m.Player(3).position = At(1, 0); Act(m, 1);
+                Advance(m, AquariumModel.TentacleFeedingSeconds+.1f); m.Player(3).position = At(1, 0); m.Player(3).species = 0; Act(m, 1);
+                Check(m.Player(3).swallowedBy == 1, "penalty scenario captures its ally first");
                 Check(p.lastMealAt == meal && p.personalEaten == 1 && p.score == -50 && m.Player(3).score == 0, "ally grants no hunger and only eater loses points");
             });
             Test("both resume sprinting after the release impulse while morph lock continues", () => {
                 var m = Match(true); var p = m.Player(1); var ally = m.Player(3); ally.position = At(1, 0); p.species = ally.species = 2;
                 Act(m, 1); float biteAt = m.Time;
-                Check(p.species == -1 && ally.species == -1 && Math.Abs(p.morphLockedUntil - biteAt - 6) < 0.001f && ally.morphLockedUntil == p.morphLockedUntil, "both unmorph for six seconds");
-                Advance(m, 4.1f); var before = p.position; m.SetInput(1, new SwimInput { z = 1, sprint = true }); m.Tick(0.1f);
+                Check(p.species == 2 && ally.species == -1 && p.visualAction == "AllyGulp" && Math.Abs(p.morphLockedUntil - biteAt - 6) < 0.001f && ally.morphLockedUntil == p.morphLockedUntil, "fish carrier stays disguised while both morphs lock for six seconds");
+                Advance(m, 4.1f); Check(p.species == -1 && ally.species == -1, "both are revealed after expulsion"); var before = p.position; m.SetInput(1, new SwimInput { z = 1, sprint = true }); m.Tick(0.1f);
                 Check((p.position - before).Length > 0.3f && p.stamina < 100 && ally.swallowedBy == 0, "sprint resumes after the release impulse");
                 p.position = At(0, 0); m.Fish[0].position = At(1, 0); Act(m, 1, true); Check(p.species == -1, "morph still blocked");
                 Advance(m, 3); m.Fish[0].position = At(1, 0); Act(m, 1, true); Check(p.species == 0, "morph resumes after six seconds");
@@ -800,7 +896,8 @@ public static class ModelTests
                 Act(m, 2); Advance(m, 0.2f);
                 Check(!p.alive && p.deathSpecies == 2 && p.diedAt > m.HuntAt && p.velocity.Length == 0, "visible fish body and death clock captured");
                 float diedAt = p.diedAt; var bodyAt = p.position; p.species = 0; p.revealUntil = m.Time + 10; Advance(m, 3.1f);
-                Check(p.deathSpecies == 2 && p.diedAt == diedAt && (p.position - bodyAt).Length == 0, "corpse appearance and clock do not follow later reveal changes");
+                Check(p.deathSpecies == 2 && p.diedAt == diedAt, "corpse appearance and clock do not follow later reveal changes");
+                Check((p.position - bodyAt).Length > .1f && m.Harpoons.Count == 0, "corpse was delivered by the returning spear");
                 ally.position = At(2, 0); ally.species = 1; ally.revealUntil = m.Time + 1; Act(m, 2); Advance(m, 0.2f);
                 Check(!ally.alive && ally.deathSpecies == -1, "exposed alien dies as alien body");
                 Advance(m, 3); Check(ally.deathSpecies == -1, "expired reveal does not turn corpse into fish");

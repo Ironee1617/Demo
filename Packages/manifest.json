@@ -8,6 +8,6 @@
     "com.unity.netcode.gameobjects": "2.7.0",
     "com.unity.services.multiplayer": "1.2.0",
     "com.unity.modules.animation": "1.0.0",
-    "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity"
+    "com.unity.pipeline": "0.8.0-exp.1"
   }
 }

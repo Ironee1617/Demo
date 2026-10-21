@@ -1,0 +1,33 @@
+{
+  "id": "lava",
+  "title": "Molten Circuit",
+  "title_ko": "용광 회로",
+  "bpm": 152,
+  "bars": 64,
+  "note_events": 3943,
+  "production": "recorded-band-v2",
+  "master": {
+    "seconds": 101.05263,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.514,
+    "rms_dbfs": -15.226,
+    "loop_seam_delta": 0.017225,
+    "minimum_half_second_rms": 0.021699,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg": {
+    "seconds": 101.05263,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.248,
+    "rms_dbfs": -15.203,
+    "loop_seam_delta": 0.016817,
+    "minimum_half_second_rms": 0.021781,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg_bytes": 2588668,
+  "sha256": "6184b7bea47847d1796b19365ea688c62e4ae7f58325735c745ae38b7e573242"
+}

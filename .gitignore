@@ -4,6 +4,7 @@
 [Oo]bj/
 [Bb]uild/
 [Bb]uilds/
+.validation/
 [Ll]ogs/
 [Uu]ser[Ss]ettings/
 [Mm]emoryCaptures/
@@ -23,6 +24,25 @@ sysinfo.txt
 *.pidb
 *.booproj
 
+# Local authoring library; selected original art and metadata are tracked explicitly.
+/Assets/Demos/Roguelike/RPGAsset/
+/Assets/Demos/Roguelike/Resources/Tower/Portraits/
+/Assets/Demos/Roguelike/Resources/Tower/Portraits.meta
+
+# Generated Tower reports and captures; review evidence is tracked explicitly.
+/Artifacts/Tower/
+/Artifacts/TowerArt/
+/Artifacts/TowerDemo/
+/Artifacts/TowerEditor/
+/Artifacts/TowerThemes/
+/Artifacts/TowerPolish/
+/Artifacts/TowerRig/
+/Artifacts/TowerLimbReview/
+/Artifacts/TowerOathTrial/
+/Artifacts/TowerUIRefresh/
+/Artifacts/TowerEdenCute/
+/Artifacts/TowerEdenBalanced/
+
 # Local art backups and generated visual validation output.
 /Artifacts/Cartoon*/
 /Backups/
@@ -32,3 +52,8 @@ sysinfo.txt
 /ArtSources/Cartoon/Source/PrePolish/
 /ArtSources/Cartoon/Source/OctoAlienV2/*log*.txt
 *.blend1
+
+# Unity Pipeline local connection and temporary build resources.
+.unity-pipeline-runtime-port
+/Assets/Settings/Pipeline/Resources/RuntimePipelineConfig.asset*
+/Assets/Settings/Pipeline/Resources/RuntimePipelineBuildInfo.asset*

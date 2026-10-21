@@ -1,0 +1,11 @@
+{
+  "startedAt": "2026-10-20T23:30:04.4698811+09:00",
+  "finishedAt": "2026-10-20T23:30:22.1687107+09:00",
+  "validationProject": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\.validation\\TowerDemoProject",
+  "sourceProject": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab",
+  "method": "Windows",
+  "exitCode": 0,
+  "succeeded": true,
+  "log": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\Artifacts\\TowerEdenCute\\unity-windows.log",
+  "executable": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\Build\\TowerEdenCute\\TowerEdenCute.exe"
+}

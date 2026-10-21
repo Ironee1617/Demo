@@ -1,0 +1,121 @@
+{
+  "date": "2026-10-19",
+  "timezone": "Asia/Seoul",
+  "unity": "6000.3.21f1",
+  "preparation": "Independent regular-file copy of Build/Aquarium-smooth-movement with freshly compiled exact current runtime source DLL; Unity BuildPipeline was not run.",
+  "originalBuildPreserved": true,
+  "exe": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\Build\\Aquarium-controls-ui\\AquariumDemo.exe",
+  "exeSHA256": "C8B0D73DC40E4F2CDDBF656CFB7257FCB8273DA22E44E12A8694CD8E275C6FB2",
+  "assemblySHA256": "4DA4CAD04D453F6CE7BC52535BF1444308C95D9EFB83A1FBB6865C751ED0CDC7",
+  "syntheticHudHelperInPlayableAssembly": false,
+  "runtimeSourceCount": 32,
+  "editorSourceCount": 21,
+  "compilation": {
+    "player": "passed",
+    "editorRuntime": "passed; existing CS0108 AquariumPerformanceDriver.camera warning",
+    "editor": "passed"
+  },
+  "modelTests": {
+    "failed": 0,
+    "passed": 88
+  },
+  "rawPlayerTests": {
+    "harpoon": {
+      "catchFrames": 158,
+      "catchAttached": true,
+      "catchReleased": true,
+      "errors": 0,
+      "shots": 4,
+      "catchSeen": true,
+      "catchTravelMetres": 4.877893924713135
+    },
+    "swimHider": {
+      "errors": 0,
+      "up": true,
+      "down": true,
+      "level": true,
+      "stops": true
+    },
+    "swimSeeker": {
+      "errors": 0,
+      "up": true,
+      "down": true,
+      "level": true,
+      "stops": true
+    }
+  },
+  "hudReview": {
+    "resolutions": [
+      "1440x900",
+      "1280x720"
+    ],
+    "finalPlayableContainsCaptureHook": false,
+    "roles": [
+      "Hider",
+      "Seeker"
+    ],
+    "artifacts": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\Artifacts\\Oct19GameplayUI",
+    "method": "Exact AquariumGame.OnGUI rendered through a temporary native GUI container in a separate QA-only DLL because hidden Windows players suppress normal repaint events."
+  },
+  "safeMove": {
+    "destination": "Build/Aquarium-controls-ui",
+    "source": ".validation/Oct19/Player",
+    "runningQaProcesses": 0,
+    "reparsePoints": 0
+  },
+  "sourceSHA256": {
+    "Assets/Demos/HideAndSeek/Characters/Editor/AquariumCharacterChecks.cs": "7461FB2549F7DA77D8ACDC6F7FA3357532B7D00CD841404D0EDA959C755FB2DE",
+    "Assets/Demos/HideAndSeek/Characters/Editor/AquariumCharacterImport.cs": "556BCC8C785FC659DE5809806A887A1E99E73D23DB3AEA09D99CA2B87FAEA625",
+    "Assets/Demos/HideAndSeek/Characters/Editor/AquariumFeedingChecks.cs": "EC7AB3DF5D94C10275F310BA1A9CD2C2B9BB632F609E32E025427DE330E98D25",
+    "Assets/Demos/HideAndSeek/Characters/Editor/AquariumGraspChecks.cs": "49346513A793862576E7BD200970CD04ECEC84B91C12C10EC9979716CB3C563A",
+    "Assets/Demos/HideAndSeek/Characters/Editor/AquariumMergeChecks.cs": "26E27F10D14F8298E139A594936F79D4F83EB99BE7B9726FFAA6D2B8796184C3",
+    "Assets/Demos/HideAndSeek/Characters/Runtime/AquariumCreature.cs": "F475F9AB895EE44ED814964F4D718D2B6FD2C7E93B30234E53FAE6FF73308A24",
+    "Assets/Demos/HideAndSeek/Characters/Runtime/AquariumFeeding.cs": "B94BBCBFD08F60C18A6B77B460B58BC3BEF78582B82AD8E7A57C05FF7604911D",
+    "Assets/Demos/HideAndSeek/Characters/Runtime/AquariumGrasp.cs": "4B0FBE7CA1AA346D7B36CFF349F490D987A6165C2E99622EAE56A953285F09AF",
+    "Assets/Demos/HideAndSeek/Characters/Runtime/AquariumInkCloud.cs": "456692FC2C2E53761C2831091DFC1168DEE5F32F76FFFFA2342E8F84D33986C9",
+    "Assets/Demos/HideAndSeek/Characters/Runtime/AquariumRig.cs": "CCB19C44D3852837A7CD791E695C38D2B087C3FF879536FFDA51EF1AEDA2794E",
+    "Assets/Demos/HideAndSeek/Characters/Runtime/AquariumSpecies.cs": "1503C5DE95DBAA39671AE38367B4806CEDA7E12A98901FCB0723344CD7AA535A",
+    "Assets/Demos/HideAndSeek/Editor/AquariumBuild.cs": "F97509478AEE45B34F249309E7AE8298114250775FE63B759EB37BFB9D25A77D",
+    "Assets/Demos/HideAndSeek/Editor/AquariumCameraChecks.cs": "15DB78913E6F16AF1C43BFEE83BFA170CBE0BD5C68D48BD7B5C621C18BA7D59B",
+    "Assets/Demos/HideAndSeek/Editor/AquariumFrameChecks.cs": "9220C1361BCE1542EF9C0D4D7D5D963D551130D14BE7B9D75EFFB8B6E609398A",
+    "Assets/Demos/HideAndSeek/Editor/AquariumHotPathChecks.cs": "CD6D5923CD6751E8624CF59D890EA62E9F086EC55D440BAA77C8C0E5991DDF40",
+    "Assets/Demos/HideAndSeek/Editor/AquariumMovementChecks.cs": "46645479830E7AB166CE117F1B7787D57B7619D60966E0072C67E87452F0E395",
+    "Assets/Demos/HideAndSeek/Editor/AquariumNetworkPerformanceChecks.cs": "05545FC4A20FB8BCA8211E215398C963C337C1675D72FD155D5BB29BBA2E38A5",
+    "Assets/Demos/HideAndSeek/Editor/AquariumPerformanceChecks.cs": "DEFA47377E4D3D0896997F4031FB5F97E0B0F6B9FAD6B633D2503216F400CA34",
+    "Assets/Demos/HideAndSeek/Editor/AquariumSwimmingChecks.cs": "C9C61AC0EDE75B72D5C481E02978BAEAF736EAF68583EFC1656F2769C402049C",
+    "Assets/Demos/HideAndSeek/Environment/Editor/AquariumEnvironmentAuthoring.Biodiversity.cs": "E231F4462D81A9EBFE96DECFF78253510F707FAC2F37D451245559045E304B94",
+    "Assets/Demos/HideAndSeek/Environment/Editor/AquariumEnvironmentAuthoring.cs": "47E17B54C2493322F649B7105E6EC6278B2F16147B2B3AEBE3DBA08BC7D36D47",
+    "Assets/Demos/HideAndSeek/Environment/Editor/AquariumEnvironmentAuthoring.MeshParts.cs": "FC78BFFC0099F6DC58C28BC720E37E583979B24BCDA47CD2EE650187D2BDB6DA",
+    "Assets/Demos/HideAndSeek/Environment/Editor/AquariumEnvironmentPerformanceChecks.cs": "17B8FD010B78CDF1E71B436BA2DAC68E334D2AACE47838763DBB4B2B5289121D",
+    "Assets/Demos/HideAndSeek/Environment/Editor/AquariumMeshAudit.cs": "2CB79125351214DB05E6EA3D235885941796CD7A9CE816E5699E48D4DF1B6BCB",
+    "Assets/Demos/HideAndSeek/Environment/Editor/AquariumTextureImport.cs": "F67ADCF9D38666C1BB6E20CD85E8F89C82924242C2A391C2585962030C6B664D",
+    "Assets/Demos/HideAndSeek/Environment/Runtime/AquariumEntryLayout.cs": "EFC72D4E79F0262C6CB08CDFC9C5B16CA674D81CBA97B5EF5D2318355AE2D228",
+    "Assets/Demos/HideAndSeek/Environment/Runtime/AquariumEnvironment.Architecture.cs": "6D99CBAB2D05E4E413BD046520FD1555AEC9084C32E0D27B2690E46C7FFC5731",
+    "Assets/Demos/HideAndSeek/Environment/Runtime/AquariumEnvironment.Biodiversity.cs": "EFC3DF104351C4CA8D0B27D6C0D435761C9CE46DE3600D2888922F4177F96719",
+    "Assets/Demos/HideAndSeek/Environment/Runtime/AquariumEnvironment.cs": "4D26D53B1A816EB38348A670536DC8EADBAD19318159E7426C68FD4403E84568",
+    "Assets/Demos/HideAndSeek/Environment/Runtime/AquariumEnvironment.Interior.cs": "BF3EB945ADEE55CB73DB7EDF8646C8309B7C3D7C3CF72F116448491388AC3F50",
+    "Assets/Demos/HideAndSeek/Environment/Runtime/AquariumEnvironment.Rendering.cs": "DB3296782C86CAF0B4612E473C6EDE3E3AC36885B13F8D42626C072841B81369",
+    "Assets/Demos/HideAndSeek/Environment/Runtime/AquariumEnvironment.SurfaceDetail.cs": "742ED8A4AF7002538F39521D304D47A846796A2B3E3776A6086D80912B1C3643",
+    "Assets/Demos/HideAndSeek/Environment/Runtime/AquariumEnvironmentRoot.cs": "CC80857387BDCBF1C0EEBB709C6E727E87B40445EB1D3CEA63B0D161A643916D",
+    "Assets/Demos/HideAndSeek/Environment/Runtime/AquariumGalleryCamera.cs": "3EA2983610DC238B6B242E2B1188A65D7DA5995AF039033F1F1208C298E735AE",
+    "Assets/Demos/HideAndSeek/Environment/Runtime/AquariumMapOutline.cs": "591DEA0EEDDFCD9F72E650EFB942203BA5542DEED29B8F9921F1F91E504E9B2E",
+    "Assets/Demos/HideAndSeek/Environment/Runtime/AquariumMonolithLayout.cs": "64ECCE2301B375294AAF93F1C65581B4A756B4A0CB5F31DA41F08C46E1067D48",
+    "Assets/Demos/HideAndSeek/Environment/Runtime/AquariumSeabed.cs": "19C62620874AB82D659B91D55E8D596BD5786D072EFDA615C98C666E0627FAAA",
+    "Assets/Demos/HideAndSeek/Environment/Runtime/AquariumWalkwayLayout.cs": "EBFDEF82B21533D70C01967658D19DCBBAED5B98E308E9F9131D66D7D3257D4A",
+    "Assets/Demos/HideAndSeek/Equipment/Editor/AquariumEquipmentChecks.cs": "6783B03989A477CF32DB13EB0AA885FEC906B2B826EF197816A430D3755D0F44",
+    "Assets/Demos/HideAndSeek/Equipment/Editor/AquariumEquipmentImport.cs": "C5A6778F9748F2ADA376E8E29BEAAA52FAB75CDF64FA4A4B239F792B9B6E434A",
+    "Assets/Demos/HideAndSeek/Equipment/Runtime/AquariumFirstPersonEquipment.cs": "860E84BE0FEB04493243DDFCF091DD3D6496859966707919385D64713BF1185D",
+    "Assets/Demos/HideAndSeek/Equipment/Runtime/AquariumHarpoonGun.cs": "932B78ABDE07C05F8FE4729CFABCBD5B6E9E6CA3A395F7C200672C08F83ED4A3",
+    "Assets/Demos/HideAndSeek/Scripts/AquariumBodyCollision.cs": "7C7EF794C709A070292FC85D2B8A7EE50F4BFAE389DEE5F2A5947EC14E867844",
+    "Assets/Demos/HideAndSeek/Scripts/AquariumClearanceGrid.cs": "DE9BB199FC329D93483E606977326934A9F994DA3BE0545F8F6C8371D91887DD",
+    "Assets/Demos/HideAndSeek/Scripts/AquariumGame.cs": "51704D2B8B0EF990AEFBF61D2CA7AE9F5C9EDE938B63ED3AB1600CC78A91FBF6",
+    "Assets/Demos/HideAndSeek/Scripts/AquariumModel.cs": "C0D6780B1CFF3B02831F394077C9445AF635DA07552649813F788E40E3BE2ECF",
+    "Assets/Demos/HideAndSeek/Scripts/AquariumPerformanceDriver.cs": "AD05EED87B57A89BED59B81B1AB544CD13BD1C708DDA661B956343C240739E46",
+    "Assets/Demos/HideAndSeek/Scripts/AquariumRooms.cs": "7C8DFBD5327A2C9F6516B909E3E798EABF972E51CC652816EB5BDE32302931F2",
+    "Assets/Demos/HideAndSeek/Scripts/AquariumSession.cs": "E410CCCC28AFDBAAA89D6D928E3C57B56882797E614AB13E1EF26CBC25B73BF4",
+    "Assets/Demos/HideAndSeek/Scripts/AquariumSmokeDriver.cs": "ADB9E17EE951226F4E7637AB434CAA4EA6A362E7AF8B6E74BFEE11972A662E3B",
+    "Assets/Demos/HideAndSeek/Scripts/AquariumThirdPersonCamera.cs": "CCD4940016794905D0F697960D7B454E940285B3D579CF944E0F1775483738FD",
+    "Assets/Demos/HideAndSeek/Scripts/AquariumView.cs": "580F7D532D92A3EBBC51894A90269F2B97C5C9C7D955AD56D47CAE9432590073",
+    "Assets/Shared/Scripts/DemoNavigation.cs": "487A22172DF2EE8A242BF5FBD8A7674B9E5A2B6D69864AA415121D04C04549C5"
+  }
+}

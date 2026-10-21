@@ -1,0 +1,3695 @@
+{
+  "schema_version": 1,
+  "library": "Big Rusty Drums",
+  "author": "Karoryfer Samples / Karoryfer Lecolds",
+  "license": "CC0-1.0",
+  "license_file": "LICENSE-CC0.txt",
+  "source_url": "https://shop.karoryfer.com/pages/free-big-rusty-drums",
+  "repository_url": "https://github.com/sfzinstruments/karoryfer.big-rusty-drums",
+  "commit": "f07ce00df34a46b6b08375be56fe116cf15782bc",
+  "license_evidence": [
+    "https://shop.karoryfer.com/pages/free-samples",
+    "https://github.com/sfzinstruments/karoryfer.big-rusty-drums/blob/f07ce00df34a46b6b08375be56fe116cf15782bc/LICENSE"
+  ],
+  "mix_notes": "Original close microphone + stereo overhead, plus quiet bottom snare microphone. Common onset trim and 15ms tail fade. Constant gain per articulation; no synthesized drums, no pitch changes, no normalization per hit.",
+  "velocity_notes": "velocity is the rounded upper bound of the original evenly spaced source layer (127 * layer / layer_count). Choose nearest desired velocity, then rotate round_robin. Recorded level differences are preserved; do not normalize each hit.",
+  "samples": [
+    {
+      "kind": "kick",
+      "velocity": 64,
+      "source_velocity_layer": 7,
+      "source_velocity_layer_count": 14,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/kick_v64_rr1.flac",
+      "sources": [
+        {
+          "mic": "kick",
+          "source_path": "Samples/kick_24/kick/kick/k_vl7_rr1.flac",
+          "file": "originals/kick_24/kick/kick/k_vl7_rr1.flac",
+          "sha256": "a2ec22a813e71a53660438fdafa83c649886ffaaccb6bbff4f49853b0146c115"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/kick_24/kick/oh/k_vl7_rr1.flac",
+          "file": "originals/kick_24/kick/oh/k_vl7_rr1.flac",
+          "sha256": "b0239925dba7c5ef72a62941406c57194f4f262309c56c01aae8e2e0f8224f43"
+        }
+      ],
+      "overhead_gain": 0.19,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 0.834994589496279,
+      "peak": 0.2537723183631897,
+      "rms": 0.01816387102007866,
+      "sha256": "1f0212e86a9eed5e03f5982908238d53704e1852d022a79c48f2ac8c90c27250"
+    },
+    {
+      "kind": "kick",
+      "velocity": 64,
+      "source_velocity_layer": 7,
+      "source_velocity_layer_count": 14,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/kick_v64_rr2.flac",
+      "sources": [
+        {
+          "mic": "kick",
+          "source_path": "Samples/kick_24/kick/kick/k_vl7_rr2.flac",
+          "file": "originals/kick_24/kick/kick/k_vl7_rr2.flac",
+          "sha256": "df76e9b5cd8131d14e85263a8353697c7798bbdd7248b3af4135a8d19780e736"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/kick_24/kick/oh/k_vl7_rr2.flac",
+          "file": "originals/kick_24/kick/oh/k_vl7_rr2.flac",
+          "sha256": "8f9f59ab88176e1461f20319d0c949521316ec9307371c8c5666619a80573dcf"
+        }
+      ],
+      "overhead_gain": 0.19,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 0.834994589496279,
+      "peak": 0.25563785433769226,
+      "rms": 0.018015937879681587,
+      "sha256": "44d8049b425bd2d95de1d84a500311bbb6d50111458ef178fc29a7827a3d76e8"
+    },
+    {
+      "kind": "kick",
+      "velocity": 64,
+      "source_velocity_layer": 7,
+      "source_velocity_layer_count": 14,
+      "round_robin": 3,
+      "mic": "mix",
+      "file": "mixed/kick_v64_rr3.flac",
+      "sources": [
+        {
+          "mic": "kick",
+          "source_path": "Samples/kick_24/kick/kick/k_vl7_rr3.flac",
+          "file": "originals/kick_24/kick/kick/k_vl7_rr3.flac",
+          "sha256": "168c309206db0ed76ed826363e9c4cdd9fdd01d107b7c5533d476dcf2fe7384a"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/kick_24/kick/oh/k_vl7_rr3.flac",
+          "file": "originals/kick_24/kick/oh/k_vl7_rr3.flac",
+          "sha256": "d4f5729ee3c1e860d7aec65bc566e35c2fa4be48b23661b00173ffd5e104ad5f"
+        }
+      ],
+      "overhead_gain": 0.19,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 0.834994589496279,
+      "peak": 0.25986558198928833,
+      "rms": 0.01844734512269497,
+      "sha256": "fb58f2828db86d7612e78a3b6287a468081a24478a3f6b5282ee3211b3136ac8"
+    },
+    {
+      "kind": "kick",
+      "velocity": 91,
+      "source_velocity_layer": 10,
+      "source_velocity_layer_count": 14,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/kick_v91_rr1.flac",
+      "sources": [
+        {
+          "mic": "kick",
+          "source_path": "Samples/kick_24/kick/kick/k_vl10_rr1.flac",
+          "file": "originals/kick_24/kick/kick/k_vl10_rr1.flac",
+          "sha256": "a43a2124efb24f21f62a79f2fa1eab99dbae800aae111e9da124830703b06720"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/kick_24/kick/oh/k_vl10_rr1.flac",
+          "file": "originals/kick_24/kick/oh/k_vl10_rr1.flac",
+          "sha256": "db91ba65763968a404863d391d5252d74aa98d893125aa4be0aa6a4c261eab63"
+        }
+      ],
+      "overhead_gain": 0.19,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 0.834994589496279,
+      "peak": 0.41808846592903137,
+      "rms": 0.02727205492556095,
+      "sha256": "c95ba625d5024734561f8e457449b41680dd960f8645680cc53d04a2b34f7ccb"
+    },
+    {
+      "kind": "kick",
+      "velocity": 91,
+      "source_velocity_layer": 10,
+      "source_velocity_layer_count": 14,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/kick_v91_rr2.flac",
+      "sources": [
+        {
+          "mic": "kick",
+          "source_path": "Samples/kick_24/kick/kick/k_vl10_rr2.flac",
+          "file": "originals/kick_24/kick/kick/k_vl10_rr2.flac",
+          "sha256": "edb66f938549d86924ccc2506b8a987f5535b8ae3d77539160e71e5ad7d798c3"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/kick_24/kick/oh/k_vl10_rr2.flac",
+          "file": "originals/kick_24/kick/oh/k_vl10_rr2.flac",
+          "sha256": "c30f441e75033c89aa343ecdda70777400c31568e6a324a56fef2b67012032ed"
+        }
+      ],
+      "overhead_gain": 0.19,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 0.834994589496279,
+      "peak": 0.42262861132621765,
+      "rms": 0.027795366942882538,
+      "sha256": "ae35bcd1b2b6aa5fcaebdab48808f96fed9d0c45d80bb2b12183b4a0d992be2d"
+    },
+    {
+      "kind": "kick",
+      "velocity": 91,
+      "source_velocity_layer": 10,
+      "source_velocity_layer_count": 14,
+      "round_robin": 3,
+      "mic": "mix",
+      "file": "mixed/kick_v91_rr3.flac",
+      "sources": [
+        {
+          "mic": "kick",
+          "source_path": "Samples/kick_24/kick/kick/k_vl10_rr3.flac",
+          "file": "originals/kick_24/kick/kick/k_vl10_rr3.flac",
+          "sha256": "60e33c9eeb8a6d5e6f0d5f13c82d0d61ebdd1849946199950d75e972db5d9682"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/kick_24/kick/oh/k_vl10_rr3.flac",
+          "file": "originals/kick_24/kick/oh/k_vl10_rr3.flac",
+          "sha256": "974f2f120964fa704bb93a4ae7aeb96eec250a1a787a2d01c19bbe6bf4c2f481"
+        }
+      ],
+      "overhead_gain": 0.19,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 0.834994589496279,
+      "peak": 0.40674108266830444,
+      "rms": 0.02807532623410225,
+      "sha256": "d8b7b72410beedccf85ea7b01ea2232a013613c2f77410ebc98cbe1dc34d091b"
+    },
+    {
+      "kind": "kick",
+      "velocity": 127,
+      "source_velocity_layer": 14,
+      "source_velocity_layer_count": 14,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/kick_v127_rr1.flac",
+      "sources": [
+        {
+          "mic": "kick",
+          "source_path": "Samples/kick_24/kick/kick/k_vl14_rr1.flac",
+          "file": "originals/kick_24/kick/kick/k_vl14_rr1.flac",
+          "sha256": "3b2a6a82ab1faa9ef97f87fbc4f9dcbace81ea18149f6d7c1438da8b64f20ec3"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/kick_24/kick/oh/k_vl14_rr1.flac",
+          "file": "originals/kick_24/kick/oh/k_vl14_rr1.flac",
+          "sha256": "b0bf6e73594b9fab70c744fc12d5195b1850ae0fb8d3b6458dba550dd23dafdd"
+        }
+      ],
+      "overhead_gain": 0.19,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 0.834994589496279,
+      "peak": 0.8770493865013123,
+      "rms": 0.05080259218811989,
+      "sha256": "ca65cbe55118c5d2ef7d79cc7c2c8abd4c8d69e23acfebbe6d8058ffb3b93565"
+    },
+    {
+      "kind": "kick",
+      "velocity": 127,
+      "source_velocity_layer": 14,
+      "source_velocity_layer_count": 14,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/kick_v127_rr2.flac",
+      "sources": [
+        {
+          "mic": "kick",
+          "source_path": "Samples/kick_24/kick/kick/k_vl14_rr2.flac",
+          "file": "originals/kick_24/kick/kick/k_vl14_rr2.flac",
+          "sha256": "1515faafb66ff9be22a9726d0a754cc7d5d68e6cc6928f941b726795ad5585ce"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/kick_24/kick/oh/k_vl14_rr2.flac",
+          "file": "originals/kick_24/kick/oh/k_vl14_rr2.flac",
+          "sha256": "30b27e53cce02829def0c915c7fc5122699ca33b2f7546f1c4443a7bab00f471"
+        }
+      ],
+      "overhead_gain": 0.19,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 0.834994589496279,
+      "peak": 0.9000000357627869,
+      "rms": 0.052319977432489395,
+      "sha256": "5cbbe5899d70092ed8c90440f99bc966ab90fc22a0f474c7dedf6bd6eb306eb8"
+    },
+    {
+      "kind": "kick",
+      "velocity": 127,
+      "source_velocity_layer": 14,
+      "source_velocity_layer_count": 14,
+      "round_robin": 3,
+      "mic": "mix",
+      "file": "mixed/kick_v127_rr3.flac",
+      "sources": [
+        {
+          "mic": "kick",
+          "source_path": "Samples/kick_24/kick/kick/k_vl14_rr3.flac",
+          "file": "originals/kick_24/kick/kick/k_vl14_rr3.flac",
+          "sha256": "c2956fe4b4ae8930f75af4531d49ff0f63cf22e2d4a1bfd12e67786b294ed0f9"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/kick_24/kick/oh/k_vl14_rr3.flac",
+          "file": "originals/kick_24/kick/oh/k_vl14_rr3.flac",
+          "sha256": "715776fb725c3479636a7867dcadbff11b4483d8d9f99f2d1c4081a9f89401a7"
+        }
+      ],
+      "overhead_gain": 0.19,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 0.834994589496279,
+      "peak": 0.8685640692710876,
+      "rms": 0.050661008805036545,
+      "sha256": "aafd11cd5bc1f26128c0e0221c9a680d49ecb1f0d11a71e32ac11bf619801fa1"
+    },
+    {
+      "kind": "snare",
+      "velocity": 64,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 10,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/snare_v64_rr1.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/center/top/sn_center_vl5_rr1.flac",
+          "file": "originals/snare_14/center/top/sn_center_vl5_rr1.flac",
+          "sha256": "73c19a6ba6baeab21dfca21136bd32b89adb80ef4182bb662556086f20c03ca8"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/center/oh/sn_center_vl5_rr1.flac",
+          "file": "originals/snare_14/center/oh/sn_center_vl5_rr1.flac",
+          "sha256": "15e6f72dc4c35b2cc650e7c7c8a64a60d143b008cf4ead953d7b1868c544487e"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/center/btm/sn_center_vl5_rr1.flac",
+          "file": "originals/snare_14/center/btm/sn_center_vl5_rr1.flac",
+          "sha256": "7a5d39a7d84d13e022a6ede26876dd8482ecd0121a445189927205eb8eb535a8"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.5392581465161854,
+      "peak": 0.2459275871515274,
+      "rms": 0.010509124957025051,
+      "sha256": "7bc97e506008c063036071162111f8159aef50da6180ba4072ea6f79cac5c8ad"
+    },
+    {
+      "kind": "snare",
+      "velocity": 64,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 10,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/snare_v64_rr2.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/center/top/sn_center_vl5_rr2.flac",
+          "file": "originals/snare_14/center/top/sn_center_vl5_rr2.flac",
+          "sha256": "8c27048750733c88e471aac7d253df3a27873059dc67f9174425a22f6b4754f7"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/center/oh/sn_center_vl5_rr2.flac",
+          "file": "originals/snare_14/center/oh/sn_center_vl5_rr2.flac",
+          "sha256": "6543bd3cdf8ebb74cf37475ee537bee635e38ba69d14c4777e29ee96a7d66533"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/center/btm/sn_center_vl5_rr2.flac",
+          "file": "originals/snare_14/center/btm/sn_center_vl5_rr2.flac",
+          "sha256": "eb4d2ea97473b27bef7ef6f365791a8c7c4618f329a5bc7e27fd641f528f7315"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.5392581465161854,
+      "peak": 0.22812145948410034,
+      "rms": 0.01003016997128725,
+      "sha256": "d2f59d0097aa6ac801470e4f691b134dec4d89f29d40d4a925c80f7c0fab0b14"
+    },
+    {
+      "kind": "snare",
+      "velocity": 64,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 10,
+      "round_robin": 3,
+      "mic": "mix",
+      "file": "mixed/snare_v64_rr3.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/center/top/sn_center_vl5_rr3.flac",
+          "file": "originals/snare_14/center/top/sn_center_vl5_rr3.flac",
+          "sha256": "b11278c6cef7c6f6bc40252dc7863439183c21d92d75e439278a11804dc11af0"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/center/oh/sn_center_vl5_rr3.flac",
+          "file": "originals/snare_14/center/oh/sn_center_vl5_rr3.flac",
+          "sha256": "68c3a298e953dd0607e35c0fbf8a7880465e46ac80699099bbe890d4de1923e8"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/center/btm/sn_center_vl5_rr3.flac",
+          "file": "originals/snare_14/center/btm/sn_center_vl5_rr3.flac",
+          "sha256": "afc5cc3c76cb1fd49de90ea44ded68db4e8cf467b000a0c92be813ce399a919a"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.5392581465161854,
+      "peak": 0.21944433450698853,
+      "rms": 0.009982295334339142,
+      "sha256": "575afd09adcc19778f8f2ce6644d0a65ff3aebbed101a8a7ff001dd3a26b6d94"
+    },
+    {
+      "kind": "snare",
+      "velocity": 89,
+      "source_velocity_layer": 7,
+      "source_velocity_layer_count": 10,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/snare_v89_rr1.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/center/top/sn_center_vl7_rr1.flac",
+          "file": "originals/snare_14/center/top/sn_center_vl7_rr1.flac",
+          "sha256": "41346b0b273de7ac90e20775bba06d1863e74108802afa09ea550a517c1a4825"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/center/oh/sn_center_vl7_rr1.flac",
+          "file": "originals/snare_14/center/oh/sn_center_vl7_rr1.flac",
+          "sha256": "43743840bc5b3302d898b466a142ad12465cf073448863db9a83a588a2f61937"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/center/btm/sn_center_vl7_rr1.flac",
+          "file": "originals/snare_14/center/btm/sn_center_vl7_rr1.flac",
+          "sha256": "f9995dc595d746fb519d07922b0a5923a44718297d5c55b1cd1a9022402d9c85"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.5392581465161854,
+      "peak": 0.39716365933418274,
+      "rms": 0.015697056427598,
+      "sha256": "f372e693454866bab0d23fc22f9bf03edd3c718226b026f76be7cd3a46c81749"
+    },
+    {
+      "kind": "snare",
+      "velocity": 89,
+      "source_velocity_layer": 7,
+      "source_velocity_layer_count": 10,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/snare_v89_rr2.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/center/top/sn_center_vl7_rr2.flac",
+          "file": "originals/snare_14/center/top/sn_center_vl7_rr2.flac",
+          "sha256": "0fe0619e196eaecddd6482ab503b15f8357a03459be3b401f9468b9db5f5372c"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/center/oh/sn_center_vl7_rr2.flac",
+          "file": "originals/snare_14/center/oh/sn_center_vl7_rr2.flac",
+          "sha256": "ff0b743b01b0467dfe4567bfba342c7dacbe594e62cf42d7965038c30d2a31b3"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/center/btm/sn_center_vl7_rr2.flac",
+          "file": "originals/snare_14/center/btm/sn_center_vl7_rr2.flac",
+          "sha256": "35b030bfa3ec9d5e17e789edd5c3421693df6e425c5e3a343b6bef4a11217712"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.5392581465161854,
+      "peak": 0.3789704442024231,
+      "rms": 0.01530950702726841,
+      "sha256": "031f2755d5bcf0dc611e139f4bba2d661ccbc5f1ecd4173b7822e4a500d1739b"
+    },
+    {
+      "kind": "snare",
+      "velocity": 89,
+      "source_velocity_layer": 7,
+      "source_velocity_layer_count": 10,
+      "round_robin": 3,
+      "mic": "mix",
+      "file": "mixed/snare_v89_rr3.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/center/top/sn_center_vl7_rr3.flac",
+          "file": "originals/snare_14/center/top/sn_center_vl7_rr3.flac",
+          "sha256": "e3c62a310b015346f69bda18c9c142855e5231616fd0375d3bd4d44b27be4a70"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/center/oh/sn_center_vl7_rr3.flac",
+          "file": "originals/snare_14/center/oh/sn_center_vl7_rr3.flac",
+          "sha256": "1cd37035dddccc679f84ae374e67e72d26011530b72c75235820934c9d75a3b4"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/center/btm/sn_center_vl7_rr3.flac",
+          "file": "originals/snare_14/center/btm/sn_center_vl7_rr3.flac",
+          "sha256": "8231111ecea4b59d3978dcd5b256c4277f951ac9c0fdad1893fca137764fb83c"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.5392581465161854,
+      "peak": 0.3324131369590759,
+      "rms": 0.014438357204198837,
+      "sha256": "7c0059f11950548c24adb906ac98c064bd98e1d2477011b21570153abb776fc0"
+    },
+    {
+      "kind": "snare",
+      "velocity": 127,
+      "source_velocity_layer": 10,
+      "source_velocity_layer_count": 10,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/snare_v127_rr1.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/center/top/sn_center_vl10_rr1.flac",
+          "file": "originals/snare_14/center/top/sn_center_vl10_rr1.flac",
+          "sha256": "9b13c55f8804ec5d14a6a84c4f9fb47aaee2a83a546ae5b1914a8fdd858e05f5"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/center/oh/sn_center_vl10_rr1.flac",
+          "file": "originals/snare_14/center/oh/sn_center_vl10_rr1.flac",
+          "sha256": "1ab31b465245225e0ec16bacedecd34f1bed1a57b2360dd0666fbefafb361525"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/center/btm/sn_center_vl10_rr1.flac",
+          "file": "originals/snare_14/center/btm/sn_center_vl10_rr1.flac",
+          "sha256": "d6e9b2276a5c06513fccfc22f8584c910979077792edd191ef467c6ae1ef41f5"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.5392581465161854,
+      "peak": 0.7371354103088379,
+      "rms": 0.027389992028474808,
+      "sha256": "41faef74cc57b031492db349856528046c09487d618cc4f3927c106edccb938e"
+    },
+    {
+      "kind": "snare",
+      "velocity": 127,
+      "source_velocity_layer": 10,
+      "source_velocity_layer_count": 10,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/snare_v127_rr2.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/center/top/sn_center_vl10_rr2.flac",
+          "file": "originals/snare_14/center/top/sn_center_vl10_rr2.flac",
+          "sha256": "23f971376ef0ddad37b42ac829be11e293aa89db5514873816da124f283f780a"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/center/oh/sn_center_vl10_rr2.flac",
+          "file": "originals/snare_14/center/oh/sn_center_vl10_rr2.flac",
+          "sha256": "eb1de60287ab00056529d0d1d0a26b9eccc97a5910c6710c5aa89b950297fc91"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/center/btm/sn_center_vl10_rr2.flac",
+          "file": "originals/snare_14/center/btm/sn_center_vl10_rr2.flac",
+          "sha256": "391a0b6400aeaa79703154a137baa6b205b2cb8a24c1b2ba0f7dbe1f9d53f125"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.5392581465161854,
+      "peak": 0.8999999761581421,
+      "rms": 0.030595269054174423,
+      "sha256": "c01b07ef019367c9debc4b863fb785d048a95cc95508d4dcb44a70f387c4abcc"
+    },
+    {
+      "kind": "snare",
+      "velocity": 127,
+      "source_velocity_layer": 10,
+      "source_velocity_layer_count": 10,
+      "round_robin": 3,
+      "mic": "mix",
+      "file": "mixed/snare_v127_rr3.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/center/top/sn_center_vl10_rr3.flac",
+          "file": "originals/snare_14/center/top/sn_center_vl10_rr3.flac",
+          "sha256": "b7c2af14aa3d546b131fcf8264cb3b86888b2dc61f3f4b91e874f09a1f7b8d79"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/center/oh/sn_center_vl10_rr3.flac",
+          "file": "originals/snare_14/center/oh/sn_center_vl10_rr3.flac",
+          "sha256": "61ed9e6e87ca31189f0466c68168bd8338b7241ab4f8a89a82404bd585743c01"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/center/btm/sn_center_vl10_rr3.flac",
+          "file": "originals/snare_14/center/btm/sn_center_vl10_rr3.flac",
+          "sha256": "6614e97267b3d34103989a867a72052243e844f2ff312abe710eb1b827f75301"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.5392581465161854,
+      "peak": 0.7989054322242737,
+      "rms": 0.028681935742497444,
+      "sha256": "8cac5a6ca3f6437efb2859f809e907bfab56fc5268403eafc66a6bd1a5d6821d"
+    },
+    {
+      "kind": "snare_rimshot",
+      "velocity": 64,
+      "source_velocity_layer": 3,
+      "source_velocity_layer_count": 6,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/snare_rimshot_v64_rr1.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/rimshot/top/sn_rims_vl3_rr1.flac",
+          "file": "originals/snare_14/rimshot/top/sn_rims_vl3_rr1.flac",
+          "sha256": "db6c208aa4bdb51cee22e23ba3f64ca5c1218c353f805c7ad9c8e421a26959b5"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/rimshot/oh/sn_rims_vl3_rr1.flac",
+          "file": "originals/snare_14/rimshot/oh/sn_rims_vl3_rr1.flac",
+          "sha256": "2a399ff0f286ba209ec414ceb1100ca0ae928249e309a854a00f2f0503883862"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/rimshot/btm/sn_rims_vl3_rr1.flac",
+          "file": "originals/snare_14/rimshot/btm/sn_rims_vl3_rr1.flac",
+          "sha256": "69ec5db65e204fe98dd4d2dd701b096a0e2391cd5ed37e04a7fb6519a744ec97"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 72012,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.093004666200399,
+      "peak": 0.42445194721221924,
+      "rms": 0.010420195758342743,
+      "sha256": "7e47df2ef9a471936b25fffcc79ba34c86f4220d21a99ad4ab0ae9b591b3b466"
+    },
+    {
+      "kind": "snare_rimshot",
+      "velocity": 64,
+      "source_velocity_layer": 3,
+      "source_velocity_layer_count": 6,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/snare_rimshot_v64_rr2.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/rimshot/top/sn_rims_vl3_rr2.flac",
+          "file": "originals/snare_14/rimshot/top/sn_rims_vl3_rr2.flac",
+          "sha256": "146cbad98f430db93ae3aa248ddf7be9d20c083f11cb9a2e1f35204beaada344"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/rimshot/oh/sn_rims_vl3_rr2.flac",
+          "file": "originals/snare_14/rimshot/oh/sn_rims_vl3_rr2.flac",
+          "sha256": "68dd9de740d62d829faceadb987ef2c68c7a23fc8289aa9cae6154e0d37a5abf"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/rimshot/btm/sn_rims_vl3_rr2.flac",
+          "file": "originals/snare_14/rimshot/btm/sn_rims_vl3_rr2.flac",
+          "sha256": "98ca803ca92279f5e8ce68e7f01edfb186b31bb036251362e8bed92dcbd117d1"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 72012,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.093004666200399,
+      "peak": 0.4264896512031555,
+      "rms": 0.01174857560545206,
+      "sha256": "aff0644637a73871964afee46d75295d6d5a090e6278df41c2efa040a7e5d12d"
+    },
+    {
+      "kind": "snare_rimshot",
+      "velocity": 106,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 6,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/snare_rimshot_v106_rr1.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/rimshot/top/sn_rims_vl5_rr1.flac",
+          "file": "originals/snare_14/rimshot/top/sn_rims_vl5_rr1.flac",
+          "sha256": "ca54acdfb20c1f8cbbf997598c7a8bc5d94333e4a7a2d7c7413cdeea56ab1f44"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/rimshot/oh/sn_rims_vl5_rr1.flac",
+          "file": "originals/snare_14/rimshot/oh/sn_rims_vl5_rr1.flac",
+          "sha256": "09753fdacbadae393443a142f0b71daf276393e3e61d17bb8114e27ff8b828a0"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/rimshot/btm/sn_rims_vl5_rr1.flac",
+          "file": "originals/snare_14/rimshot/btm/sn_rims_vl5_rr1.flac",
+          "sha256": "959da63188cbdb5dbf21e45a5fcf9e7682de0e57b5370491d66a0fc61ae511c0"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 72012,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.093004666200399,
+      "peak": 0.68175208568573,
+      "rms": 0.016070667654275894,
+      "sha256": "c3cf670fcebb36f423b2c88703180a99297d4ef1f935c9b9cdb0b867ec87fed1"
+    },
+    {
+      "kind": "snare_rimshot",
+      "velocity": 106,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 6,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/snare_rimshot_v106_rr2.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/rimshot/top/sn_rims_vl5_rr2.flac",
+          "file": "originals/snare_14/rimshot/top/sn_rims_vl5_rr2.flac",
+          "sha256": "55b938ae52250fd65b147856fa6f9ec5547a7d4239c4da81373b191abaa7abab"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/rimshot/oh/sn_rims_vl5_rr2.flac",
+          "file": "originals/snare_14/rimshot/oh/sn_rims_vl5_rr2.flac",
+          "sha256": "d454f119a17718f08714663d1693718e738c00aab13c8a13d8a95c12d1cc87a5"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/rimshot/btm/sn_rims_vl5_rr2.flac",
+          "file": "originals/snare_14/rimshot/btm/sn_rims_vl5_rr2.flac",
+          "sha256": "7a973ad9819c48947c7cb78719e2e144d672f9778518b4f9e2d6f481f43d937a"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 72012,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.093004666200399,
+      "peak": 0.6374707221984863,
+      "rms": 0.013433798216283321,
+      "sha256": "f12c2662a9026473b54ecc7af067d1d573900312507f1bcccc2de94f7d898652"
+    },
+    {
+      "kind": "snare_rimshot",
+      "velocity": 127,
+      "source_velocity_layer": 6,
+      "source_velocity_layer_count": 6,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/snare_rimshot_v127_rr1.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/rimshot/top/sn_rims_vl6_rr1.flac",
+          "file": "originals/snare_14/rimshot/top/sn_rims_vl6_rr1.flac",
+          "sha256": "8e6bc770239c31e4c0545ae6147abf2cf396923283ff5ebeecaf02318cf3c1c8"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/rimshot/oh/sn_rims_vl6_rr1.flac",
+          "file": "originals/snare_14/rimshot/oh/sn_rims_vl6_rr1.flac",
+          "sha256": "c69206fa16183379091fd55751692a6ad405dd9cbed8034f54eb24a8c5997cd1"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/rimshot/btm/sn_rims_vl6_rr1.flac",
+          "file": "originals/snare_14/rimshot/btm/sn_rims_vl6_rr1.flac",
+          "sha256": "9117129d56a6e7b0746f282faf47fe97fe516c0cde1093a67d571f703a1c7bdb"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 72012,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.093004666200399,
+      "peak": 0.9000000357627869,
+      "rms": 0.020070791244506836,
+      "sha256": "b502b7604539aa33559e24eb4015f4472d57369048dc8e0dbd171cf4fb71849d"
+    },
+    {
+      "kind": "snare_rimshot",
+      "velocity": 127,
+      "source_velocity_layer": 6,
+      "source_velocity_layer_count": 6,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/snare_rimshot_v127_rr2.flac",
+      "sources": [
+        {
+          "mic": "top",
+          "source_path": "Samples/snare_14/rimshot/top/sn_rims_vl6_rr2.flac",
+          "file": "originals/snare_14/rimshot/top/sn_rims_vl6_rr2.flac",
+          "sha256": "2d5aac175ff581aba367455261c23401a63af32a397fcceecd013b797c6ad9b6"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/snare_14/rimshot/oh/sn_rims_vl6_rr2.flac",
+          "file": "originals/snare_14/rimshot/oh/sn_rims_vl6_rr2.flac",
+          "sha256": "e64fa16331a4ed9930c37d9be0bac8e04feb897cbcf4f1446bf42e15a0836605"
+        },
+        {
+          "mic": "btm",
+          "source_path": "Samples/snare_14/rimshot/btm/sn_rims_vl6_rr2.flac",
+          "file": "originals/snare_14/rimshot/btm/sn_rims_vl6_rr2.flac",
+          "sha256": "1f2eb4e4f4d286c8f8d44212b7ad2c823da4829e46a5f4b33cfefff0c3787455"
+        }
+      ],
+      "overhead_gain": 0.27,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 72012,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.093004666200399,
+      "peak": 0.8514702320098877,
+      "rms": 0.019050493836402893,
+      "sha256": "7a1db1c1f2ce2ec22eb32630af53f8585d8767c00ae2dc2ca1c4653b0d512441"
+    },
+    {
+      "kind": "hat",
+      "velocity": 64,
+      "source_velocity_layer": 3,
+      "source_velocity_layer_count": 6,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/hat_v64_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl3_rr1.flac",
+          "file": "originals/hihat_14/cl/cl/ht_cl_vl3_rr1.flac",
+          "sha256": "ce3d062d8de07cb3f273e84fbb8b9387fe951e21284cdceb8a0ec1e71cbc6bdc"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl3_rr1.flac",
+          "file": "originals/hihat_14/cl/oh/ht_cl_vl3_rr1.flac",
+          "sha256": "931bbbcd65423b4ffc5657df6c57f6a56e535bc344606f2db0c0d7cbe4c36082"
+        }
+      ],
+      "overhead_gain": 0.6,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6544294393991787,
+      "peak": 0.3202124834060669,
+      "rms": 0.008944204077124596,
+      "sha256": "59b0c3ef20b9f9fa97a91950b769c209550be483ba44ec3fdb673defc7f29721"
+    },
+    {
+      "kind": "hat",
+      "velocity": 64,
+      "source_velocity_layer": 3,
+      "source_velocity_layer_count": 6,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/hat_v64_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl3_rr2.flac",
+          "file": "originals/hihat_14/cl/cl/ht_cl_vl3_rr2.flac",
+          "sha256": "bc4661e4178f068a6a5dfc623a591761da1f98a9041e36d7ad0a8d2bac246ad8"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl3_rr2.flac",
+          "file": "originals/hihat_14/cl/oh/ht_cl_vl3_rr2.flac",
+          "sha256": "555e02fb5215d786abcea3d2ea1552b13f06da14deb7107e85fb90c230479bb8"
+        }
+      ],
+      "overhead_gain": 0.6,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6544294393991787,
+      "peak": 0.20242123305797577,
+      "rms": 0.005794420838356018,
+      "sha256": "d10718afd91bd7018bfee915451516e17eab03599b626125eac98ded0e706692"
+    },
+    {
+      "kind": "hat",
+      "velocity": 64,
+      "source_velocity_layer": 3,
+      "source_velocity_layer_count": 6,
+      "round_robin": 3,
+      "mic": "mix",
+      "file": "mixed/hat_v64_rr3.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl3_rr3.flac",
+          "file": "originals/hihat_14/cl/cl/ht_cl_vl3_rr3.flac",
+          "sha256": "72eb162b27af1c25d771885cb224a24b507b0d59446a21758b47391f365618c0"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl3_rr3.flac",
+          "file": "originals/hihat_14/cl/oh/ht_cl_vl3_rr3.flac",
+          "sha256": "d85f35415e5bbb7b15c8be2290fac9cb09d64e49051a8532f00c60cd9925aae6"
+        }
+      ],
+      "overhead_gain": 0.6,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6544294393991787,
+      "peak": 0.2136298269033432,
+      "rms": 0.006559288594871759,
+      "sha256": "0cc877305ecf5db2b0030a29073bb4fe1e21ac4cec8c4313427b53842a01331b"
+    },
+    {
+      "kind": "hat",
+      "velocity": 106,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 6,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/hat_v106_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl5_rr1.flac",
+          "file": "originals/hihat_14/cl/cl/ht_cl_vl5_rr1.flac",
+          "sha256": "87b23f751a0437ddab419489e2cbd14a79b7955d29034af513a77de96770efd4"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl5_rr1.flac",
+          "file": "originals/hihat_14/cl/oh/ht_cl_vl5_rr1.flac",
+          "sha256": "7828b550006e5396b4656f4b156450cec6f87526fac28318312d6afd2b022398"
+        }
+      ],
+      "overhead_gain": 0.6,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6544294393991787,
+      "peak": 0.8522372245788574,
+      "rms": 0.022433696314692497,
+      "sha256": "142fe2ff4f23ce888c71ea452b3779fec930dcba3bb3b59d469244603dfc2980"
+    },
+    {
+      "kind": "hat",
+      "velocity": 106,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 6,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/hat_v106_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl5_rr2.flac",
+          "file": "originals/hihat_14/cl/cl/ht_cl_vl5_rr2.flac",
+          "sha256": "4f73bf9fbcf945420f7c45765c9e23a0e4cb1a063907367757c3e7e161ae69eb"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl5_rr2.flac",
+          "file": "originals/hihat_14/cl/oh/ht_cl_vl5_rr2.flac",
+          "sha256": "3c2970ab898a09e1f2293259436e03d6d776a359c423da48db7589510ae9e0cc"
+        }
+      ],
+      "overhead_gain": 0.6,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6544294393991787,
+      "peak": 0.5906325578689575,
+      "rms": 0.013303562067449093,
+      "sha256": "7a199ef4086eb4c6599a831a453396361f87f96b371f24eacc2a8eb33d2eb973"
+    },
+    {
+      "kind": "hat",
+      "velocity": 106,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 6,
+      "round_robin": 3,
+      "mic": "mix",
+      "file": "mixed/hat_v106_rr3.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl5_rr3.flac",
+          "file": "originals/hihat_14/cl/cl/ht_cl_vl5_rr3.flac",
+          "sha256": "461ce5beb05d968f38671f2be64d0387b31185fb974825d0a1a551e37e13ec22"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl5_rr3.flac",
+          "file": "originals/hihat_14/cl/oh/ht_cl_vl5_rr3.flac",
+          "sha256": "53c35fdcf7aa5e3203f3ef3832df81c4bcb55750d32e4510a0fc40574d208f4c"
+        }
+      ],
+      "overhead_gain": 0.6,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6544294393991787,
+      "peak": 0.8074129223823547,
+      "rms": 0.01737869717180729,
+      "sha256": "0fcefd5000845f8104741f23f1c6f86f9e8056c342d44ea106c6ed1e9a80718e"
+    },
+    {
+      "kind": "hat",
+      "velocity": 127,
+      "source_velocity_layer": 6,
+      "source_velocity_layer_count": 6,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/hat_v127_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl6_rr1.flac",
+          "file": "originals/hihat_14/cl/cl/ht_cl_vl6_rr1.flac",
+          "sha256": "c51da9e592588bf5402627d9939521a69d5a178cd4d9dbbcc4d53e8195c60c30"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl6_rr1.flac",
+          "file": "originals/hihat_14/cl/oh/ht_cl_vl6_rr1.flac",
+          "sha256": "fa0599a70e95cdcd4fff5e2f18636253eb673a0116ee3f7b347e85a272051f06"
+        }
+      ],
+      "overhead_gain": 0.6,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6544294393991787,
+      "peak": 0.8999999761581421,
+      "rms": 0.02274950221180916,
+      "sha256": "a748815f17f2217eaaae576145f2301ea3252a7807910fd89d350f1b649a2509"
+    },
+    {
+      "kind": "hat",
+      "velocity": 127,
+      "source_velocity_layer": 6,
+      "source_velocity_layer_count": 6,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/hat_v127_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl6_rr2.flac",
+          "file": "originals/hihat_14/cl/cl/ht_cl_vl6_rr2.flac",
+          "sha256": "8ddcb7b8a13309f75acc85982ad74f953d21629e4fc028028bfb5b6074f825b6"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl6_rr2.flac",
+          "file": "originals/hihat_14/cl/oh/ht_cl_vl6_rr2.flac",
+          "sha256": "31ec7348ebb7cb0e1b94e4ad3d53e2b0f8d8f1ba1d916c0d5b2e91bb89438fa5"
+        }
+      ],
+      "overhead_gain": 0.6,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6544294393991787,
+      "peak": 0.8752904534339905,
+      "rms": 0.01937085948884487,
+      "sha256": "9ad83874fed1edd95db9820d8f6d2fefc1d9b8a0a40c36e908088a3bc917d57c"
+    },
+    {
+      "kind": "hat",
+      "velocity": 127,
+      "source_velocity_layer": 6,
+      "source_velocity_layer_count": 6,
+      "round_robin": 3,
+      "mic": "mix",
+      "file": "mixed/hat_v127_rr3.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl6_rr3.flac",
+          "file": "originals/hihat_14/cl/cl/ht_cl_vl6_rr3.flac",
+          "sha256": "50276e80230b7c2543845bb25134217c002bad232708d655dec6a17c6af0c8f4"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl6_rr3.flac",
+          "file": "originals/hihat_14/cl/oh/ht_cl_vl6_rr3.flac",
+          "sha256": "1979fcb61046cf6efd8a6f775f8bfc5b91a662f2729a7b1ba78b27f0575f38b0"
+        }
+      ],
+      "overhead_gain": 0.6,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6544294393991787,
+      "peak": 0.7992033362388611,
+      "rms": 0.018903478980064392,
+      "sha256": "951ce9e921271164edc045a4a7661d2772a0d0de66e6a01d3e9034291598a2a7"
+    },
+    {
+      "kind": "open_hat",
+      "velocity": 64,
+      "source_velocity_layer": 3,
+      "source_velocity_layer_count": 6,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/open_hat_v64_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/open/cl/ht_open_vl3_rr1.flac",
+          "file": "originals/hihat_14/open/cl/ht_open_vl3_rr1.flac",
+          "sha256": "d4a380fc54b9cc724fb567c7d5c3abb4dbd2999340367925f7b7e41100f6ed27"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/open/oh/ht_open_vl3_rr1.flac",
+          "file": "originals/hihat_14/open/oh/ht_open_vl3_rr1.flac",
+          "sha256": "137e645c60b11382e87e30207fcee730aad676d4e28c1970eec08652dbaf0e21"
+        }
+      ],
+      "overhead_gain": 0.62,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 437109,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 2.2728022038189324,
+      "peak": 0.38359779119491577,
+      "rms": 0.00916312262415886,
+      "sha256": "96590fe51ad6de25c9b325573a22740d1c253de3869e1378bc3308a468f624a9"
+    },
+    {
+      "kind": "open_hat",
+      "velocity": 64,
+      "source_velocity_layer": 3,
+      "source_velocity_layer_count": 6,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/open_hat_v64_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/open/cl/ht_open_vl3_rr2.flac",
+          "file": "originals/hihat_14/open/cl/ht_open_vl3_rr2.flac",
+          "sha256": "17d7798883b01a9a93dc65041ace93b1ffc0c804f74f95e43224f3bb7a2b4a99"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/open/oh/ht_open_vl3_rr2.flac",
+          "file": "originals/hihat_14/open/oh/ht_open_vl3_rr2.flac",
+          "sha256": "46c0b37f4ed50836e24cb675e9d67cd1e7f6305d8a137f5c5cf97f1aa34ef06b"
+        }
+      ],
+      "overhead_gain": 0.62,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 437109,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 2.2728022038189324,
+      "peak": 0.30524131655693054,
+      "rms": 0.009587759152054787,
+      "sha256": "649beda5a6424e77955877275fe43b4da9bff6a607a89bb02450b52e151f7485"
+    },
+    {
+      "kind": "open_hat",
+      "velocity": 106,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 6,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/open_hat_v106_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/open/cl/ht_open_vl5_rr1.flac",
+          "file": "originals/hihat_14/open/cl/ht_open_vl5_rr1.flac",
+          "sha256": "38f3565f2c23803205e7483a3e992f33e041dd3af2e340e38b1486cc3663f856"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/open/oh/ht_open_vl5_rr1.flac",
+          "file": "originals/hihat_14/open/oh/ht_open_vl5_rr1.flac",
+          "sha256": "429fac3437e0aa119308bf825c3c81097aa42baae70101e74b219abe48116f39"
+        }
+      ],
+      "overhead_gain": 0.62,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 437109,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 2.2728022038189324,
+      "peak": 0.8868561387062073,
+      "rms": 0.01841500587761402,
+      "sha256": "8636b6c8d05025d7e9f8c1920ac6148d7998330409f5d348c05e8bd0d9d4cfb0"
+    },
+    {
+      "kind": "open_hat",
+      "velocity": 106,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 6,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/open_hat_v106_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/open/cl/ht_open_vl5_rr2.flac",
+          "file": "originals/hihat_14/open/cl/ht_open_vl5_rr2.flac",
+          "sha256": "c792d660141d3f2e78aed0a461fc58429dd360e9f228de03e631f501024fda4c"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/open/oh/ht_open_vl5_rr2.flac",
+          "file": "originals/hihat_14/open/oh/ht_open_vl5_rr2.flac",
+          "sha256": "a35400a972690253b5e8a17228ecacbd06f81963d4dfee49f2c5cf6fe47a304e"
+        }
+      ],
+      "overhead_gain": 0.62,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 437109,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 2.2728022038189324,
+      "peak": 0.71514892578125,
+      "rms": 0.016035282984375954,
+      "sha256": "08dbfce6796a7c14cdf9fc07a3fe9da542ea0b437c3a5e08d13273a46bdfa22c"
+    },
+    {
+      "kind": "open_hat",
+      "velocity": 127,
+      "source_velocity_layer": 6,
+      "source_velocity_layer_count": 6,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/open_hat_v127_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/open/cl/ht_open_vl6_rr1.flac",
+          "file": "originals/hihat_14/open/cl/ht_open_vl6_rr1.flac",
+          "sha256": "3d86d6cec08969ea5982387c624214743f2b0a6ff6630ea7fed0ffccd44d50b8"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/open/oh/ht_open_vl6_rr1.flac",
+          "file": "originals/hihat_14/open/oh/ht_open_vl6_rr1.flac",
+          "sha256": "12b65aee03c38c0c5f831224892af6d7f7f1ada4996e8fc1063fb508dbe63f69"
+        }
+      ],
+      "overhead_gain": 0.62,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 437109,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 2.2728022038189324,
+      "peak": 0.8263489007949829,
+      "rms": 0.019740179181098938,
+      "sha256": "7b7b41dc014961432b2f392f9aa788f881e583d6acd57bb32e36de69ffb5ee06"
+    },
+    {
+      "kind": "open_hat",
+      "velocity": 127,
+      "source_velocity_layer": 6,
+      "source_velocity_layer_count": 6,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/open_hat_v127_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/hihat_14/open/cl/ht_open_vl6_rr2.flac",
+          "file": "originals/hihat_14/open/cl/ht_open_vl6_rr2.flac",
+          "sha256": "e1ab0dc1e18876f88657a77ab95b1527838d136b3587a605b82407c053ba8881"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/hihat_14/open/oh/ht_open_vl6_rr2.flac",
+          "file": "originals/hihat_14/open/oh/ht_open_vl6_rr2.flac",
+          "sha256": "f99b97a579535a6181f3ead3f462bcc24824a994fa31efff92f46b4b236dd610"
+        }
+      ],
+      "overhead_gain": 0.62,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 437109,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 2.2728022038189324,
+      "peak": 0.8999999761581421,
+      "rms": 0.018490230664610863,
+      "sha256": "154ea89b9ef075be75210ac3a022fc6de7b2cb68fd34937b5392db98abbb9237"
+    },
+    {
+      "kind": "ride",
+      "velocity": 64,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 10,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/ride_v64_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/ride_22/rd/cl/rd_vl5_rr1.flac",
+          "file": "originals/ride_22/rd/cl/rd_vl5_rr1.flac",
+          "sha256": "0370a712af800ec5a2bc6f3d6490ba82eaa4ca64cc81db612718a0a2745fed3a"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/ride_22/rd/oh/rd_vl5_rr1.flac",
+          "file": "originals/ride_22/rd/oh/rd_vl5_rr1.flac",
+          "sha256": "ded108cf09901f9b5590066a5d5d7a506fdedda415c4bd773b2fa4fd3f7e23a5"
+        }
+      ],
+      "overhead_gain": 0.67,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 811943,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.2421734815051864,
+      "peak": 0.26373517513275146,
+      "rms": 0.003278105054050684,
+      "sha256": "7981d27884ffe6dcfe38de477a83d8c5333cc4320a4c1f2819ef537951d50b5c"
+    },
+    {
+      "kind": "ride",
+      "velocity": 64,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 10,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/ride_v64_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/ride_22/rd/cl/rd_vl5_rr2.flac",
+          "file": "originals/ride_22/rd/cl/rd_vl5_rr2.flac",
+          "sha256": "aabbbd9de6c12235eb66fd813b9c622ec507fd9ef24d99409e43b97c43d67850"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/ride_22/rd/oh/rd_vl5_rr2.flac",
+          "file": "originals/ride_22/rd/oh/rd_vl5_rr2.flac",
+          "sha256": "649d3ec80ee4350e8f3c23759b7c4f165e8d84f0cdb8f3c2acf4c1764fe73b69"
+        }
+      ],
+      "overhead_gain": 0.67,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 811943,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.2421734815051864,
+      "peak": 0.25777220726013184,
+      "rms": 0.002405360108241439,
+      "sha256": "6f3940d4e04f63db9c048a4755a0c4218d0b40571234d12f3a5cdf8f6fd88d14"
+    },
+    {
+      "kind": "ride",
+      "velocity": 89,
+      "source_velocity_layer": 7,
+      "source_velocity_layer_count": 10,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/ride_v89_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/ride_22/rd/cl/rd_vl7_rr1.flac",
+          "file": "originals/ride_22/rd/cl/rd_vl7_rr1.flac",
+          "sha256": "dabedc20c2464c50b26729d42714eecaf85a6658e29c98504070568b954bec1b"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/ride_22/rd/oh/rd_vl7_rr1.flac",
+          "file": "originals/ride_22/rd/oh/rd_vl7_rr1.flac",
+          "sha256": "11b78424297ab0a3f9cf49d301ea009ef0d8975b0391a9d9ac36da2d5327cd6a"
+        }
+      ],
+      "overhead_gain": 0.67,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 811943,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.2421734815051864,
+      "peak": 0.43838396668434143,
+      "rms": 0.004581633023917675,
+      "sha256": "48c505e3e6d721ebe7cab7a6a96c7d2404caedeede8be3b93d0d68da87f526b6"
+    },
+    {
+      "kind": "ride",
+      "velocity": 89,
+      "source_velocity_layer": 7,
+      "source_velocity_layer_count": 10,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/ride_v89_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/ride_22/rd/cl/rd_vl7_rr2.flac",
+          "file": "originals/ride_22/rd/cl/rd_vl7_rr2.flac",
+          "sha256": "90e3627953ab6e16f2cde881a1fbf785a37595d51e9095fb2d3226227810db26"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/ride_22/rd/oh/rd_vl7_rr2.flac",
+          "file": "originals/ride_22/rd/oh/rd_vl7_rr2.flac",
+          "sha256": "2305a170d489230a3a31d88b77c3c743b3119a6ec02d3281abcbfbd3086f3e51"
+        }
+      ],
+      "overhead_gain": 0.67,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 811943,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.2421734815051864,
+      "peak": 0.4845253527164459,
+      "rms": 0.0061760395765304565,
+      "sha256": "976e0e1c69949ac46c0d39f297407781950b30bd3d95a91477d4b938954d1f74"
+    },
+    {
+      "kind": "ride",
+      "velocity": 127,
+      "source_velocity_layer": 10,
+      "source_velocity_layer_count": 10,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/ride_v127_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/ride_22/rd/cl/rd_vl10_rr1.flac",
+          "file": "originals/ride_22/rd/cl/rd_vl10_rr1.flac",
+          "sha256": "97be6f1be45f92919a9c932f6eed0800dc5c7e195df4b59e2e453a5cf2ed27bd"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/ride_22/rd/oh/rd_vl10_rr1.flac",
+          "file": "originals/ride_22/rd/oh/rd_vl10_rr1.flac",
+          "sha256": "c28a73b15b39db04b0d229064a6eb9a97e1bcbc0d6869fd0e11845a17e9ba0c5"
+        }
+      ],
+      "overhead_gain": 0.67,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 811943,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.2421734815051864,
+      "peak": 0.8999999761581421,
+      "rms": 0.008262482471764088,
+      "sha256": "24d934ca124193985b4f149b3565d38cb0e4977d90af4dfa8a6e81ccb3fd5f8c"
+    },
+    {
+      "kind": "ride",
+      "velocity": 127,
+      "source_velocity_layer": 10,
+      "source_velocity_layer_count": 10,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/ride_v127_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/ride_22/rd/cl/rd_vl10_rr2.flac",
+          "file": "originals/ride_22/rd/cl/rd_vl10_rr2.flac",
+          "sha256": "fa311598fae9669c53986d0d5ce10c569f6ee426bbf67d608359e49c3997c78c"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/ride_22/rd/oh/rd_vl10_rr2.flac",
+          "file": "originals/ride_22/rd/oh/rd_vl10_rr2.flac",
+          "sha256": "f1eab8ecf244f0615b801c5bc0ab7e11ba878c6bf0c9a0c226157922ecd3e13e"
+        }
+      ],
+      "overhead_gain": 0.67,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 811943,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.2421734815051864,
+      "peak": 0.7962120175361633,
+      "rms": 0.007802196778357029,
+      "sha256": "a97065d0c047832c48a3fe5907014b89cf5dcbf54518b165717d7ac9cfc2dfce"
+    },
+    {
+      "kind": "crash",
+      "velocity": 76,
+      "source_velocity_layer": 3,
+      "source_velocity_layer_count": 5,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/crash_v76_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/crash_17/cr/cl/cr_vl3_rr1.flac",
+          "file": "originals/crash_17/cr/cl/cr_vl3_rr1.flac",
+          "sha256": "051688364f5676960f1721853345ab04b4b0edbc58d399c385979c433170e35c"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/crash_17/cr/oh/cr_vl3_rr1.flac",
+          "file": "originals/crash_17/cr/oh/cr_vl3_rr1.flac",
+          "sha256": "f6beb5f29038df2d21059ccd706d8dce3b2d259f048f95bb3d8282086f392292"
+        }
+      ],
+      "overhead_gain": 0.78,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 730960,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.649456873560637,
+      "peak": 0.37724578380584717,
+      "rms": 0.008724208921194077,
+      "sha256": "fcc25512f17f53ce018ba9833d14c50f6ff4d3bd3db916be4fd036b2caccf356"
+    },
+    {
+      "kind": "crash",
+      "velocity": 76,
+      "source_velocity_layer": 3,
+      "source_velocity_layer_count": 5,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/crash_v76_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/crash_17/cr/cl/cr_vl3_rr2.flac",
+          "file": "originals/crash_17/cr/cl/cr_vl3_rr2.flac",
+          "sha256": "89ca0ea377365feffa2a8baa625481852beffed2f072c43614ee4a4281dc5cea"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/crash_17/cr/oh/cr_vl3_rr2.flac",
+          "file": "originals/crash_17/cr/oh/cr_vl3_rr2.flac",
+          "sha256": "a320d0d334dad2218c123d314a184a04c255a135c5e0222d23076e326f0b7a99"
+        }
+      ],
+      "overhead_gain": 0.78,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 689594,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.649456873560637,
+      "peak": 0.32545462250709534,
+      "rms": 0.005212303251028061,
+      "sha256": "dfd45d6c5f57859585ce21df39fae852367126a207d33a533ee8e690e67fdabe"
+    },
+    {
+      "kind": "crash",
+      "velocity": 102,
+      "source_velocity_layer": 4,
+      "source_velocity_layer_count": 5,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/crash_v102_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/crash_17/cr/cl/cr_vl4_rr1.flac",
+          "file": "originals/crash_17/cr/cl/cr_vl4_rr1.flac",
+          "sha256": "79afe7dc4a68a733d89207184f2e64e9815fb45ce82901a8c7e883562e584a9d"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/crash_17/cr/oh/cr_vl4_rr1.flac",
+          "file": "originals/crash_17/cr/oh/cr_vl4_rr1.flac",
+          "sha256": "84150bf1f6842d3cb7738c579ac06bdfb5319a5ab180a4b7663e8058fd0a0e46"
+        }
+      ],
+      "overhead_gain": 0.78,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 686331,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.649456873560637,
+      "peak": 0.6702660322189331,
+      "rms": 0.010193508118391037,
+      "sha256": "b27da2b48834bb5141bab8b50b614c24232ac5f813660900f183972d5a2b14b0"
+    },
+    {
+      "kind": "crash",
+      "velocity": 102,
+      "source_velocity_layer": 4,
+      "source_velocity_layer_count": 5,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/crash_v102_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/crash_17/cr/cl/cr_vl4_rr2.flac",
+          "file": "originals/crash_17/cr/cl/cr_vl4_rr2.flac",
+          "sha256": "434168a1ad2b94c145d190a1734da6360f41dd5ddf07bf52123e0b33622075c9"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/crash_17/cr/oh/cr_vl4_rr2.flac",
+          "file": "originals/crash_17/cr/oh/cr_vl4_rr2.flac",
+          "sha256": "24e1d0b6ee0e87de85637f0e1591bda6ec1cb528713b276ffaf285a2801cc843"
+        }
+      ],
+      "overhead_gain": 0.78,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 642515,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.649456873560637,
+      "peak": 0.5737853050231934,
+      "rms": 0.011968817561864853,
+      "sha256": "a83950aa522a2b3a6de8ed6d2007c57e302fa92601e2825d7287be4958baa612"
+    },
+    {
+      "kind": "crash",
+      "velocity": 127,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 5,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/crash_v127_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/crash_17/cr/cl/cr_vl5_rr1.flac",
+          "file": "originals/crash_17/cr/cl/cr_vl5_rr1.flac",
+          "sha256": "b9205bc10e508eec7c38f031b666bda00268ea7b68fcbc5b8a584de44ec3a1d3"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/crash_17/cr/oh/cr_vl5_rr1.flac",
+          "file": "originals/crash_17/cr/oh/cr_vl5_rr1.flac",
+          "sha256": "511907df68befff63a39df0693868ca8026f46bbd5d0c8e4d1b9cdfedea65504"
+        }
+      ],
+      "overhead_gain": 0.78,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 758449,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.649456873560637,
+      "peak": 0.8519498705863953,
+      "rms": 0.010546569712460041,
+      "sha256": "fa0e1ca66ea8dc552e609321999e1ec914dc740146778abfc0c934aa04618b61"
+    },
+    {
+      "kind": "crash",
+      "velocity": 127,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 5,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/crash_v127_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/crash_17/cr/cl/cr_vl5_rr2.flac",
+          "file": "originals/crash_17/cr/cl/cr_vl5_rr2.flac",
+          "sha256": "a3aa2e5c2d1cbf5665ad15e95d191ce857154d673ea12278cd389b3cc070287a"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/crash_17/cr/oh/cr_vl5_rr2.flac",
+          "file": "originals/crash_17/cr/oh/cr_vl5_rr2.flac",
+          "sha256": "cdf24a74429f440e349dad04cdba58067906e6230da28c4b9e4338e74ceb012e"
+        }
+      ],
+      "overhead_gain": 0.78,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 715941,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.649456873560637,
+      "peak": 0.8999999761581421,
+      "rms": 0.011696050874888897,
+      "sha256": "6dac76dc10166cc6daa5dab37070b34a595ff5872a7384b5aa817ec10ecf90a5"
+    },
+    {
+      "kind": "tom_hi",
+      "velocity": 64,
+      "source_velocity_layer": 3,
+      "source_velocity_layer_count": 6,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/tom_hi_v64_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_14/center/cl/t14_vl3_rr1.flac",
+          "file": "originals/tom_14/center/cl/t14_vl3_rr1.flac",
+          "sha256": "cb59527327ec38d3ce4afd0723d18d848e64f625b98a393d10c423c6dfbb6f83"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_14/center/oh/t14_vl3_rr1.flac",
+          "file": "originals/tom_14/center/oh/t14_vl3_rr1.flac",
+          "sha256": "bd0881e27bbd29ce55ef1c59814c16d5a815d006beb0fafdfbd944d0db3d8034"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 110105,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6542532604122844,
+      "peak": 0.3498779833316803,
+      "rms": 0.022561535239219666,
+      "sha256": "33921eed58b3a2dddbeb9f939955d876fb5bdb2c1136b00c501b08aed4993740"
+    },
+    {
+      "kind": "tom_hi",
+      "velocity": 64,
+      "source_velocity_layer": 3,
+      "source_velocity_layer_count": 6,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/tom_hi_v64_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_14/center/cl/t14_vl3_rr2.flac",
+          "file": "originals/tom_14/center/cl/t14_vl3_rr2.flac",
+          "sha256": "9ee5f0674b58494a42081b53ff7be96f6c645f5bd9479ba7957eeb1631f6f515"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_14/center/oh/t14_vl3_rr2.flac",
+          "file": "originals/tom_14/center/oh/t14_vl3_rr2.flac",
+          "sha256": "3e4b5691bb3b3878ac923b0c406bd0bc3e6d38f298ba4d4d0d8c3e9bccf2bbd0"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 110105,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6542532604122844,
+      "peak": 0.31481698155403137,
+      "rms": 0.022501744329929352,
+      "sha256": "71dc21782e1299d49acd73fadcaa9db513ae2914275e1df07b5c4ba757c1025d"
+    },
+    {
+      "kind": "tom_hi",
+      "velocity": 106,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 6,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/tom_hi_v106_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_14/center/cl/t14_vl5_rr1.flac",
+          "file": "originals/tom_14/center/cl/t14_vl5_rr1.flac",
+          "sha256": "7aabe82391ff96cda9203cee81fc72fa1665ca225ddfab8bc05abd883c18c727"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_14/center/oh/t14_vl5_rr1.flac",
+          "file": "originals/tom_14/center/oh/t14_vl5_rr1.flac",
+          "sha256": "6291e1080fe2579239ace581c2f37dcb500053cf062c914c06d4fb39c2308c75"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 110105,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6542532604122844,
+      "peak": 0.6434286832809448,
+      "rms": 0.04013532027602196,
+      "sha256": "c8b078120adcf1f0cf14b2dfcb662b7238221629196d3850b04adeb80140470a"
+    },
+    {
+      "kind": "tom_hi",
+      "velocity": 106,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 6,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/tom_hi_v106_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_14/center/cl/t14_vl5_rr2.flac",
+          "file": "originals/tom_14/center/cl/t14_vl5_rr2.flac",
+          "sha256": "60d8d9475ae9a63ca8e2144dd3c854496f11d6bf65ec51c22091c7ac94464b71"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_14/center/oh/t14_vl5_rr2.flac",
+          "file": "originals/tom_14/center/oh/t14_vl5_rr2.flac",
+          "sha256": "5e7a0cac2de2ef817bf36088c1274d2fa1b7ff3c61d1b96a4f0de7fef5a4727e"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 110105,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6542532604122844,
+      "peak": 0.5993437170982361,
+      "rms": 0.0365583673119545,
+      "sha256": "413cba21b28769f7ee962b160bd7112f9be796ad3a366b34087ab04e92ed1096"
+    },
+    {
+      "kind": "tom_hi",
+      "velocity": 127,
+      "source_velocity_layer": 6,
+      "source_velocity_layer_count": 6,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/tom_hi_v127_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_14/center/cl/t14_vl6_rr1.flac",
+          "file": "originals/tom_14/center/cl/t14_vl6_rr1.flac",
+          "sha256": "eaf3adf05ee8a9d6bfc307608a59f13cd4991413bc18176517d6e9a00697d853"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_14/center/oh/t14_vl6_rr1.flac",
+          "file": "originals/tom_14/center/oh/t14_vl6_rr1.flac",
+          "sha256": "ee95f890c47e6af89b18faeb1b381ca49a5418d0d3dd32dc3c49288663857993"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 110105,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6542532604122844,
+      "peak": 0.8999999761581421,
+      "rms": 0.05134715512394905,
+      "sha256": "3f39d92f2a47ea457abde497ffd00919bdaedb9cc3c87a115c3a1218775dd3f0"
+    },
+    {
+      "kind": "tom_hi",
+      "velocity": 127,
+      "source_velocity_layer": 6,
+      "source_velocity_layer_count": 6,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/tom_hi_v127_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_14/center/cl/t14_vl6_rr2.flac",
+          "file": "originals/tom_14/center/cl/t14_vl6_rr2.flac",
+          "sha256": "8b2a8767bbb6a3390e921f652cbf5a0393f3bc47d9c9ff31c6b8d8f90b648fb2"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_14/center/oh/t14_vl6_rr2.flac",
+          "file": "originals/tom_14/center/oh/t14_vl6_rr2.flac",
+          "sha256": "6bc1773b0ae80d8686029cdca2ab39770d878e0a18bb19507afee6119e7f6d8e"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 110105,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.6542532604122844,
+      "peak": 0.8986243009567261,
+      "rms": 0.04991709068417549,
+      "sha256": "e49ec739502e849d1e3f106ae9098c8d89362244f784c5979a3189ad83fc601d"
+    },
+    {
+      "kind": "tom_mid",
+      "velocity": 73,
+      "source_velocity_layer": 4,
+      "source_velocity_layer_count": 7,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/tom_mid_v73_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_15/center/cl/t15_vl4_rr1.flac",
+          "file": "originals/tom_15/center/cl/t15_vl4_rr1.flac",
+          "sha256": "48c8b595c2e25a02a6c52d4ef43fd5f3228f36a60d0911fa281d5caa7e0ca5ac"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_15/center/oh/t15_vl4_rr1.flac",
+          "file": "originals/tom_15/center/oh/t15_vl4_rr1.flac",
+          "sha256": "d9d260ae05e08924c15a26d28fd2ad7f246c9d900ee6fc04412bb154ac2cee5b"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 103104,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.3499897003959627,
+      "peak": 0.34031951427459717,
+      "rms": 0.027087165042757988,
+      "sha256": "7e13b14b895248358f6f44a68bac0815cf7de46c932f342d1353454866b65fb4"
+    },
+    {
+      "kind": "tom_mid",
+      "velocity": 73,
+      "source_velocity_layer": 4,
+      "source_velocity_layer_count": 7,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/tom_mid_v73_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_15/center/cl/t15_vl4_rr2.flac",
+          "file": "originals/tom_15/center/cl/t15_vl4_rr2.flac",
+          "sha256": "99bf7de3b39d1ee0b2e1b35c7ac2eaf15d6433e4137f1a2a935440ba5ae12f92"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_15/center/oh/t15_vl4_rr2.flac",
+          "file": "originals/tom_15/center/oh/t15_vl4_rr2.flac",
+          "sha256": "59fd8079daa0cd245f72b3d2ff0b6ab4a3304c239753e539637a8e9e977eab4b"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 103104,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.3499897003959627,
+      "peak": 0.32218191027641296,
+      "rms": 0.027655845507979393,
+      "sha256": "eee5534c0d511d774bd663c26745a38665502be051bd20f5535169eb4b52ce5c"
+    },
+    {
+      "kind": "tom_mid",
+      "velocity": 91,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 7,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/tom_mid_v91_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_15/center/cl/t15_vl5_rr1.flac",
+          "file": "originals/tom_15/center/cl/t15_vl5_rr1.flac",
+          "sha256": "2e0e32d889f9307cbd1b9832866ac43f8de266857425335a8712ee734ff06014"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_15/center/oh/t15_vl5_rr1.flac",
+          "file": "originals/tom_15/center/oh/t15_vl5_rr1.flac",
+          "sha256": "c4b321d4ad9e14d07c7174cdc5fa5c93dbd36e3277be168516e8d3fea82e9da1"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 103104,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.3499897003959627,
+      "peak": 0.41680437326431274,
+      "rms": 0.03344273194670677,
+      "sha256": "41f868737f1b7d5d630f3239e7874900d0c2232bf937295c777e7e71fa18de7b"
+    },
+    {
+      "kind": "tom_mid",
+      "velocity": 91,
+      "source_velocity_layer": 5,
+      "source_velocity_layer_count": 7,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/tom_mid_v91_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_15/center/cl/t15_vl5_rr2.flac",
+          "file": "originals/tom_15/center/cl/t15_vl5_rr2.flac",
+          "sha256": "d88041e10192eca4c8e0eedea4fd5c5bd328b019fcbc2b3b99214a1b2bad7074"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_15/center/oh/t15_vl5_rr2.flac",
+          "file": "originals/tom_15/center/oh/t15_vl5_rr2.flac",
+          "sha256": "099e3128e18fd4cbdea7ec9471614e8b0a9907cc72780db62425a976b28f1add"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 103104,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.3499897003959627,
+      "peak": 0.5088416337966919,
+      "rms": 0.03569377586245537,
+      "sha256": "302b3f375323ff196fd5b04b9e922b7f61302b2c07aeb904f01543688ac28515"
+    },
+    {
+      "kind": "tom_mid",
+      "velocity": 127,
+      "source_velocity_layer": 7,
+      "source_velocity_layer_count": 7,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/tom_mid_v127_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_15/center/cl/t15_vl7_rr1.flac",
+          "file": "originals/tom_15/center/cl/t15_vl7_rr1.flac",
+          "sha256": "abb1d7d04d4d1641eb0839ea908ee0bccfbdf77c62e0239bdc47ab21d83ad463"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_15/center/oh/t15_vl7_rr1.flac",
+          "file": "originals/tom_15/center/oh/t15_vl7_rr1.flac",
+          "sha256": "a93e21e635dfce1ed5166ab31fa1dd905e52221a49f73f97a1f24bed618b2486"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 103104,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.3499897003959627,
+      "peak": 0.7901443839073181,
+      "rms": 0.05220191925764084,
+      "sha256": "d0bdf99f93bcd4323bb5e32cd0e16a39b1294fe9bfc7bdac233bc1d3b365e800"
+    },
+    {
+      "kind": "tom_mid",
+      "velocity": 127,
+      "source_velocity_layer": 7,
+      "source_velocity_layer_count": 7,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/tom_mid_v127_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_15/center/cl/t15_vl7_rr2.flac",
+          "file": "originals/tom_15/center/cl/t15_vl7_rr2.flac",
+          "sha256": "339558c2d2c9ec8f688dc3e5b6aefcb58d83d1765d865b4f081d973a2ac4a7b9"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_15/center/oh/t15_vl7_rr2.flac",
+          "file": "originals/tom_15/center/oh/t15_vl7_rr2.flac",
+          "sha256": "29582bab4b9e4fc7810803352438654cb110ff378ee1b4f88d0bd163e0240d10"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 103104,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.3499897003959627,
+      "peak": 0.8999999761581421,
+      "rms": 0.049833279103040695,
+      "sha256": "5a5eced0a115d4fac4ec0294131d7d3141fb0dce6ca1f11d85804c9b89f36915"
+    },
+    {
+      "kind": "tom_low",
+      "velocity": 64,
+      "source_velocity_layer": 4,
+      "source_velocity_layer_count": 8,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/tom_low_v64_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_18/center/cl/t18_vl4_rr1.flac",
+          "file": "originals/tom_18/center/cl/t18_vl4_rr1.flac",
+          "sha256": "e1594020fdea85b03fd208837c626e4a511206227bf952cedd758100a6eca67e"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_18/center/oh/t18_vl4_rr1.flac",
+          "file": "originals/tom_18/center/oh/t18_vl4_rr1.flac",
+          "sha256": "d91eaded77e156683bb446275c39c07fc9263ae1bc4fbaac6e7758157342b28b"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 100103,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.0393374449339208,
+      "peak": 0.28626343607902527,
+      "rms": 0.020427005365490913,
+      "sha256": "e24d536e998ff6b16ffae9fa69b59628ddb234ded022bd66e07251f67fe7cccf"
+    },
+    {
+      "kind": "tom_low",
+      "velocity": 64,
+      "source_velocity_layer": 4,
+      "source_velocity_layer_count": 8,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/tom_low_v64_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_18/center/cl/t18_vl4_rr2.flac",
+          "file": "originals/tom_18/center/cl/t18_vl4_rr2.flac",
+          "sha256": "840200ed9a962f43c6ba7e268404c56edb2be5566f15ab3c0bd1d5cdd730adf6"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_18/center/oh/t18_vl4_rr2.flac",
+          "file": "originals/tom_18/center/oh/t18_vl4_rr2.flac",
+          "sha256": "ce3a8c12b9317f07f846af88f4a01705b8c3e3b2d39baf2255123c295eb64d47"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 100103,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.0393374449339208,
+      "peak": 0.2778502106666565,
+      "rms": 0.019812332466244698,
+      "sha256": "0957f25473438e32cf03d9cc6ef82fc10dcc69e55a85b4487ab1b6bc5028902b"
+    },
+    {
+      "kind": "tom_low",
+      "velocity": 95,
+      "source_velocity_layer": 6,
+      "source_velocity_layer_count": 8,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/tom_low_v95_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_18/center/cl/t18_vl6_rr1.flac",
+          "file": "originals/tom_18/center/cl/t18_vl6_rr1.flac",
+          "sha256": "453fb9278102b8064c9b821857f81fc661b95c5804645da9e25f12c86cb1166c"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_18/center/oh/t18_vl6_rr1.flac",
+          "file": "originals/tom_18/center/oh/t18_vl6_rr1.flac",
+          "sha256": "e47f1c55541a76e2eadc9d7abdfd19dd29eb17d2fcaf378ba69fd6a6e1fdfa13"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 100103,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.0393374449339208,
+      "peak": 0.5256713628768921,
+      "rms": 0.03577244654297829,
+      "sha256": "8b7417d9c2258d8407e577900a929063e1305ef54ab26c369d8c33d0362981db"
+    },
+    {
+      "kind": "tom_low",
+      "velocity": 95,
+      "source_velocity_layer": 6,
+      "source_velocity_layer_count": 8,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/tom_low_v95_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_18/center/cl/t18_vl6_rr2.flac",
+          "file": "originals/tom_18/center/cl/t18_vl6_rr2.flac",
+          "sha256": "133bac8fdc70fdfa994d044afc260301ce0143e95a4afa9b71c579f1da2de663"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_18/center/oh/t18_vl6_rr2.flac",
+          "file": "originals/tom_18/center/oh/t18_vl6_rr2.flac",
+          "sha256": "a2f955206e74d366f0fd904130b3e64cc87ab799e91781b3bb2ba76cb0ff14b5"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 100103,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.0393374449339208,
+      "peak": 0.5304369926452637,
+      "rms": 0.03412395343184471,
+      "sha256": "bc5d6b4badef4344496b272de33c06c285839b89e2e101edd69326ac803c3812"
+    },
+    {
+      "kind": "tom_low",
+      "velocity": 127,
+      "source_velocity_layer": 8,
+      "source_velocity_layer_count": 8,
+      "round_robin": 1,
+      "mic": "mix",
+      "file": "mixed/tom_low_v127_rr1.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_18/center/cl/t18_vl8_rr1.flac",
+          "file": "originals/tom_18/center/cl/t18_vl8_rr1.flac",
+          "sha256": "5ea672c055632d3aa3f7b9100477db64d95653960fd63985083b236b3e22ef18"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_18/center/oh/t18_vl8_rr1.flac",
+          "file": "originals/tom_18/center/oh/t18_vl8_rr1.flac",
+          "sha256": "92b6d9bacfda8cea78f0c7d6f05174cb8edcc98fb5533b85e950d725b4385785"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 100103,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.0393374449339208,
+      "peak": 0.8669100999832153,
+      "rms": 0.05575938895344734,
+      "sha256": "46c1cc06d14e6695ecf32bce274a3f557e45fbfa1f46f01566a711a792b16f51"
+    },
+    {
+      "kind": "tom_low",
+      "velocity": 127,
+      "source_velocity_layer": 8,
+      "source_velocity_layer_count": 8,
+      "round_robin": 2,
+      "mic": "mix",
+      "file": "mixed/tom_low_v127_rr2.flac",
+      "sources": [
+        {
+          "mic": "cl",
+          "source_path": "Samples/tom_18/center/cl/t18_vl8_rr2.flac",
+          "file": "originals/tom_18/center/cl/t18_vl8_rr2.flac",
+          "sha256": "88211caa8377c292fb4a3899d26c22ae71f9eb889d4dd520b81e26edb30ceaaf"
+        },
+        {
+          "mic": "oh",
+          "source_path": "Samples/tom_18/center/oh/t18_vl8_rr2.flac",
+          "file": "originals/tom_18/center/oh/t18_vl8_rr2.flac",
+          "sha256": "f6f13203be77439de9068f0a6f49a8d3489c0b4be40e609e0c975c0640ce1dad"
+        }
+      ],
+      "overhead_gain": 0.25,
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 100103,
+      "trimmed_leading_frames": 0,
+      "normalization_gain": 1.0393374449339208,
+      "peak": 0.8999999761581421,
+      "rms": 0.05698443204164505,
+      "sha256": "19d0ac82946ce354c872fd3333626544bcef36d0b8dd51cda0e3b421b569c433"
+    }
+  ],
+  "originals": [
+    {
+      "mic": "kick",
+      "source_path": "Samples/kick_24/kick/kick/k_vl7_rr1.flac",
+      "file": "originals/kick_24/kick/kick/k_vl7_rr1.flac",
+      "sha256": "a2ec22a813e71a53660438fdafa83c649886ffaaccb6bbff4f49853b0146c115",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 74907
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/kick_24/kick/oh/k_vl7_rr1.flac",
+      "file": "originals/kick_24/kick/oh/k_vl7_rr1.flac",
+      "sha256": "b0239925dba7c5ef72a62941406c57194f4f262309c56c01aae8e2e0f8224f43",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907
+    },
+    {
+      "mic": "kick",
+      "source_path": "Samples/kick_24/kick/kick/k_vl7_rr2.flac",
+      "file": "originals/kick_24/kick/kick/k_vl7_rr2.flac",
+      "sha256": "df76e9b5cd8131d14e85263a8353697c7798bbdd7248b3af4135a8d19780e736",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 74907
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/kick_24/kick/oh/k_vl7_rr2.flac",
+      "file": "originals/kick_24/kick/oh/k_vl7_rr2.flac",
+      "sha256": "8f9f59ab88176e1461f20319d0c949521316ec9307371c8c5666619a80573dcf",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907
+    },
+    {
+      "mic": "kick",
+      "source_path": "Samples/kick_24/kick/kick/k_vl7_rr3.flac",
+      "file": "originals/kick_24/kick/kick/k_vl7_rr3.flac",
+      "sha256": "168c309206db0ed76ed826363e9c4cdd9fdd01d107b7c5533d476dcf2fe7384a",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 74907
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/kick_24/kick/oh/k_vl7_rr3.flac",
+      "file": "originals/kick_24/kick/oh/k_vl7_rr3.flac",
+      "sha256": "d4f5729ee3c1e860d7aec65bc566e35c2fa4be48b23661b00173ffd5e104ad5f",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907
+    },
+    {
+      "mic": "kick",
+      "source_path": "Samples/kick_24/kick/kick/k_vl10_rr1.flac",
+      "file": "originals/kick_24/kick/kick/k_vl10_rr1.flac",
+      "sha256": "a43a2124efb24f21f62a79f2fa1eab99dbae800aae111e9da124830703b06720",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 74907
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/kick_24/kick/oh/k_vl10_rr1.flac",
+      "file": "originals/kick_24/kick/oh/k_vl10_rr1.flac",
+      "sha256": "db91ba65763968a404863d391d5252d74aa98d893125aa4be0aa6a4c261eab63",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907
+    },
+    {
+      "mic": "kick",
+      "source_path": "Samples/kick_24/kick/kick/k_vl10_rr2.flac",
+      "file": "originals/kick_24/kick/kick/k_vl10_rr2.flac",
+      "sha256": "edb66f938549d86924ccc2506b8a987f5535b8ae3d77539160e71e5ad7d798c3",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 74907
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/kick_24/kick/oh/k_vl10_rr2.flac",
+      "file": "originals/kick_24/kick/oh/k_vl10_rr2.flac",
+      "sha256": "c30f441e75033c89aa343ecdda70777400c31568e6a324a56fef2b67012032ed",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907
+    },
+    {
+      "mic": "kick",
+      "source_path": "Samples/kick_24/kick/kick/k_vl10_rr3.flac",
+      "file": "originals/kick_24/kick/kick/k_vl10_rr3.flac",
+      "sha256": "60e33c9eeb8a6d5e6f0d5f13c82d0d61ebdd1849946199950d75e972db5d9682",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 74907
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/kick_24/kick/oh/k_vl10_rr3.flac",
+      "file": "originals/kick_24/kick/oh/k_vl10_rr3.flac",
+      "sha256": "974f2f120964fa704bb93a4ae7aeb96eec250a1a787a2d01c19bbe6bf4c2f481",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907
+    },
+    {
+      "mic": "kick",
+      "source_path": "Samples/kick_24/kick/kick/k_vl14_rr1.flac",
+      "file": "originals/kick_24/kick/kick/k_vl14_rr1.flac",
+      "sha256": "3b2a6a82ab1faa9ef97f87fbc4f9dcbace81ea18149f6d7c1438da8b64f20ec3",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 74907
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/kick_24/kick/oh/k_vl14_rr1.flac",
+      "file": "originals/kick_24/kick/oh/k_vl14_rr1.flac",
+      "sha256": "b0bf6e73594b9fab70c744fc12d5195b1850ae0fb8d3b6458dba550dd23dafdd",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907
+    },
+    {
+      "mic": "kick",
+      "source_path": "Samples/kick_24/kick/kick/k_vl14_rr2.flac",
+      "file": "originals/kick_24/kick/kick/k_vl14_rr2.flac",
+      "sha256": "1515faafb66ff9be22a9726d0a754cc7d5d68e6cc6928f941b726795ad5585ce",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 74907
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/kick_24/kick/oh/k_vl14_rr2.flac",
+      "file": "originals/kick_24/kick/oh/k_vl14_rr2.flac",
+      "sha256": "30b27e53cce02829def0c915c7fc5122699ca33b2f7546f1c4443a7bab00f471",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907
+    },
+    {
+      "mic": "kick",
+      "source_path": "Samples/kick_24/kick/kick/k_vl14_rr3.flac",
+      "file": "originals/kick_24/kick/kick/k_vl14_rr3.flac",
+      "sha256": "c2956fe4b4ae8930f75af4531d49ff0f63cf22e2d4a1bfd12e67786b294ed0f9",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 74907
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/kick_24/kick/oh/k_vl14_rr3.flac",
+      "file": "originals/kick_24/kick/oh/k_vl14_rr3.flac",
+      "sha256": "715776fb725c3479636a7867dcadbff11b4483d8d9f99f2d1c4081a9f89401a7",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 74907
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/center/top/sn_center_vl5_rr1.flac",
+      "file": "originals/snare_14/center/top/sn_center_vl5_rr1.flac",
+      "sha256": "73c19a6ba6baeab21dfca21136bd32b89adb80ef4182bb662556086f20c03ca8",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/center/oh/sn_center_vl5_rr1.flac",
+      "file": "originals/snare_14/center/oh/sn_center_vl5_rr1.flac",
+      "sha256": "15e6f72dc4c35b2cc650e7c7c8a64a60d143b008cf4ead953d7b1868c544487e",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/center/btm/sn_center_vl5_rr1.flac",
+      "file": "originals/snare_14/center/btm/sn_center_vl5_rr1.flac",
+      "sha256": "7a5d39a7d84d13e022a6ede26876dd8482ecd0121a445189927205eb8eb535a8",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/center/top/sn_center_vl5_rr2.flac",
+      "file": "originals/snare_14/center/top/sn_center_vl5_rr2.flac",
+      "sha256": "8c27048750733c88e471aac7d253df3a27873059dc67f9174425a22f6b4754f7",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/center/oh/sn_center_vl5_rr2.flac",
+      "file": "originals/snare_14/center/oh/sn_center_vl5_rr2.flac",
+      "sha256": "6543bd3cdf8ebb74cf37475ee537bee635e38ba69d14c4777e29ee96a7d66533",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/center/btm/sn_center_vl5_rr2.flac",
+      "file": "originals/snare_14/center/btm/sn_center_vl5_rr2.flac",
+      "sha256": "eb4d2ea97473b27bef7ef6f365791a8c7c4618f329a5bc7e27fd641f528f7315",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/center/top/sn_center_vl5_rr3.flac",
+      "file": "originals/snare_14/center/top/sn_center_vl5_rr3.flac",
+      "sha256": "b11278c6cef7c6f6bc40252dc7863439183c21d92d75e439278a11804dc11af0",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/center/oh/sn_center_vl5_rr3.flac",
+      "file": "originals/snare_14/center/oh/sn_center_vl5_rr3.flac",
+      "sha256": "68c3a298e953dd0607e35c0fbf8a7880465e46ac80699099bbe890d4de1923e8",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/center/btm/sn_center_vl5_rr3.flac",
+      "file": "originals/snare_14/center/btm/sn_center_vl5_rr3.flac",
+      "sha256": "afc5cc3c76cb1fd49de90ea44ded68db4e8cf467b000a0c92be813ce399a919a",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/center/top/sn_center_vl7_rr1.flac",
+      "file": "originals/snare_14/center/top/sn_center_vl7_rr1.flac",
+      "sha256": "41346b0b273de7ac90e20775bba06d1863e74108802afa09ea550a517c1a4825",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/center/oh/sn_center_vl7_rr1.flac",
+      "file": "originals/snare_14/center/oh/sn_center_vl7_rr1.flac",
+      "sha256": "43743840bc5b3302d898b466a142ad12465cf073448863db9a83a588a2f61937",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/center/btm/sn_center_vl7_rr1.flac",
+      "file": "originals/snare_14/center/btm/sn_center_vl7_rr1.flac",
+      "sha256": "f9995dc595d746fb519d07922b0a5923a44718297d5c55b1cd1a9022402d9c85",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/center/top/sn_center_vl7_rr2.flac",
+      "file": "originals/snare_14/center/top/sn_center_vl7_rr2.flac",
+      "sha256": "0fe0619e196eaecddd6482ab503b15f8357a03459be3b401f9468b9db5f5372c",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/center/oh/sn_center_vl7_rr2.flac",
+      "file": "originals/snare_14/center/oh/sn_center_vl7_rr2.flac",
+      "sha256": "ff0b743b01b0467dfe4567bfba342c7dacbe594e62cf42d7965038c30d2a31b3",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/center/btm/sn_center_vl7_rr2.flac",
+      "file": "originals/snare_14/center/btm/sn_center_vl7_rr2.flac",
+      "sha256": "35b030bfa3ec9d5e17e789edd5c3421693df6e425c5e3a343b6bef4a11217712",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/center/top/sn_center_vl7_rr3.flac",
+      "file": "originals/snare_14/center/top/sn_center_vl7_rr3.flac",
+      "sha256": "e3c62a310b015346f69bda18c9c142855e5231616fd0375d3bd4d44b27be4a70",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/center/oh/sn_center_vl7_rr3.flac",
+      "file": "originals/snare_14/center/oh/sn_center_vl7_rr3.flac",
+      "sha256": "1cd37035dddccc679f84ae374e67e72d26011530b72c75235820934c9d75a3b4",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/center/btm/sn_center_vl7_rr3.flac",
+      "file": "originals/snare_14/center/btm/sn_center_vl7_rr3.flac",
+      "sha256": "8231111ecea4b59d3978dcd5b256c4277f951ac9c0fdad1893fca137764fb83c",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/center/top/sn_center_vl10_rr1.flac",
+      "file": "originals/snare_14/center/top/sn_center_vl10_rr1.flac",
+      "sha256": "9b13c55f8804ec5d14a6a84c4f9fb47aaee2a83a546ae5b1914a8fdd858e05f5",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/center/oh/sn_center_vl10_rr1.flac",
+      "file": "originals/snare_14/center/oh/sn_center_vl10_rr1.flac",
+      "sha256": "1ab31b465245225e0ec16bacedecd34f1bed1a57b2360dd0666fbefafb361525",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/center/btm/sn_center_vl10_rr1.flac",
+      "file": "originals/snare_14/center/btm/sn_center_vl10_rr1.flac",
+      "sha256": "d6e9b2276a5c06513fccfc22f8584c910979077792edd191ef467c6ae1ef41f5",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/center/top/sn_center_vl10_rr2.flac",
+      "file": "originals/snare_14/center/top/sn_center_vl10_rr2.flac",
+      "sha256": "23f971376ef0ddad37b42ac829be11e293aa89db5514873816da124f283f780a",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/center/oh/sn_center_vl10_rr2.flac",
+      "file": "originals/snare_14/center/oh/sn_center_vl10_rr2.flac",
+      "sha256": "eb1de60287ab00056529d0d1d0a26b9eccc97a5910c6710c5aa89b950297fc91",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/center/btm/sn_center_vl10_rr2.flac",
+      "file": "originals/snare_14/center/btm/sn_center_vl10_rr2.flac",
+      "sha256": "391a0b6400aeaa79703154a137baa6b205b2cb8a24c1b2ba0f7dbe1f9d53f125",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/center/top/sn_center_vl10_rr3.flac",
+      "file": "originals/snare_14/center/top/sn_center_vl10_rr3.flac",
+      "sha256": "b7c2af14aa3d546b131fcf8264cb3b86888b2dc61f3f4b91e874f09a1f7b8d79",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/center/oh/sn_center_vl10_rr3.flac",
+      "file": "originals/snare_14/center/oh/sn_center_vl10_rr3.flac",
+      "sha256": "61ed9e6e87ca31189f0466c68168bd8338b7241ab4f8a89a82404bd585743c01",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 85003
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/center/btm/sn_center_vl10_rr3.flac",
+      "file": "originals/snare_14/center/btm/sn_center_vl10_rr3.flac",
+      "sha256": "6614e97267b3d34103989a867a72052243e844f2ff312abe710eb1b827f75301",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 85003
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/rimshot/top/sn_rims_vl3_rr1.flac",
+      "file": "originals/snare_14/rimshot/top/sn_rims_vl3_rr1.flac",
+      "sha256": "db6c208aa4bdb51cee22e23ba3f64ca5c1218c353f805c7ad9c8e421a26959b5",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 72012
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/rimshot/oh/sn_rims_vl3_rr1.flac",
+      "file": "originals/snare_14/rimshot/oh/sn_rims_vl3_rr1.flac",
+      "sha256": "2a399ff0f286ba209ec414ceb1100ca0ae928249e309a854a00f2f0503883862",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 72012
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/rimshot/btm/sn_rims_vl3_rr1.flac",
+      "file": "originals/snare_14/rimshot/btm/sn_rims_vl3_rr1.flac",
+      "sha256": "69ec5db65e204fe98dd4d2dd701b096a0e2391cd5ed37e04a7fb6519a744ec97",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 72012
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/rimshot/top/sn_rims_vl3_rr2.flac",
+      "file": "originals/snare_14/rimshot/top/sn_rims_vl3_rr2.flac",
+      "sha256": "146cbad98f430db93ae3aa248ddf7be9d20c083f11cb9a2e1f35204beaada344",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 72012
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/rimshot/oh/sn_rims_vl3_rr2.flac",
+      "file": "originals/snare_14/rimshot/oh/sn_rims_vl3_rr2.flac",
+      "sha256": "68dd9de740d62d829faceadb987ef2c68c7a23fc8289aa9cae6154e0d37a5abf",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 72012
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/rimshot/btm/sn_rims_vl3_rr2.flac",
+      "file": "originals/snare_14/rimshot/btm/sn_rims_vl3_rr2.flac",
+      "sha256": "98ca803ca92279f5e8ce68e7f01edfb186b31bb036251362e8bed92dcbd117d1",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 72012
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/rimshot/top/sn_rims_vl5_rr1.flac",
+      "file": "originals/snare_14/rimshot/top/sn_rims_vl5_rr1.flac",
+      "sha256": "ca54acdfb20c1f8cbbf997598c7a8bc5d94333e4a7a2d7c7413cdeea56ab1f44",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 72012
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/rimshot/oh/sn_rims_vl5_rr1.flac",
+      "file": "originals/snare_14/rimshot/oh/sn_rims_vl5_rr1.flac",
+      "sha256": "09753fdacbadae393443a142f0b71daf276393e3e61d17bb8114e27ff8b828a0",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 72012
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/rimshot/btm/sn_rims_vl5_rr1.flac",
+      "file": "originals/snare_14/rimshot/btm/sn_rims_vl5_rr1.flac",
+      "sha256": "959da63188cbdb5dbf21e45a5fcf9e7682de0e57b5370491d66a0fc61ae511c0",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 72012
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/rimshot/top/sn_rims_vl5_rr2.flac",
+      "file": "originals/snare_14/rimshot/top/sn_rims_vl5_rr2.flac",
+      "sha256": "55b938ae52250fd65b147856fa6f9ec5547a7d4239c4da81373b191abaa7abab",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 72012
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/rimshot/oh/sn_rims_vl5_rr2.flac",
+      "file": "originals/snare_14/rimshot/oh/sn_rims_vl5_rr2.flac",
+      "sha256": "d454f119a17718f08714663d1693718e738c00aab13c8a13d8a95c12d1cc87a5",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 72012
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/rimshot/btm/sn_rims_vl5_rr2.flac",
+      "file": "originals/snare_14/rimshot/btm/sn_rims_vl5_rr2.flac",
+      "sha256": "7a973ad9819c48947c7cb78719e2e144d672f9778518b4f9e2d6f481f43d937a",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 72012
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/rimshot/top/sn_rims_vl6_rr1.flac",
+      "file": "originals/snare_14/rimshot/top/sn_rims_vl6_rr1.flac",
+      "sha256": "8e6bc770239c31e4c0545ae6147abf2cf396923283ff5ebeecaf02318cf3c1c8",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 72012
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/rimshot/oh/sn_rims_vl6_rr1.flac",
+      "file": "originals/snare_14/rimshot/oh/sn_rims_vl6_rr1.flac",
+      "sha256": "c69206fa16183379091fd55751692a6ad405dd9cbed8034f54eb24a8c5997cd1",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 72012
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/rimshot/btm/sn_rims_vl6_rr1.flac",
+      "file": "originals/snare_14/rimshot/btm/sn_rims_vl6_rr1.flac",
+      "sha256": "9117129d56a6e7b0746f282faf47fe97fe516c0cde1093a67d571f703a1c7bdb",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 72012
+    },
+    {
+      "mic": "top",
+      "source_path": "Samples/snare_14/rimshot/top/sn_rims_vl6_rr2.flac",
+      "file": "originals/snare_14/rimshot/top/sn_rims_vl6_rr2.flac",
+      "sha256": "2d5aac175ff581aba367455261c23401a63af32a397fcceecd013b797c6ad9b6",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 72012
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/snare_14/rimshot/oh/sn_rims_vl6_rr2.flac",
+      "file": "originals/snare_14/rimshot/oh/sn_rims_vl6_rr2.flac",
+      "sha256": "e64fa16331a4ed9930c37d9be0bac8e04feb897cbcf4f1446bf42e15a0836605",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 72012
+    },
+    {
+      "mic": "btm",
+      "source_path": "Samples/snare_14/rimshot/btm/sn_rims_vl6_rr2.flac",
+      "file": "originals/snare_14/rimshot/btm/sn_rims_vl6_rr2.flac",
+      "sha256": "1f2eb4e4f4d286c8f8d44212b7ad2c823da4829e46a5f4b33cfefff0c3787455",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 72012
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl3_rr1.flac",
+      "file": "originals/hihat_14/cl/cl/ht_cl_vl3_rr1.flac",
+      "sha256": "ce3d062d8de07cb3f273e84fbb8b9387fe951e21284cdceb8a0ec1e71cbc6bdc",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 54788
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl3_rr1.flac",
+      "file": "originals/hihat_14/cl/oh/ht_cl_vl3_rr1.flac",
+      "sha256": "931bbbcd65423b4ffc5657df6c57f6a56e535bc344606f2db0c0d7cbe4c36082",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl3_rr2.flac",
+      "file": "originals/hihat_14/cl/cl/ht_cl_vl3_rr2.flac",
+      "sha256": "bc4661e4178f068a6a5dfc623a591761da1f98a9041e36d7ad0a8d2bac246ad8",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 54788
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl3_rr2.flac",
+      "file": "originals/hihat_14/cl/oh/ht_cl_vl3_rr2.flac",
+      "sha256": "555e02fb5215d786abcea3d2ea1552b13f06da14deb7107e85fb90c230479bb8",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl3_rr3.flac",
+      "file": "originals/hihat_14/cl/cl/ht_cl_vl3_rr3.flac",
+      "sha256": "72eb162b27af1c25d771885cb224a24b507b0d59446a21758b47391f365618c0",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 54788
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl3_rr3.flac",
+      "file": "originals/hihat_14/cl/oh/ht_cl_vl3_rr3.flac",
+      "sha256": "d85f35415e5bbb7b15c8be2290fac9cb09d64e49051a8532f00c60cd9925aae6",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl5_rr1.flac",
+      "file": "originals/hihat_14/cl/cl/ht_cl_vl5_rr1.flac",
+      "sha256": "87b23f751a0437ddab419489e2cbd14a79b7955d29034af513a77de96770efd4",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 54788
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl5_rr1.flac",
+      "file": "originals/hihat_14/cl/oh/ht_cl_vl5_rr1.flac",
+      "sha256": "7828b550006e5396b4656f4b156450cec6f87526fac28318312d6afd2b022398",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl5_rr2.flac",
+      "file": "originals/hihat_14/cl/cl/ht_cl_vl5_rr2.flac",
+      "sha256": "4f73bf9fbcf945420f7c45765c9e23a0e4cb1a063907367757c3e7e161ae69eb",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 54788
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl5_rr2.flac",
+      "file": "originals/hihat_14/cl/oh/ht_cl_vl5_rr2.flac",
+      "sha256": "3c2970ab898a09e1f2293259436e03d6d776a359c423da48db7589510ae9e0cc",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl5_rr3.flac",
+      "file": "originals/hihat_14/cl/cl/ht_cl_vl5_rr3.flac",
+      "sha256": "461ce5beb05d968f38671f2be64d0387b31185fb974825d0a1a551e37e13ec22",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 54788
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl5_rr3.flac",
+      "file": "originals/hihat_14/cl/oh/ht_cl_vl5_rr3.flac",
+      "sha256": "53c35fdcf7aa5e3203f3ef3832df81c4bcb55750d32e4510a0fc40574d208f4c",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl6_rr1.flac",
+      "file": "originals/hihat_14/cl/cl/ht_cl_vl6_rr1.flac",
+      "sha256": "c51da9e592588bf5402627d9939521a69d5a178cd4d9dbbcc4d53e8195c60c30",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 54788
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl6_rr1.flac",
+      "file": "originals/hihat_14/cl/oh/ht_cl_vl6_rr1.flac",
+      "sha256": "fa0599a70e95cdcd4fff5e2f18636253eb673a0116ee3f7b347e85a272051f06",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl6_rr2.flac",
+      "file": "originals/hihat_14/cl/cl/ht_cl_vl6_rr2.flac",
+      "sha256": "8ddcb7b8a13309f75acc85982ad74f953d21629e4fc028028bfb5b6074f825b6",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 54788
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl6_rr2.flac",
+      "file": "originals/hihat_14/cl/oh/ht_cl_vl6_rr2.flac",
+      "sha256": "31ec7348ebb7cb0e1b94e4ad3d53e2b0f8d8f1ba1d916c0d5b2e91bb89438fa5",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/cl/cl/ht_cl_vl6_rr3.flac",
+      "file": "originals/hihat_14/cl/cl/ht_cl_vl6_rr3.flac",
+      "sha256": "50276e80230b7c2543845bb25134217c002bad232708d655dec6a17c6af0c8f4",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 54788
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/cl/oh/ht_cl_vl6_rr3.flac",
+      "file": "originals/hihat_14/cl/oh/ht_cl_vl6_rr3.flac",
+      "sha256": "1979fcb61046cf6efd8a6f775f8bfc5b91a662f2729a7b1ba78b27f0575f38b0",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 54788
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/open/cl/ht_open_vl3_rr1.flac",
+      "file": "originals/hihat_14/open/cl/ht_open_vl3_rr1.flac",
+      "sha256": "d4a380fc54b9cc724fb567c7d5c3abb4dbd2999340367925f7b7e41100f6ed27",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 437109
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/open/oh/ht_open_vl3_rr1.flac",
+      "file": "originals/hihat_14/open/oh/ht_open_vl3_rr1.flac",
+      "sha256": "137e645c60b11382e87e30207fcee730aad676d4e28c1970eec08652dbaf0e21",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 437109
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/open/cl/ht_open_vl3_rr2.flac",
+      "file": "originals/hihat_14/open/cl/ht_open_vl3_rr2.flac",
+      "sha256": "17d7798883b01a9a93dc65041ace93b1ffc0c804f74f95e43224f3bb7a2b4a99",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 437109
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/open/oh/ht_open_vl3_rr2.flac",
+      "file": "originals/hihat_14/open/oh/ht_open_vl3_rr2.flac",
+      "sha256": "46c0b37f4ed50836e24cb675e9d67cd1e7f6305d8a137f5c5cf97f1aa34ef06b",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 437109
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/open/cl/ht_open_vl5_rr1.flac",
+      "file": "originals/hihat_14/open/cl/ht_open_vl5_rr1.flac",
+      "sha256": "38f3565f2c23803205e7483a3e992f33e041dd3af2e340e38b1486cc3663f856",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 437109
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/open/oh/ht_open_vl5_rr1.flac",
+      "file": "originals/hihat_14/open/oh/ht_open_vl5_rr1.flac",
+      "sha256": "429fac3437e0aa119308bf825c3c81097aa42baae70101e74b219abe48116f39",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 437109
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/open/cl/ht_open_vl5_rr2.flac",
+      "file": "originals/hihat_14/open/cl/ht_open_vl5_rr2.flac",
+      "sha256": "c792d660141d3f2e78aed0a461fc58429dd360e9f228de03e631f501024fda4c",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 437109
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/open/oh/ht_open_vl5_rr2.flac",
+      "file": "originals/hihat_14/open/oh/ht_open_vl5_rr2.flac",
+      "sha256": "a35400a972690253b5e8a17228ecacbd06f81963d4dfee49f2c5cf6fe47a304e",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 437109
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/open/cl/ht_open_vl6_rr1.flac",
+      "file": "originals/hihat_14/open/cl/ht_open_vl6_rr1.flac",
+      "sha256": "3d86d6cec08969ea5982387c624214743f2b0a6ff6630ea7fed0ffccd44d50b8",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 437109
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/open/oh/ht_open_vl6_rr1.flac",
+      "file": "originals/hihat_14/open/oh/ht_open_vl6_rr1.flac",
+      "sha256": "12b65aee03c38c0c5f831224892af6d7f7f1ada4996e8fc1063fb508dbe63f69",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 437109
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/hihat_14/open/cl/ht_open_vl6_rr2.flac",
+      "file": "originals/hihat_14/open/cl/ht_open_vl6_rr2.flac",
+      "sha256": "e1ab0dc1e18876f88657a77ab95b1527838d136b3587a605b82407c053ba8881",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 437109
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/hihat_14/open/oh/ht_open_vl6_rr2.flac",
+      "file": "originals/hihat_14/open/oh/ht_open_vl6_rr2.flac",
+      "sha256": "f99b97a579535a6181f3ead3f462bcc24824a994fa31efff92f46b4b236dd610",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 437109
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/ride_22/rd/cl/rd_vl5_rr1.flac",
+      "file": "originals/ride_22/rd/cl/rd_vl5_rr1.flac",
+      "sha256": "0370a712af800ec5a2bc6f3d6490ba82eaa4ca64cc81db612718a0a2745fed3a",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 811943
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/ride_22/rd/oh/rd_vl5_rr1.flac",
+      "file": "originals/ride_22/rd/oh/rd_vl5_rr1.flac",
+      "sha256": "ded108cf09901f9b5590066a5d5d7a506fdedda415c4bd773b2fa4fd3f7e23a5",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 811943
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/ride_22/rd/cl/rd_vl5_rr2.flac",
+      "file": "originals/ride_22/rd/cl/rd_vl5_rr2.flac",
+      "sha256": "aabbbd9de6c12235eb66fd813b9c622ec507fd9ef24d99409e43b97c43d67850",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 811943
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/ride_22/rd/oh/rd_vl5_rr2.flac",
+      "file": "originals/ride_22/rd/oh/rd_vl5_rr2.flac",
+      "sha256": "649d3ec80ee4350e8f3c23759b7c4f165e8d84f0cdb8f3c2acf4c1764fe73b69",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 811943
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/ride_22/rd/cl/rd_vl7_rr1.flac",
+      "file": "originals/ride_22/rd/cl/rd_vl7_rr1.flac",
+      "sha256": "dabedc20c2464c50b26729d42714eecaf85a6658e29c98504070568b954bec1b",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 811943
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/ride_22/rd/oh/rd_vl7_rr1.flac",
+      "file": "originals/ride_22/rd/oh/rd_vl7_rr1.flac",
+      "sha256": "11b78424297ab0a3f9cf49d301ea009ef0d8975b0391a9d9ac36da2d5327cd6a",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 811943
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/ride_22/rd/cl/rd_vl7_rr2.flac",
+      "file": "originals/ride_22/rd/cl/rd_vl7_rr2.flac",
+      "sha256": "90e3627953ab6e16f2cde881a1fbf785a37595d51e9095fb2d3226227810db26",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 811943
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/ride_22/rd/oh/rd_vl7_rr2.flac",
+      "file": "originals/ride_22/rd/oh/rd_vl7_rr2.flac",
+      "sha256": "2305a170d489230a3a31d88b77c3c743b3119a6ec02d3281abcbfbd3086f3e51",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 811943
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/ride_22/rd/cl/rd_vl10_rr1.flac",
+      "file": "originals/ride_22/rd/cl/rd_vl10_rr1.flac",
+      "sha256": "97be6f1be45f92919a9c932f6eed0800dc5c7e195df4b59e2e453a5cf2ed27bd",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 811943
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/ride_22/rd/oh/rd_vl10_rr1.flac",
+      "file": "originals/ride_22/rd/oh/rd_vl10_rr1.flac",
+      "sha256": "c28a73b15b39db04b0d229064a6eb9a97e1bcbc0d6869fd0e11845a17e9ba0c5",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 811943
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/ride_22/rd/cl/rd_vl10_rr2.flac",
+      "file": "originals/ride_22/rd/cl/rd_vl10_rr2.flac",
+      "sha256": "fa311598fae9669c53986d0d5ce10c569f6ee426bbf67d608359e49c3997c78c",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 811943
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/ride_22/rd/oh/rd_vl10_rr2.flac",
+      "file": "originals/ride_22/rd/oh/rd_vl10_rr2.flac",
+      "sha256": "f1eab8ecf244f0615b801c5bc0ab7e11ba878c6bf0c9a0c226157922ecd3e13e",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 811943
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/crash_17/cr/cl/cr_vl3_rr1.flac",
+      "file": "originals/crash_17/cr/cl/cr_vl3_rr1.flac",
+      "sha256": "051688364f5676960f1721853345ab04b4b0edbc58d399c385979c433170e35c",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 730960
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/crash_17/cr/oh/cr_vl3_rr1.flac",
+      "file": "originals/crash_17/cr/oh/cr_vl3_rr1.flac",
+      "sha256": "f6beb5f29038df2d21059ccd706d8dce3b2d259f048f95bb3d8282086f392292",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 730960
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/crash_17/cr/cl/cr_vl3_rr2.flac",
+      "file": "originals/crash_17/cr/cl/cr_vl3_rr2.flac",
+      "sha256": "89ca0ea377365feffa2a8baa625481852beffed2f072c43614ee4a4281dc5cea",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 689594
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/crash_17/cr/oh/cr_vl3_rr2.flac",
+      "file": "originals/crash_17/cr/oh/cr_vl3_rr2.flac",
+      "sha256": "a320d0d334dad2218c123d314a184a04c255a135c5e0222d23076e326f0b7a99",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 689594
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/crash_17/cr/cl/cr_vl4_rr1.flac",
+      "file": "originals/crash_17/cr/cl/cr_vl4_rr1.flac",
+      "sha256": "79afe7dc4a68a733d89207184f2e64e9815fb45ce82901a8c7e883562e584a9d",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 686331
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/crash_17/cr/oh/cr_vl4_rr1.flac",
+      "file": "originals/crash_17/cr/oh/cr_vl4_rr1.flac",
+      "sha256": "84150bf1f6842d3cb7738c579ac06bdfb5319a5ab180a4b7663e8058fd0a0e46",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 686331
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/crash_17/cr/cl/cr_vl4_rr2.flac",
+      "file": "originals/crash_17/cr/cl/cr_vl4_rr2.flac",
+      "sha256": "434168a1ad2b94c145d190a1734da6360f41dd5ddf07bf52123e0b33622075c9",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 642515
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/crash_17/cr/oh/cr_vl4_rr2.flac",
+      "file": "originals/crash_17/cr/oh/cr_vl4_rr2.flac",
+      "sha256": "24e1d0b6ee0e87de85637f0e1591bda6ec1cb528713b276ffaf285a2801cc843",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 642515
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/crash_17/cr/cl/cr_vl5_rr1.flac",
+      "file": "originals/crash_17/cr/cl/cr_vl5_rr1.flac",
+      "sha256": "b9205bc10e508eec7c38f031b666bda00268ea7b68fcbc5b8a584de44ec3a1d3",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 758449
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/crash_17/cr/oh/cr_vl5_rr1.flac",
+      "file": "originals/crash_17/cr/oh/cr_vl5_rr1.flac",
+      "sha256": "511907df68befff63a39df0693868ca8026f46bbd5d0c8e4d1b9cdfedea65504",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 758449
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/crash_17/cr/cl/cr_vl5_rr2.flac",
+      "file": "originals/crash_17/cr/cl/cr_vl5_rr2.flac",
+      "sha256": "a3aa2e5c2d1cbf5665ad15e95d191ce857154d673ea12278cd389b3cc070287a",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 715941
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/crash_17/cr/oh/cr_vl5_rr2.flac",
+      "file": "originals/crash_17/cr/oh/cr_vl5_rr2.flac",
+      "sha256": "cdf24a74429f440e349dad04cdba58067906e6230da28c4b9e4338e74ceb012e",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 715941
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_14/center/cl/t14_vl3_rr1.flac",
+      "file": "originals/tom_14/center/cl/t14_vl3_rr1.flac",
+      "sha256": "cb59527327ec38d3ce4afd0723d18d848e64f625b98a393d10c423c6dfbb6f83",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 110105
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_14/center/oh/t14_vl3_rr1.flac",
+      "file": "originals/tom_14/center/oh/t14_vl3_rr1.flac",
+      "sha256": "bd0881e27bbd29ce55ef1c59814c16d5a815d006beb0fafdfbd944d0db3d8034",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 110105
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_14/center/cl/t14_vl3_rr2.flac",
+      "file": "originals/tom_14/center/cl/t14_vl3_rr2.flac",
+      "sha256": "9ee5f0674b58494a42081b53ff7be96f6c645f5bd9479ba7957eeb1631f6f515",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 110105
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_14/center/oh/t14_vl3_rr2.flac",
+      "file": "originals/tom_14/center/oh/t14_vl3_rr2.flac",
+      "sha256": "3e4b5691bb3b3878ac923b0c406bd0bc3e6d38f298ba4d4d0d8c3e9bccf2bbd0",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 110105
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_14/center/cl/t14_vl5_rr1.flac",
+      "file": "originals/tom_14/center/cl/t14_vl5_rr1.flac",
+      "sha256": "7aabe82391ff96cda9203cee81fc72fa1665ca225ddfab8bc05abd883c18c727",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 110105
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_14/center/oh/t14_vl5_rr1.flac",
+      "file": "originals/tom_14/center/oh/t14_vl5_rr1.flac",
+      "sha256": "6291e1080fe2579239ace581c2f37dcb500053cf062c914c06d4fb39c2308c75",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 110105
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_14/center/cl/t14_vl5_rr2.flac",
+      "file": "originals/tom_14/center/cl/t14_vl5_rr2.flac",
+      "sha256": "60d8d9475ae9a63ca8e2144dd3c854496f11d6bf65ec51c22091c7ac94464b71",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 110105
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_14/center/oh/t14_vl5_rr2.flac",
+      "file": "originals/tom_14/center/oh/t14_vl5_rr2.flac",
+      "sha256": "5e7a0cac2de2ef817bf36088c1274d2fa1b7ff3c61d1b96a4f0de7fef5a4727e",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 110105
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_14/center/cl/t14_vl6_rr1.flac",
+      "file": "originals/tom_14/center/cl/t14_vl6_rr1.flac",
+      "sha256": "eaf3adf05ee8a9d6bfc307608a59f13cd4991413bc18176517d6e9a00697d853",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 110105
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_14/center/oh/t14_vl6_rr1.flac",
+      "file": "originals/tom_14/center/oh/t14_vl6_rr1.flac",
+      "sha256": "ee95f890c47e6af89b18faeb1b381ca49a5418d0d3dd32dc3c49288663857993",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 110105
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_14/center/cl/t14_vl6_rr2.flac",
+      "file": "originals/tom_14/center/cl/t14_vl6_rr2.flac",
+      "sha256": "8b2a8767bbb6a3390e921f652cbf5a0393f3bc47d9c9ff31c6b8d8f90b648fb2",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 110105
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_14/center/oh/t14_vl6_rr2.flac",
+      "file": "originals/tom_14/center/oh/t14_vl6_rr2.flac",
+      "sha256": "6bc1773b0ae80d8686029cdca2ab39770d878e0a18bb19507afee6119e7f6d8e",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 110105
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_15/center/cl/t15_vl4_rr1.flac",
+      "file": "originals/tom_15/center/cl/t15_vl4_rr1.flac",
+      "sha256": "48c8b595c2e25a02a6c52d4ef43fd5f3228f36a60d0911fa281d5caa7e0ca5ac",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 103104
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_15/center/oh/t15_vl4_rr1.flac",
+      "file": "originals/tom_15/center/oh/t15_vl4_rr1.flac",
+      "sha256": "d9d260ae05e08924c15a26d28fd2ad7f246c9d900ee6fc04412bb154ac2cee5b",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 103104
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_15/center/cl/t15_vl4_rr2.flac",
+      "file": "originals/tom_15/center/cl/t15_vl4_rr2.flac",
+      "sha256": "99bf7de3b39d1ee0b2e1b35c7ac2eaf15d6433e4137f1a2a935440ba5ae12f92",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 103104
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_15/center/oh/t15_vl4_rr2.flac",
+      "file": "originals/tom_15/center/oh/t15_vl4_rr2.flac",
+      "sha256": "59fd8079daa0cd245f72b3d2ff0b6ab4a3304c239753e539637a8e9e977eab4b",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 103104
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_15/center/cl/t15_vl5_rr1.flac",
+      "file": "originals/tom_15/center/cl/t15_vl5_rr1.flac",
+      "sha256": "2e0e32d889f9307cbd1b9832866ac43f8de266857425335a8712ee734ff06014",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 103104
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_15/center/oh/t15_vl5_rr1.flac",
+      "file": "originals/tom_15/center/oh/t15_vl5_rr1.flac",
+      "sha256": "c4b321d4ad9e14d07c7174cdc5fa5c93dbd36e3277be168516e8d3fea82e9da1",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 103104
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_15/center/cl/t15_vl5_rr2.flac",
+      "file": "originals/tom_15/center/cl/t15_vl5_rr2.flac",
+      "sha256": "d88041e10192eca4c8e0eedea4fd5c5bd328b019fcbc2b3b99214a1b2bad7074",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 103104
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_15/center/oh/t15_vl5_rr2.flac",
+      "file": "originals/tom_15/center/oh/t15_vl5_rr2.flac",
+      "sha256": "099e3128e18fd4cbdea7ec9471614e8b0a9907cc72780db62425a976b28f1add",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 103104
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_15/center/cl/t15_vl7_rr1.flac",
+      "file": "originals/tom_15/center/cl/t15_vl7_rr1.flac",
+      "sha256": "abb1d7d04d4d1641eb0839ea908ee0bccfbdf77c62e0239bdc47ab21d83ad463",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 103104
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_15/center/oh/t15_vl7_rr1.flac",
+      "file": "originals/tom_15/center/oh/t15_vl7_rr1.flac",
+      "sha256": "a93e21e635dfce1ed5166ab31fa1dd905e52221a49f73f97a1f24bed618b2486",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 103104
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_15/center/cl/t15_vl7_rr2.flac",
+      "file": "originals/tom_15/center/cl/t15_vl7_rr2.flac",
+      "sha256": "339558c2d2c9ec8f688dc3e5b6aefcb58d83d1765d865b4f081d973a2ac4a7b9",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 103104
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_15/center/oh/t15_vl7_rr2.flac",
+      "file": "originals/tom_15/center/oh/t15_vl7_rr2.flac",
+      "sha256": "29582bab4b9e4fc7810803352438654cb110ff378ee1b4f88d0bd163e0240d10",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 103104
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_18/center/cl/t18_vl4_rr1.flac",
+      "file": "originals/tom_18/center/cl/t18_vl4_rr1.flac",
+      "sha256": "e1594020fdea85b03fd208837c626e4a511206227bf952cedd758100a6eca67e",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 100103
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_18/center/oh/t18_vl4_rr1.flac",
+      "file": "originals/tom_18/center/oh/t18_vl4_rr1.flac",
+      "sha256": "d91eaded77e156683bb446275c39c07fc9263ae1bc4fbaac6e7758157342b28b",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 100103
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_18/center/cl/t18_vl4_rr2.flac",
+      "file": "originals/tom_18/center/cl/t18_vl4_rr2.flac",
+      "sha256": "840200ed9a962f43c6ba7e268404c56edb2be5566f15ab3c0bd1d5cdd730adf6",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 100103
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_18/center/oh/t18_vl4_rr2.flac",
+      "file": "originals/tom_18/center/oh/t18_vl4_rr2.flac",
+      "sha256": "ce3a8c12b9317f07f846af88f4a01705b8c3e3b2d39baf2255123c295eb64d47",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 100103
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_18/center/cl/t18_vl6_rr1.flac",
+      "file": "originals/tom_18/center/cl/t18_vl6_rr1.flac",
+      "sha256": "453fb9278102b8064c9b821857f81fc661b95c5804645da9e25f12c86cb1166c",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 100103
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_18/center/oh/t18_vl6_rr1.flac",
+      "file": "originals/tom_18/center/oh/t18_vl6_rr1.flac",
+      "sha256": "e47f1c55541a76e2eadc9d7abdfd19dd29eb17d2fcaf378ba69fd6a6e1fdfa13",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 100103
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_18/center/cl/t18_vl6_rr2.flac",
+      "file": "originals/tom_18/center/cl/t18_vl6_rr2.flac",
+      "sha256": "133bac8fdc70fdfa994d044afc260301ce0143e95a4afa9b71c579f1da2de663",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 100103
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_18/center/oh/t18_vl6_rr2.flac",
+      "file": "originals/tom_18/center/oh/t18_vl6_rr2.flac",
+      "sha256": "a2f955206e74d366f0fd904130b3e64cc87ab799e91781b3bb2ba76cb0ff14b5",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 100103
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_18/center/cl/t18_vl8_rr1.flac",
+      "file": "originals/tom_18/center/cl/t18_vl8_rr1.flac",
+      "sha256": "5ea672c055632d3aa3f7b9100477db64d95653960fd63985083b236b3e22ef18",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 100103
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_18/center/oh/t18_vl8_rr1.flac",
+      "file": "originals/tom_18/center/oh/t18_vl8_rr1.flac",
+      "sha256": "92b6d9bacfda8cea78f0c7d6f05174cb8edcc98fb5533b85e950d725b4385785",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 100103
+    },
+    {
+      "mic": "cl",
+      "source_path": "Samples/tom_18/center/cl/t18_vl8_rr2.flac",
+      "file": "originals/tom_18/center/cl/t18_vl8_rr2.flac",
+      "sha256": "88211caa8377c292fb4a3899d26c22ae71f9eb889d4dd520b81e26edb30ceaaf",
+      "sample_rate": 44100,
+      "channels": 1,
+      "frames": 100103
+    },
+    {
+      "mic": "oh",
+      "source_path": "Samples/tom_18/center/oh/t18_vl8_rr2.flac",
+      "file": "originals/tom_18/center/oh/t18_vl8_rr2.flac",
+      "sha256": "f6f13203be77439de9068f0a6f49a8d3489c0b4be40e609e0c975c0640ce1dad",
+      "sample_rate": 44100,
+      "channels": 2,
+      "frames": 100103
+    }
+  ]
+}

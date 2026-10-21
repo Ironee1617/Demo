@@ -1,0 +1,389 @@
+{
+  "atlases": [
+    {
+      "id": "lava",
+      "sourceWidth": 1536,
+      "sourceHeight": 1024,
+      "background": {
+        "x": 0,
+        "y": 0,
+        "width": 1536,
+        "height": 413
+      },
+      "monsters": [
+        {
+          "x": 19,
+          "y": 509,
+          "width": 310,
+          "height": 180
+        },
+        {
+          "x": 358,
+          "y": 449,
+          "width": 288,
+          "height": 248
+        },
+        {
+          "x": 654,
+          "y": 425,
+          "width": 361,
+          "height": 276
+        },
+        {
+          "x": 19,
+          "y": 775,
+          "width": 326,
+          "height": 206
+        },
+        {
+          "x": 367,
+          "y": 736,
+          "width": 373,
+          "height": 243
+        },
+        {
+          "x": 751,
+          "y": 698,
+          "width": 264,
+          "height": 295
+        },
+        {
+          "x": 1016,
+          "y": 425,
+          "width": 507,
+          "height": 564
+        }
+      ]
+    },
+    {
+      "id": "rock",
+      "sourceWidth": 1536,
+      "sourceHeight": 1024,
+      "background": {
+        "x": 0,
+        "y": 0,
+        "width": 1536,
+        "height": 408
+      },
+      "monsters": [
+        {
+          "x": 12,
+          "y": 465,
+          "width": 321,
+          "height": 210
+        },
+        {
+          "x": 380,
+          "y": 432,
+          "width": 339,
+          "height": 253
+        },
+        {
+          "x": 751,
+          "y": 411,
+          "width": 289,
+          "height": 269
+        },
+        {
+          "x": 14,
+          "y": 694,
+          "width": 368,
+          "height": 300
+        },
+        {
+          "x": 404,
+          "y": 677,
+          "width": 261,
+          "height": 316
+        },
+        {
+          "x": 712,
+          "y": 689,
+          "width": 336,
+          "height": 306
+        },
+        {
+          "x": 1078,
+          "y": 421,
+          "width": 446,
+          "height": 574
+        }
+      ]
+    },
+    {
+      "id": "jungle",
+      "sourceWidth": 1536,
+      "sourceHeight": 1024,
+      "background": {
+        "x": 0,
+        "y": 0,
+        "width": 1536,
+        "height": 435
+      },
+      "monsters": [
+        {
+          "x": 35,
+          "y": 490,
+          "width": 298,
+          "height": 221
+        },
+        {
+          "x": 382,
+          "y": 442,
+          "width": 330,
+          "height": 274
+        },
+        {
+          "x": 726,
+          "y": 444,
+          "width": 365,
+          "height": 269
+        },
+        {
+          "x": 28,
+          "y": 784,
+          "width": 298,
+          "height": 210
+        },
+        {
+          "x": 374,
+          "y": 781,
+          "width": 393,
+          "height": 208
+        },
+        {
+          "x": 781,
+          "y": 718,
+          "width": 313,
+          "height": 278
+        },
+        {
+          "x": 1101,
+          "y": 441,
+          "width": 422,
+          "height": 562
+        }
+      ]
+    },
+    {
+      "id": "frozen",
+      "sourceWidth": 1536,
+      "sourceHeight": 1024,
+      "background": {
+        "x": 0,
+        "y": 0,
+        "width": 1536,
+        "height": 439
+      },
+      "monsters": [
+        {
+          "x": 25,
+          "y": 507,
+          "width": 264,
+          "height": 185
+        },
+        {
+          "x": 336,
+          "y": 462,
+          "width": 396,
+          "height": 232
+        },
+        {
+          "x": 747,
+          "y": 442,
+          "width": 284,
+          "height": 253
+        },
+        {
+          "x": 17,
+          "y": 772,
+          "width": 334,
+          "height": 235
+        },
+        {
+          "x": 372,
+          "y": 705,
+          "width": 323,
+          "height": 293
+        },
+        {
+          "x": 698,
+          "y": 707,
+          "width": 348,
+          "height": 303
+        },
+        {
+          "x": 1076,
+          "y": 450,
+          "width": 457,
+          "height": 560
+        }
+      ]
+    },
+    {
+      "id": "water",
+      "sourceWidth": 1536,
+      "sourceHeight": 1024,
+      "background": {
+        "x": 0,
+        "y": 0,
+        "width": 1536,
+        "height": 416
+      },
+      "monsters": [
+        {
+          "x": 41,
+          "y": 481,
+          "width": 261,
+          "height": 196
+        },
+        {
+          "x": 349,
+          "y": 442,
+          "width": 312,
+          "height": 235
+        },
+        {
+          "x": 680,
+          "y": 419,
+          "width": 315,
+          "height": 267
+        },
+        {
+          "x": 21,
+          "y": 688,
+          "width": 389,
+          "height": 313
+        },
+        {
+          "x": 395,
+          "y": 690,
+          "width": 284,
+          "height": 311
+        },
+        {
+          "x": 680,
+          "y": 672,
+          "width": 321,
+          "height": 327
+        },
+        {
+          "x": 1007,
+          "y": 445,
+          "width": 514,
+          "height": 555
+        }
+      ]
+    },
+    {
+      "id": "cloud",
+      "sourceWidth": 1536,
+      "sourceHeight": 1024,
+      "background": {
+        "x": 0,
+        "y": 0,
+        "width": 1536,
+        "height": 418
+      },
+      "monsters": [
+        {
+          "x": 33,
+          "y": 465,
+          "width": 276,
+          "height": 224
+        },
+        {
+          "x": 357,
+          "y": 433,
+          "width": 303,
+          "height": 262
+        },
+        {
+          "x": 720,
+          "y": 465,
+          "width": 292,
+          "height": 226
+        },
+        {
+          "x": 61,
+          "y": 716,
+          "width": 243,
+          "height": 292
+        },
+        {
+          "x": 312,
+          "y": 690,
+          "width": 390,
+          "height": 324
+        },
+        {
+          "x": 731,
+          "y": 699,
+          "width": 300,
+          "height": 313
+        },
+        {
+          "x": 1066,
+          "y": 423,
+          "width": 453,
+          "height": 582
+        }
+      ]
+    },
+    {
+      "id": "ruins",
+      "sourceWidth": 1536,
+      "sourceHeight": 1024,
+      "background": {
+        "x": 0,
+        "y": 0,
+        "width": 1536,
+        "height": 373
+      },
+      "monsters": [
+        {
+          "x": 17,
+          "y": 432,
+          "width": 348,
+          "height": 213
+        },
+        {
+          "x": 388,
+          "y": 376,
+          "width": 329,
+          "height": 299
+        },
+        {
+          "x": 767,
+          "y": 391,
+          "width": 313,
+          "height": 289
+        },
+        {
+          "x": 36,
+          "y": 685,
+          "width": 327,
+          "height": 308
+        },
+        {
+          "x": 417,
+          "y": 668,
+          "width": 307,
+          "height": 337
+        },
+        {
+          "x": 788,
+          "y": 665,
+          "width": 305,
+          "height": 346
+        },
+        {
+          "x": 1100,
+          "y": 376,
+          "width": 436,
+          "height": 629
+        }
+      ]
+    }
+  ]
+}
