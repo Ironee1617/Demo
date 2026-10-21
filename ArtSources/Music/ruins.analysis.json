@@ -1,0 +1,33 @@
+{
+  "id": "ruins",
+  "title": "Buried Sun Engine",
+  "title_ko": "매몰된 태양 기관",
+  "bpm": 146,
+  "bars": 64,
+  "note_events": 4031,
+  "production": "recorded-band-v2",
+  "master": {
+    "seconds": 105.205488,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.514,
+    "rms_dbfs": -15.275,
+    "loop_seam_delta": 0.011304,
+    "minimum_half_second_rms": 0.02327,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg": {
+    "seconds": 105.205488,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.149,
+    "rms_dbfs": -15.26,
+    "loop_seam_delta": 0.012221,
+    "minimum_half_second_rms": 0.023315,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg_bytes": 2690678,
+  "sha256": "42c55e5f042b94689685da86bda718cec810d298e070646fe7f2acc74e5bfa26"
+}

@@ -34,6 +34,14 @@ sysinfo.txt
 /Artifacts/TowerArt/
 /Artifacts/TowerDemo/
 /Artifacts/TowerEditor/
+/Artifacts/TowerThemes/
+/Artifacts/TowerPolish/
+/Artifacts/TowerRig/
+/Artifacts/TowerLimbReview/
+/Artifacts/TowerOathTrial/
+/Artifacts/TowerUIRefresh/
+/Artifacts/TowerEdenCute/
+/Artifacts/TowerEdenBalanced/
 
 # Local art backups and generated visual validation output.
 /Artifacts/Cartoon*/

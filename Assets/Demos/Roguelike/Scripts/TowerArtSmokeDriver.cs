@@ -65,16 +65,18 @@ namespace PrototypeLab.Roguelike
         {
             Require(Path.IsPathRooted(prefix) && Path.IsPathRooted(reportPath), "Art paths must be absolute.");
             Directory.CreateDirectory(Path.GetDirectoryName(prefix));
-            Require(characters.Count == 16, "Gallery must cover player and fifteen companions.");
+            Require(characters.Count == TowerRun.Definitions.Count + 1 && characters.Count == 51, "Gallery must cover player and fifty mythology companions.");
             report.characters = characters.Count; var profiles = new HashSet<string>();
             bool portraits = true, filtering = true, timings = true;
-            for (int page = 0; page < 4; page++)
+            int pages = (characters.Count + 3) / 4;
+            for (int page = 0; page < pages; page++)
             {
-                NewGallery(); title = "원본 픽셀 캐릭터 · 동작 검증 " + (page + 1) + " / 4";
+                NewGallery(); title = "신화 픽셀 캐릭터 · 동작 검증 " + (page + 1) + " / " + pages;
                 for (int col = 0; col < 7; col++) Label(new Rect(col * 228 + 12, 58, 210, 24), Motions[col]);
                 for (int row = 0; row < 4; row++) for (int motion = 0; motion < 7; motion++)
                 {
-                    var ch = characters[page * 4 + row];
+                    int characterIndex = page * 4 + row; if (characterIndex >= characters.Count) continue;
+                    var ch = characters[characterIndex];
                     float x = -12.8f + (motion + .5f) * (25.6f / 7);
                     float y = 7.2f - (86 + row * 195 + 184) * (14.4f / Height);
                     var root = new GameObject(ch.name + " " + Motions[motion]).transform;
@@ -83,6 +85,7 @@ namespace PrototypeLab.Roguelike
                     art.SetLocomotion(true, 0, false); art.SetPose(false, false, false, 1, .01f);
                     var initial = Pose(art); StartMotion(art, ch.role, motion); Advance(art, motion, 0);
                     int steps = motion == 4 ? 2 : motion == 2 ? Mathf.CeilToInt(art.AttackHitTime(.6f) / .04f) : motion == 3 ? Mathf.CeilToInt(art.CastReleaseTime(SkillEffect.Fireball, .6f) / .04f) : 4;
+                    if (motion == 0 && TowerEdenArt.Contains(ch.art)) steps = 12; // Authored idle holds each pixel pose for .42 s.
                     var first = Pose(art); for (int frame = 1; frame <= steps; frame++) Advance(art, motion, frame);
                     Require(Different(initial, Pose(art)) && (motion != 0 || Different(first, Pose(art))), ch.name + " motion did not change: " + Motions[motion]);
                     report.motionSamples++; report.changedMotionSamples++;
@@ -98,8 +101,8 @@ namespace PrototypeLab.Roguelike
                 }
                 yield return Capture("motion-" + (page + 1));
             }
-            report.distinctProfiles = profiles.Count; report.profilesVerified = profiles.Count == 16;
-            report.animationsVerified = report.motionSamples == 112 && report.changedMotionSamples == 112;
+            report.distinctProfiles = profiles.Count; report.profilesVerified = profiles.Count == characters.Count;
+            report.animationsVerified = report.motionSamples == characters.Count * Motions.Length && report.changedMotionSamples == report.motionSamples;
             report.pixelPortraitsVerified = portraits; report.pointFilteringVerified = filtering; report.timingRangesVerified = timings;
             report.attackBlendVerified = true;
             Require(report.profilesVerified && portraits && filtering && timings, "Profile, portrait, filtering or timing check failed.");
@@ -134,19 +137,35 @@ namespace PrototypeLab.Roguelike
             if (a.Length != b.Length) return false;
             for (int i = 0; i < a.Length; i++)
                 if (Vector3.Distance(a[i].localPosition, b[i].localPosition) > positionTolerance || Quaternion.Angle(a[i].localRotation, b[i].localRotation) > angleTolerance) return false;
+            var first = MeshVertices(reference); var second = MeshVertices(sample);
+            if (first.Count != second.Count) return false;
+            for (int i = 0; i < first.Count; i++)
+                if (Vector3.Distance(first[i], second[i]) > positionTolerance) return false;
             return true;
         }
         private static void Advance(TowerActorArt art, int motion, int frame)
         {
+            if (motion == 1 || motion == 6) art.SetLocomotion(true, 0, motion == 6, motion == 6 ? 7 : 3);
             if (motion == 5) art.SetLocomotion(false, frame < 2 ? 5 : -3, false);
             art.SetPose(motion == 1 || motion == 6, false, motion == 4 && frame == 0, 1, .04f);
         }
         private static float[] Pose(TowerActorArt art)
         {
             var values = new List<float>();
+            var eden = art.GetComponent<TowerEdenArt>();
+            if (eden != null) values.Add(eden.CurrentFrame);
             foreach (var t in art.GetComponentsInChildren<Transform>())
             { var p = t.localPosition; var r = t.localEulerAngles; var s = t.localScale; values.AddRange(new[] { p.x, p.y, p.z, r.x, r.y, r.z, s.x, s.y, s.z }); }
+            foreach (var vertex in MeshVertices(art)) values.AddRange(new[] { vertex.x, vertex.y, vertex.z });
             return values.ToArray();
+        }
+        private static List<Vector3> MeshVertices(TowerActorArt art)
+        {
+            var vertices = new List<Vector3>();
+            foreach (var filter in art.GetComponentsInChildren<MeshFilter>())
+                foreach (var vertex in filter.sharedMesh.vertices)
+                    vertices.Add(art.transform.InverseTransformPoint(filter.transform.TransformPoint(vertex)));
+            return vertices;
         }
         private static bool Different(float[] a, float[] b)
         { if (a.Length != b.Length) return true; for (int i = 0; i < a.Length; i++) if (Mathf.Abs(a[i] - b[i]) > .00001f) return true; return false; }
@@ -223,11 +242,11 @@ namespace PrototypeLab.Roguelike
             var style = new GUIStyle { font = font, fontSize = 25, wordWrap = true }; style.normal.textColor = new Color(.85f, .9f, .92f);
             GUI.Label(new Rect(18, 10, 1540, 42), title, style); style.fontSize = 15;
             for (int i = 0; i < labels.Count; i++) GUI.Label(labelRects[i], labels[i], style);
-            style.fontSize = 12; GUI.Label(new Rect(18, 878, 1540, 20), "Production animation and VFX / Original pixel parts / Point filtering / No character redraw", style);
+            style.fontSize = 12; GUI.Label(new Rect(18, 878, 1540, 20), "Production animation and VFX / Pixel humanoids / Point filtering", style);
         }
         private IEnumerator Capture(string suffix)
         {
-            string charactersToDraw = title + "Production animation and VFX / Original pixel parts / Point filtering / No character redraw" + string.Join(" ", labels.ToArray());
+            string charactersToDraw = title + "Production animation and VFX / Pixel humanoids / Point filtering" + string.Join(" ", labels.ToArray());
             foreach (int size in new[] { 25, 15, 12 }) font.RequestCharactersInTexture(charactersToDraw, size, FontStyle.Normal);
             yield return null;
             yield return null;

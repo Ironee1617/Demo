@@ -81,7 +81,8 @@ namespace PrototypeLab.Roguelike
                 if(clock.remaining>0||clock.pending||!IsCurrentHero(clock.owner))continue;
                 var source=ActorFor(clock.owner.Id);if(source==null||source.basicPending||source.castRemaining>0||(source==hero&&(attackTimer>0||dashTime>0)))continue;
                 var effect=clock.skill.Definition.Effect;
-                var target=ClosestEnemy(source.pos,13,clock.owner);
+                var target=source==hero?ClosestEnemy(source.pos,13,clock.owner):source.combatTarget;
+                if(source!=hero&&!ValidAllyTarget(target,(CompanionState)clock.owner))target=null;
                 if(target==null&&(effect==SkillEffect.HealPulse||effect==SkillEffect.ShieldPulse))target=enemies.Find(enemy=>enemy.hp>0);
                 if(target==null)continue;float distance=Vector2.Distance(source.pos,target.pos);
                 if((effect==SkillEffect.IceNova||effect==SkillEffect.BladeStorm)&&distance>clock.skill.Radius)continue;
@@ -111,7 +112,8 @@ namespace PrototypeLab.Roguelike
                 if(!IsCurrentHero(pending.clock.owner)||!pending.source.root){pending.clock.pending=false;pendingSkills.RemoveAt(i);continue;}
                 if(pending.remaining>0)continue;
                 bool support=pending.clock.skill.Definition.Effect==SkillEffect.HealPulse||pending.clock.skill.Definition.Effect==SkillEffect.ShieldPulse;
-                var target=pending.target!=null&&pending.target.hp>0&&(support||CanTarget(pending.target,pending.clock.owner))?pending.target:ClosestEnemy(pending.source.pos,13,pending.clock.owner);
+                var target=pending.target!=null&&pending.target.hp>0&&(support||CanTarget(pending.target,pending.clock.owner))?pending.target:pending.source==hero?ClosestEnemy(pending.source.pos,13,pending.clock.owner):pending.source.combatTarget;
+                if(pending.source!=hero&&!support&&!ValidAllyTarget(target,(CompanionState)pending.clock.owner))target=null;
                 if(target!=null&&hero.hp>0)
                 {CastSkill(pending.clock.owner,pending.clock.skill,pending.source,target);pending.clock.casts++;pending.clock.lastCast=elapsed;}
                 pending.clock.pending=false;pendingSkills.RemoveAt(i);
@@ -198,7 +200,7 @@ namespace PrototypeLab.Roguelike
         {
             var go=new GameObject(effect.ToString());go.transform.SetParent(transform,false);go.transform.localPosition=center+Vector2.up*.6f;
             var area=new SkillArea{owner=owner,source=source,effect=effect,center=center,radius=radius,remaining=duration,interval=interval,tick=effect==SkillEffect.Meteor?interval:.05f,damage=damage,color=color,count=count,root=go};skillAreas.Add(area);
-            if(vfx!=null){vfx.AttachZone(go,effect,radius,duration);if(effect==SkillEffect.Meteor)vfx.TelegraphMeteor(center+Vector2.up*.6f,radius,interval);}
+            if(vfx!=null){if(effect==SkillEffect.Meteor)vfx.DescendMeteor(center+Vector2.up*.6f,interval);else vfx.AttachZone(go,effect,radius,duration);}
         }
         private void TickSkillAreas(float dt)
         {
@@ -212,6 +214,8 @@ namespace PrototypeLab.Roguelike
                     a.tick+=a.interval;
                     if(a.effect==SkillEffect.Sentry)
                     {var target=ClosestEnemy(a.center,Mathf.Max(a.radius,6),a.owner);if(target!=null)for(int j=0;j<a.count;j++){Fire(a.center+Vector2.up,target.pos+Vector2.up,11,a.damage,false,a.color,0,a.owner);StyleLastShot(SkillEffect.Sentry);}}
+                    else if(a.effect==SkillEffect.HealPulse)
+                    {if(Vector2.Distance(hero.pos,a.center)<=a.radius)HealPlayer(a.damage,true);}
                     else
                     {
                         foreach(var e in enemies.ToArray())if(CanTarget(e,a.owner)&&Vector2.Distance(e.pos,a.center)<a.radius)

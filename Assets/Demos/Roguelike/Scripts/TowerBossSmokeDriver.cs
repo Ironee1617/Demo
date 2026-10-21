@@ -14,13 +14,13 @@ namespace PrototypeLab.Roguelike
         {
             public string mode = "towerBossSmoke", finishedUtc;
             public bool success, floorCountsMonotone, regularCountsMatch, bossCadence, bossesGroundTargetable, regularHealthScaling, regularDamageScaling, regularMovementScaling, regularBulletScaling, regularAttackRateScaling, bossHealthScaling;
-            public bool patternsDistinct, telegraphsLocked, warningsBeforeDamage, patternDelays, crownGap, spiralGap, slamCollision, attackMotionsDistinct, pauseFreezesBoss, resetCleansBoss;
-            public bool warningTracksKnockback;
+            public bool patternsDistinct, aimLocked, preparationBeforeDamage, preparationHasNoOverlays, patternDelays, crownGap, spiralGap, slamCollision, attackMotionsDistinct, pauseFreezesBoss, resetCleansBoss;
+            public bool lockedAimAfterKnockback;
             public bool actualBossKilled, bossDeathWaitsForAdds, actualAddsKilled, rewardExactlyOnce, cameraNoShake;
             public int sampledFloors, sampledBosses, actualCombatKills, healthRefills;
             public float restoredHealth;
             public List<string> floorSamples = new List<string>(), statSamples = new List<string>(), patternChecks = new List<string>(), screenshots = new List<string>(), errors = new List<string>();
-            public List<string> warningTrackingChecks = new List<string>();
+            public List<string> knockbackChecks = new List<string>();
         }
         private readonly BossReport report = new BossReport();
         private TowerGame game; private TowerSmokeDriver capture;
@@ -89,7 +89,7 @@ namespace PrototypeLab.Roguelike
             typeof(TowerRun).GetField("<Floor>k__BackingField", Hidden).SetValue(game.run, floor); Call("SpawnFloor");
             game.view.transform.position = new Vector3(0, 0, -10);
         }
-        private void ResetControls() { game.MoveOverride = 0; game.AttackOverride = game.JumpOverride = game.DashOverride = game.FocusOverride = false; }
+        private void ResetControls() { game.MoveOverride = 0; game.AttackOverride = game.JumpOverride = game.DropOverride = game.DashOverride = game.FocusOverride = false; }
         private void ClearEnemies()
         { foreach (var actor in game.enemies) if (actor.root) { actor.root.SetActive(false); Destroy(actor.root); } game.enemies.Clear(); }
         private void ClearShots()
@@ -102,136 +102,156 @@ namespace PrototypeLab.Roguelike
         private TowerGame.Fighter Boss { get { return game.enemies.Find(e => e.isBoss); } }
         private IEnumerator FloorsAndStats()
         {
-            int previousRegular = 0, previousTotal = 0;
+            int previousRegular = 0;
             for (int floor = 1; floor <= 25; floor++)
             {
-                SetFloor(floor); int regular = 0, bosses = 0;
+                SetFloor(floor); int regular = 0, bosses = 0, flyers=0;
                 foreach (var enemy in game.enemies)
                 {
                     Require(enemy.difficultyFloor == floor, "An enemy used the wrong difficulty floor.");
                     if (enemy.isBoss)
                     {
-                        bosses++; Require(!enemy.airborne && enemy.grounded && Mathf.Abs(enemy.maxHp - TowerDifficulty.BossHealth(floor)) < .01f, "Boss HP/ground state did not match the floor.");
+                        bosses++; Require(!enemy.airborne && enemy.grounded && Mathf.Abs(enemy.maxHp - TowerDifficulty.BossHealth(floor) * enemy.monster.HealthMultiplier) < .01f, "Boss HP/ground state did not match the floor and theme.");
                         Require(game.CanTarget(enemy, game.run.Player), "A melee-only player cannot target a boss.");
-                        foreach (string id in new[] { "rook", "finn", "sera", "mira" }) Require(game.CanTarget(enemy, new CompanionState(TowerRun.GetDefinition(id))), "A companion class cannot target the grounded boss.");
+                        foreach (string id in new[] { "michael", "gabriel", "uriel", "raphael" }) Require(game.CanTarget(enemy, new CompanionState(TowerRun.GetDefinition(id))), "A companion class cannot target the grounded boss.");
                     }
                     else
                     {
-                        regular++; float hp = (enemy.kind == 0 ? 60 : enemy.kind == 1 ? 48 : enemy.kind == 2 ? 80 : 52) * TowerDifficulty.HealthMultiplier(floor);
+                        if(enemy.airborne)flyers++;else regular++;
+                        var monster = enemy.monster;
+                        float hp = (enemy.kind == 0 ? 60 : enemy.kind == 1 ? 48 : enemy.kind == 2 ? 80 : 52) * TowerDifficulty.HealthMultiplier(floor) * monster.HealthMultiplier;
                         Require(Mathf.Abs(enemy.maxHp - hp) < .01f, "A normal enemy's actual HP did not scale.");
-                        Require(Mathf.Abs(enemy.damageScale - TowerDifficulty.DamageMultiplier(floor)) < .001f && Mathf.Abs(enemy.moveScale - TowerDifficulty.MoveMultiplier(floor)) < .001f && Mathf.Abs(enemy.bulletSpeedScale - TowerDifficulty.BulletMultiplier(floor)) < .001f && Mathf.Abs(enemy.attackRateScale - TowerDifficulty.AttackRateMultiplier(floor)) < .001f, "A normal enemy's runtime multipliers did not match difficulty.");
+                        Require(Mathf.Abs(enemy.damageScale - TowerDifficulty.DamageMultiplier(floor) * monster.DamageMultiplier) < .001f && Mathf.Abs(enemy.moveScale - TowerDifficulty.MoveMultiplier(floor) * monster.MoveMultiplier) < .001f && Mathf.Abs(enemy.bulletSpeedScale - TowerDifficulty.BulletMultiplier(floor) * monster.BulletMultiplier) < .001f && Mathf.Abs(enemy.attackRateScale - TowerDifficulty.AttackRateMultiplier(floor) * monster.AttackRateMultiplier) < .001f, "A normal enemy's runtime multipliers did not match difficulty and species.");
                     }
                 }
-                Require(regular == TowerDifficulty.RegularCount(floor) && regular >= previousRegular && game.enemies.Count >= previousTotal, "Actual floor counts decreased or did not match difficulty.");
-                Require(bosses == (floor % 3 == 0 ? 1 : 0), "Boss cadence did not match multiples of three: " + floor);
-                report.sampledFloors++; report.sampledBosses += bosses; report.floorSamples.Add(floor + ": regular=" + regular + ", boss=" + bosses + ", total=" + game.enemies.Count);
-                previousRegular = regular; previousTotal = game.enemies.Count; yield return null;
+                Require(regular == TowerDifficulty.RegularCount(floor) && regular >= previousRegular, "Actual regular floor counts decreased or did not match difficulty.");
+                Require(flyers==(floor>=2?1:0), "Flying monster count depended on the party or floor cadence.");
+                Require(bosses == (floor % 5 == 0 ? 1 : 0), "Boss cadence did not match multiples of five: " + floor);
+                report.sampledFloors++; report.sampledBosses += bosses; report.floorSamples.Add(floor + ": regular=" + regular + ", flying="+flyers+", boss=" + bosses + ", total=" + game.enemies.Count);
+                previousRegular = regular; yield return null;
             }
             report.floorCountsMonotone = report.regularCountsMatch = report.bossCadence = report.bossesGroundTargetable = report.regularHealthScaling = report.bossHealthScaling = true;
             float[] first = MeasureRegular(1), final = MeasureRegular(25);
             for (int i = 0; i < 4; i++) Require(final[i] > first[i], "A measured normal combat stat did not increase: " + i);
-            Require(Mathf.Abs(final[4] - first[4]) < .001f && final[5] < first[5], "Higher-floor normal attacks must keep warning time and recover faster.");
+            Require(Mathf.Abs(final[4] - first[4]) < .001f && final[5] < first[5], "Higher-floor normal attacks must keep preparation time and recover faster.");
             report.regularDamageScaling = report.regularMovementScaling = report.regularBulletScaling = report.regularAttackRateScaling = true;
         }
         private float[] MeasureRegular(int floor)
         {
             SetFloor(floor); Place(game.hero, new Vector2(0, TowerWorld.Ground)); var actor = game.enemies.Find(e => !e.isBoss && e.kind == 0);
+            actor.monster = game.run.Theme.Monsters[0];
             Place(actor, new Vector2(1, TowerWorld.Ground)); Call("ConfigureEnemy", actor, 0, 0); actor.windup = .001f; actor.strikePoint = game.hero.pos; game.invulnerable = 0;
             float before = game.hero.hp; Call("TickEnemy", actor, .01f); float damage = before - game.hero.hp;
             Place(game.hero, new Vector2(4, TowerWorld.Ground)); Place(actor, new Vector2(-4, TowerWorld.Ground)); actor.cooldown = 999; actor.windup = 0;
             float x = actor.pos.x; Call("TickEnemy", actor, .1f); float movement = Mathf.Abs(actor.pos.x - x) / .1f;
             Place(game.hero, new Vector2(0, TowerWorld.Ground)); Place(actor, new Vector2(4, TowerWorld.Ground)); Call("ConfigureEnemy", actor, 1, 0); actor.cooldown = 0; ClearShots();
-            Call("TickEnemy", actor, .01f); float warning = actor.windup, interval = actor.cooldown;
+            Call("TickEnemy", actor, .01f); float preparation = actor.windup, interval = actor.cooldown;
             for (int step = 0; step < 200 && Shots.Count == 0; step++) Call("TickEnemy", actor, .02f);
             Require(Shots.Count == 3, "Normal scaling sample did not release its actual fan.");
             float bullet = Field<Vector2>(Shots[0], "velocity").magnitude, bulletDamage = Field<float>(Shots[0], "damage");
-            report.statSamples.Add(floor + ": meleeDamage=" + damage + ", move=" + movement + ", bulletSpeed=" + bullet + ", bulletDamage=" + bulletDamage + ", warning=" + warning + ", interval=" + interval);
-            return new[] { damage, movement, bullet, bulletDamage, warning, interval };
+            report.statSamples.Add(floor + ": meleeDamage=" + damage + ", move=" + movement + ", bulletSpeed=" + bullet + ", bulletDamage=" + bulletDamage + ", preparation=" + preparation + ", interval=" + interval);
+            return new[] { damage, movement, bullet, bulletDamage, preparation, interval };
         }
         private IEnumerator PatternsAndMotions()
         {
-            yield return VerifyBossPatterns(); yield return VerifyWarningTracksKnockback(); yield return PauseResetAndCamera();
+            yield return VerifyBossPatterns(); yield return VerifyLockedAimAfterKnockback(); yield return PauseResetAndCamera();
         }
-        private IEnumerator VerifyWarningTracksKnockback()
+        private void RequireNoPreparationOverlay(HashSet<SpriteRenderer> before)
+        {
+            foreach (var renderer in game.GetComponentsInChildren<SpriteRenderer>(true))
+                Require(before.Contains(renderer), "A boss created a path or danger renderer during preparation: " + renderer.name);
+        }
+        private void RequireNoPreviewObjects()
+        {
+            foreach (var item in game.GetComponentsInChildren<Transform>(true))
+                Require(item.name != "Locked warning dash" && !item.name.EndsWith(" warning", StringComparison.OrdinalIgnoreCase),
+                    "A boss retained a path or danger preview: " + item.name);
+        }
+        private IEnumerator VerifyLockedAimAfterKnockback()
         {
             // Real Update/input and normal ally basic attacks supply the damage and push.
             // These fixtures do not call damage, slash, attack-release or pattern-hit routines.
             for (int pattern = 0; pattern < 2; pattern++) for (int attacker = 0; attacker < 2; attacker++)
             {
-                SetFloor(pattern == 0 ? 3 : 6); var boss = Boss;
+                SetFloor(pattern == 0 ? 5 : 10); var boss = Boss;
                 Place(game.hero, new Vector2(0, TowerWorld.Ground)); game.hero.facing = 1;
                 Place(boss, new Vector2(2, TowerWorld.Ground)); boss.hp = boss.maxHp = 1000000;
                 foreach (var add in game.enemies) if (!add.isBoss) { Place(add, new Vector2(25, TowerWorld.Ground)); add.stunTime = add.cooldown = 999; }
                 if (attacker == 1)
                 {
                     var companions = (IList)typeof(TowerRun).GetField("companions", Hidden).GetValue(game.run);
-                    companions.Add(new CompanionState(TowerRun.GetDefinition("rook"))); game.ReconcileLoadout();
+                    companions.Add(new CompanionState(TowerRun.GetDefinition("michael"))); game.ReconcileLoadout();
                     foreach (var ally in game.allies) { ally.cooldown = 0; ally.basicPending = false; }
                 }
                 boss.cooldown = 0; Call("TickBoss", boss, .01f);
-                string patternName = (string)Call("BossPatternName", boss), attackerName = attacker == 0 ? "player slash" : "rook basic";
-                Require((float)Call("BossTelegraphRemaining", boss) > 1, "Knockback fixture did not begin a full boss warning.");
-                var states = (IDictionary)typeof(TowerGame).GetField("bossCombat", Hidden).GetValue(game);
-                var warning = Field<object>(states[boss], "warning"); var guideList = (IList)warning.GetType().GetField("guides").GetValue(warning);
-                Require(guideList.Count > 0, "Boss warning had no production guide renderers.");
-                var guides = new SpriteRenderer[guideList.Count]; var positions = new Vector2[guideList.Count]; var angles = new float[guideList.Count];
-                for (int i = 0; i < guides.Length; i++) { guides[i] = (SpriteRenderer)guideList[i]; positions[i] = guides[i].transform.position; angles[i] = guides[i].transform.eulerAngles.z; }
-                Vector2 aim = (Vector2)Call("BossLockedAim", boss), origin = boss.pos + Vector2.up * 1.4f, direction = (aim + Vector2.up - origin).normalized;
+                string patternName = (string)Call("BossPatternName", boss), attackerName = attacker == 0 ? "player slash" : "michael basic";
+                Require((float)Call("BossTelegraphRemaining", boss) > 1, "Knockback fixture did not begin full boss preparation.");
+                RequireNoPreviewObjects(); Vector2 aim = (Vector2)Call("BossLockedAim", boss);
                 float beforeHp = boss.hp, beforeX = boss.pos.x, limit = Time.realtimeSinceStartup + 2.5f;
                 game.AttackOverride = attacker == 0; game.enabled = true;
                 while (boss.hp == beforeHp)
                 {
                     Require(Time.realtimeSinceStartup < limit && (float)Call("BossTelegraphRemaining", boss) > 0,
-                        patternName + " / " + attackerName + " did not produce a normal attack hit during the warning.");
+                        patternName + " / " + attackerName + " did not produce a normal attack hit during preparation.");
+                    RequireNoPreviewObjects();
                     yield return null;
                 }
                 ResetControls();
-                // Ally hits resolve after TickBoss, so allow the next real update to sync the warning.
+                // Ally hits resolve after TickBoss, so allow the next real update to settle the pushed actor.
                 yield return null; game.enabled = false;
                 Require(boss.pos.x > beforeX + .1f && boss.hp < beforeHp, patternName + " / " + attackerName + " did not cause real knockback.");
                 Require((float)Call("BossTelegraphRemaining", boss) > 0 && (Vector2)Call("BossLockedAim", boss) == aim,
-                    "The knockback tracking check lost its warning or changed the locked aim.");
-                Vector2 movedOrigin = boss.pos + Vector2.up * 1.4f, movedDirection = (aim + Vector2.up - movedOrigin).normalized;
-                float rotation = Vector2.SignedAngle(direction, movedDirection), maxPositionError = 0, maxAngleError = 0;
-                Quaternion turn = Quaternion.Euler(0, 0, rotation);
-                for (int i = 0; i < guides.Length; i++)
+                    "Knockback cancelled preparation or changed the locked aim.");
+                RequireNoPreviewObjects(); ClearShots();
+                for (int frame = 0; frame < 100 && (int)Call("BossReleaseCount", boss) == 0; frame++)
                 {
-                    Require(guides[i] != null, "A boss warning guide disappeared before release.");
-                    Vector2 expected = movedOrigin + (Vector2)(turn * (Vector3)(positions[i] - origin));
-                    maxPositionError = Mathf.Max(maxPositionError, Vector2.Distance(guides[i].transform.position, expected));
-                    maxAngleError = Mathf.Max(maxAngleError, Mathf.Abs(Mathf.DeltaAngle(angles[i] + rotation, guides[i].transform.eulerAngles.z)));
+                    RequireNoPreviewObjects(); Call("TickBoss", boss, .02f);
                 }
+                Require((int)Call("BossReleaseCount", boss) == 1 && Shots.Count == (pattern == 0 ? 5 : 4), "A pushed boss failed to release its normal first volley.");
+                Require((Vector2)Call("BossLockedAim", boss) == aim, "A pushed boss changed its aim at release.");
+                Vector2 origin = boss.pos + Vector2.up * 1.4f, direction = (aim + Vector2.up - origin).normalized;
+                float maxPositionError = 0, maxAngleError = 0; var angles = new List<float>();
+                foreach (object shot in Shots)
+                {
+                    maxPositionError = Mathf.Max(maxPositionError, Vector2.Distance(Field<Vector2>(shot, "pos"), origin));
+                    angles.Add(Vector2.SignedAngle(direction, Field<Vector2>(shot, "velocity")));
+                }
+                angles.Sort(); float[] expectedAngles = pattern == 0 ? new[] { -38f, -22f, -6f, 10f, 26f } : new[] { -95f, -85f, 85f, 95f };
+                for (int i = 0; i < angles.Count; i++) maxAngleError = Mathf.Max(maxAngleError, Mathf.Abs(Mathf.DeltaAngle(expectedAngles[i], angles[i])));
                 string result = patternName + " / " + attackerName + ": push=" + (boss.pos.x - beforeX).ToString("F3") +
-                    ", guide position error=" + maxPositionError.ToString("F3") + ", angle error=" + maxAngleError.ToString("F3");
-                report.warningTrackingChecks.Add(result);
-                Require(maxPositionError <= .05f && maxAngleError <= .5f, "Boss warning did not follow the actual pushed emitter and fixed aim: " + result);
+                    ", projectile origin error=" + maxPositionError.ToString("F3") + ", locked-aim angle error=" + maxAngleError.ToString("F3") + ", preview objects=0";
+                report.knockbackChecks.Add(result);
+                Require(maxPositionError <= .001f && maxAngleError <= .1f, "A pushed boss did not fire from its actual emitter toward the fixed aim: " + result);
             }
-            report.warningTracksKnockback = true;
+            report.lockedAimAfterKnockback = true;
         }
         private IEnumerator VerifyBossPatterns()
         {
             string[] names = { "CrownVolley", "TwinSpiral", "LeapingSlam" }; float[][] poses = new float[3][];
             for (int pattern = 0; pattern < 3; pattern++)
             {
-                SetFloor(3 + pattern * 3); var boss = Boss; Place(game.hero, new Vector2(0, TowerWorld.Ground)); Place(boss, new Vector2(4, TowerWorld.Ground));
-                boss.cooldown = 0; game.invulnerable = 0; ClearShots(); Call("TickBoss", boss, .01f);
+                SetFloor(5 + pattern * 5); var boss = Boss; Place(game.hero, new Vector2(0, TowerWorld.Ground)); Place(boss, new Vector2(4, TowerWorld.Ground));
+                boss.cooldown = 0; game.invulnerable = 0; ClearShots();
+                var renderers = new HashSet<SpriteRenderer>(game.GetComponentsInChildren<SpriteRenderer>(true)); Call("TickBoss", boss, .01f);
                 Require((string)Call("BossPatternName", boss) == names[pattern], "Incorrect initial boss pattern for floor " + game.run.Floor);
-                float warning = (float)Call("BossTelegraphRemaining", boss); Vector2 aim = (Vector2)Call("BossLockedAim", boss);
-                Require(warning >= 1.19f && aim == game.hero.pos && (int)Call("BossReleaseCount", boss) == 0 && Shots.Count == 0, "Boss attacked without its full visible preparation.");
+                float preparation = (float)Call("BossTelegraphRemaining", boss); Vector2 aim = (Vector2)Call("BossLockedAim", boss);
+                Require(preparation >= 1.19f && aim == game.hero.pos && (int)Call("BossReleaseCount", boss) == 0 && Shots.Count == 0, "Boss attacked without its full preparation.");
+                RequireNoPreparationOverlay(renderers);
                 float hp = game.hero.hp, clock = .01f;
-                for (int i = 0; i < 20; i++) { Call("TickBoss", boss, .02f); clock += .02f; }
-                Require(Shots.Count == 0 && game.hero.hp == hp, "A boss dealt damage during its warning.");
+                for (int i = 0; i < 20; i++) { Call("TickBoss", boss, .02f); clock += .02f; RequireNoPreparationOverlay(renderers); }
+                Require(Shots.Count == 0 && game.hero.hp == hp, "A boss dealt damage during preparation.");
                 Place(game.hero, new Vector2(-6, TowerWorld.Ground));
-                Require((Vector2)Call("BossLockedAim", boss) == aim, "A boss tracked the hero after telegraph locking.");
+                Require((Vector2)Call("BossLockedAim", boss) == aim, "A boss tracked the hero after locking aim.");
                 if (pattern == 0)
                 {
                     float remaining = (float)Call("BossTelegraphRemaining", boss); game.menu = true; game.enabled = true; yield return Wait(.2f); game.enabled = false;
-                    Require((float)Call("BossTelegraphRemaining", boss) == remaining && (int)Call("BossReleaseCount", boss) == 0, "Pause advanced boss warning or projectiles."); report.pauseFreezesBoss = true; game.menu = false;
+                    Require((float)Call("BossTelegraphRemaining", boss) == remaining && (int)Call("BossReleaseCount", boss) == 0, "Pause advanced boss preparation or projectiles."); report.pauseFreezesBoss = true; game.menu = false;
                 }
                 int lastRelease = 0; var times = new List<float>(); var bullets = new HashSet<object>(); var velocities = new List<Vector2>(); var origins = new List<Vector2>();
                 bool captured = false; float beforeLandingHp = game.hero.hp;
                 for (int frame = 0; frame < 350; frame++)
                 {
+                    if ((float)Call("BossTelegraphRemaining", boss) > .021f) RequireNoPreparationOverlay(renderers);
                     Call("TickBoss", boss, .02f); clock += .02f;
                     string stage = (string)Call("BossStageName", boss);
                     if (pattern == 2 && stage == "Leaping" && boss.pos.y > TowerWorld.Ground + 2.5f && !captured)
@@ -246,7 +266,7 @@ namespace PrototypeLab.Roguelike
                     { velocities.Add(Field<Vector2>(shot, "velocity")); origins.Add(Field<Vector2>(shot, "pos")); Require(Field<float>(shot, "damage") > 8, "Boss projectile damage was missing."); }
                     if (stage == "Recovery") break;
                 }
-                Require((Vector2)Call("BossLockedAim", boss) == aim && times.Count > 0 && times[0] >= warning, "Boss release ignored its locked aim or warning delay.");
+                Require((Vector2)Call("BossLockedAim", boss) == aim && times.Count > 0 && times[0] >= preparation, "Boss release ignored its locked aim or preparation delay.");
                 if (pattern == 0)
                 {
                     Require(times.Count == 3 && bullets.Count == 15, "CrownVolley must release three five-ray fans.");
@@ -266,15 +286,16 @@ namespace PrototypeLab.Roguelike
                 }
                 else
                 {
-                    Require(captured && times.Count == 2 && bullets.Count == 4 && times[0] >= warning + .83f && Mathf.Abs(times[1] - times[0] - .35f) < .025f, "Slam landing and delayed ground waves did not follow their preparation.");
+                    Require(captured && times.Count == 2 && bullets.Count == 4 && times[0] >= preparation + .83f && Mathf.Abs(times[1] - times[0] - .35f) < .025f, "Slam landing and delayed ground waves did not follow their preparation.");
                     Require(Mathf.Abs(beforeLandingHp - game.hero.hp - 14 * boss.damageScale) < .01f && boss.grounded && !boss.airborne, "A landed boss did not apply its scaled slam collision damage.");
                     Require(Mathf.Abs(origins[0].y - (TowerWorld.Ground + .65f)) < .01f && Mathf.Abs(origins[2].y - (TowerWorld.Ground + 1.05f)) < .01f, "Slam wave heights did not change between bursts."); report.slamCollision = true;
                 }
-                report.patternChecks.Add(names[pattern] + ": warning=" + warning + ", releases=" + times.Count + ", projectiles=" + bullets.Count + ", locked aim / delay / gap PASS");
+                RequireNoPreviewObjects();
+                report.patternChecks.Add(names[pattern] + ": preparation=" + preparation + ", releases=" + times.Count + ", projectiles=" + bullets.Count + ", no preparation overlays / locked aim / delay / gap PASS");
                 poses[pattern] = BossMotionPose(pattern);
             }
             Require(Different(poses[0], poses[1]) && Different(poses[0], poses[2]) && Different(poses[1], poses[2]), "Boss exclusive attack motions were identical.");
-            report.patternsDistinct = report.telegraphsLocked = report.warningsBeforeDamage = report.patternDelays = report.attackMotionsDistinct = true;
+            report.patternsDistinct = report.aimLocked = report.preparationBeforeDamage = report.preparationHasNoOverlays = report.patternDelays = report.attackMotionsDistinct = true;
         }
         private float[] BossMotionPose(int pattern)
         {
@@ -289,22 +310,22 @@ namespace PrototypeLab.Roguelike
         { if (a.Length != b.Length) return true; for (int i = 0; i < a.Length; i++) if (Mathf.Abs(a[i] - b[i]) > .0001f) return true; return false; }
         private IEnumerator PauseResetAndCamera()
         {
-            SetFloor(3); var old = Boss; Place(game.hero, new Vector2(0, TowerWorld.Ground)); Place(old, new Vector2(4, TowerWorld.Ground)); old.cooldown = 0; Call("TickBoss", old, .01f);
-            Require((float)Call("BossTelegraphRemaining", old) > 0, "Reset fixture did not start a boss warning.");
+            SetFloor(5); var old = Boss; Place(game.hero, new Vector2(0, TowerWorld.Ground)); Place(old, new Vector2(4, TowerWorld.Ground)); old.cooldown = 0; Call("TickBoss", old, .01f);
+            Require((float)Call("BossTelegraphRemaining", old) > 0, "Reset fixture did not start boss preparation.");
             SetFloor(1); yield return null; yield return null;
             var states = (IDictionary)typeof(TowerGame).GetField("bossCombat", Hidden).GetValue(game);
-            Require(states.Count == 0 && Shots.Count == 0 && Boss == null && !old.root, "New run retained boss state, warning actor or projectiles."); report.resetCleansBoss = true;
-            SetFloor(3); Place(game.hero, new Vector2(0, TowerWorld.Ground)); foreach (var enemy in game.enemies) enemy.stunTime = 999;
+            Require(states.Count == 0 && Shots.Count == 0 && Boss == null && !old.root, "New run retained boss state, actor or projectiles."); RequireNoPreviewObjects(); report.resetCleansBoss = true;
+            SetFloor(5); Place(game.hero, new Vector2(0, TowerWorld.Ground)); foreach (var enemy in game.enemies) enemy.stunTime = 999;
             game.view.transform.position = (Vector3)Call("SnapCamera", new Vector3(1.6f, 0, -10)); var position = game.view.transform.position;
             game.enabled = true; game.invulnerable = 0; Call("Fire", game.hero.pos + Vector2.up * .9f, game.hero.pos + Vector2.up * .9f, 0f, 1f, true, Color.red, 0f, null, 1, 0f);
             yield return Wait(.1f); for (int frame = 0; frame < 15; frame++) { Require(game.view.transform.position == position, "Boss-floor damage shook the stationary camera."); yield return null; } report.cameraNoShake = true;
         }
         private IEnumerator ActualFight()
         {
-            SetFloor(3); var boss = Boss; Require(boss != null, "The actual fight did not spawn a boss.");
+            SetFloor(5); var boss = Boss; Require(boss != null, "The actual fight did not spawn a boss.");
             Place(game.hero, new Vector2(0, TowerWorld.Ground)); Place(boss, new Vector2(4, TowerWorld.Ground));
             foreach (var add in game.enemies) if (!add.isBoss) { Place(add, new Vector2(25, TowerWorld.Ground)); add.stunTime = add.cooldown = 999; }
-            yield return Capture("intro", "3층 보스 · 실제 입력 전투 검증");
+            yield return Capture("intro", "5층 테마 보스 · 실제 입력 전투 검증");
             int initialKills = game.kills; game.enabled = true; battleActive = true; bool fighting = false;
             float limit = Time.realtimeSinceStartup + 100, nextJump = Time.realtimeSinceStartup + 2, nextDash = Time.realtimeSinceStartup + 4;
             while (boss.hp > 0)
@@ -339,8 +360,22 @@ namespace PrototypeLab.Roguelike
         private void DriveToward(TowerGame.Fighter target)
         {
             float dx = target.pos.x - game.hero.pos.x;
+            game.JumpOverride = game.DropOverride = game.DashOverride = false;
+            if(Mathf.Abs(target.pos.y-game.hero.pos.y)>1.75f)
+            {
+                if(game.hero.grounded){game.hero.followGroundX=game.hero.pos.x;game.hero.followGroundY=game.hero.pos.y;}
+                Vector2 perch=(Vector2)Call("AllyCombatAnchor",game.hero,target);
+                object[] route={game.hero,perch,game.PlayerMoveSpeed,false,false};
+                Vector2 destination=(Vector2)Call("AllyFollowDestination",route);
+                float routeDx=destination.x-game.hero.pos.x;
+                game.MoveOverride=Mathf.Clamp(routeDx/(game.PlayerMoveSpeed*Mathf.Max(.001f,Mathf.Min(Time.unscaledDeltaTime,.04f))),-1,1);
+                game.JumpOverride=(bool)route[3];
+                game.DropOverride=destination.y<game.hero.pos.y-.65f&&Mathf.Abs(routeDx)<4;
+                game.AttackOverride=false;
+                return;
+            }
             game.MoveOverride = Mathf.Abs(dx) > 1.8f ? Mathf.Sign(dx) : Mathf.Abs(dx) > .2f && game.hero.facing != (dx > 0 ? 1 : -1) ? Mathf.Sign(dx) : 0;
-            game.AttackOverride = Mathf.Abs(dx) < 3.1f; game.JumpOverride = game.DashOverride = false;
+            game.AttackOverride = Mathf.Abs(dx) < 3.1f;
         }
         private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
         private void Finish(Exception error)

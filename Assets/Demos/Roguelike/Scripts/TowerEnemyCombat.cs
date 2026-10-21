@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -10,21 +9,14 @@ namespace PrototypeLab.Roguelike
         private sealed class EnemyState
         {
             public int ordinal, cycle, releases;
-            public float clock, hoverClock, phase, lastRelease = -1, followUp = -1, windupTotal;
-            public bool wasAirborne;
+            public float clock, hoverClock, phase, hoverHeight, hoverX, lastRelease = -1, followUp = -1;
             public EnemyPattern pattern;
             public Transform shadow;
-            public GameObject telegraph;
-            public readonly List<SpriteRenderer> guides = new List<SpriteRenderer>();
         }
         private readonly Dictionary<Fighter, EnemyState> enemyCombat = new Dictionary<Fighter, EnemyState>();
-        private static Sprite enemyGuidePixel;
-        private static readonly Color EnemyWarning = new Color(1, .43f, .27f, .5f);
 
         private void ConfigureEnemy(Fighter actor, int kind, int ordinal)
         {
-            EnemyState previous;
-            if (enemyCombat.TryGetValue(actor, out previous)) ClearEnemyTelegraph(previous);
             actor.kind = kind;
             actor.isBoss = false;
             actor.airborne = kind == 3;
@@ -34,28 +26,46 @@ namespace PrototypeLab.Roguelike
             actor.bulletSpeedScale = TowerDifficulty.BulletMultiplier(actor.difficultyFloor);
             actor.attackRateScale = TowerDifficulty.AttackRateMultiplier(actor.difficultyFloor);
             actor.hp = actor.maxHp = (kind == 3 ? 52 : kind == 2 ? 80 : kind == 1 ? 48 : 60) * TowerDifficulty.HealthMultiplier(actor.difficultyFloor);
+            ApplyMonsterStats(actor);
             actor.cooldown = (.9f + ordinal * .27f) / actor.attackRateScale;
             actor.windup = actor.attackPose = actor.slowTime = actor.stunTime = 0;
             actor.facing = hero.pos.x >= actor.pos.x ? 1 : -1;
             actor.velocityY = 0; actor.grounded = !actor.airborne;
+            if (actor.airborne && actor.pos.y <= TowerWorld.Ground) actor.pos.y = TowerWorld.Ground + 3.8f;
             var state = CreateEnemyState(actor, ordinal);
             enemyCombat[actor] = state;
-            if (actor.airborne) actor.pos.y = TowerWorld.Ground + 3.8f + Mathf.Sin(state.phase) * .6f;
+            if (actor.airborne) actor.pos.y = state.hoverHeight + Mathf.Sin(state.phase) * .4f;
             actor.root.transform.position = actor.pos;
             UpdateEnemyShadow(actor, state);
+        }
+
+        private static void ApplyMonsterStats(Fighter actor)
+        {
+            var definition = actor.monster;
+            if (definition == null) return;
+            actor.hp = actor.maxHp *= definition.HealthMultiplier;
+            actor.damageScale *= definition.DamageMultiplier;
+            actor.moveScale *= definition.MoveMultiplier;
+            actor.bulletSpeedScale *= definition.BulletMultiplier;
+            actor.attackRateScale *= definition.AttackRateMultiplier;
+        }
+
+        private static Color ThemedBoltColor(Fighter actor, Color fallback)
+        {
+            Color color;
+            return actor.monster != null && ColorUtility.TryParseHtmlString("#" + TowerThemeCatalog.Get(actor.theme).AttackHex, out color) ? color : fallback;
         }
 
         private static EnemyState CreateEnemyState(Fighter actor, int ordinal)
         {
             ordinal = Mathf.Max(0, ordinal);
             return new EnemyState { ordinal = ordinal, cycle = ordinal % 3, phase = ordinal * 1.37f,
-                wasAirborne = actor.airborne, shadow = actor.root.transform.Find("Shadow"),
+                hoverHeight = actor.pos.y, hoverX = actor.pos.x, shadow = actor.root.transform.Find("Shadow"),
                 pattern = actor.kind == 0 ? EnemyPattern.MeleeSlam : actor.kind == 2 ? EnemyPattern.RadialGap : (EnemyPattern)(1 + ordinal % 3) };
         }
 
         private void ResetEnemyCombat()
         {
-            foreach (var state in enemyCombat.Values) ClearEnemyTelegraph(state);
             enemyCombat.Clear();
             ResetBossCombat();
         }
@@ -63,9 +73,7 @@ namespace PrototypeLab.Roguelike
         private void RemoveEnemyCombat(Fighter actor)
         {
             RemoveBossCombat(actor);
-            EnemyState state;
-            if (!enemyCombat.TryGetValue(actor, out state)) return;
-            ClearEnemyTelegraph(state); enemyCombat.Remove(actor);
+            enemyCombat.Remove(actor);
         }
 
         internal string EnemyPatternName(Fighter actor)
@@ -94,13 +102,7 @@ namespace PrototypeLab.Roguelike
             actor.cooldown = Mathf.Max(0, actor.cooldown - dt);
             actor.slowTime = Mathf.Max(0, actor.slowTime - dt);
             actor.stunTime = Mathf.Max(0, actor.stunTime - dt);
-            if (state.wasAirborne && !actor.airborne)
-            {
-                CancelEnemyWindup(actor, state);
-                actor.cooldown = Mathf.Max(actor.cooldown, .8f);
-            }
-            state.wasAirborne = actor.airborne;
-
+            float beforeX = actor.pos.x;
             bool moving = false;
             if (actor.stunTime > 0)
             {
@@ -108,15 +110,13 @@ namespace PrototypeLab.Roguelike
             }
             else if (actor.windup > 0)
             {
-                // strikePoint and facing were captured at the beginning of the warning.
+                // strikePoint and facing were captured at the beginning of the windup.
                 // Neither target tracking nor homing is applied during or after the windup.
                 actor.windup = Mathf.Max(0, actor.windup - dt);
-                AnimateEnemyTelegraph(state, actor.windup);
                 if (actor.windup <= 0)
                 {
                     if (EnemyCanFire(actor)) ReleaseEnemyPattern(actor, state, 0);
                     else actor.cooldown = Mathf.Max(actor.cooldown, .8f);
-                    if (state.followUp < 0) ClearEnemyTelegraph(state);
                 }
             }
             else if (state.followUp >= 0)
@@ -126,7 +126,6 @@ namespace PrototypeLab.Roguelike
                 {
                     state.followUp = -1;
                     if (EnemyCanFire(actor)) ReleaseEnemyPattern(actor, state, 1);
-                    ClearEnemyTelegraph(state);
                 }
             }
             else
@@ -154,13 +153,16 @@ namespace PrototypeLab.Roguelike
             {
                 float old = actor.pos.y;
                 if (actor.windup <= 0 && state.followUp < 0) state.hoverClock += dt;
-                actor.pos.y = TowerWorld.Ground + 3.8f + Mathf.Sin(state.hoverClock * 1.35f + state.phase) * .6f;
+                actor.pos.x = Mathf.Clamp(actor.pos.x, state.hoverX - 1, state.hoverX + 1);
+                actor.pos.y = state.hoverHeight + Mathf.Sin(state.hoverClock * 1.35f + state.phase) * .4f;
                 actor.velocityY = dt > 0 ? (actor.pos.y - old) / dt : 0; actor.grounded = false;
             }
             else StepGravity(actor, dt);
             actor.root.transform.position = actor.pos;
             UpdateEnemyShadow(actor, state);
-            actor.art.SetLocomotion(actor.grounded, actor.velocityY, false, moving ? (actor.airborne ? 1.75f : 1.9f) * actor.moveScale : 0);
+            float actualSpeed = dt > 0 ? (actor.pos.x - beforeX) / dt : 0;
+            moving = Mathf.Abs(actualSpeed) > .08f;
+            actor.art.SetLocomotion(actor.grounded, actor.velocityY, false, Mathf.Abs(actualSpeed), actualSpeed);
             actor.art.SetPose(moving, actor.windup > 0 || actor.attackPose > 0, actor.hurt > 0, actor.facing, dt);
         }
 
@@ -177,17 +179,16 @@ namespace PrototypeLab.Roguelike
             if (actor.kind == 2 && !melee) state.pattern = state.cycle % 3 == 1 ? EnemyPattern.RadialGap : EnemyPattern.GapWave;
             state.cycle++;
             float windup = melee ? actor.kind == 2 ? 1.05f : .8f : state.pattern == EnemyPattern.RadialGap ? 1.2f : 1.0f;
-            state.windupTotal = actor.windup = windup;
+            actor.windup = windup;
             actor.cooldown = windup + (melee ? 1.1f : 2.0f) / actor.attackRateScale;
             actor.strikePoint = hero.pos;
             actor.facing = hero.pos.x >= actor.pos.x ? 1 : -1;
             state.followUp = -1;
             StartEnemyMotion(actor, windup);
-            BuildEnemyTelegraph(actor, state);
         }
 
         private void CancelEnemyWindup(Fighter actor, EnemyState state)
-        { actor.windup = 0; state.followUp = -1; ClearEnemyTelegraph(state); }
+        { actor.windup = 0; state.followUp = -1; }
 
         private void ReleaseEnemyPattern(Fighter actor, EnemyState state, int stage)
         {
@@ -230,76 +231,9 @@ namespace PrototypeLab.Roguelike
         private void EnemyBolt(Fighter actor, Vector2 origin, Vector2 direction, float offset, float speed, float damage, Color color)
         {
             Vector2 velocity = Quaternion.Euler(0, 0, offset) * direction;
-            Fire(origin, origin + velocity * 12, speed * actor.bulletSpeedScale, damage * actor.damageScale, true, color);
+            Fire(origin, origin + velocity * 12, speed * actor.bulletSpeedScale, damage * actor.damageScale, true, ThemedBoltColor(actor, color));
             StyleHostileLastShot(.16f);
         }
-
-        private void BuildEnemyTelegraph(Fighter actor, EnemyState state)
-        {
-            ClearEnemyTelegraph(state);
-            state.telegraph = new GameObject("Enemy " + state.pattern + " warning"); state.telegraph.transform.SetParent(transform, false);
-            Vector2 origin = actor.pos + Vector2.up;
-            Vector2 target = actor.strikePoint + Vector2.up;
-            Vector2 direction = (target - origin).sqrMagnitude < .001f ? Vector2.right * actor.facing : (target - origin).normalized;
-            float length = Mathf.Clamp(Vector2.Distance(origin, target) + 1.2f, 2, 9);
-            if (state.pattern == EnemyPattern.MeleeSlam)
-            {
-                AddEnemyGuide(state, actor.strikePoint + Vector2.up * .06f, new Vector2(2.6f, .07f), 0, EnemyWarning);
-                AddEnemyGuide(state, actor.strikePoint + Vector2.up * .14f, new Vector2(.07f, .36f), 0, EnemyWarning);
-                return;
-            }
-            if (state.pattern == EnemyPattern.AimedFan)
-                foreach (float offset in new[] { -18f, 0f, 18f }) GuideEnemyRay(state, origin, direction, offset, length, EnemyWarning);
-            else if (state.pattern == EnemyPattern.GapWave)
-            {
-                foreach (float offset in new[] { -38f, -19f, 19f, 38f }) GuideEnemyRay(state, origin, direction, offset, length, EnemyWarning);
-                foreach (float offset in new[] { -48f, -29f, -10f, 10f, 29f, 48f })
-                    GuideEnemyRay(state, origin, direction, offset, Mathf.Min(length, 3.2f), new Color(1, .7f, .26f, .3f));
-                GuideEnemyRay(state, origin + direction * 1.4f, direction, 0, Mathf.Max(1, length - 1.4f), new Color(.42f, .9f, .83f, .28f));
-            }
-            else
-            {
-                for (int i = 0; i < 12; i++)
-                {
-                    float offset = i * 30;
-                    if (Mathf.Abs(Mathf.DeltaAngle(0, offset)) < 35) continue;
-                    GuideEnemyRay(state, origin, direction, offset, 2.3f, new Color(1, .46f, .72f, .45f));
-                }
-                GuideEnemyRay(state, origin + direction, direction, 0, 3, new Color(.42f, .9f, .83f, .3f));
-            }
-        }
-
-        private void GuideEnemyRay(EnemyState state, Vector2 origin, Vector2 direction, float offset, float length, Color color)
-        {
-            Vector2 ray = Quaternion.Euler(0, 0, offset) * direction;
-            float angle = Mathf.Atan2(ray.y, ray.x) * Mathf.Rad2Deg;
-            for (float distance = .65f; distance < length; distance += .65f)
-                AddEnemyGuide(state, origin + ray * distance, new Vector2(.27f, .035f), angle, color);
-        }
-
-        private void AddEnemyGuide(EnemyState state, Vector2 pos, Vector2 size, float angle, Color color)
-        {
-            if (!enemyGuidePixel)
-            {
-                var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false); texture.filterMode = FilterMode.Point;
-                texture.name = "Code enemy warning pixel"; texture.SetPixel(0, 0, Color.white); texture.Apply();
-                enemyGuidePixel = Sprite.Create(texture, new Rect(0, 0, 1, 1), Vector2.one * .5f, 1);
-            }
-            var go = new GameObject("Locked warning dash"); go.transform.SetParent(state.telegraph.transform, false);
-            go.transform.position = new Vector3(Mathf.Round(pos.x * 32) / 32, Mathf.Round(pos.y * 32) / 32, 0);
-            go.transform.rotation = Quaternion.Euler(0, 0, angle); go.transform.localScale = new Vector3(size.x, size.y, 1);
-            var renderer = go.AddComponent<SpriteRenderer>(); renderer.sprite = enemyGuidePixel; renderer.color = color; renderer.sortingOrder = 104;
-            state.guides.Add(renderer);
-        }
-
-        private static void AnimateEnemyTelegraph(EnemyState state, float remaining)
-        {
-            float alpha = remaining < .22f ? .75f : .32f + .16f * Mathf.Sin(state.clock * 16);
-            foreach (var guide in state.guides) if (guide) { var color = guide.color; color.a = alpha; guide.color = color; }
-        }
-
-        private static void ClearEnemyTelegraph(EnemyState state)
-        { if (state.telegraph) Destroy(state.telegraph); state.telegraph = null; state.guides.Clear(); }
 
         private static void UpdateEnemyShadow(Fighter actor, EnemyState state)
         {

@@ -166,7 +166,6 @@ namespace PrototypeLab.Roguelike
             clip.root.transform.localScale = clip.scale;
             clip.renderer.sortingOrder = effect == SkillEffect.PoisonCloud ? 20 : 113;
             attached[root.transform] = clip;
-            if (effect != SkillEffect.Sentry) RuneRing(root.transform.position, radius, EffectColor(effect), duration, root.transform);
         }
 
         public void BasicSlash(Vector2 pos, int facing, Color tint)
@@ -195,17 +194,8 @@ namespace PrototypeLab.Roguelike
             clip.growth = effect == SkillEffect.IceNova || effect == SkillEffect.HealPulse ? .5f : .1f;
             if (effect == SkillEffect.BladeStorm) clip.spin = 520;
             if (effect == SkillEffect.DashStrike) clip.scale = new Vector3(clip.scale.x * 1.8f, clip.scale.y * .55f, 1);
-            if (effect == SkillEffect.HealPulse || effect == SkillEffect.ShieldPulse || effect == SkillEffect.IceNova)
+            if (effect == SkillEffect.HealPulse || effect == SkillEffect.ShieldPulse)
                 RuneRing(pos, Mathf.Min(radius, 3.5f), EffectColor(effect), .55f);
-            if (effect == SkillEffect.MultiShot || effect == SkillEffect.RainArrows)
-                for (int i = -1; i <= 1; i++)
-                {
-                    Vector2 indication = pos + new Vector2(i * .22f, effect == SkillEffect.RainArrows ? .35f : 0);
-                    var shot = NewClip("Original arrow aim indication", indication, new[] { arrow }, 1.15f, new Color(1, 1, 1, .45f), .34f);
-                    shot.angle = effect == SkillEffect.RainArrows ? -75 : i * 18;
-                    // Charge previews remain still; the gameplay release creates the moving projectiles.
-                    shot.velocity = Vector2.zero;
-                }
             if (effect == SkillEffect.Sentry) clip.growth = -.08f;
             if (effect == SkillEffect.LifeDrain) Trail(pos + new Vector2(-1.3f, .6f), pos + new Vector2(1.3f, -.5f), effect, tint);
         }
@@ -253,10 +243,9 @@ namespace PrototypeLab.Roguelike
             if (lightning) Impact(SkillEffect.ChainLightning, to, .7f, color);
         }
 
-        public void TelegraphMeteor(Vector2 pos, float radius, float delay)
+        public void DescendMeteor(Vector2 pos, float delay)
         {
             delay = Mathf.Max(.1f, delay);
-            RuneRing(pos, radius, new Color(1, .43f, .2f, .85f), delay);
             var meteor = NewClip("Descending pixel meteor", pos + new Vector2(-3, 7), Frames(SkillEffect.Meteor), 2.6f, Color.white, delay + .03f);
             meteor.velocity = new Vector2(3, -7) / delay; meteor.angle = -65; meteor.fade = false; meteor.loop = true;
         }
@@ -330,7 +319,7 @@ namespace PrototypeLab.Roguelike
             sequence++;
         }
 
-        private void RuneRing(Vector2 pos, float radius, Color color, float life, Transform parent = null)
+        private void RuneRing(Vector2 pos, float radius, Color color, float life)
         {
             int count = 16;
             for (int i = 0; i < count; i++)
@@ -341,12 +330,6 @@ namespace PrototypeLab.Roguelike
                 clip.scale = new Vector3(i % 4 == 0 ? .09f : .18f, i % 4 == 0 ? .28f : .055f, 1);
                 clip.angle = angle * Mathf.Rad2Deg; clip.pulse = true;
                 clip.root.transform.localScale = clip.scale; clip.root.transform.rotation = Quaternion.Euler(0, 0, clip.angle);
-                if (parent)
-                {
-                    clip.root.transform.SetParent(parent, true);
-                    clip.external = parent;
-                    // Rune children are not the parent's main registration, so they expire independently.
-                }
             }
         }
 

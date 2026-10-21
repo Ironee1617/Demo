@@ -42,8 +42,8 @@ namespace PrototypeLab.Roguelike
         private bool capturePending, captureInProgress;
         private string capturePath, lastCapturePath;
         private RenderTexture captureTarget, previousRenderTarget;
-        private const int SmokeSeed = 74; // Deterministic scenario seed, verified against the catalog below.
-        private static readonly string[] Goals = { "recruit:sera", "sera.skill1", "player.fireball", "player.might", "player.vitality", "player.armor", "player.swiftness", "player.frenzy" };
+        private const int SmokeSeed = 15; // Deterministic scenario seed, verified against the catalog below.
+        private static readonly string[] Goals = { "recruit:uriel", "uriel.skill1", "player.fireball", "player.might", "player.vitality", "player.armor", "player.swiftness", "player.frenzy" };
         private readonly HashSet<string> selectedGoals = new HashSet<string>();
         private bool probeActive, allowHealthRefill = true, skillsProbed, heroCaptured, dismissed, rehired;
         private TowerGame.Fighter probeTarget;
@@ -58,6 +58,57 @@ namespace PrototypeLab.Roguelike
         public void Initialize(TowerGame tower)
         {
             string[] args = Environment.GetCommandLineArgs();
+            if(Array.IndexOf(args,"-towerEdenReview")>=0)
+            {
+                tower.SuppressProgressPersistence=true;
+                string output=Argument(args,"-towerEdenCapture")??Path.Combine(Application.persistentDataPath,"eden-review");
+                new GameObject("Eden pixel animation review").AddComponent<TowerEdenReview>().Initialize(tower,output);
+                return;
+            }
+            if(Array.IndexOf(args,"-towerUIReview")>=0)
+            {
+                tower.SuppressProgressPersistence=true;game=tower;active=captureOnly=true;
+                string output=Argument(args,"-towerUICapture")??Path.Combine(Application.persistentDataPath,"tower-ui");
+                new GameObject("Tower UI review").AddComponent<TowerUIReview>().Initialize(tower,this,output);
+                return;
+            }
+            foreach(string flag in new[]{"-towerOathSmoke","-towerPolishSmoke","-towerAnimationSmoke","-towerMythSmoke","-towerCompanionSmoke","-towerBossSmoke","-towerCombatSmoke","-towerArtSmoke","-towerSmoke","-towerThemeSmoke","-towerPlatformSmoke"})
+                if(Array.IndexOf(args,flag)>=0)tower.SuppressProgressPersistence=true;
+            if (Array.IndexOf(args, "-towerOathSmoke") >= 0)
+            {
+                game = tower; active = captureOnly = true;
+                string oathPrefix = Argument(args, "-towerOathCapture") ?? Path.Combine(Application.persistentDataPath, "tower-oath");
+                string oathReport = Argument(args, "-towerOathReport") ?? oathPrefix + "-report.json";
+                new GameObject("Tower oath validation").AddComponent<TowerOathSmokeDriver>().Initialize(tower, this, oathPrefix, oathReport, true);
+                return;
+            }
+            if (Array.IndexOf(args, "-towerPolishSmoke") >= 0)
+            {
+                game = tower; active = captureOnly = true;
+                string polishPrefix = Argument(args, "-towerPolishCapture") ?? Path.Combine(Application.persistentDataPath, "tower-polish");
+                string polishReport = Argument(args, "-towerPolishReport") ?? Path.Combine(Application.persistentDataPath, "tower-polish.json");
+                new GameObject("Tower polish validation").AddComponent<TowerPolishSmokeDriver>().Initialize(tower, this, polishPrefix, polishReport, true);
+                return;
+            }
+            if(Array.IndexOf(args,"-towerAnimationSmoke")>=0)
+            {
+                new GameObject("Tower animation validation").AddComponent<TowerAnimationSmokeDriver>().Initialize(tower);
+                return;
+            }
+            if (Array.IndexOf(args, "-towerMythSmoke") >= 0)
+            {
+                game = tower; active = captureOnly = true;
+                new GameObject("Tower mythology validation").AddComponent<TowerMythSmokeDriver>().Initialize(tower, this);
+                return;
+            }
+            if (Array.IndexOf(args, "-towerCompanionSmoke") >= 0)
+            {
+                game = tower; active = captureOnly = true;
+                string companionPrefix = Argument(args, "-towerCompanionCapture") ?? Path.Combine(Application.persistentDataPath, "tower-companions");
+                string companionReport = Argument(args, "-towerCompanionReport") ?? Path.Combine(Application.persistentDataPath, "tower-companions.json");
+                new GameObject("Tower companion validation").AddComponent<TowerCompanionSmokeDriver>().Initialize(tower, this, companionPrefix, companionReport, true);
+                return;
+            }
             if (Array.IndexOf(args, "-towerBossSmoke") >= 0)
             {
                 game = tower; active = captureOnly = true;
@@ -269,7 +320,7 @@ namespace PrototypeLab.Roguelike
                     PrepareProbe();
                     float until = game.elapsed + .4f;
                     while (game.elapsed < until) yield return null;
-                    report.fireballLockedBeforeSelection = game.run.GetHero("sera").GetSkill("sera.skill1") == null && game.SkillCasts("sera", "sera.skill1") == 0;
+                    report.fireballLockedBeforeSelection = game.run.GetHero("uriel").GetSkill("uriel.skill1") == null && game.SkillCasts("uriel", "uriel.skill1") == 0;
                     Require(report.fireballLockedBeforeSelection, "Companion fireball was active before its skill card was selected.");
                     probeActive = false;
                 }
@@ -278,9 +329,9 @@ namespace PrototypeLab.Roguelike
                     Require(game.run.Floor < 25, "The skill fixture needs a live floor before the final reward.");
                     yield return ProbeOwnedSkills();
                     skillsProbed = true;
-                    game.OpenParty("sera"); yield return Capture("companionskills"); game.party = false;
-                    game.Dismiss("sera"); dismissed = true;
-                    report.dismissedSkillsAndEffectsCleared = game.run.GetHero("sera") == null && game.SkillCasts("sera", "sera.skill1") == 0 && game.SkillRemaining("sera", "sera.skill1") == 0 && game.OwnerProjectiles("sera") == 0;
+                    game.OpenParty("uriel"); yield return Capture("companionskills"); game.party = false;
+                    game.Dismiss("uriel"); dismissed = true;
+                    report.dismissedSkillsAndEffectsCleared = game.run.GetHero("uriel") == null && game.SkillCasts("uriel", "uriel.skill1") == 0 && game.SkillRemaining("uriel", "uriel.skill1") == 0 && game.OwnerProjectiles("uriel") == 0;
                     Require(report.dismissedSkillsAndEffectsCleared, "Dismissal retained a learned skill, clock, cast counter or projectile.");
                     yield return VerifyAllEffects();
                 }
@@ -365,7 +416,7 @@ namespace PrototypeLab.Roguelike
 
         private RewardOffer PreferredOffer()
         {
-            if (dismissed && !rehired) foreach (var offer in game.run.Offers) if (offer.AugmentId == "recruit:sera") return offer;
+            if (dismissed && !rehired) foreach (var offer in game.run.Offers) if (offer.AugmentId == "recruit:uriel") return offer;
             foreach (string goal in Goals) if (!selectedGoals.Contains(goal)) foreach (var offer in game.run.Offers) if (offer.AugmentId == goal) return offer;
             return null;
         }
@@ -385,9 +436,9 @@ namespace PrototypeLab.Roguelike
             Require(game.run.Offers.Count == 3, "Every floor must show exactly three cards.");
             if (game.run.Floor == 1)
             {
-                RewardOffer sera = null; foreach (var offer in game.run.Offers) if (offer.AugmentId == "recruit:sera") sera = offer;
-                Require(sera != null, "The deterministic fixture seed no longer offers Sera on floor one.");
-                int slot = (sera.Slot + 1) % 3;
+                RewardOffer uriel = null; foreach (var offer in game.run.Offers) if (offer.AugmentId == "recruit:uriel") uriel = offer;
+                Require(uriel != null, "The deterministic fixture seed no longer offers Uriel on floor one.");
+                int slot = (uriel.Slot + 1) % 3;
                 long[] previous = { game.run.Offers[0].Id, game.run.Offers[1].Id, game.run.Offers[2].Id };
                 report.rerollSingleUseVerified = game.run.Reroll(slot) && !game.run.Reroll(slot) && !game.run.CanReroll(slot) && !game.run.ChooseOffer(previous[slot]);
                 report.rerollOtherSlotsPreserved = true;
@@ -410,13 +461,13 @@ namespace PrototypeLab.Roguelike
             Require(!game.run.IsRewardPending, "The selected card did not apply.");
             if (Array.IndexOf(Goals, id) >= 0) selectedGoals.Add(id);
             report.rewardSelections++; report.selectedAugments.Add(game.run.Floor + ":" + id);
-            if (id == "recruit:sera")
+            if (id == "recruit:uriel")
             {
-                report.mageRecruited = game.run.GetCompanion("sera") != null && game.allies.Exists(a => a.id == "sera");
+                report.mageRecruited = game.run.GetCompanion("uriel") != null && game.allies.Exists(a => a.id == "uriel");
                 if (dismissed)
                 {
                     rehired = true;
-                    report.rehiredCompanionStartsFresh = game.run.GetHero("sera").Skills.Count == 0 && game.SkillCasts("sera", "sera.skill1") == 0 && game.SkillRemaining("sera", "sera.skill1") == 0;
+                    report.rehiredCompanionStartsFresh = game.run.GetHero("uriel").Skills.Count == 0 && game.SkillCasts("uriel", "uriel.skill1") == 0 && game.SkillRemaining("uriel", "uriel.skill1") == 0;
                     Require(report.rehiredCompanionStartsFresh, "Rehiring retained skills or an old runtime clock.");
                 }
             }
@@ -453,27 +504,27 @@ namespace PrototypeLab.Roguelike
         private IEnumerator ProbeOwnedSkills()
         {
             PrepareProbe();
-            var skill = game.run.GetHero("sera").GetSkill("sera.skill1");
+            var skill = game.run.GetHero("uriel").GetSkill("uriel.skill1");
             Require(skill != null && game.run.Player.GetSkill("player.fireball") != null, "Required owned skills were not learned through cards.");
             report.companionCooldown = skill.Cooldown;
-            int companionBefore = game.SkillCasts("sera", "sera.skill1"), playerBefore = game.SkillCasts("player", "player.fireball");
+            int companionBefore = game.SkillCasts("uriel", "uriel.skill1"), playerBefore = game.SkillCasts("player", "player.fireball");
             int observed = companionBefore; float firstCast = -1; float limit = Time.realtimeSinceStartup + 35;
             while (!report.companionSkillRepeatsAfterCooldown || !report.playerSkillProjectile)
             {
                 Require(Time.realtimeSinceStartup < limit, "Learned skills did not repeat in a live encounter.");
-                int count = game.SkillCasts("sera", "sera.skill1");
+                int count = game.SkillCasts("uriel", "uriel.skill1");
                 if (count > observed)
                 {
-                    float at = game.SkillLastCastAt("sera", "sera.skill1");
-                    var ally = game.allies.Find(a => a.id == "sera");
-                    report.expectedCastReleaseDelay = ally.art.CastReleaseTime(SkillEffect.Fireball, game.SkillCastDuration("sera", "sera.skill1"));
-                    report.observedCastReleaseDelay = at - game.SkillLastStartedAt("sera", "sera.skill1");
+                    float at = game.SkillLastCastAt("uriel", "uriel.skill1");
+                    var ally = game.allies.Find(a => a.id == "uriel");
+                    report.expectedCastReleaseDelay = ally.art.CastReleaseTime(SkillEffect.Fireball, game.SkillCastDuration("uriel", "uriel.skill1"));
+                    report.observedCastReleaseDelay = at - game.SkillLastStartedAt("uriel", "uriel.skill1");
                     Require(Mathf.Abs(report.expectedCastReleaseDelay - report.observedCastReleaseDelay) <= .07f,
                         "The companion projectile was not released at the production casting frame.");
                     report.companionCastReleaseTimingVerified = true;
                     if (firstCast < 0) firstCast = at;
                     else { report.observedCompanionCastInterval = at - firstCast; report.companionSkillRepeatsAfterCooldown = report.observedCompanionCastInterval >= skill.Cooldown - .1f; }
-                    report.companionSkillProjectile |= game.OwnerProjectiles("sera") > 0;
+                    report.companionSkillProjectile |= game.OwnerProjectiles("uriel") > 0;
                     observed = count;
                 }
                 if (game.SkillCasts("player", "player.fireball") > playerBefore && game.OwnerProjectiles("player") > 0) report.playerSkillProjectile = true;

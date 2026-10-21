@@ -1,0 +1,33 @@
+{
+  "id": "jungle",
+  "title": "Canopy Voltage",
+  "title_ko": "수관의 전류",
+  "bpm": 148,
+  "bars": 64,
+  "note_events": 3734,
+  "production": "recorded-band-v2",
+  "master": {
+    "seconds": 103.783787,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.514,
+    "rms_dbfs": -15.279,
+    "loop_seam_delta": 0.021632,
+    "minimum_half_second_rms": 0.025298,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg": {
+    "seconds": 103.783787,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.25,
+    "rms_dbfs": -15.263,
+    "loop_seam_delta": 0.021761,
+    "minimum_half_second_rms": 0.025314,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg_bytes": 2676891,
+  "sha256": "40232c75418cd5e9cf1c481d825e721e56fc2cfd2b3e61f5eed8f0ca294c53b7"
+}

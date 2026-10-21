@@ -7,7 +7,7 @@ namespace PrototypeLab.Roguelike
 {
     public enum RewardTier { Silver, Gold, Diamond }
     public enum CompanionRole { Vanguard, Archer, Mage, Healer }
-    public enum RewardKind { Recruit, Skill, Trait, Upgrade = Trait }
+    public enum RewardKind { Recruit, Skill, Trait, Upgrade = Trait, Oath = 3 }
     public enum UpgradeStat { Damage, Haste, Ability }
     public enum HeroStat { Damage, MaxHealth, Armor, MoveSpeed, AttackSpeed, Range, CritChance, LifeSteal, Cooldown, SkillPower, Projectiles, Regeneration, DodgeCooldown, Area, Healing }
     public enum SkillEffect { Fireball, IceNova, ChainLightning, Meteor, ArcaneVolley, Shockwave, BladeStorm, DashStrike, MultiShot, PierceShot, RainArrows, PoisonCloud, HealPulse, ShieldPulse, LifeDrain, Sentry }
@@ -18,6 +18,9 @@ namespace PrototypeLab.Roguelike
         public string Name { get; private set; }
         public string Title { get; private set; }
         public string Description { get; private set; }
+        public string MythId { get; private set; }
+        public string InnateTrait { get; private set; }
+        public string InnateDescription { get; private set; }
         public RewardTier Tier { get; private set; }
         public CompanionRole Role { get; private set; }
         public int ArtIndex { get; private set; }
@@ -31,7 +34,7 @@ namespace PrototypeLab.Roguelike
         public string TintHex { get; private set; }
         internal CompanionDefinition(string id, string name, string title, string description,
             RewardTier tier, CompanionRole role, int artIndex, float damage, float interval,
-            float range, float healing, string tint)
+            float range, float healing, string tint, string mythId = "eden", string innateTrait = "", string innateDescription = "")
         {
             Id = id; Name = name; Title = title; Description = description;
             Tier = tier; Role = role; ArtIndex = artIndex; Damage = damage;
@@ -39,6 +42,7 @@ namespace PrototypeLab.Roguelike
             MaxHealth = role == CompanionRole.Vanguard ? 150 : role == CompanionRole.Healer ? 110 : 95;
             Armor = role == CompanionRole.Vanguard ? 10 : 3;
             MoveSpeed = role == CompanionRole.Archer ? 6.5f : 5.5f;
+            MythId = mythId; InnateTrait = innateTrait; InnateDescription = innateDescription;
         }
     }
 
@@ -151,21 +155,21 @@ namespace PrototypeLab.Roguelike
         public float DamageMultiplier { get { return 1 + Bonus(HeroStat.Damage); } }
         public float HasteMultiplier { get { return 1 + Bonus(HeroStat.AttackSpeed); } }
         public float AbilityMultiplier { get { return SkillPowerMultiplier; } }
-        public float Damage { get { return baseDamage * DamageMultiplier; } }
-        public float MaxHealth { get { return baseHealth * (1 + Bonus(HeroStat.MaxHealth)); } }
-        public float Armor { get { return baseArmor + Bonus(HeroStat.Armor); } }
-        public float MoveSpeed { get { return baseMoveSpeed * (1 + Bonus(HeroStat.MoveSpeed)); } }
-        public float AttackInterval { get { return baseInterval / HasteMultiplier; } }
-        public float Range { get { return baseRange * (1 + Bonus(HeroStat.Range)); } }
-        public float CritChance { get { return Math.Min(.8f, Bonus(HeroStat.CritChance)); } }
-        public float LifeSteal { get { return Math.Min(.6f, Bonus(HeroStat.LifeSteal)); } }
-        public float CooldownMultiplier { get { return Math.Max(.25f, 1 - Bonus(HeroStat.Cooldown)); } }
-        public float SkillPowerMultiplier { get { return 1 + Bonus(HeroStat.SkillPower); } }
-        public int ProjectileBonus { get { return (int)Bonus(HeroStat.Projectiles); } }
-        public float Regeneration { get { return Bonus(HeroStat.Regeneration); } }
-        public float DodgeCooldownMultiplier { get { return Math.Max(.25f, 1 - Bonus(HeroStat.DodgeCooldown)); } }
-        public float AreaMultiplier { get { return 1 + Bonus(HeroStat.Area); } }
-        public float HealingMultiplier { get { return 1 + Bonus(HeroStat.Healing); } }
+        public float Damage { get { return StatValue(HeroStat.Damage); } }
+        public float MaxHealth { get { return StatValue(HeroStat.MaxHealth); } }
+        public float Armor { get { return StatValue(HeroStat.Armor); } }
+        public float MoveSpeed { get { return StatValue(HeroStat.MoveSpeed); } }
+        public float AttackInterval { get { return StatValue(HeroStat.AttackSpeed); } }
+        public float Range { get { return StatValue(HeroStat.Range); } }
+        public float CritChance { get { return StatValue(HeroStat.CritChance); } }
+        public float LifeSteal { get { return StatValue(HeroStat.LifeSteal); } }
+        public float CooldownMultiplier { get { return StatValue(HeroStat.Cooldown); } }
+        public float SkillPowerMultiplier { get { return StatValue(HeroStat.SkillPower); } }
+        public int ProjectileBonus { get { return (int)StatValue(HeroStat.Projectiles); } }
+        public float Regeneration { get { return StatValue(HeroStat.Regeneration); } }
+        public float DodgeCooldownMultiplier { get { return StatValue(HeroStat.DodgeCooldown); } }
+        public float AreaMultiplier { get { return StatValue(HeroStat.Area); } }
+        public float HealingMultiplier { get { return StatValue(HeroStat.Healing); } }
         internal HeroState(string id, string name, float damage, float health, float armor, float moveSpeed, float interval, float range)
         {
             Id = id; Name = name; baseDamage = damage; baseHealth = health; baseArmor = armor;
@@ -174,6 +178,30 @@ namespace PrototypeLab.Roguelike
         }
         private float Bonus(HeroStat stat)
         { float value = 0; foreach (var trait in traits) if (trait.Definition.Stat == stat) value += trait.Value; return value; }
+        private float StatValue(HeroStat stat, float additionalBonus = 0)
+        {
+            float bonus = Bonus(stat) + additionalBonus;
+            switch (stat)
+            {
+                case HeroStat.Damage: return baseDamage * (1 + bonus);
+                case HeroStat.MaxHealth: return baseHealth * (1 + bonus);
+                case HeroStat.Armor: return baseArmor + bonus;
+                case HeroStat.MoveSpeed: return baseMoveSpeed * (1 + bonus);
+                case HeroStat.AttackSpeed: return baseInterval / (1 + bonus);
+                case HeroStat.Range: return baseRange * (1 + bonus);
+                case HeroStat.CritChance: return Math.Min(.8f, bonus);
+                case HeroStat.LifeSteal: return Math.Min(.6f, bonus);
+                case HeroStat.Cooldown:
+                case HeroStat.DodgeCooldown: return Math.Max(.25f, 1 - bonus);
+                case HeroStat.SkillPower:
+                case HeroStat.Area:
+                case HeroStat.Healing: return 1 + bonus;
+                case HeroStat.Projectiles: return (int)bonus;
+                default: return bonus;
+            }
+        }
+        internal bool CanImproveTrait(AugmentDefinition definition)
+        { return definition.OwnerId == Id && definition.Kind == RewardKind.Trait && Math.Abs(StatValue(definition.Stat) - StatValue(definition.Stat, definition.Value)) > .000001f; }
         public SkillState GetSkill(string id) { return skills.Find(s => s.Definition.Id == id); }
         public TraitState GetTrait(string id) { return traits.Find(t => t.Definition.Id == id); }
         internal bool Apply(AugmentDefinition definition)
@@ -193,25 +221,23 @@ namespace PrototypeLab.Roguelike
             UpgradeCount++;
             return true;
         }
-        public string StatText(HeroStat stat)
+        public string StatText(HeroStat stat) { return StatText(stat, 0); }
+        internal string StatText(HeroStat stat, float additionalBonus)
         {
+            float value = StatValue(stat, additionalBonus);
             switch (stat)
             {
-                case HeroStat.Damage: return AugmentDefinition.Number(Damage);
-                case HeroStat.MaxHealth: return AugmentDefinition.Number(MaxHealth);
-                case HeroStat.Armor: return AugmentDefinition.Number(Armor);
-                case HeroStat.MoveSpeed: return AugmentDefinition.Number(MoveSpeed);
-                case HeroStat.AttackSpeed: return AugmentDefinition.Number(AttackInterval) + "초 간격";
-                case HeroStat.Range: return AugmentDefinition.Number(Range);
-                case HeroStat.CritChance: return AugmentDefinition.Number(CritChance * 100) + "%";
-                case HeroStat.LifeSteal: return AugmentDefinition.Number(LifeSteal * 100) + "%";
-                case HeroStat.Cooldown: return AugmentDefinition.Number((1 - CooldownMultiplier) * 100) + "% 감소";
-                case HeroStat.DodgeCooldown: return AugmentDefinition.Number((1 - DodgeCooldownMultiplier) * 100) + "% 감소";
-                case HeroStat.SkillPower: return AugmentDefinition.Number(SkillPowerMultiplier) + "배";
-                case HeroStat.Area: return AugmentDefinition.Number(AreaMultiplier) + "배";
-                case HeroStat.Healing: return AugmentDefinition.Number(HealingMultiplier) + "배";
-                case HeroStat.Projectiles: return "+" + ProjectileBonus;
-                default: return AugmentDefinition.Number(Regeneration) + " HP/s";
+                case HeroStat.AttackSpeed: return AugmentDefinition.Number(value) + "초 간격";
+                case HeroStat.CritChance:
+                case HeroStat.LifeSteal: return AugmentDefinition.Number(value * 100) + "%";
+                case HeroStat.Cooldown:
+                case HeroStat.DodgeCooldown: return AugmentDefinition.Number((1 - value) * 100) + "% 감소";
+                case HeroStat.SkillPower:
+                case HeroStat.Area:
+                case HeroStat.Healing: return AugmentDefinition.Number(value) + "배";
+                case HeroStat.Projectiles: return "+" + (int)value;
+                case HeroStat.Regeneration: return AugmentDefinition.Number(value) + " HP/s";
+                default: return AugmentDefinition.Number(value);
             }
         }
     }
@@ -247,6 +273,12 @@ namespace PrototypeLab.Roguelike
             CompanionId = recruit.Id; AugmentId = "recruit:" + recruit.Id; NextLevel = 1;
             Title = recruit.Name + " 영입"; Description = recruit.Title + " · " + recruit.Description;
         }
+        internal RewardOffer(long id, int slot, OathAugmentDefinition definition, string companionId)
+        {
+            Id = id; Slot = slot; Tier = RewardTier.Gold; Kind = RewardKind.Oath;
+            CompanionId = companionId; AugmentId = definition.Id; NextLevel = 1;
+            Title = definition.Name; Description = definition.Description;
+        }
         internal RewardOffer(long id, int slot, AugmentDefinition definition, HeroState owner)
         {
             Id = id; Slot = slot; Tier = definition.Tier; Kind = definition.Kind;
@@ -266,7 +298,7 @@ namespace PrototypeLab.Roguelike
                 var trait = owner.GetTrait(definition.Id);
                 NextLevel = trait == null ? 1 : trait.Level + 1;
                 Title = owner.Name + " · " + definition.Name + (NextLevel > 1 ? " " + NextLevel + "단계" : "");
-                Description = definition.Description + "\n선택 후 누적 " + AugmentDefinition.FormatValue(definition.Stat, definition.Value * NextLevel);
+                Description = definition.Description + "\n현재 " + owner.StatText(definition.Stat) + " → 선택 후 " + owner.StatText(definition.Stat, definition.Value);
             }
         }
     }
@@ -275,6 +307,7 @@ namespace PrototypeLab.Roguelike
     {
         public const int MaxCompanions = 3, RewardInterval = 1, OfferSlots = 3;
         private readonly Random random;
+        private readonly Random themeRandom;
         private readonly List<CompanionState> companions = new List<CompanionState>();
         private readonly List<RewardOffer> offers = new List<RewardOffer>();
         private readonly bool[] rerolled = new bool[OfferSlots];
@@ -284,22 +317,38 @@ namespace PrototypeLab.Roguelike
         public int Floor { get; private set; }
         public int ClearedFloors { get; private set; }
         public int MaxFloor { get; private set; }
+        public TowerThemeDefinition Theme { get; private set; }
+        public string SelectedMythId { get; private set; }
+        public string RunId { get; private set; }
         public bool IsFloorCleared { get; private set; }
         public bool IsRewardPending { get; private set; }
         public bool IsComplete { get { return IsFloorCleared && Floor >= MaxFloor && !IsRewardPending; } }
         public HeroState Player { get; private set; }
+        public OathState Oath { get; private set; }
+        public bool IsOathTrial { get { return Oath != null; } }
         public IReadOnlyList<CompanionState> Companions { get { return companionView; } }
         public IReadOnlyList<RewardOffer> Offers { get { return offerView; } }
         public static readonly IReadOnlyList<CompanionDefinition> Definitions = TowerAugmentCatalog.Companions;
         public static readonly IReadOnlyList<AugmentDefinition> Augments = TowerAugmentCatalog.Augments;
-        public TowerRun(int seed = 1, int maxFloor = 25) : this(new Random(seed), maxFloor) { }
-        public TowerRun(Random random, int maxFloor = 25)
+        public TowerRun(int seed = 1, int maxFloor = 25, string mythId = TowerMythCatalog.StarterMythId, string oathCompanionId = null)
+            : this(new Random(seed), maxFloor, mythId, new Random(unchecked(seed * 397 ^ 0x51ED270B)), oathCompanionId) { }
+        public TowerRun(Random random, int maxFloor = 25, string mythId = TowerMythCatalog.StarterMythId)
+            : this(random, maxFloor, mythId, new Random(random == null ? 0 : random.Next())) { }
+        private TowerRun(Random random, int maxFloor, string mythId, Random themeRandom, string oathCompanionId = null)
         {
             if (random == null) throw new ArgumentNullException("random");
             if (maxFloor < 1) throw new ArgumentOutOfRangeException("maxFloor");
+            if (TowerMythCatalog.Get(mythId) == null) throw new ArgumentException("Unknown myth: " + mythId, "mythId");
             this.random = random; MaxFloor = maxFloor; Floor = 1;
+            this.themeRandom = themeRandom; Theme = TowerThemeCatalog.Roll(themeRandom);
+            SelectedMythId = mythId; RunId = Guid.NewGuid().ToString("N");
             Player = new HeroState("player", "플레이어", 28, 160, 0, 6, .43f, 2.6f);
             companionView = companions.AsReadOnly(); offerView = offers.AsReadOnly();
+            if (oathCompanionId != null)
+            {
+                Oath = new OathState(oathCompanionId); MaxFloor = 10; SelectedMythId = TowerMythCatalog.StarterMythId;
+                companions.Add(new CompanionState(GetDefinition(oathCompanionId)));
+            }
         }
         public static CompanionDefinition GetDefinition(string id)
         { for (int i = 0; i < Definitions.Count; i++) if (Definitions[i].Id == id) return Definitions[i]; return null; }
@@ -311,10 +360,17 @@ namespace PrototypeLab.Roguelike
         {
             if (IsFloorCleared || IsRewardPending || IsComplete) return false;
             IsFloorCleared = true; ClearedFloors++; IsRewardPending = true;
+            if (IsOathTrial && Floor == MaxFloor) { IsRewardPending = false; offers.Clear(); return true; }
             Array.Clear(rerolled, 0, rerolled.Length); GenerateOffers(); return true;
         }
         public bool AdvanceFloor()
-        { if (!IsFloorCleared || IsRewardPending || IsComplete) return false; Floor++; IsFloorCleared = false; return true; }
+        {
+            if (!IsFloorCleared || IsRewardPending || IsComplete) return false;
+            Floor++; IsFloorCleared = false;
+            if ((Floor - 1) % TowerThemeCatalog.FloorsPerTheme == 0)
+                Theme = TowerThemeCatalog.Roll(themeRandom, Theme.Id);
+            return true;
+        }
         public bool CanReroll(int slot) { return IsRewardPending && slot >= 0 && slot < OfferSlots && !rerolled[slot]; }
         public bool Reroll(int slot)
         {
@@ -328,8 +384,13 @@ namespace PrototypeLab.Roguelike
             if (offer == null) return false;
             if (offer.Kind == RewardKind.Recruit)
             {
-                if (companions.Count >= MaxCompanions || GetCompanion(offer.CompanionId) != null) return false;
-                companions.Add(new CompanionState(GetDefinition(offer.CompanionId)));
+                var definition = GetDefinition(offer.CompanionId);
+                if (companions.Count >= MaxCompanions || GetCompanion(offer.CompanionId) != null || definition == null || definition.MythId != SelectedMythId) return false;
+                companions.Add(new CompanionState(definition));
+            }
+            else if (offer.Kind == RewardKind.Oath)
+            {
+                if (Oath == null || !Oath.Acquire(offer.AugmentId)) return false;
             }
             else
             {
@@ -342,7 +403,7 @@ namespace PrototypeLab.Roguelike
         public bool DismissCompanion(string id)
         {
             var companion = GetCompanion(id);
-            if (companion == null) return false;
+            if (companion == null || (Oath != null && Oath.CompanionId == id)) return false;
             companions.Remove(companion);
             if (IsRewardPending) GenerateOffers();
             return true;
@@ -358,12 +419,21 @@ namespace PrototypeLab.Roguelike
         }
         private RewardOffer CreateOffer(int slot, string previousAugment)
         {
+            if (Oath != null && slot == 0)
+            {
+                var available = new List<OathAugmentDefinition>();
+                foreach (var a in OathState.Augments)
+                    if (Oath.CanAcquire(a) && a.Id != previousAugment) available.Add(a);
+                if (available.Count > 0)
+                    return new RewardOffer(nextOfferId++, slot, available[random.Next(available.Count)], Oath.CompanionId);
+            }
             double roll = random.NextDouble();
             RewardTier tier = roll < .4 ? RewardTier.Silver : roll < .8 ? RewardTier.Gold : RewardTier.Diamond;
             var candidates = new List<Candidate>();
             if (companions.Count < MaxCompanions)
                 foreach (var definition in Definitions)
-                    if (definition.Tier == tier && GetCompanion(definition.Id) == null) candidates.Add(new Candidate { Recruit = definition });
+                    if (definition.MythId == SelectedMythId && definition.Tier == tier && GetCompanion(definition.Id) == null &&
+                        (!IsOathTrial || OathState.Supports(definition.Id))) candidates.Add(new Candidate { Recruit = definition });
             foreach (var definition in Augments)
             {
                 if (definition.Tier != tier) continue;
@@ -374,7 +444,9 @@ namespace PrototypeLab.Roguelike
                 candidates.Add(new Candidate { Augment = definition });
             }
             candidates.RemoveAll(c => c.Id == previousAugment || offers.Exists(o => o.Slot != slot && o.AugmentId == c.Id));
-            // Five repeatable player traits per tier guarantee a fresh eligible identity.
+            // Prefer useful growth; extreme custom-length runs can exhaust a tier's distinct useful identities.
+            var useful = candidates.FindAll(c => c.Recruit != null || c.Augment.Kind == RewardKind.Skill || GetHero(c.Augment.OwnerId).CanImproveTrait(c.Augment));
+            if (useful.Count > 0) candidates = useful;
             int total = 0; foreach (var candidate in candidates) total += candidate.Weight;
             int pick = random.Next(total);
             Candidate selected = candidates[0];

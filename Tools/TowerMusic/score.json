@@ -1,0 +1,282 @@
+{
+  "schema_version": 1,
+  "musical_notes": {
+    "event_format": ["beat_offset_in_bar", "duration_beats", "semitones_above_tonic_midi", "velocity"],
+    "chord_format": "chords_a and chords_b contain explicit pitches in semitones relative to tonic; prefer these over diatonic degree inference. Some cadences use an intentional raised leading tone.",
+    "form": "64 bars in 4/4: intro4, A16, B16, breakdown8, solo8, reprise8, turnaround4. Every part should have an audible role, with short gaps between phrases.",
+    "performance": "Hooks are authored melodies. Preserve their intervals and rests; do not shuffle their notes or blindly snap them to each chord. Use hook_a with chords_a and hook_b with chords_b. A lead should sit clearly above the rhythm guitar, with one quieter answering voice at most.",
+    "arrangement": "Intro reveals a rhythmic fragment. First A is one lead, second A adds a short quiet answer. B widens the harmony and uses longer lead tones. Breakdown drops rhythm guitar and most drums. Solo restates and embellishes the hook rather than random scales. Reprise restores the full band.",
+    "loop": "Do not fade the complete track to silence. End with a four-bar turn over the appropriate A harmony and a pickup to bar1. Render reverb/delay tails periodically across the loop boundary, or use a short equal-power boundary crossfade.",
+    "mix": "Keep kick and bass centered, guitar double-tracks modestly spread, lead near center, pads wide and quieter. The intent is melodic console action rock with supportive electronic textures, not an unchanging square-wave chiptune."
+  },
+  "tracks": [
+    {
+      "id": "lava",
+      "title": "Molten Circuit",
+      "title_ko": "용광 회로",
+      "bpm": 152,
+      "tonic_midi": 64,
+      "mode": [0, 2, 3, 5, 7, 8, 10],
+      "mode_name": "E minor, with B major dominant",
+      "progression": [0, 5, 3, 4, 0, 5, 3, 4],
+      "progression_b": [5, 6, 0, 4, 5, 6, 0, 4],
+      "chords_a": [[0,3,7],[8,12,15],[5,8,12],[7,11,14],[0,3,7],[8,12,15],[5,8,12],[7,11,14]],
+      "chords_b": [[8,12,15],[10,14,17],[0,3,7],[7,11,14],[8,12,15],[10,14,17],[0,3,7],[7,11,14]],
+      "hook_a": [
+        [[0,0.42,0,0.98],[0.5,0.42,3,0.83],[1,0.65,7,0.93],[1.75,0.19,10,0.78],[2,0.65,12,1.0],[2.75,0.19,10,0.79],[3,0.42,7,0.88],[3.5,0.38,3,0.82]],
+        [[0,0.65,8,0.94],[0.75,0.18,12,0.8],[1,0.65,15,0.98],[1.75,0.19,14,0.75],[2,0.85,12,0.91],[3,0.4,10,0.78],[3.5,0.37,8,0.84]],
+        [[0,0.42,5,0.96],[0.5,0.42,8,0.83],[1,0.65,12,0.94],[1.75,0.19,15,0.8],[2,0.66,17,1.0],[2.75,0.18,15,0.79],[3,0.42,12,0.87],[3.5,0.37,8,0.81]],
+        [[0,0.65,14,0.96],[0.75,0.19,11,0.82],[1,0.4,7,0.88],[1.5,0.4,11,0.83],[2,0.4,14,0.92],[2.5,0.19,11,0.8],[2.75,0.19,7,0.78],[3,0.4,2,0.84],[3.5,0.37,-1,0.91]]
+      ],
+      "hook_b": [
+        [[0,1.35,15,1.0],[1.5,0.42,12,0.87],[2,0.85,8,0.9],[3,0.4,12,0.87],[3.5,0.38,15,0.91]],
+        [[0,1.35,17,1.0],[1.5,0.42,14,0.87],[2,0.85,10,0.9],[3,0.4,14,0.87],[3.5,0.38,17,0.91]],
+        [[0,1.35,19,1.0],[1.5,0.42,15,0.88],[2,0.85,12,0.93],[3,0.42,10,0.82],[3.5,0.37,7,0.85]],
+        [[0,0.86,14,0.97],[1,0.85,11,0.9],[2,0.42,7,0.88],[2.5,0.42,2,0.82],[3.5,0.38,-1,0.9]]
+      ],
+      "instrument": "distorted melodic lead, palm-muted power guitars, sharp saw brass",
+      "flavor": "volcanic industrial action rock",
+      "description": "긴장감 있는 E단조 기타 리프와 위로 치솟는 신스 리드. 후렴에서 음가를 늘려 뜨거운 용암 성채의 규모감을 만든다.",
+      "groove": {
+        "kick": [0,1.5,2,2.75,3.5],
+        "snare": [1,3],
+        "hat": [0,0.5,1,1.5,2,2.5,3,3.5],
+        "guitar": [0,0.5,0.75,1.5,2,2.5,2.75,3.5],
+        "bass": [0,0.75,1.5,2,2.75,3.5],
+        "bass_pattern": [0,0,7,0,12,7],
+        "feel": "Tight sixteenth-note palm-muted chugs; strong snare 2 and 4; tom pickup every eighth bar."
+      },
+      "arrangement_hint": "Begin with four bars of filtered guitar and kick, reveal lead at A. Half-time drums and low brass in breakdown. Reprise doubles the lead quietly one octave down."
+    },
+    {
+      "id": "rock",
+      "title": "Crystal Fault",
+      "title_ko": "수정 단층",
+      "bpm": 144,
+      "tonic_midi": 62,
+      "mode": [0,2,3,5,7,8,10],
+      "mode_name": "D minor, with A major dominant in B",
+      "progression": [0,2,6,5,0,2,6,5],
+      "progression_b": [3,5,0,4,3,5,0,4],
+      "chords_a": [[0,3,7],[3,7,10],[10,14,17],[8,12,15],[0,3,7],[3,7,10],[10,14,17],[8,12,15]],
+      "chords_b": [[5,8,12],[8,12,15],[0,3,7],[7,11,14],[5,8,12],[8,12,15],[0,3,7],[7,11,14]],
+      "hook_a": [
+        [[0,0.65,0,0.98],[0.75,0.2,7,0.82],[1,0.86,10,0.93],[2.25,0.42,12,1.0],[2.75,0.42,7,0.87],[3.5,0.37,3,0.86]],
+        [[0,0.65,7,0.93],[0.75,0.2,10,0.8],[1,0.86,15,0.99],[2.25,0.42,14,0.87],[2.75,0.42,10,0.9],[3.5,0.37,7,0.84]],
+        [[0,0.65,10,0.95],[0.75,0.2,14,0.81],[1,0.86,17,0.99],[2.25,0.42,14,0.87],[2.75,0.42,12,0.83],[3.5,0.37,10,0.87]],
+        [[0,0.65,8,0.95],[0.75,0.2,12,0.83],[1,0.86,15,0.98],[2.25,0.42,12,0.89],[2.75,0.42,10,0.84],[3.5,0.37,7,0.9]]
+      ],
+      "hook_b": [
+        [[0,1.35,17,0.99],[1.5,0.42,15,0.84],[2,0.85,12,0.92],[3,0.4,8,0.84],[3.5,0.36,12,0.89]],
+        [[0,1.35,15,0.98],[1.5,0.42,12,0.86],[2,0.85,8,0.92],[3,0.4,12,0.85],[3.5,0.36,15,0.9]],
+        [[0,0.85,19,1.0],[1,0.42,15,0.88],[1.5,0.42,12,0.87],[2,1.35,10,0.92],[3.5,0.36,7,0.86]],
+        [[0,1.35,14,0.98],[1.5,0.42,11,0.88],[2,0.85,7,0.92],[3.5,0.36,-1,0.88]]
+      ],
+      "instrument": "thick square-saw lead, low distorted guitar, struck crystal bells",
+      "flavor": "heavy cave groove with crystalline echoes",
+      "description": "묵직한 하프타임 리듬과 짧고 힘 있는 리드가 암석의 무게를 표현한다. 배경의 수정 벨은 빈 공간에만 짧게 울린다.",
+      "groove": {
+        "kick": [0,0.75,1.5,2.75,3.5],
+        "snare": [2],
+        "hat": [0,0.5,1,1.5,2,2.5,3,3.5],
+        "guitar": [0,0.75,1.5,2.75,3.5],
+        "bass": [0,0.75,1.5,2.75,3.5],
+        "bass_pattern": [0,0,7,0,12],
+        "feel": "Heavy half-time backbeat on beat 3, with a sixteenth ghost-snare pickup. Chorus can return to snare on beats 2 and 4."
+      },
+      "arrangement_hint": "Let low toms and bell echoes establish depth in intro. Start B with a crash and full backbeat. Breakdown keeps a sub-octave bass riff and isolated crystal answers."
+    },
+    {
+      "id": "jungle",
+      "title": "Canopy Voltage",
+      "title_ko": "수관의 전류",
+      "bpm": 148,
+      "tonic_midi": 57,
+      "mode": [0,2,3,5,7,9,10],
+      "mode_name": "A Dorian",
+      "progression": [0,3,6,4,0,3,6,4],
+      "progression_b": [2,3,0,6,2,3,0,6],
+      "chords_a": [[0,3,7],[5,9,12],[10,14,17],[7,10,14],[0,3,7],[5,9,12],[10,14,17],[7,10,14]],
+      "chords_b": [[3,7,10],[5,9,12],[0,3,7],[10,14,17],[3,7,10],[5,9,12],[0,3,7],[10,14,17]],
+      "hook_a": [
+        [[0.25,0.4,7,0.9],[0.75,0.18,10,0.8],[1,0.42,12,0.96],[1.75,0.42,15,1.0],[2.5,0.4,14,0.86],[3.25,0.55,12,0.94]],
+        [[0.25,0.4,9,0.92],[0.75,0.18,12,0.79],[1,0.42,17,0.98],[1.75,0.42,14,0.89],[2.5,0.4,12,0.87],[3.25,0.55,9,0.93]],
+        [[0.25,0.4,10,0.92],[0.75,0.18,14,0.8],[1,0.42,17,0.98],[1.75,0.42,19,1.0],[2.5,0.4,17,0.88],[3.25,0.55,14,0.91]],
+        [[0.25,0.4,14,0.92],[0.75,0.18,10,0.8],[1,0.42,7,0.94],[1.75,0.42,9,0.86],[2.5,0.4,10,0.9],[3.25,0.55,14,0.96]]
+      ],
+      "hook_b": [
+        [[0,0.85,19,1.0],[1,0.42,17,0.85],[1.5,0.42,15,0.9],[2.25,0.65,19,0.94],[3.25,0.55,22,0.98]],
+        [[0,0.85,21,0.99],[1,0.42,17,0.85],[1.5,0.42,14,0.89],[2.25,0.65,17,0.94],[3.25,0.55,21,0.98]],
+        [[0,0.85,19,1.0],[1,0.42,15,0.86],[1.5,0.42,12,0.9],[2.25,0.65,15,0.93],[3.25,0.55,19,0.97]],
+        [[0,0.85,17,0.99],[1,0.42,14,0.85],[1.5,0.42,10,0.89],[2.25,0.65,14,0.93],[3.25,0.55,17,0.97]]
+      ],
+      "instrument": "bright plucked synth lead, muted funk guitar, woody percussion",
+      "flavor": "syncopated jungle funk rock",
+      "description": "A도리안의 밝은 6도와 엇박 리드로 덩굴 사이를 뛰어다니는 느낌. 우드 퍼커션과 짧은 기타 스트로크가 맞물린다.",
+      "groove": {
+        "kick": [0,1.25,2.5,3.5],
+        "snare": [1,3],
+        "hat": [0,0.25,0.5,0.75,1,1.5,1.75,2,2.25,2.5,2.75,3,3.5,3.75],
+        "guitar": [0.5,0.75,1.5,2.25,2.75,3.5],
+        "bass": [0,0.75,1.5,2.25,3.5],
+        "bass_pattern": [0,12,7,0,12],
+        "percussion": [0.5,1.25,2.5,3.25],
+        "feel": "Dry syncopated sixteenths; alternate left and right wood/conga hits, with a 3+3+2 accent across each two beats."
+      },
+      "arrangement_hint": "Intro is percussion and bass. Add lead and offbeat guitar at A. Let the B lead sustain a little longer and add a quiet airy synth answer. Breakdown is percussion plus a wood-pluck version of A."
+    },
+    {
+      "id": "frozen",
+      "title": "Prism Blizzard",
+      "title_ko": "프리즘 눈보라",
+      "bpm": 136,
+      "tonic_midi": 66,
+      "mode": [0,2,3,5,7,8,10],
+      "mode_name": "F-sharp minor, with C-sharp major dominant",
+      "progression": [0,5,2,6,0,5,2,6],
+      "progression_b": [5,6,0,4,5,6,0,4],
+      "chords_a": [[0,3,7],[8,12,15],[3,7,10],[10,14,17],[0,3,7],[8,12,15],[3,7,10],[10,14,17]],
+      "chords_b": [[8,12,15],[10,14,17],[0,3,7],[7,11,14],[8,12,15],[10,14,17],[0,3,7],[7,11,14]],
+      "hook_a": [
+        [[0,1.35,12,0.96],[1.5,0.42,7,0.81],[2,0.65,8,0.87],[2.75,0.18,7,0.75],[3,0.8,3,0.88]],
+        [[0,0.85,8,0.93],[1,0.42,12,0.86],[1.5,1.3,15,0.98],[3,0.42,14,0.83],[3.5,0.35,12,0.88]],
+        [[0,1.35,10,0.95],[1.5,0.42,7,0.82],[2,0.65,3,0.88],[2.75,0.18,7,0.77],[3,0.8,14,0.93]],
+        [[0,0.85,14,0.96],[1,0.42,10,0.84],[1.5,0.85,5,0.87],[2.5,0.42,2,0.81],[3.25,0.6,10,0.92]]
+      ],
+      "hook_b": [
+        [[0,1.8,15,0.98],[2,0.42,14,0.83],[2.5,0.42,12,0.86],[3,0.8,8,0.89]],
+        [[0,1.8,17,0.99],[2,0.42,14,0.84],[2.5,0.42,10,0.87],[3,0.8,14,0.92]],
+        [[0,1.3,19,1.0],[1.5,0.42,15,0.86],[2,0.85,12,0.93],[3,0.42,10,0.83],[3.5,0.35,7,0.86]],
+        [[0,1.3,14,0.96],[1.5,0.42,11,0.85],[2,0.85,7,0.9],[3.25,0.6,-1,0.88]]
+      ],
+      "instrument": "glass FM bell, smooth pulse lead, shimmering arpeggio and restrained guitar",
+      "flavor": "melancholic crystalline action rock",
+      "description": "맑은 벨과 길게 흐르는 F#단조 멜로디. 차가운 공간감 위에 빠른 아르페지오와 단단한 드럼을 얹는다.",
+      "groove": {
+        "kick": [0,1.5,2,3.5],
+        "snare": [1,3],
+        "hat": [0,0.5,1,1.5,2,2.5,3,3.5],
+        "guitar": [0,1.5,2,3.5],
+        "bass": [0,1,1.5,2,3,3.5],
+        "bass_pattern": [0,7,12,0,7,12],
+        "feel": "Steady eighth-note drive under a lyrical lead; glass arpeggio on alternate sixteenths, quieter than the melody."
+      },
+      "arrangement_hint": "Bell-only opening gains bass and drums across four bars. Keep A relatively spacious. Chorus adds sustained guitar fifths and octave lead support. Breakdown has bells and filtered pad without snare."
+    },
+    {
+      "id": "water",
+      "title": "Tidal Relay",
+      "title_ko": "조류의 신호",
+      "bpm": 140,
+      "tonic_midi": 60,
+      "mode": [0,2,3,5,7,9,10],
+      "mode_name": "C Dorian, with G major dominant in B",
+      "progression": [0,3,6,4,0,3,6,4],
+      "progression_b": [2,3,0,4,2,3,0,4],
+      "chords_a": [[0,3,7,10,14],[5,9,12,15],[10,14,17,21],[7,10,14,17],[0,3,7,10,14],[5,9,12,15],[10,14,17,21],[7,10,14,17]],
+      "chords_b": [[3,7,10,14],[5,9,12,15],[0,3,7,10],[7,11,14,17],[3,7,10,14],[5,9,12,15],[0,3,7,10],[7,11,14,17]],
+      "hook_a": [
+        [[0,0.6,7,0.92],[0.75,0.18,10,0.78],[1,0.85,14,0.97],[2.25,0.4,15,0.88],[2.75,0.4,14,0.84],[3.5,0.35,10,0.9]],
+        [[0.25,0.6,9,0.92],[1,0.4,12,0.86],[1.5,0.85,15,0.98],[2.75,0.4,14,0.83],[3.5,0.35,12,0.9]],
+        [[0,0.6,14,0.94],[0.75,0.18,17,0.8],[1,0.85,21,0.99],[2.25,0.4,17,0.87],[2.75,0.4,14,0.85],[3.5,0.35,10,0.9]],
+        [[0.25,0.6,14,0.94],[1,0.4,10,0.85],[1.5,0.85,7,0.92],[2.75,0.4,5,0.81],[3.5,0.35,2,0.87]]
+      ],
+      "hook_b": [
+        [[0,1.3,15,0.98],[1.5,0.42,14,0.84],[2,0.85,10,0.9],[3,0.4,7,0.83],[3.5,0.35,10,0.89]],
+        [[0,1.3,17,0.99],[1.5,0.42,15,0.85],[2,0.85,12,0.91],[3,0.4,9,0.84],[3.5,0.35,12,0.9]],
+        [[0,1.3,19,1.0],[1.5,0.42,15,0.87],[2,0.85,14,0.93],[3,0.4,12,0.85],[3.5,0.35,10,0.88]],
+        [[0,0.85,17,0.97],[1,0.4,14,0.85],[1.5,0.85,11,0.91],[2.75,0.4,7,0.85],[3.5,0.35,11,0.89]]
+      ],
+      "instrument": "rounded FM electric-piano lead, liquid pulse synth, chorus guitar and slap-like bass",
+      "flavor": "fluid aquatic funk rock",
+      "description": "수몰 유적의 청록빛을 닮은 FM 건반과 부드러운 리드. 7·9화음, 흐르는 베이스, 엇박 기타로 수상 테마만의 유연함을 만든다.",
+      "groove": {
+        "kick": [0,1.5,2.25,3.5],
+        "snare": [1,3],
+        "hat": [0,0.5,1,1.5,2,2.5,3,3.5],
+        "guitar": [0.5,1.5,2.5,3.5],
+        "bass": [0,0.75,1.5,2.25,2.75,3.5],
+        "bass_pattern": [0,12,7,0,7,12],
+        "feel": "A tight straight-sixteenth funk groove with occasional ghost snare; chorus guitar stabs on offbeats and light rim taps."
+      },
+      "arrangement_hint": "Intro uses low-pass electric piano with a bubbling arpeggio. A stays dry and rhythmic. B opens the pad and lead while bass remains active. Breakdown exposes seventh-chord voicings and percussion."
+    },
+    {
+      "id": "cloud",
+      "title": "Skyward Vector",
+      "title_ko": "천공의 벡터",
+      "bpm": 156,
+      "tonic_midi": 55,
+      "mode": [0,2,4,6,7,9,11],
+      "mode_name": "G Lydian",
+      "progression": [0,1,2,1,0,1,2,1],
+      "progression_b": [5,1,4,4,5,1,4,4],
+      "chords_a": [[0,4,7,11],[2,6,9],[4,7,11],[2,6,9],[0,4,7,11],[2,6,9],[4,7,11],[2,6,9]],
+      "chords_b": [[9,12,16],[2,6,9],[7,11,14],[7,11,14],[9,12,16],[2,6,9],[7,11,14],[7,11,14]],
+      "hook_a": [
+        [[0,0.42,7,0.93],[0.5,0.42,11,0.85],[1,0.85,14,0.96],[2,0.65,19,1.0],[2.75,0.18,18,0.79],[3,0.8,14,0.91]],
+        [[0,0.42,14,0.94],[0.5,0.42,16,0.84],[1,0.85,18,0.97],[2,0.65,21,1.0],[2.75,0.18,18,0.8],[3,0.8,16,0.9]],
+        [[0,0.42,16,0.94],[0.5,0.42,19,0.85],[1,0.85,23,1.0],[2,0.65,21,0.9],[2.75,0.18,19,0.8],[3,0.8,16,0.92]],
+        [[0,0.85,18,0.98],[1,0.42,14,0.86],[1.5,0.42,9,0.87],[2,0.85,6,0.9],[3,0.42,9,0.84],[3.5,0.35,11,0.89]]
+      ],
+      "hook_b": [
+        [[0,1.3,24,1.0],[1.5,0.42,23,0.86],[2,0.85,21,0.94],[3,0.42,19,0.85],[3.5,0.35,16,0.88]],
+        [[0,1.3,21,0.99],[1.5,0.42,18,0.86],[2,0.85,14,0.93],[3,0.42,18,0.85],[3.5,0.35,21,0.91]],
+        [[0,1.8,23,1.0],[2,0.42,21,0.85],[2.5,0.42,19,0.9],[3,0.8,14,0.91]],
+        [[0,0.85,19,0.98],[1,0.42,18,0.83],[1.5,0.42,16,0.86],[2,1.35,14,0.93],[3.5,0.35,11,0.88]]
+      ],
+      "instrument": "bright soaring pulse lead, open power guitar, airy synth brass and sparkling arpeggio",
+      "flavor": "uplifting airborne action rock",
+      "description": "장조 계열의 상승 멜로디와 리디안의 열린 색채. 빠른 드럼과 밝은 기타가 구름 궁전 위로 도약하는 추진력을 만든다.",
+      "groove": {
+        "kick": [0,0.75,1.5,2,2.75,3.5],
+        "snare": [1,3],
+        "hat": [0,0.5,1,1.5,2,2.5,3,3.5],
+        "guitar": [0,0.5,1.5,2,2.5,3.5],
+        "bass": [0,0.5,1,1.5,2,2.5,3,3.5],
+        "bass_pattern": [0,0,7,12,0,0,7,12],
+        "feel": "Fast straight eighth-note bass and energetic four-square backbeat; open hat before snare, short rising tom fills."
+      },
+      "arrangement_hint": "Intro starts with rising filtered arpeggio and a tom pickup. Keep A buoyant; B adds open guitar fifths, ride cymbal and wider pad. Breakdown hangs briefly on airy Em before returning to ascent."
+    },
+    {
+      "id": "ruins",
+      "title": "Buried Sun Engine",
+      "title_ko": "매몰된 태양 기관",
+      "bpm": 146,
+      "tonic_midi": 61,
+      "mode": [0,1,4,5,7,8,10],
+      "mode_name": "C-sharp Phrygian dominant",
+      "progression": [0,1,6,0,0,1,6,0],
+      "progression_b": [3,1,6,0,3,1,6,0],
+      "chords_a": [[0,4,7],[1,5,8],[10,13,17],[0,4,7],[0,4,7],[1,5,8],[10,13,17],[0,4,7]],
+      "chords_b": [[5,8,12],[1,5,8],[10,13,17],[0,4,7],[5,8,12],[1,5,8],[10,13,17],[0,4,7]],
+      "hook_a": [
+        [[0,0.65,7,0.96],[0.75,0.18,8,0.79],[1,0.42,7,0.9],[1.75,0.65,4,0.94],[2.75,0.18,1,0.8],[3,0.8,0,0.93]],
+        [[0,0.65,13,0.96],[0.75,0.18,17,0.8],[1,0.42,20,0.99],[1.75,0.65,17,0.91],[2.75,0.18,13,0.8],[3,0.8,8,0.92]],
+        [[0,0.65,17,0.98],[0.75,0.18,13,0.8],[1,0.42,10,0.92],[1.75,0.65,8,0.88],[2.75,0.18,7,0.79],[3,0.8,5,0.9]],
+        [[0,0.65,4,0.95],[0.75,0.18,7,0.81],[1,0.42,12,0.98],[1.75,0.18,13,0.8],[2,0.65,12,0.94],[2.75,0.18,7,0.81],[3,0.8,4,0.9]]
+      ],
+      "hook_b": [
+        [[0,1.3,17,0.98],[1.5,0.42,20,0.92],[2,0.42,19,0.84],[2.5,0.42,17,0.89],[3,0.8,12,0.9]],
+        [[0,1.3,20,1.0],[1.5,0.42,17,0.86],[2,0.85,13,0.93],[3,0.42,17,0.86],[3.5,0.35,20,0.91]],
+        [[0,1.3,22,1.0],[1.5,0.42,17,0.87],[2,0.85,13,0.93],[3,0.42,10,0.85],[3.5,0.35,13,0.89]],
+        [[0,0.85,19,0.99],[1,0.42,16,0.87],[1.5,0.85,12,0.94],[2.75,0.18,13,0.78],[3,0.8,12,0.93]]
+      ],
+      "instrument": "nasal reed-like synth lead, metallic pluck, low distorted guitar and deep toms",
+      "flavor": "ancient-mechanism progressive action rock",
+      "description": "반음 장식이 있는 선법 멜로디와 낮은 기타, 깊은 탐 드럼. 오래된 사원 속 기계가 깨어나는 묵직하고 신비로운 분위기.",
+      "groove": {
+        "kick": [0,0.75,1.5,2.5,3.25],
+        "snare": [1,3],
+        "hat": [0,0.5,1,1.5,2,2.5,3,3.5],
+        "guitar": [0,0.75,1.5,2.5,3.25],
+        "bass": [0,0.75,1.5,2.5,3.25],
+        "bass_pattern": [0,7,0,12,7],
+        "percussion": [0,1.5,2.75,3.5],
+        "feel": "A 3+3+4+3+3 sixteenth-note guitar accent cycle against a normal rock backbeat; low toms answer the last melodic phrase."
+      },
+      "arrangement_hint": "Metal pluck and a low drone introduce the semitone motif. A brings in toms and muted guitar. B broadens to full sustained guitar and high lead. Breakdown isolates the pluck with sparse tom responses."
+    }
+  ]
+}

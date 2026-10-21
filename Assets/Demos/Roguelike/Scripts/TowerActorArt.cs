@@ -45,22 +45,24 @@ namespace PrototypeLab.Roguelike
         readonly List<MeshPart> meshes=new List<MeshPart>();
         MaterialPropertyBlock tintBlock;
         ActorData data; Profile profile; Transform rig; Transform[] bones;
-        Matrix4x4[] boneMatrices; float[] pose,locomotionPose,entryPose,exitPose; bool[] lowerBody;
+        TowerMythArt mythArt;
+        TowerMonsterRig monsterRig;
+        Matrix4x4[] boneMatrices; float[] pose,locomotionPose,locomotionFrom,entryPose,exitPose; bool[] lowerBody;
         ClipData idleClip,runClip,attackClip,deathClip;
-        SpriteRenderer monsterRenderer; Vector3 monsterRest,monsterEntryPosition,monsterEntryScale,monsterExitPosition,monsterExitScale; float monsterScale,monsterWidth,monsterHeight,monsterEntryAngle,monsterExitAngle;
+        SpriteRenderer monsterRenderer; Vector3 monsterRest; float monsterScale,monsterWidth,monsterHeight;
         static readonly string[] BossMotions={"CrownVolley","TwinSpiral","LeapingSlam"};
-        static readonly float[] SlamTimes={0,.32f,.43f,.53f,.68f,.79f,.80f,.86f,1};
-        static readonly float[] SlamWidth={1,1.1f,1.18f,.88f,.94f,.92f,1.26f,1.18f,1};
-        static readonly float[] SlamHeight={1,.86f,.72f,1.14f,1.04f,1.12f,.66f,.80f,1};
-        static readonly float[] SlamAngle={0,-3,-5,4,7,0,-2,1,0};
         int bossMotion=-1;
+        string themeMonsterName;
         int index,combo,monsterKind; bool isMonster,grounded=true,dashing,wasAttacking,wasHurt;
-        float clock,actionTime,actionDuration=.4f,hurtTime,verticalVelocity,horizontalSpeed,movingBlend,exitTime;
+        float clock,actionTime,actionDuration=.4f,hurtTime,verticalVelocity,horizontalSpeed,horizontalVelocity,movingBlend,exitTime;
+        float locomotionClock,locomotionRate=1,landingAge=.18f,locomotionAge;
+        int locomotionState=-1;
+        bool previousGrounded=true,playerPosed;
         ActionKind action; SkillEffect castEffect;
         public Color Tint { get; set; }=Color.white;
         public int Facing { get; set; }=1;
         public int ArtIndex { get { return index; } }
-        public string ProfileName { get { return isMonster?(monsterKind==4?"CrownSlimeKing":monsterKind==3?"TowerOwlBat":"TowerGuardian"):profile.name; } }
+        public string ProfileName { get { return isMonster?(themeMonsterName??(monsterKind==4?"CrownSlimeKing":monsterKind==3?"TowerOwlBat":"TowerGuardian")):profile.name; } }
         public string MotionName { get; private set; }="Idle";
         public string BossMotionName { get { return bossMotion>=0?BossMotions[bossMotion]:"Idle"; } }
         public float BossVisualHeight { get { return isMonster&&monsterKind==4?monsterHeight*monsterScale*Mathf.Abs(transform.lossyScale.y):0; } }
@@ -68,6 +70,8 @@ namespace PrototypeLab.Roguelike
         {
             get
             {
+                if(mythArt!=null)return mythArt.RenderedHeight;
+                if(monsterRig!=null)return monsterRig.RenderedHeight;
                 if(monsterRenderer==null)return 0;
                 float top=transform.position.y;var visual=monsterRenderer.transform;
                 for(int x=-1;x<=1;x+=2)for(int y=-1;y<=1;y+=2)
@@ -88,6 +92,20 @@ namespace PrototypeLab.Roguelike
             var go=new GameObject(monster?"Original pixel monster":"Original pixel actor "+artIndex);go.transform.SetParent(parent,false);
             var art=go.AddComponent<TowerActorArt>();art.Build(artIndex,monster);return art;
         }
+        public void SetThemeMonster(TowerThemeId theme,int variant,bool boss)
+        {
+            if(!isMonster||monsterRenderer==null)return;
+            monsterRenderer.sprite=TowerThemeMonsterArt.Get(theme,variant,boss);monsterRenderer.flipX=true;
+            themeMonsterName=TowerThemeMonsterArt.Name(theme,variant,boss);gameObject.name=themeMonsterName;
+            monsterKind=boss?4:monsterKind==4?0:monsterKind;
+            monsterWidth=monsterRenderer.sprite.bounds.size.x;monsterHeight=monsterRenderer.sprite.bounds.size.y;
+            monsterScale=PixelScale*(boss?50f/monsterHeight:Mathf.Min(1,42f/monsterHeight));
+            monsterRest=new Vector3(0,monsterHeight*monsterScale*.5f,0);
+            monsterRenderer.transform.localScale=new Vector3(monsterScale,monsterScale,1);monsterRenderer.transform.localPosition=monsterRest;
+            if(monsterRig==null)monsterRig=gameObject.AddComponent<TowerMonsterRig>();
+            monsterRig.Build(monsterRenderer.sprite,theme,variant,boss,monsterHeight*monsterScale);
+            monsterRenderer.enabled=false;
+        }
         static void LoadLibrary()
         {
             if(library!=null)return;
@@ -102,6 +120,11 @@ namespace PrototypeLab.Roguelike
         }
         void Build(int artIndex,bool monster)
         {
+            if(!monster&&TowerMythArt.IsMythIndex(artIndex))
+            {
+                index=artIndex;profile=new Profile(TowerMythArt.ProfileName(artIndex),.46f,.46f,1,1);
+                mythArt=gameObject.AddComponent<TowerMythArt>();mythArt.Build(artIndex);SetPose(false,false,false,1,0);return;
+            }
             tintBlock=new MaterialPropertyBlock();index=Mathf.Clamp(artIndex,0,16);isMonster=monster;profile=Profiles[index];
             rig=new GameObject("Original bone rig").transform;rig.SetParent(transform,false);
             if(monster)
@@ -110,9 +133,11 @@ namespace PrototypeLab.Roguelike
                 monsterRenderer=go.AddComponent<SpriteRenderer>();monsterRenderer.sprite=Resources.Load<Sprite>("Tower/Monsters/monster_"+kind);monsterRenderer.sortingOrder=30;
                 monsterWidth=kind==0?43:kind==1?47:kind==4?170:50;monsterHeight=kind==0?30:kind==1?33:kind==2?45:kind==4?130:50;
                 monsterScale=PixelScale*(kind==4?50f/130f:1);monsterRest=new Vector3(0,monsterHeight*monsterScale*.5f,0);
-                monsterRenderer.transform.localScale=Vector3.one*monsterScale;monsterRenderer.transform.localPosition=monsterRest;return;
+                monsterRenderer.transform.localScale=Vector3.one*monsterScale;monsterRenderer.transform.localPosition=monsterRest;
+                monsterRig=gameObject.AddComponent<TowerMonsterRig>();monsterRig.BuildLegacy(monsterRenderer.sprite,kind,monsterHeight*monsterScale);
+                monsterRenderer.enabled=false;return;
             }
-            data=FindData(index);bones=new Transform[data.bones.Length];boneMatrices=new Matrix4x4[bones.Length];pose=new float[bones.Length*7];locomotionPose=new float[pose.Length];entryPose=new float[pose.Length];exitPose=new float[pose.Length];lowerBody=new bool[bones.Length];
+            data=FindData(index);bones=new Transform[data.bones.Length];boneMatrices=new Matrix4x4[bones.Length];pose=new float[bones.Length*7];locomotionPose=new float[pose.Length];locomotionFrom=new float[pose.Length];entryPose=new float[pose.Length];exitPose=new float[pose.Length];lowerBody=new bool[bones.Length];
             for(int i=0;i<bones.Length;i++)
             {
                 var b=data.bones[i];bones[i]=new GameObject(b.name).transform;bones[i].SetParent(b.parent<0?rig:bones[b.parent],false);
@@ -142,7 +167,6 @@ namespace PrototypeLab.Roguelike
         void BeginAction(ActionKind kind,float duration)
         {
             if(pose!=null)Array.Copy(pose,entryPose,pose.Length);
-            if(monsterRenderer!=null){monsterEntryPosition=monsterRenderer.transform.localPosition;monsterEntryScale=monsterRenderer.transform.localScale;monsterEntryAngle=monsterRenderer.transform.localEulerAngles.z;}
             action=kind;actionTime=0;actionDuration=Mathf.Max(.08f,duration);exitTime=0;
         }
         public void PlayAttack(float duration,int combo=0)
@@ -162,11 +186,10 @@ namespace PrototypeLab.Roguelike
         {
             if(action==ActionKind.Death)return;
             if(pose!=null)Array.Copy(pose,exitPose,pose.Length);
-            if(monsterRenderer!=null){monsterExitPosition=monsterRenderer.transform.localPosition;monsterExitScale=monsterRenderer.transform.localScale;monsterExitAngle=monsterRenderer.transform.localEulerAngles.z;}
             action=ActionKind.None;actionTime=0;exitTime=.10f;
         }
-        public void SetLocomotion(bool grounded,float verticalVelocity,bool dashing,float horizontalSpeed=0)
-        {this.grounded=grounded;this.verticalVelocity=verticalVelocity;this.dashing=dashing;this.horizontalSpeed=Mathf.Abs(horizontalSpeed);}
+        public void SetLocomotion(bool grounded,float verticalVelocity,bool dashing,float horizontalSpeed=0,float horizontalVelocity=float.NaN)
+        {this.grounded=grounded;this.verticalVelocity=verticalVelocity;this.dashing=dashing;this.horizontalSpeed=Mathf.Abs(horizontalSpeed);this.horizontalVelocity=float.IsNaN(horizontalVelocity)?horizontalSpeed*Facing:horizontalVelocity;}
         static bool IsSupport(SkillEffect effect){return effect==SkillEffect.HealPulse||effect==SkillEffect.ShieldPulse;}
         public void SetPose(bool moving,bool attacking,bool hurt,int facing,float dt)
         {
@@ -180,14 +203,41 @@ namespace PrototypeLab.Roguelike
                 if(actionTime>=actionDuration&&action!=ActionKind.Death)action=ActionKind.None;
             }
             MotionName=action==ActionKind.Death?"Death":action==ActionKind.BossAttack?"Boss"+BossMotionName:dashing?"Dash":action==ActionKind.Cast?"Cast":action==ActionKind.Attack?"Attack":hurtTime>0?"Hurt":!grounded?(verticalVelocity>0?"Jump":"Fall"):moving?(horizontalSpeed>4.5f?"Run":"Walk"):"Idle";
-            if(isMonster){PoseMonster(moving,dt);return;}
+            if(mythArt!=null){mythArt.Pose(MotionName,moving,clock,Mathf.Clamp01(actionTime/actionDuration),hurtTime,Facing,Tint,grounded,verticalVelocity,horizontalSpeed,horizontalVelocity,dt,action==ActionKind.Cast&&IsSupport(castEffect)?.55f:profile.release);return;}
+            if(isMonster)
+            {
+                monsterRig.Pose(MotionName,moving,Mathf.Clamp01(actionTime/actionDuration),hurtTime,Facing,Tint,grounded,
+                    new Vector2(horizontalVelocity,verticalVelocity),horizontalSpeed,dt,action==ActionKind.Cast?CastReleaseTime(castEffect,actionDuration)/actionDuration:.48f);
+                return;
+            }
+            if(playerPosed&&dt<=0){ApplyPose();return;}
+            // Advance a continuous clip phase. Multiplying total elapsed time by
+            // a new speed used to jump to a different stride at the walk/run boundary.
+            float targetRate=dashing?2.1f:profile.walkRate*Mathf.Lerp(.48f,1.65f,Mathf.InverseLerp(0,7,horizontalSpeed));
+            locomotionRate=Mathf.MoveTowards(locomotionRate,targetRate,dt*4.5f);
+            if(moving&&grounded)locomotionClock+=dt*locomotionRate;
+            if(grounded&&!previousGrounded&&dt>0)landingAge=0;
+            previousGrounded=grounded;landingAge=Mathf.Min(.18f,landingAge+dt);
             movingBlend=Mathf.MoveTowards(movingBlend,moving?1:0,dt*10);
-            SampleLocomotion(moving);Array.Copy(pose,locomotionPose,pose.Length);
+            int state=dashing?3:!grounded?2:moving?1:0;
+            if(state!=locomotionState)
+            {
+                Array.Copy(locomotionPose,locomotionFrom,pose.Length);
+                locomotionAge=playerPosed?0:.12f;locomotionState=state;
+            }
+            locomotionAge+=dt;
+            SampleLocomotion(moving);
+            // Blend the locomotion layer itself so a start, stop, dash or landing
+            // does not replace every joint in a single frame, even during actions.
+            BlendFrom(locomotionFrom,Mathf.SmoothStep(0,1,locomotionAge/.12f));
+            Array.Copy(pose,locomotionPose,pose.Length);
             float progress=Mathf.Clamp01(actionTime/actionDuration);
             if(action==ActionKind.Death)Sample(deathClip,progress*(deathClip==null?1:deathClip.duration),false);
             else if(action==ActionKind.Attack)
             {
                 float phase=ActionPhase(progress,profile.contact);Sample(attackClip,phase*(attackClip==null?1:attackClip.duration),false);
+                if(index==0)
+                {float weight=Pulse(progress,profile.contact);AddRotation("Body",-3.5f*weight);AddRotation("head",2*weight);AddPosition("Body",1.6f*weight,0);}
                 if(index==0&&combo%3!=0)
                 {float contact=Pulse(progress,profile.contact);AddRotation("Weapon",(combo%3==1?8:-10)*contact);AddRotation("Rarm",combo%3==1?-3*contact:4*contact);AddPosition("Body",(combo%3==2?.6f:.3f)*contact,0);}
             }
@@ -211,16 +261,26 @@ namespace PrototypeLab.Roguelike
             if(exitTime>0)
             {exitTime=Mathf.Max(0,exitTime-dt);BlendFrom(exitPose,Mathf.SmoothStep(0,1,1-exitTime/.10f));}
             if(hurtTime>0&&action!=ActionKind.Death)
-            {float recoil=hurtTime/.20f;AddPosition("Body",-2*recoil,0);AddRotation("Body",8*recoil);AddRotation("head",-5*recoil);}
-            ApplyPose();
+            {float age=.20f-hurtTime;float recoil=Mathf.SmoothStep(0,1,age/.04f)*Mathf.SmoothStep(0,1,hurtTime/.16f);AddPosition("Body",-2*recoil,0);AddRotation("Body",8*recoil);AddRotation("head",-5*recoil);}
+            if(grounded&&landingAge<.18f&&action!=ActionKind.Death)
+            {float compression=Mathf.Sin(Mathf.PI*landingAge/.18f);AddPosition("Body",0,-1.2f*compression);AddRotation("Rleg",5*compression);AddRotation("Lleg",-4*compression);}
+            ApplyPose();playerPosed=true;
         }
         void SampleLocomotion(bool moving)
         {
             if(dashing)
-            {Sample(runClip,clock*2.1f,true);AddRotation("Body",-14);AddRotation("Larm",32);AddRotation("Rarm",-24);}
+            {Sample(runClip,locomotionClock,true);AddRotation("Body",-14);AddRotation("Larm",32);AddRotation("Rarm",-24);}
             else if(!grounded)
-            {Sample(idleClip,clock*.4f,true);AddRotation("Rleg",verticalVelocity>0?-27:12);AddRotation("Lleg",verticalVelocity>0?23:-8);AddRotation("Larm",verticalVelocity>0?-20:-35);AddRotation("Rarm",verticalVelocity>0?18:30);AddRotation("Body",verticalVelocity>0?-4:5);}
-            else Sample(moving?runClip:idleClip,clock*(moving?profile.walkRate*(horizontalSpeed>4.5f?1.35f:.8f):profile.idleRate),true);
+            {
+                float rise=Mathf.SmoothStep(0,1,Mathf.InverseLerp(-1.5f,1.5f,verticalVelocity));
+                Sample(idleClip,clock*.4f,true);AddRotation("Rleg",Mathf.Lerp(12,-27,rise));AddRotation("Lleg",Mathf.Lerp(-8,23,rise));
+                AddRotation("Larm",Mathf.Lerp(-35,-20,rise));AddRotation("Rarm",Mathf.Lerp(30,18,rise));AddRotation("Body",Mathf.Lerp(5,-4,rise));
+            }
+            else
+            {
+                Sample(moving?runClip:idleClip,moving?locomotionClock:clock*profile.idleRate,true);
+                if(moving){float lean=Mathf.InverseLerp(1.5f,7,horizontalSpeed);AddRotation("Body",-3.5f*lean);AddRotation("head",1.5f*lean);}
+            }
         }
         static float BlendValue(float from,float to,int channel,float weight)
         {return channel==2||channel==5||channel==6?from+Mathf.DeltaAngle(from,to)*weight:Mathf.Lerp(from,to,weight);}
@@ -255,6 +315,9 @@ namespace PrototypeLab.Roguelike
             time=loop&&clip.duration>0?time%clip.duration:Mathf.Clamp(time,0,clip.duration);
             int a=Mathf.Clamp(Mathf.FloorToInt(time*library.sampleRate),0,clip.frames.Length-1),bIndex=Mathf.Min(a+1,clip.frames.Length-1);
             var first=clip.frames[a];var next=clip.frames[bIndex];float mix=next.time>first.time?(time-first.time)/(next.time-first.time):0;
+            // Sampled source angles are continuous and can intentionally turn
+            // more than 180 degrees between frames (the ninja's spinning arm).
+            // Shortest-angle blending belongs to transitions, not source clips.
             for(int i=0;i<pose.Length;i++)pose[i]=Mathf.Lerp(first.pose[i],next.pose[i],mix);
         }
         int Bone(string name){for(int i=0;i<data.bones.Length;i++)if(data.bones[i].name==name)return i;return -1;}
@@ -262,8 +325,9 @@ namespace PrototypeLab.Roguelike
         void AddPosition(string name,float x,float y){int i=Bone(name);if(i>=0){pose[i*7]+=x;pose[i*7+1]+=y;}}
         void ApplyPose()
         {
-            var world=transform.position;var snapped=new Vector3(Mathf.Round(world.x/PixelScale)*PixelScale,Mathf.Round(world.y/PixelScale)*PixelScale,world.z);
-            var correction=transform.InverseTransformVector(snapped-world);rig.localPosition=new Vector3(correction.x,Mathf.Round(data.groundOffset)*PixelScale+correction.y,0);
+            // Keep the moving rig on its physical root. Independent whole-pixel
+            // snapping fought the continuous camera and produced visible judder.
+            rig.localPosition=new Vector3(0,Mathf.Round(data.groundOffset)*PixelScale,0);
             rig.localScale=new Vector3(Facing*PixelScale,PixelScale,PixelScale);
             for(int i=0;i<bones.Length;i++)
             {
@@ -288,74 +352,13 @@ namespace PrototypeLab.Roguelike
                 part.mesh.vertices=part.vertices;part.renderer.SetPropertyBlock(tintBlock);
             }
         }
-        void PoseMonster(bool moving,float dt)
-        {
-            rig.localScale=new Vector3(Facing,1,1);float p=Mathf.Clamp01(actionTime/actionDuration);
-            if(monsterKind==4&&action!=ActionKind.Death){PoseBoss(p,dt);return;}
-            float cycle=moving?Mathf.Abs(Mathf.Sin(clock*7)):0,swing=action==ActionKind.Attack?Pulse(p,.48f):0;
-            float bob=monsterKind==3?Mathf.Round(Mathf.Sin(clock*4)*1.5f):Mathf.Round(cycle*3);
-            var position=monsterRest+new Vector3(swing*(monsterKind==3?.10f:.2f),bob*PixelScale,0);
-            var scale=new Vector3(monsterScale*(1+swing*.18f),monsterScale*(1-swing*.12f),1);
-            float bank=monsterKind==3?(moving?-4:0)+Mathf.Sin(clock*4)*2:0;
-            ApplyMonsterPose(position,scale,action==ActionKind.Death?Mathf.Lerp(0,-80,p):bank-swing*8,dt);
-        }
-        void PoseBoss(float p,float dt)
-        {
-            float width=1,height=1,angle=0,hop=0,recoil=0;
-            if(action==ActionKind.BossAttack)
-            {
-                if(bossMotion==0)
-                {
-                    // Three visible flares meet the actual three bullet releases.
-                    float charge=Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,1.2f/2.25f,p))*(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.89f,1,p)));
-                    float burst=BossBurst(p,1.2f/2.25f)+BossBurst(p,1.6f/2.25f)+BossBurst(p,2f/2.25f);
-                    width=1+.08f*charge-.14f*burst;height=1-.08f*charge+.20f*burst;angle=-4*charge+7*burst;recoil=-.06f*burst;
-                }
-                else if(bossMotion==1)
-                {
-                    float activity=Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,.22f,p))*(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.90f,1,p)));
-                    // Visual levitation leaves the actor's ground targeting qualification unchanged.
-                    angle=720*Mathf.SmoothStep(0,1,Mathf.InverseLerp(.20f,.92f,p));
-                    float release=BossBurst(p,1.3f/3.2f);
-                    width=1+.04f*Mathf.Cos(angle*Mathf.Deg2Rad)*activity;height=1+.08f*activity+.08f*release;hop=.26f*activity;
-                }
-                else
-                {
-                    // The AI moves the actor through the jump arc; this sprite only crouches, stretches and lands.
-                    width=BossCurve(p,SlamWidth);height=BossCurve(p,SlamHeight);angle=BossCurve(p,SlamAngle);
-                }
-            }
-            float radians=angle*Mathf.Deg2Rad;
-            float halfHeight=.5f*monsterScale*(Mathf.Abs(Mathf.Sin(radians))*monsterWidth*width+Mathf.Abs(Mathf.Cos(radians))*monsterHeight*height);
-            ApplyMonsterPose(new Vector3(recoil,halfHeight+hop,0),new Vector3(monsterScale*width,monsterScale*height,1),angle,dt);
-        }
-        static float BossBurst(float p,float peak)
-        {return p<peak?Mathf.SmoothStep(0,1,Mathf.InverseLerp(peak-.045f,peak,p)):Mathf.SmoothStep(1,0,Mathf.InverseLerp(peak,peak+.07f,p));}
-        static float BossCurve(float p,float[] values)
-        {
-            for(int i=1;i<SlamTimes.Length;i++)if(p<=SlamTimes[i])return Mathf.Lerp(values[i-1],values[i],Mathf.SmoothStep(0,1,Mathf.InverseLerp(SlamTimes[i-1],SlamTimes[i],p)));
-            return values[values.Length-1];
-        }
-        void ApplyMonsterPose(Vector3 position,Vector3 scale,float angle,float dt)
-        {
-            if(action==ActionKind.BossAttack&&actionTime<.08f)
-            {
-                float entry=Mathf.SmoothStep(0,1,actionTime/.08f);position=Vector3.Lerp(monsterEntryPosition,position,entry);scale=Vector3.Lerp(monsterEntryScale,scale,entry);angle=monsterEntryAngle+Mathf.DeltaAngle(monsterEntryAngle,angle)*entry;
-            }
-            if(exitTime>0)
-            {
-                exitTime=Mathf.Max(0,exitTime-dt);float blend=Mathf.SmoothStep(0,1,1-exitTime/.10f);
-                position=Vector3.Lerp(monsterExitPosition,position,blend);scale=Vector3.Lerp(monsterExitScale,scale,blend);angle=monsterExitAngle+Mathf.DeltaAngle(monsterExitAngle,angle)*blend;
-            }
-            monsterRenderer.transform.localPosition=position;monsterRenderer.transform.localScale=scale;monsterRenderer.transform.localRotation=Quaternion.Euler(0,0,angle);
-            var color=Tint;if(hurtTime>0)color=Color.Lerp(color,new Color(1,.35f,.32f,color.a),.6f);if(action==ActionKind.Death)color.a*=1-Mathf.Clamp01(actionTime/actionDuration)*.8f;monsterRenderer.color=color;
-        }
         public void Tick(bool moving,bool attacking,bool hurt,float dt){SetPose(moving,attacking,hurt,Facing,dt);}
         void OnDestroy(){foreach(var part in meshes)if(part.mesh!=null)Destroy(part.mesh);}
 
         /// <summary>A cached camera portrait of the unchanged original pixel meshes, with Point filtering.</summary>
         public static Texture2D Portrait(int artIndex)
         {
+            if(TowerMythArt.IsMythIndex(artIndex))return TowerMythArt.Portrait(artIndex);
             artIndex=Mathf.Clamp(artIndex,0,16);if(artIndex==15)artIndex=0;
             Texture2D texture;if(portraits.TryGetValue(artIndex,out texture))return texture;
             var root=new GameObject("Original pixel portrait temporary"){hideFlags=HideFlags.HideAndDontSave};root.transform.position=new Vector3(10000,10000,0);

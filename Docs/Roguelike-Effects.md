@@ -29,7 +29,7 @@
 | Fireball | 흰 열핵, 주황 불꽃 꼬리, 폭발 파편 |
 | IceNova | 여섯 방향 얼음 결정과 팽창하는 냉기 고리 |
 | ChainLightning | 꺾이는 번개, 흰 심선과 가지 번개 |
-| Meteor | 바닥 경고 룬, 낙하하는 바위와 불꽃, 충돌 화염 기둥 |
+| Meteor | 낙하하는 바위와 불꽃, 충돌 화염 기둥 |
 | ArcaneVolley | 보라색 마름모 탄두와 비전 십자 문양 |
 | Shockwave | 전진하는 금색 초승달 충격파 |
 | BladeStorm | 원본 회전 검기의 회전과 검격 프레임 |
@@ -47,4 +47,4 @@
 
 `TowerVfx.Create(parent)`가 서비스를 만듭니다. `Tick(dt)`만 애니메이션 시간을 진행하므로 게임의 일시정지와 동기화됩니다. `Projectile()`는 같은 투사체 루트에서 여러 번 호출해도 기존 자식 시각 효과를 교체합니다. `AttachZone()`는 게임이 소유한 영역 루트에 시각 효과만 붙입니다. `Clear()`는 서비스가 만든 시각 효과만 지우고 게임의 투사체·영역 루트는 삭제하지 않습니다. 루트가 게임에서 삭제되면 다음 `Tick()`에 등록이 정리됩니다.
 
-`Cast`, `Impact`, `Trail`, `TelegraphMeteor`, `BasicSlash`, `Hit`, `Afterimage`는 실제 전투의 시전·충돌·연결·경고·기본 공격·피격·회피 이벤트에 연결합니다. `ActiveCount`와 `KnownEffectsCount`는 선택 실행 QA 갤러리에서 16개 효과의 표시, 프레임 변화와 수명 종료를 검사할 때 사용합니다.
+`Cast`, `Impact`, `Trail`, `DescendMeteor`, `BasicSlash`, `Hit`, `Afterimage`는 실제 전투의 시전·충돌·연결·유성 낙하·기본 공격·피격·회피 이벤트에 연결합니다. 공격 전 조준 화살, 빙결의 발동 전 범위 룬, 유성 착지 룬과 공격 영역의 룬 테두리는 생성하지 않습니다. 낙하하는 유성, 실제 독구름·검격과 명중 효과는 유지합니다. `ActiveCount`와 `KnownEffectsCount`는 선택 실행 QA 갤러리에서 16개 효과의 표시, 프레임 변화와 수명 종료를 검사할 때 사용합니다.

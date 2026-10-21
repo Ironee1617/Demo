@@ -1,0 +1,42 @@
+{
+    "mode": "towerPolishSmoke",
+    "finishedUtc": "2026-10-20T14:12:32.0120941Z",
+    "success": true,
+    "earlyDodgePrimes": true,
+    "oncePerDodge": true,
+    "ordinaryInvulnerabilityDoesNotPrime": true,
+    "lateDodgeDoesNotPrime": true,
+    "missedSlashPreserves": true,
+    "counterDamageMultiplier": true,
+    "counterConsumedOnce": true,
+    "skillDamageUnchanged": true,
+    "companionDamageUnchanged": true,
+    "pausedTimerFrozen": true,
+    "activeTimerExpires": true,
+    "damageCancelsCounter": true,
+    "floorTransitionResets": true,
+    "newRunResets": true,
+    "cleanFloorsCounted": true,
+    "streakRecorded": true,
+    "shieldContactBreaksFlawless": true,
+    "hurtFloorBreaksFlawless": true,
+    "clearRecordedOnce": true,
+    "clearRemovesProjectiles": true,
+    "rewardExitSafe": true,
+    "counterDamage": 42.0,
+    "ordinaryDamage": 28.0,
+    "shieldAbsorbed": 12.0,
+    "actualDamageTaken": 20.0,
+    "checks": [
+        "Actual DashOverride starts the window: early hostile crossings grant one counter per dash without damage; ordinary invulnerability and crossings after 0.12 seconds grant none.",
+        "A miss preserves the charge; the next connected slash deals exactly 1.5x once, including multiple victims. The following slash, direct IceNova and companion StrikeEnemy keep their normal damage.",
+        "Menu/party pause freeze the charge and run clock. Active production Update expires it after three seconds; an actual hit cancels it immediately.",
+        "Four real Update-driven clears: two clean floors build streak 2; shield contact and health damage each break flawless status. Rewards/NextFloor preserve totals and reset floor-local state; repeated updates never recount a clear."
+    ],
+    "screenshots": [
+        "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\Artifacts\\TowerUIRefresh\\polish-20261020-231222-counter-ready.png",
+        "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\Artifacts\\TowerUIRefresh\\polish-20261020-231222-flawless-reward.png",
+        "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\Artifacts\\TowerUIRefresh\\polish-20261020-231222-ending-record.png"
+    ],
+    "errors": []
+}

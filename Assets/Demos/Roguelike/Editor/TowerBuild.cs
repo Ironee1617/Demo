@@ -30,10 +30,12 @@ namespace PrototypeLab.Roguelike.Editor
                 actorIndices.Add(definition.ArtIndex);
             foreach (int actor in actorIndices)
             {
+                if(TowerMythArt.IsMythIndex(actor))continue;
                 string folder = "Tower/Actors/cha_" + actor.ToString("000") + "/";
                 if (Resources.Load<Texture2D>(folder + "body") == null || Resources.Load<Texture2D>(folder + "head") == null)
                     throw new InvalidOperationException("Missing original character textures for actor " + actor + ".");
             }
+            TowerMythArt.ValidateLibrary();
             foreach (string effect in new[] { "slash_0", "slash_1", "slash_2", "slash_3", "slash_4", "slash_5", "slash_6", "swirl", "arrow" })
                 if (Resources.Load<Texture2D>("Tower/Effects/" + effect) == null)
                     throw new InvalidOperationException("Missing original effect texture: " + effect);

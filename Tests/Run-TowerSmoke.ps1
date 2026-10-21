@@ -1,4 +1,4 @@
-﻿param([string]$Executable, [switch]$ArtOnly, [switch]$CombatOnly, [switch]$BossOnly, [int]$TimeoutSeconds = 300)
+param([string]$Executable, [switch]$ArtOnly, [switch]$CombatOnly, [switch]$BossOnly, [switch]$MythOnly, [switch]$CompanionsOnly, [switch]$PolishOnly, [int]$TimeoutSeconds = 300)
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 if (!$Executable) { $Executable = Join-Path $projectRoot 'Build/TowerDemo/TowerDemo.exe' }
@@ -6,11 +6,11 @@ $Executable = [IO.Path]::GetFullPath($Executable)
 if (!(Test-Path -LiteralPath $Executable)) { throw "Build the tower demo first: $Executable" }
 $reportRoot = Join-Path $projectRoot 'Artifacts/TowerDemo'
 [IO.Directory]::CreateDirectory($reportRoot) | Out-Null
-if (@(@($ArtOnly, $CombatOnly, $BossOnly) | Where-Object { $_ }).Count -gt 1) { throw 'Choose one isolated smoke suite per player process.' }
-$mode = if ($ArtOnly) { 'art' } elseif ($CombatOnly) { 'combat' } elseif ($BossOnly) { 'boss' } else { 'playtest' }
+if (@(@($ArtOnly, $CombatOnly, $BossOnly, $MythOnly, $CompanionsOnly, $PolishOnly) | Where-Object { $_ }).Count -gt 1) { throw 'Choose one isolated smoke suite per player process.' }
+$mode = if ($ArtOnly) { 'art' } elseif ($CombatOnly) { 'combat' } elseif ($BossOnly) { 'boss' } elseif ($MythOnly) { 'myth' } elseif ($CompanionsOnly) { 'companions' } elseif ($PolishOnly) { 'polish' } else { 'playtest' }
 $prefix = Join-Path $reportRoot $mode
 $reportPath = Join-Path $reportRoot ($mode + '-report.json')
-$logName = if ($ArtOnly) { 'art-player.log' } elseif ($CombatOnly) { 'combat-player.log' } elseif ($BossOnly) { 'boss-player.log' } else { 'player.log' }
+$logName = if ($ArtOnly) { 'art-player.log' } elseif ($CombatOnly) { 'combat-player.log' } elseif ($BossOnly) { 'boss-player.log' } elseif ($MythOnly) { 'myth-player.log' } elseif ($CompanionsOnly) { 'companions-player.log' } elseif ($PolishOnly) { 'polish-player.log' } else { 'player.log' }
 $logPath = Join-Path $reportRoot $logName
 if ($ArtOnly) {
     $pairs = [Collections.Generic.List[object]]::new()
@@ -59,6 +59,9 @@ $arguments = @('-force-d3d11', '-screen-fullscreen', '0', '-screen-width', '1600
 if ($ArtOnly) { $arguments += @('-towerArtSmoke', '-towerArtCapture', ('"' + $prefix + '"'), '-towerArtReport', ('"' + $reportPath + '"')) }
 elseif ($CombatOnly) { $arguments += @('-towerCombatSmoke', '-towerCombatCapture', ('"' + $prefix + '"'), '-towerCombatReport', ('"' + $reportPath + '"')) }
 elseif ($BossOnly) { $arguments += @('-towerBossSmoke', '-towerBossCapture', ('"' + $prefix + '"'), '-towerBossReport', ('"' + $reportPath + '"')) }
+elseif ($MythOnly) { $arguments += @('-towerMythSmoke', '-towerMythCapture', ('"' + $prefix + '"'), '-towerMythReport', ('"' + $reportPath + '"')) }
+elseif ($CompanionsOnly) { $arguments += @('-towerCompanionSmoke', '-towerCompanionCapture', ('"' + $prefix + '"'), '-towerCompanionReport', ('"' + $reportPath + '"')) }
+elseif ($PolishOnly) { $arguments += @('-towerPolishSmoke', '-towerPolishCapture', ('"' + $prefix + '"'), '-towerPolishReport', ('"' + $reportPath + '"')) }
 else { $arguments += @('-towerSmoke', '-towerCapture', ('"' + $prefix + '"'), '-towerReport', ('"' + $reportPath + '"')) }
 $startedAt = Get-Date
 $process = Start-Process -FilePath $Executable -ArgumentList $arguments -WorkingDirectory (Split-Path -Parent $Executable) -WindowStyle Hidden -PassThru
@@ -71,7 +74,13 @@ if ($process.ExitCode -ne 0 -or !$report.success) {
     if ($report.errors) { $report.errors | Write-Host }
     throw "Tower $mode smoke failed (exit $($process.ExitCode)). See $reportPath"
 }
-if ($report.screenshots.Count -ne 6) { throw 'Tower smoke must capture all six required screens.' }
+if ($CombatOnly) {
+    foreach ($check in @('companionTargetExcluded', 'companionMeleeImmune', 'companionProjectilePassThrough', 'companionBossAreaImmune', 'companionStatusImmune', 'companionsStillAttack')) {
+        if (!$report.$check) { throw "Companion hit immunity check was not verified: $check" }
+    }
+}
+$expectedCaptures = if ($ArtOnly) { 15 } elseif ($CompanionsOnly) { 7 } elseif ($PolishOnly) { 3 } else { 6 }
+if ($report.screenshots.Count -ne $expectedCaptures) { throw "Tower smoke must capture all $expectedCaptures required screens." }
 Add-Type -AssemblyName System.Drawing
 foreach ($screenshot in $report.screenshots) {
     if (!(Test-Path -LiteralPath $screenshot) -or (Get-Item -LiteralPath $screenshot).Length -le 0) { throw "Missing screenshot: $screenshot" }
@@ -83,7 +92,10 @@ foreach ($screenshot in $report.screenshots) {
     } finally { $bitmap.Dispose() }
 }
 Write-Host "TOWER_SMOKE_OK $reportPath"
-if ($ArtOnly) { Write-Host 'Verified original pixel copies, sixteen character rigs, 112 motion samples, sixteen VFX playbacks and cleanup.' }
-elseif ($CombatOnly) { Write-Host 'Verified formation, airborne role gates, locked-aim patterns, actual jump/dash evasion, swept shots and stable camera.' }
+if ($ArtOnly) { Write-Host 'Verified original pixel copies,51 character profiles,357 motion samples,16 VFX playbacks and cleanup.' }
+elseif ($CombatOnly) { Write-Host 'Verified formation, companion hit immunity and projectile pass-through, all-role flying targets, melee platform climbing, solo flyers, locked-aim patterns, actual jump/dash evasion, swept shots and stable camera.' }
 elseif ($BossOnly) { Write-Host 'Verified floor scaling, boss cadence, exclusive patterns, original motions, actual control combat and one reward after every enemy dies.' }
+elseif ($MythOnly) { Write-Host 'Verified selection guards,10 atlases,50 portraits,300 visible state frames, actual floor points, purchases and untouched saved account.' }
+elseif ($CompanionsOnly) { Write-Host 'Verified all50 companion basic attacks and200 owned skills through actual Update, timing, flying-target reach, upper-platform formation and dismissal.' }
+elseif ($PolishOnly) { Write-Host 'Verified dodge counters, pause/expiry, flawless records, clear safety and run resets.' }
 else { Write-Host 'Verified combat, mixed rewards, learned skills, contact/release timing, hero stats, dismissal and completion.' }

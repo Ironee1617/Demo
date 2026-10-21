@@ -8,8 +8,8 @@ public static class TowerDifficultyTests
     {
         try
         {
-            Test("Normal and total enemy counts never decrease", Counts);
-            Test("Exactly eight boss floors at multiples of three", BossFloors);
+            Test("Normal counts increase gradually and bosses add one enemy", Counts);
+            Test("Exactly five bosses end the five-floor theme blocks", BossFloors);
             Test("All five regular stat multipliers increase gradually", Multipliers);
             Test("First-floor baseline and final-floor values", Endpoints);
             Test("Boss health increases after the first boss", BossHealth);
@@ -23,21 +23,22 @@ public static class TowerDifficultyTests
     private static void Near(float actual, float expected) { Require(Math.Abs(actual - expected) < .001f, "Expected " + expected + ", got " + actual); }
     private static void Counts()
     {
-        int regular = 0, total = 0;
+        int regular = 0;
         for (int floor = 1; floor <= 25; floor++)
         {
             int next = TowerDifficulty.RegularCount(floor), all = next + (TowerDifficulty.IsBossFloor(floor) ? 1 : 0);
-            Require(next >= regular && all >= total, "Enemy count decreased at floor " + floor);
+            Require(next >= regular, "Normal enemy count decreased at floor " + floor);
             Require(next == 4 + (floor - 1) / 3, "Unexpected normal count at floor " + floor);
-            regular = next; total = all;
+            Require(all == next + (floor % 5 == 0 ? 1 : 0), "Unexpected total count at floor " + floor);
+            regular = next;
         }
     }
     private static void BossFloors()
     {
         int bosses = 0;
         for (int floor = 1; floor <= 25; floor++)
-        { bool expected = floor % 3 == 0; Require(TowerDifficulty.IsBossFloor(floor) == expected, "Wrong boss floor " + floor); if (expected) bosses++; }
-        Require(bosses == 8 && !TowerDifficulty.IsBossFloor(25), "Boss cadence must end at 24.");
+        { bool expected = floor % 5 == 0; Require(TowerDifficulty.IsBossFloor(floor) == expected, "Wrong boss floor " + floor); if (expected) bosses++; }
+        Require(bosses == 5 && TowerDifficulty.IsBossFloor(25), "Each theme ends with a boss, including floor 25.");
     }
     private static float[] Stats(int floor)
     { return new[] { TowerDifficulty.HealthMultiplier(floor), TowerDifficulty.DamageMultiplier(floor), TowerDifficulty.MoveMultiplier(floor), TowerDifficulty.BulletMultiplier(floor), TowerDifficulty.AttackRateMultiplier(floor) }; }
@@ -56,8 +57,8 @@ public static class TowerDifficultyTests
     }
     private static void BossHealth()
     {
-        Near(TowerDifficulty.BossHealth(3), 420); Near(TowerDifficulty.BossHealth(6), 514.5f); Near(TowerDifficulty.BossHealth(24), 1081.5f);
-        float previous = 0; for (int floor = 3; floor <= 24; floor += 3) { float hp = TowerDifficulty.BossHealth(floor); Require(hp > previous, "Boss HP did not increase."); previous = hp; }
+        Near(TowerDifficulty.BossHealth(5), 420); Near(TowerDifficulty.BossHealth(10), 577.5f); Near(TowerDifficulty.BossHealth(25), 1050);
+        float previous = 0; for (int floor = 5; floor <= 25; floor += 5) { float hp = TowerDifficulty.BossHealth(floor); Require(hp > previous, "Boss HP did not increase."); previous = hp; }
     }
     private static void Clamp()
     {

@@ -1,0 +1,47 @@
+{
+  "tool": "built-in image_gen",
+  "basePrompt": "Use case: stylized-concept. Asset type: production Unity 2D pixel-art animation atlas, transparent PNG. Create ONE precisely aligned spritesheet: EXACTLY 5 equal columns and 6 equal rows (30 cells total). Each column is one humanoid myth companion, same character down column. Rows TOP TO BOTTOM: 1 idle standing, 2 run stride, 3 weapon attack, 4 spell cast, 5 hurt recoil, 6 collapsed death lying sideways. Frame each full body with weapons inside its own cell, generous transparent margins, aligned baseline, no overlap between cells. Orthographic side-scrolling 3/4 view, all live poses face RIGHT. All 5 have HUMAN faces and HUMAN biped bodies, even animal-associated deities are human champions with animal motif headpieces. Detailed handcrafted 32-bit-era low-resolution pixel-art fantasy sprites, chunky crisp square pixels, dark 1px outline, restricted colored palette, no gradients, no smooth painted art. Each visible character height around 64 logical pixels. Consistent scale and recognizable distinct costume, weapon and silhouette. NO text, NO names, NO grid lines, NO cell borders, NO background shadows. True transparent background.",
+  "atlasLayout": "5 companion columns; six authored pose rows: Idle, Run, Attack, Cast, Hurt, Death. Actual sprite boundaries measured in runtime AtlasLayout.json.",
+  "outputs": [
+    {
+      "id": "eden",
+      "path": "C:\\Users\\20131\\.codex\\generated_images\\01a1565a-deac-7ec0-b25f-d385ed9b70ce\\exec-a73bf11c-e783-41a2-b3ea-32c225fef7b8.png"
+    },
+    {
+      "id": "olympus",
+      "path": "C:\\Users\\20131\\.codex\\generated_images\\01a1565a-deac-7ec0-b25f-d385ed9b70ce\\exec-06dd097b-92b3-47f7-9949-05df7aa62d6f.png"
+    },
+    {
+      "id": "asgard",
+      "path": "C:\\Users\\20131\\.codex\\generated_images\\01a1565a-deac-7ec0-b25f-d385ed9b70ce\\exec-123d3366-8091-49cb-b834-62c848eb2742.png"
+    },
+    {
+      "id": "india",
+      "path": "C:\\Users\\20131\\.codex\\generated_images\\01a1565a-deac-7ec0-b25f-d385ed9b70ce\\exec-e97b66be-7464-4ae2-ac39-aaf88d93d9d7.png"
+    },
+    {
+      "id": "egypt",
+      "path": "C:\\Users\\20131\\.codex\\generated_images\\01a1565a-deac-7ec0-b25f-d385ed9b70ce\\exec-a7f9728c-d4d4-48db-bc79-784e7c044ac9.png"
+    },
+    {
+      "id": "china",
+      "path": "C:\\Users\\20131\\.codex\\generated_images\\01a1565a-deac-7ec0-b25f-d385ed9b70ce\\exec-1a20346b-fb0b-4a32-88d9-d72baf65c609.png"
+    },
+    {
+      "id": "korea",
+      "path": "C:\\Users\\20131\\.codex\\generated_images\\01a1565a-deac-7ec0-b25f-d385ed9b70ce\\exec-d0758081-3fd3-470a-a5b5-ac273d977bb7.png"
+    },
+    {
+      "id": "solomon",
+      "path": "C:\\Users\\20131\\.codex\\generated_images\\01a1565a-deac-7ec0-b25f-d385ed9b70ce\\exec-45130cb4-3f30-48dd-b3fb-189e7c7e666a.png"
+    },
+    {
+      "id": "ireland",
+      "path": "C:\\Users\\20131\\.codex\\generated_images\\01a1565a-deac-7ec0-b25f-d385ed9b70ce\\exec-86bfde65-8484-4417-a015-34b3f38a4d08.png"
+    },
+    {
+      "id": "zodiac",
+      "path": "C:\\Users\\20131\\.codex\\generated_images\\01a1565a-deac-7ec0-b25f-d385ed9b70ce\\exec-e8c41be8-808a-4c59-b830-f15e21516211.png"
+    }
+  ]
+}

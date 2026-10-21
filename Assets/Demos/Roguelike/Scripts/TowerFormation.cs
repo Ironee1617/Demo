@@ -4,52 +4,235 @@ namespace PrototypeLab.Roguelike
 {
     public sealed partial class TowerGame
     {
-        internal bool HasRangedCompanion
-        {get{foreach(var companion in run.Companions)if(CanHitAirborne(companion))return true;return false;}}
-        internal static bool CanHitAirborne(HeroState owner)
-        {var companion=owner as CompanionState;return companion!=null&&companion.Definition.Role!=CompanionRole.Vanguard;}
+        private int formationFacing=1;
+        private float formationTurnTime;
         internal bool CanTarget(Fighter enemy,HeroState owner)
-        {return enemy!=null&&enemy.hp>0&&(!enemy.airborne||CanHitAirborne(owner));}
+        {
+            // Shared by direct hits, projectiles and status areas: party members
+            // are never eligible, even if a caller passes an ally with positive HP.
+            return enemy!=null&&enemy.isEnemy&&enemy.hp>0;
+        }
         internal static string FormationName(CompanionRole role)
         {return role==CompanionRole.Vanguard?"전위":role==CompanionRole.Archer?"중위":"후위";}
-        internal float FormationOffset(CompanionState state)
-        {
-            int slot=0;string line=FormationName(state.Definition.Role);
-            foreach(var companion in run.Companions)
-            {if(ReferenceEquals(companion,state))break;if(FormationName(companion.Definition.Role)==line)slot++;}
-            int middle=0;foreach(var companion in run.Companions)if(FormationName(companion.Definition.Role)=="중위")middle++;
-            return line=="전위"?1.6f+slot*1.3f:line=="중위"?-1.4f-slot*1.3f:-2.9f-Mathf.Max(0,middle-1)*1.3f-slot*1.5f;
-        }
         internal Vector2 FormationAnchor(CompanionState state)
-        {return new Vector2(Mathf.Clamp(hero.pos.x+hero.facing*FormationOffset(state),TowerWorld.Left+.5f,TowerWorld.Right-.5f),hero.pos.y);}
-        private void LandUnsupportedFlyers()
+        {return hero.pos;}
+        private Vector2 AllyLeaderDestination(float leaderSpeed)
         {
-            if(HasRangedCompanion)return;bool landed=false;
-            foreach(var enemy in enemies)if(enemy.airborne){enemy.airborne=false;enemy.velocityY=0;landed=true;}
-            if(landed)Notice("원거리 동료가 없어 공중 수호자가 착지합니다",4);
+            if(hero.grounded)return hero.pos;
+            // Predict the first support the leader will cross while descending.
+            // Waiting for the leader to land loses a full jump on every step.
+            Vector2 position=hero.pos;float velocity=hero.velocityY;
+            for(int i=0;i<100;i++)
+            {
+                float old=position.y;velocity-=25*.02f;
+                position.x=Mathf.Clamp(position.x+leaderSpeed*.02f,TowerWorld.Left+.6f,TowerWorld.Right-.6f);
+                position.y+=velocity*.02f;
+                float floor=TowerWorld.Ground;int support=-1;
+                if(velocity<=0)for(int j=0;j<world.Ledges.Length;j++)
+                {
+                    var ledge=world.Ledges[j];
+                    if(hero.dropTime>0&&Mathf.Abs(ledge.y-hero.dropHeight)<.08f)continue;
+                    if(Mathf.Abs(position.x-ledge.x)<ledge.width*.5f+.18f&&old>=ledge.y-.02f&&position.y<=ledge.y&&ledge.y>floor)
+                    {floor=ledge.y;support=j;}
+                }
+                if(position.y>floor)continue;
+                if(support>=0)
+                {var ledge=world.Ledges[support];position.x=Mathf.Clamp(position.x,ledge.x-ledge.width*.5f+.3f,ledge.x+ledge.width*.5f-.3f);}
+                return new Vector2(position.x,floor);
+            }
+            return new Vector2(position.x,TowerWorld.Ground);
+        }
+        private void ResetAllyFormation()
+        {
+            formationFacing=1;formationTurnTime=0;
+            foreach(var actor in allies)
+            {
+                actor.combatTarget=actor.basicTarget=null;actor.basicPending=false;actor.returningToFormation=actor.followMoving=false;
+                actor.moveVelocity=actor.velocityY=actor.attackPose=actor.castRemaining=0;actor.pos=FormationAnchor(run.GetCompanion(actor.id));
+                actor.followGroundY=actor.pos.y;actor.followGroundX=actor.pos.x;actor.followSource=actor.followGoal=actor.followNext=-2;actor.dropTime=0;actor.facing=formationFacing;actor.grounded=true;actor.root.transform.position=actor.pos;actor.art.InterruptAction();
+            }
+        }
+        private bool ValidAllyTarget(Fighter target,CompanionState state)
+        {return CanTarget(target,state)&&target.root&&enemies.Contains(target);}
+        private int AllySupport(float height,float x)
+        {
+            for(int i=0;i<world.Ledges.Length;i++)
+            {var p=world.Ledges[i];if(Mathf.Abs(p.y-height)<.08f&&Mathf.Abs(p.x-x)<p.width*.5f+.2f)return i;}
+            return -1;
+        }
+        private bool ReachableAllySupport(int source,int destination,float maxSpeed)
+        {
+            if(destination<0)return true;
+            var landing=world.Ledges[destination];
+            float rise=landing.y-(source<0?TowerWorld.Ground:world.Ledges[source].y);
+            if(rise>2.1f)return false;
+            float gap=0;
+            if(source>=0)
+            {
+                var launch=world.Ledges[source];
+                gap=Mathf.Max(0,Mathf.Abs(landing.x-launch.x)-(landing.width+launch.width)*.5f+.5f);
+            }
+            float flight=(10.7f+Mathf.Sqrt(10.7f*10.7f-50*rise))/25;
+            return gap<=maxSpeed*flight-maxSpeed*maxSpeed/60-.3f;
+        }
+        private int NextAllySupport(int source,int goal,float speed)
+        {
+            int ground=world.Ledges.Length,start=source<0?ground:source,finish=goal<0?ground:goal;
+            var previous=new int[ground+1];var queue=new int[ground+1];
+            for(int i=0;i<previous.Length;i++)previous[i]=-2;
+            previous[start]=-1;int head=0,tail=0;queue[tail++]=start;
+            while(head<tail&&previous[finish]==-2)
+            {
+                int from=queue[head++];
+                for(int to=0;to<=ground;to++)
+                {
+                    if(previous[to]!=-2||!ReachableAllySupport(from==ground?-1:from,to==ground?-1:to,speed))continue;
+                    previous[to]=from;queue[tail++]=to;
+                }
+            }
+            if(previous[finish]==-2)return -1;
+            int next=finish;while(previous[next]>=0&&previous[next]!=start)next=previous[next];
+            return next==ground?-1:next;
+        }
+        private Vector2 AllyFollowDestination(Fighter actor,Vector2 anchor,float maxSpeed,out bool jump,bool followLeader=true)
+        {
+            jump=false;
+            int source=AllySupport(actor.followGroundY,actor.followGroundX),goal=AllySupport(anchor.y,anchor.x);
+            if(actor.grounded)
+            {
+                if(source==goal)
+                {
+                    jump=followLeader&&!hero.grounded&&hero.velocityY>0&&hero.pos.y>=actor.pos.y&&Mathf.Abs(hero.pos.x-actor.pos.x)<1;
+                    actor.followSource=source;actor.followGoal=goal;actor.followNext=-2;return anchor;
+                }
+                if(actor.followSource!=source||actor.followGoal!=goal)
+                {actor.followSource=source;actor.followGoal=goal;actor.followNext=NextAllySupport(source,goal,maxSpeed);}
+            }
+            else if(actor.followNext==-2)return new Vector2(anchor.x,actor.followGroundY);
+            int next=actor.followNext;
+            if(next<0)return new Vector2(anchor.x,TowerWorld.Ground);
+            var landing=world.Ledges[next];
+            float landingX=Mathf.Clamp(actor.pos.x,landing.x-landing.width*.5f+.25f,landing.x+landing.width*.5f-.25f),launchX=landingX;
+            if(source>=0){var launch=world.Ledges[source];launchX=Mathf.Clamp(landingX,launch.x-launch.width*.5f+.25f,launch.x+launch.width*.5f-.25f);}
+            if(actor.grounded&&Mathf.Abs(actor.pos.x-launchX)>.2f)return new Vector2(launchX,actor.followGroundY);
+            jump=actor.grounded;
+            return new Vector2(landingX,landing.y);
+        }
+        private Vector2 AllyCombatAnchor(Fighter actor,Fighter target)
+        {
+            Vector2 aim=target.pos;EnemyState flight;
+            if(target.airborne&&enemyCombat.TryGetValue(target,out flight))aim.y=flight.hoverHeight;
+            Vector2 best=new Vector2(aim.x,TowerWorld.Ground);
+            float score=(best-aim).sqrMagnitude;
+            foreach(var ledge in world.Ledges)
+            {
+                if(ledge.y>aim.y+.35f)continue;
+                float x=Mathf.Clamp(aim.x,ledge.x-ledge.width*.5f+.3f,ledge.x+ledge.width*.5f-.3f);
+                var candidate=new Vector2(x,ledge.y);
+                float next=(candidate-aim).sqrMagnitude+Mathf.Abs(x-actor.pos.x)*.02f;
+                if(next>=score)continue;
+                score=next;best=candidate;
+            }
+            return best;
+        }
+        private void MoveAlly(Fighter actor,float destination,float maxSpeed,float leaderSpeed,float dt)
+        {
+            float dx=destination-actor.pos.x;
+            float desired=Mathf.Clamp(dx*6+leaderSpeed,-maxSpeed,maxSpeed);
+            actor.moveVelocity=Mathf.MoveTowards(actor.moveVelocity,desired,30*dt);
+            float step=actor.moveVelocity*dt;
+            if(step*dx>0&&Mathf.Abs(step)>Mathf.Abs(dx))
+            {step=dx;actor.moveVelocity=leaderSpeed;}
+            actor.pos.x=Mathf.Clamp(actor.pos.x+step,TowerWorld.Left+.5f,TowerWorld.Right-.5f);
         }
         private void TickAllies(float dt)
         {
             healClock+=dt;
+            float leaderSpeed=dt>0?(hero.pos.x-previousHeroPosition.x)/dt:0;
+            if(Mathf.Abs(leaderSpeed)>.1f&&(leaderSpeed>0?1:-1)!=formationFacing)
+            {formationTurnTime+=dt;if(formationTurnTime>=.14f){formationFacing=-formationFacing;formationTurnTime=0;}}
+            else formationTurnTime=0;
             foreach(var actor in allies)
             {
                 var state=run.GetCompanion(actor.id);if(state==null)continue;
+                if(actor.grounded){actor.followGroundY=actor.pos.y;actor.followGroundX=actor.pos.x;}
                 actor.cooldown-=dt;actor.attackPose=Mathf.Max(0,actor.attackPose-dt);actor.castRemaining=Mathf.Max(0,actor.castRemaining-dt);
                 ResolveAllyAttack(actor,state,dt);
-                var target=ClosestEnemy(actor.pos,13,state);
-                Vector2 anchor=FormationAnchor(state);float dx=anchor.x-actor.pos.x;
-                bool moving=Mathf.Abs(dx)>.12f;
-                float followSpeed=state.MoveSpeed+Mathf.Min(Mathf.Abs(dx)*2,PlayerMoveSpeed);
-                if(moving)actor.pos.x=Mathf.MoveTowards(actor.pos.x,anchor.x,followSpeed*dt);
-                if(Mathf.Abs(hero.pos.x-actor.pos.x)>15){actor.pos=anchor;actor.velocityY=0;}
-                if(actor.grounded&&hero.pos.y-actor.pos.y>.65f&&Mathf.Abs(dx)<5)actor.velocityY=10.7f;
-                if(!actor.basicPending&&actor.castRemaining<=0)actor.facing=target!=null?target.pos.x>=actor.pos.x?1:-1:hero.facing;
-                StepGravity(actor,dt);actor.root.transform.position=actor.pos;
+                if(actor.combatTarget!=null&&!ValidAllyTarget(actor.combatTarget,state))
+                {
+                    actor.combatTarget=actor.basicTarget=null;actor.basicPending=false;actor.returningToFormation=true;
+                    if(actor.grounded){actor.moveVelocity=0;actor.followMoving=false;actor.followSource=actor.followGoal=actor.followNext=-2;}
+                }
+                Vector2 anchor=AllyLeaderDestination(leaderSpeed);
+                if(actor.returningToFormation&&actor.grounded&&hero.grounded&&Vector2.Distance(hero.pos,actor.pos)<1.2f)actor.returningToFormation=false;
+                if(actor.combatTarget==null)
+                {
+                    actor.combatTarget=ClosestEnemy(actor.pos,state.Range-.05f,state);
+                    if(actor.combatTarget==null&&!actor.returningToFormation)actor.combatTarget=ClosestEnemy(actor.pos,13,state);
+                    if(actor.combatTarget!=null)actor.returningToFormation=false;
+                }
+                var target=actor.combatTarget;
+                bool followJump=false;
+                bool followingRoute=target==null&&((!actor.grounded&&actor.followNext>=0)||AllySupport(actor.followGroundY,actor.followGroundX)!=AllySupport(anchor.y,anchor.x));
+                Vector2 destination=target==null?AllyFollowDestination(actor,anchor,state.MoveSpeed+PlayerMoveSpeed,out followJump):anchor;
+                bool inRange=target!=null&&Vector2.Distance(actor.pos,target.pos)<state.Range-.05f;
+                if(target!=null)
+                {
+                    destination=actor.pos;
+                    if(!inRange)
+                    {
+                        float height=target.pos.y-actor.pos.y,reach=Mathf.Max(.4f,state.Range-.2f);
+                        float standOff=Mathf.Sqrt(Mathf.Max(.16f,reach*reach-height*height));
+                        destination=new Vector2(target.pos.x-(target.pos.x>=actor.pos.x?1:-1)*standOff,target.pos.y);
+                        if(state.Definition.Role==CompanionRole.Vanguard||Mathf.Abs(height)>reach)
+                        {
+                            Vector2 perch=AllyCombatAnchor(actor,target);
+                            int source=AllySupport(actor.followGroundY,actor.followGroundX),goal=AllySupport(perch.y,perch.x);
+                            if(source!=goal||!actor.grounded&&actor.followNext>=0)
+                            {
+                                destination=AllyFollowDestination(actor,perch,state.MoveSpeed,out followJump,false);
+                                followingRoute=true;
+                            }
+                        }
+                    }
+                }
+                // Finish the current jump even if an attack starts in flight.
+                // Cancelling horizontal steering here strands followers below ledges.
+                if(!actor.grounded&&actor.followNext>=0)
+                {
+                    var landing=world.Ledges[actor.followNext];
+                    destination=new Vector2(Mathf.Clamp(actor.pos.x,landing.x-landing.width*.5f+.3f,landing.x+landing.width*.5f-.3f),landing.y);
+                    followingRoute=true;
+                }
+                float beforeX=actor.pos.x,dx=destination.x-actor.pos.x;
+                bool actionLocked=actor.basicPending||actor.castRemaining>0||actor.attackPose>0;
+                if((actionLocked||inRange)&&actor.grounded){actor.moveVelocity=0;actor.followMoving=false;actor.followSource=actor.followGoal=actor.followNext=-2;}
+                else
+                {
+                    if(Mathf.Abs(dx)>.45f)actor.followMoving=true;
+                    else if(Mathf.Abs(dx)<.12f&&Mathf.Abs(leaderSpeed)<.1f)actor.followMoving=false;
+                    if(target!=null||followingRoute)actor.followMoving=Mathf.Abs(dx)>.12f;
+                    if(actor.followMoving)
+                    {
+                        float speed=state.MoveSpeed+(target==null||followingRoute?Mathf.Min(Mathf.Abs(dx)*2,PlayerMoveSpeed):0);
+                        MoveAlly(actor,destination.x,speed,target==null&&!followingRoute?leaderSpeed:0,dt);
+                    }
+                    else actor.moveVelocity=0;
+                }
+                if(actor.grounded&&!actionLocked&&!inRange)
+                {
+                    bool jump=followingRoute||target==null?followJump:!inRange&&target.pos.y-actor.pos.y>.65f&&Mathf.Abs(dx)<5;
+                    if(jump)actor.velocityY=10.7f;
+                }
+                float actualSpeed=dt>0?(actor.pos.x-beforeX)/dt:0;bool moving=Mathf.Abs(actualSpeed)>.08f;
+                if(!actionLocked)actor.facing=target!=null?target.pos.x>=actor.pos.x?1:-1:moving?actualSpeed>0?1:-1:formationFacing;
+                bool drop=!actionLocked&&!inRange&&destination.y<actor.pos.y-.65f&&Mathf.Abs(dx)<4;
+                StepGravity(actor,dt,drop);actor.root.transform.position=actor.pos;
                 if(target!=null&&Vector2.Distance(actor.pos,target.pos)<state.Range&&
-                    (target.airborne&&CanHitAirborne(state)||Mathf.Abs(target.pos.y-actor.pos.y)<3.5f)&&
-                    actor.cooldown<=0&&!actor.basicPending&&actor.castRemaining<=0)
+                    (state.Definition.Role!=CompanionRole.Vanguard||Mathf.Abs(target.pos.y-actor.pos.y)<3.5f)&&
+                    actor.cooldown<=0&&!actor.basicPending&&actor.castRemaining<=0&&actor.attackPose<=0)
                     BeginAllyAttack(actor,state,target);
-                actor.art.SetLocomotion(actor.grounded,actor.velocityY,false,moving?state.MoveSpeed:0);
+                actor.art.SetLocomotion(actor.grounded,actor.velocityY,false,Mathf.Abs(actualSpeed),actualSpeed);
                 actor.art.SetPose(moving,actor.attackPose>0,false,actor.facing,dt);
                 if(healClock>=5&&state.HealAmount>0&&hero.hp<PlayerMaxHealth)HealPlayer(state.HealAmount,true);
             }

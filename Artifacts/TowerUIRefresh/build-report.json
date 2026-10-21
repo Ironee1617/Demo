@@ -1,0 +1,11 @@
+{
+  "startedAt": "2026-10-20T23:13:22.9306647+09:00",
+  "finishedAt": "2026-10-20T23:13:40.3720466+09:00",
+  "validationProject": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\.validation\\TowerDemoProject",
+  "sourceProject": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab",
+  "method": "Windows",
+  "exitCode": 0,
+  "succeeded": true,
+  "log": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\Artifacts\\TowerUIRefresh\\unity-windows.log",
+  "executable": "C:\\Users\\20131\\Documents\\Codex\\2026-09-28\\new-chat\\outputs\\PrototypeLab\\Build\\TowerUIRefresh\\TowerUIRefresh.exe"
+}

@@ -59,11 +59,13 @@ Codex의 사용자 설정에 있는 기존 `unityMCP` 항목을 공식 CLI의 st
 
 ```powershell
 ./Tests/Run-TowerEditorSmoke.ps1 -Suite Companions
+./Tests/Run-TowerEditorSmoke.ps1 -Suite Movement
+./Tests/Run-TowerEditorSmoke.ps1 -Suite Platforms -TimeoutSeconds 900
 ./Tests/Run-TowerEditorSmoke.ps1 -Suite Combat
 ./Tests/Run-TowerEditorSmoke.ps1 -Suite Boss
 ```
 
-`-Suite All`은 세 시나리오를 차례로 실행합니다. 결과 JSON과 화면은 로컬 `Artifacts/TowerEditor/`에 저장됩니다. 고정 배치·체력·동료 구성 등 검증용 보정은 보고서와 검증 컴포넌트에 명시하며 일반 플레이에는 적용하지 않습니다.
+`-Suite All`은 Platforms·Companions·Combat·Boss·Polish 다섯 시나리오를 차례로 실행합니다. `-Suite Polish`는 회피 반격과 무피격 기록, 층 클리어 후 잔류 탄환 제거를 검사합니다. 결과 JSON과 화면은 로컬 `Artifacts/TowerEditor/`에 저장됩니다. 고정 배치·체력·동료 구성 등 검증용 보정은 보고서와 검증 컴포넌트에 명시하며 일반 플레이에는 적용하지 않습니다.
 
 2026-10-19 최종 실행은 동료 25개 사례, 일반 전투 24개 판정, 보스 26개 판정을 통과했습니다. 실제 피해·쿨타임·탄막과 수정한 두 회귀 사례의 범위는 [전투 검증 기록](../Artifacts/TowerEditor/README.md)에 정리했습니다.
 

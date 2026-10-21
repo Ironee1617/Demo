@@ -14,10 +14,12 @@ namespace PrototypeLab.Roguelike
         {
             public string mode = "towerCombatSmoke", finishedUtc;
             public bool success, formationForward, formationReversed, stableSlots, companionScale, movingFormationMaintained;
-            public bool airborneTargetEligibility, airborneMeleeImmune, airborneRangedDamage, rangedOnlyAcquisition;
-            public bool noRangedSpawnGuard, dismissedLastRangedLandsFlyer;
-            public bool lockedAim, fanPattern, gapPattern, radialPattern, fixedBulletTrajectory;
+            public bool airborneTargetEligibility, airborneMeleeDamage, airborneRangedDamage, allRolesAcquisition;
+            public bool soloFlyerSpawns, dismissalPreservesFlight, meleeClimbsToFlyer, meleeHeightLimited;
+            public bool lockedAim, preparationHasNoOverlays, preparationBeforeDamage, fanPattern, gapPattern, radialPattern, fixedBulletTrajectory;
             public bool stationaryBulletHit, jumpInputEvades, dashInputInvulnerable, sweptBulletHit, hostileBulletDeath, cameraStableOnHit, focusInputAndHitCore, readySkillWaitsForDash;
+            public bool nearestProjectileContact, sameFramePiercing, piercingDoesNotRepeat, splashKillRemoval, projectileRangeExpiry;
+            public bool companionTargetExcluded, companionMeleeImmune, companionProjectilePassThrough, companionBossAreaImmune, companionStatusImmune, companionsStillAttack;
             public List<string> checks = new List<string>(), screenshots = new List<string>(), errors = new List<string>();
         }
         private readonly CombatReport report = new CombatReport();
@@ -75,7 +77,7 @@ namespace PrototypeLab.Roguelike
             Require(Path.IsPathRooted(prefix) && Path.IsPathRooted(reportPath), "Absolute combat report paths are required.");
             Directory.CreateDirectory(Path.GetDirectoryName(prefix));
             yield return null; yield return Formations(); yield return Airborne();
-            yield return Patterns(); yield return ControlledDodge();
+            ProjectileContacts(); CompanionSafety(); yield return Patterns(); yield return ControlledDodge();
             Finish(null);
         }
         private void Setup(params string[] companions)
@@ -113,65 +115,248 @@ namespace PrototypeLab.Roguelike
         }
         private IEnumerator Formations()
         {
-            Setup("rook", "finn", "sera"); yield return Wait(2.5f);
-            var slots = new Dictionary<string, float>();
+            Setup("michael", "gabriel", "uriel"); yield return Wait(2.5f);
             foreach (var state in game.run.Companions)
             {
-                float offset = game.FormationOffset(state); slots.Add(state.Id, offset);
                 var actor = game.allies.Find(a => a.id == state.Id);
-                Require(Mathf.Abs(actor.pos.x - game.FormationAnchor(state).x) < .5f, "A companion did not settle at its right-facing formation slot: " + state.Id);
+                Require(Mathf.Abs(actor.pos.x - game.hero.pos.x) < .5f, "A companion did not settle near the player: " + state.Id);
                 Require(Mathf.Abs(actor.art.transform.localScale.x - .82f) < .001f && Mathf.Abs(actor.root.transform.localScale.x - 1) < .001f, "Companion art scale must be .82 without shrinking physics.");
             }
-            Require(slots["rook"] > 0 && slots["finn"] < 0 && slots["sera"] < slots["finn"], "Front/middle/rear role order was incorrect.");
             report.formationForward = report.companionScale = true;
-            yield return Capture("formation-right", "진형 검증 · 전열 / 중열 / 후열");
-            game.MoveOverride = -1; yield return Wait(.12f); game.MoveOverride = 0; yield return Wait(2.6f);
+            yield return Capture("formation-right", "추적 검증 · 플레이어와 같은 위치 공유");
+            game.MoveOverride = -1; yield return Wait(.24f); game.MoveOverride = 0; yield return Wait(2.6f);
             Require(game.hero.facing == -1, "Movement input did not reverse the hero facing.");
             foreach (var state in game.run.Companions)
             {
-                Require(slots[state.Id] == game.FormationOffset(state), "A stable formation slot changed after facing reversal.");
-                Require(Mathf.Abs(game.allies.Find(a => a.id == state.Id).pos.x - game.FormationAnchor(state).x) < .5f, "A companion did not reverse with the hero: " + state.Id);
+                Require(Mathf.Abs(game.allies.Find(a => a.id == state.Id).pos.x - game.hero.pos.x) < .5f, "A companion did not follow the reversing hero: " + state.Id);
             }
             report.formationReversed = report.stableSlots = true;
-            yield return Capture("formation-left", "진형 검증 · 이동 방향을 바꿔도 역할별 자리 유지");
+            yield return Capture("formation-left", "추적 검증 · 방향 전환 후 함께 정지");
             game.MoveOverride = -1; yield return Wait(2); game.MoveOverride = 0;
             foreach (var state in game.run.Companions) Require(Mathf.Abs(game.allies.Find(a => a.id == state.Id).pos.x - game.FormationAnchor(state).x) < .65f, "A companion fell behind the moving hero's formation: " + state.Id);
             report.movingFormationMaintained = true;
-            report.checks.Add("Formation offsets and actual settled positions reverse with the hero; role slots stay stable and only ally artwork scales to .82.");
+            report.checks.Add("Companions share the player's position, follow movement and reversals without requiring role offsets, and only ally artwork scales to .82.");
         }
         private IEnumerator Airborne()
         {
-            Setup("rook", "finn"); ClearEnemies();
+            Setup("michael", "gabriel"); ClearEnemies();
             game.enabled = false;
             var flyer = Spawn(2, TowerWorld.Ground + 1, 3); Place(flyer, new Vector2(2, TowerWorld.Ground + 1)); flyer.airborne = true; flyer.stunTime = 999;
-            Require(!game.CanTarget(flyer, game.run.Player) && !game.CanTarget(flyer, game.run.GetCompanion("rook")) && game.CanTarget(flyer, game.run.GetCompanion("finn")), "Airborne target eligibility ignored the owner's combat role.");
+            Require(game.CanTarget(flyer, game.run.Player), "The player cannot target a flying monster.");
+            foreach(var definition in TowerRun.Definitions)Require(game.CanTarget(flyer,new CompanionState(definition)), "A companion role cannot target a flying monster: "+definition.Id);
             report.airborneTargetEligibility = true;
-            // Keep geometry in melee reach so immunity must come from role eligibility, not vertical separation.
+            // All attacks use actual reach; flight must not grant role immunity.
             float hp = flyer.hp; game.hero.facing = 1; Call("PlayerSlash");
+            Require(flyer.hp<hp, "A player sword in reach could not damage a flying monster.");
+            hp=flyer.hp;
             Fire(flyer.pos + Vector2.up, flyer.pos + Vector2.up, 0, 25, false, game.run.Player); Call("TickShots", .02f);
-            Require(flyer.hp == hp, "Player melee or a player-owned projectile damaged an airborne monster."); report.airborneMeleeImmune = true;
-            ClearShots(); Fire(flyer.pos + Vector2.up, flyer.pos + Vector2.up, 0, 25, false, game.run.GetCompanion("finn")); Call("TickShots", .02f);
+            Require(flyer.hp<hp, "A player-owned projectile could not damage a flying monster."); report.airborneMeleeDamage = true;
+            hp=flyer.hp;
+            ClearShots(); Fire(flyer.pos + Vector2.up, flyer.pos + Vector2.up, 0, 25, false, game.run.GetCompanion("gabriel")); Call("TickShots", .02f);
             Require(flyer.hp < hp, "An eligible ranged companion could not hit an airborne monster."); report.airborneRangedDamage = true;
-            ClearShots(); foreach (var ally in game.allies) { Place(ally, game.FormationAnchor(game.run.GetCompanion(ally.id))); ally.cooldown = 0; ally.basicPending = false; }
+            ClearShots(); foreach (var ally in game.allies) { Place(ally, new Vector2(flyer.pos.x - .8f, TowerWorld.Ground)); ally.cooldown = 0; ally.basicPending = false; }
             Call("TickAllies", .02f);
-            Require(!game.allies.Find(a => a.id == "rook").basicPending && game.allies.Find(a => a.id == "finn").basicPending, "A melee companion acquired an airborne-only target, or a ranged companion failed to acquire it.");
-            report.rangedOnlyAcquisition = true;
-            yield return Capture("airborne", "공중 적 검증 · 원거리 직업만 공격 가능");
-            game.Dismiss("finn"); Require(!game.HasRangedCompanion && !flyer.airborne, "Dismissing the last ranged companion left an untouchable airborne target.");
-            game.enabled = true; yield return Wait(1.2f);
-            Require(flyer.pos.y <= TowerWorld.Ground + .1f && game.CanTarget(flyer, game.run.Player), "An unsupported flyer did not land and become melee-eligible.");
-            report.dismissedLastRangedLandsFlyer = true;
-            Setup(); ClearEnemies(); typeof(TowerRun).GetField("<Floor>k__BackingField", Hidden).SetValue(game.run, 2); Call("SpawnFloor");
-            foreach (var enemy in game.enemies) Require(!enemy.airborne, "A party without ranged support spawned an untouchable airborne monster.");
-            report.noRangedSpawnGuard = true;
-            report.checks.Add("Airborne role gate checked at targeting and damage; player/Vanguard cannot hit, ranged can, and removing the last ranged member lands existing flyers.");
+            Require(game.allies.Find(a => a.id == "michael").basicPending && game.allies.Find(a => a.id == "gabriel").basicPending, "Melee and ranged companions did not both acquire a flying target in reach.");
+            report.allRolesAcquisition = true;
+            game.Dismiss("gabriel"); Require(flyer.airborne, "Dismissing a ranged companion changed a monster's flight.");
+            Call("TickEnemy",flyer,.02f);Require(flyer.airborne&&!flyer.grounded,"A flyer landed after its ranged companion was dismissed.");
+            report.dismissalPreservesFlight = true;
+            Setup();game.enabled=false;
+            for(int floor=2;floor<=4;floor++)
+            {
+                ClearEnemies();typeof(TowerRun).GetField("<Floor>k__BackingField",Hidden).SetValue(game.run,floor);Call("SpawnFloor");
+                var spawned=game.enemies.Find(enemy=>enemy.airborne);
+                Require(spawned!=null&&game.run.Companions.Count==0,"A solo party did not spawn a flying monster.");
+                Require(Mathf.Abs(spawned.pos.y-(2.4f+(floor-2)*1.4f+.8f))<=.41f,"The flyer is not hovering above its reachable upper tier.");
+            }
+            report.soloFlyerSpawns=true;
+            Setup("michael");ClearEnemies();game.enabled=false;
+            var world=(TowerWorld)typeof(TowerGame).GetField("world",Hidden).GetValue(game);
+            var perch=world.Ledges[world.Ledges.Length-1];
+            flyer=Spawn(perch.x,perch.y+.8f,3);flyer.stunTime=999;
+            Place(game.hero,new Vector2(perch.x,TowerWorld.Ground));
+            var melee=game.allies.Find(actor=>actor.id=="michael");Place(melee,game.hero.pos);melee.cooldown=0;
+            hp=flyer.hp;Call("PlayerSlash");Require(flyer.hp==hp,"A sword hit a flyer far above its physical reach.");report.meleeHeightLimited=true;
+            float highest=melee.pos.y;
+            for(int frame=0;frame<1200&&flyer.hp==hp;frame++)
+            {Call("TickAllies",.02f);Call("TickEnemy",flyer,.02f);highest=Mathf.Max(highest,melee.pos.y);}
+            Require(flyer.hp<hp&&highest>perch.y-1.5f,"The melee companion did not climb ordinary platforms and hit the high flyer; ally="+melee.pos+" target="+flyer.pos);
+            report.meleeClimbsToFlyer=true;
+            Place(game.hero,new Vector2(perch.x,perch.y));game.hero.facing=flyer.pos.x>=game.hero.pos.x?1:-1;
+            hp=flyer.hp;Call("PlayerSlash");Require(flyer.hp<hp,"A player on the upper perch cannot slash the flyer.");
+            game.view.transform.position=new Vector3(perch.x,perch.y+1.5f,-10);
+            yield return Capture("airborne","비행 몬스터 · 발판을 올라 근접 공격");
+            report.checks.Add("Every role can target flying monsters. Sword and projectile contacts deal damage only in reach; a Vanguard climbs into reach of the highest flyer, solo floors spawn flyers, and dismissal preserves flight.");
         }
-        private void Fire(Vector2 from, Vector2 to, float speed, float damage, bool hostile, HeroState owner = null)
-        { Call("Fire", from, to, speed, damage, hostile, Color.cyan, 0f, owner, 1, 0f); }
+        private void Fire(Vector2 from, Vector2 to, float speed, float damage, bool hostile, HeroState owner = null, int pierce = 1, float area = 0)
+        { Call("Fire", from, to, speed, damage, hostile, Color.cyan, area, owner, pierce, 0f); }
+        private void ProjectileContacts()
+        {
+            Setup(); ClearEnemies(); game.enabled = false;
+            Vector2 origin = new Vector2(0, TowerWorld.Ground + .7f), end = origin + Vector2.right * 10;
+            var far = Spawn(4, TowerWorld.Ground); var near = Spawn(2, TowerWorld.Ground);
+            Fire(origin, end, 200, 20, false); Call("TickShots", .04f);
+            Require(near.hp < near.maxHp && far.hp == far.maxHp && Shots.Count == 0, "A projectile hit spawn order instead of the first crossed enemy.");
+            report.nearestProjectileContact = true;
+
+            ClearEnemies(); ClearShots();
+            far = Spawn(4, TowerWorld.Ground); near = Spawn(2, TowerWorld.Ground); var middle = Spawn(3, TowerWorld.Ground);
+            far.hp = near.hp = middle.hp = 10;
+            Fire(origin, end, 200, 20, false, null, 3); Call("TickShots", .04f);
+            Require(near.hp <= 0 && middle.hp <= 0 && far.hp <= 0 && game.enemies.Count == 0 && Shots.Count == 0,
+                "A piercing shot skipped same-frame contacts or invalidated iteration when its victims died.");
+            report.sameFramePiercing = true;
+
+            ClearEnemies(); ClearShots(); near = Spawn(2, TowerWorld.Ground);
+            Fire(origin, end, 100, 20, false, null, 3); Call("TickShots", .02f); float damaged = near.hp;
+            Call("TickShots", .001f);
+            Require(damaged < near.maxHp && near.hp == damaged && Shots.Count == 1, "A surviving piercing shot damaged the same enemy twice.");
+            report.piercingDoesNotRepeat = true;
+
+            ClearEnemies(); ClearShots();
+            far = Spawn(2.6f, TowerWorld.Ground); middle = Spawn(2.3f, TowerWorld.Ground); near = Spawn(2, TowerWorld.Ground);
+            far.hp = middle.hp = near.hp = 10;
+            Fire(origin, end, 100, 20, false, null, 1, 1.25f); Call("TickShots", .04f);
+            Require(game.enemies.Count == 0 && Shots.Count == 0, "A splash projectile skipped victims while removing killed enemies.");
+            report.splashKillRemoval = true;
+
+            ClearEnemies(); ClearShots(); near = Spawn(1, TowerWorld.Ground);
+            Fire(origin, end, 10, 20, false);
+            Shots[0].GetType().GetField("life").SetValue(Shots[0], .02f); Call("TickShots", .1f);
+            Require(near.hp == near.maxHp && Shots.Count == 0, "A projectile moved or damaged beyond its remaining lifetime/range.");
+            Fire(near.pos + Vector2.up * .7f, end, 10, 20, false);
+            Shots[0].GetType().GetField("life").SetValue(Shots[0], 0f); Call("TickShots", .02f);
+            Require(near.hp == near.maxHp && Shots.Count == 0, "An already expired projectile damaged an overlapping enemy.");
+            game.hero.hp = game.PlayerMaxHealth; game.invulnerable = 0;
+            Place(game.hero, new Vector2(2, TowerWorld.Ground)); typeof(TowerGame).GetField("previousHeroPosition", Hidden).SetValue(game, new Vector2(-2, TowerWorld.Ground));
+            Vector2 stationary = new Vector2(0, TowerWorld.Ground + .9f);
+            Fire(stationary, stationary, 0, 20, true);
+            Shots[0].GetType().GetField("life").SetValue(Shots[0], .002f); Call("TickShots", .02f);
+            Require(game.hero.hp == game.PlayerMaxHealth && Shots.Count == 0, "An expired hostile projectile hit a hero who crossed its position later in the frame.");
+            report.projectileRangeExpiry = true;
+            report.checks.Add("Projectile contacts follow sweep order; piercing handles several kills in one frame without duplicate damage; splash removal is safe; expiry clips both movement and damage.");
+            game.enabled = true;
+        }
+        private void AssertCompanionsUnhit(Vector2 position, string attack)
+        {
+            foreach (var ally in game.allies)
+                Require(ally.root && ally.hp == 100 && ally.hurt == 0 && ally.slowTime == 0 && ally.stunTime == 0 &&
+                    ally.velocityY == 0 && ally.moveVelocity == 0 && ally.pos == position,
+                    attack + " damaged, staggered, slowed, stunned or displaced " + ally.id);
+        }
+        private void PlaceCompanions(Vector2 position)
+        {
+            foreach (var ally in game.allies)
+            {
+                Place(ally, position); ally.hp = ally.maxHp = 100;
+                ally.hurt = ally.slowTime = ally.stunTime = ally.moveVelocity = 0;
+            }
+        }
+        private void CompanionSafety()
+        {
+            Setup("michael", "gabriel", "uriel", "raphael"); ClearEnemies(); game.enabled = false;
+            game.view.transform.position = new Vector3(0, 0, -10);
+            Vector2 overlap = new Vector2(0, TowerWorld.Ground);
+            PlaceCompanions(overlap);
+            // Positive fixture HP proves that immunity is a targeting policy,
+            // rather than an accidental consequence of allies' unused health.
+            foreach (var ally in game.allies)
+            {
+                Require(!game.CanTarget(ally, game.run.Player), "A companion is eligible for a damage/status target.");
+                Require((float)Call("StrikeEnemy", ally, 30f, game.run.Player, 3f) == 0, "A direct strike accepted a companion.");
+                Call("DamageEnemy", ally, 20f, 3f);
+            }
+            Require(!game.CanTarget(game.hero, game.run.Player), "A friendly attack accepts the player as an enemy.");
+            AssertCompanionsUnhit(overlap, "Direct damage guard"); report.companionTargetExcluded = true;
+
+            var melee = Spawn(0, TowerWorld.Ground); melee.cooldown = 0;
+            Place(game.hero, new Vector2(3, TowerWorld.Ground)); Call("TickEnemy", melee, .01f);
+            Require(melee.windup == 0 && melee.pos.x > 0, "The enemy attacked an overlapping companion instead of approaching the player.");
+            Place(melee, overlap); Place(game.hero, new Vector2(1.2f, TowerWorld.Ground)); Call("TickEnemy", melee, .01f);
+            Require(melee.windup > 0 && game.EnemyLockedAim(melee) == game.hero.pos, "Melee did not lock the player's position.");
+            Vector2 meleeAim = game.hero.pos; PlaceCompanions(meleeAim);
+            Place(game.hero, new Vector2(7, TowerWorld.Ground)); float heroHp = game.hero.hp;
+            Call("TickEnemy", melee, .82f);
+            Require(game.EnemyReleaseCount(melee) == 1 && game.hero.hp == heroHp, "The locked melee did not release or damaged the distant player.");
+            AssertCompanionsUnhit(meleeAim, "Enemy melee");
+            Call("ConfigureEnemy", melee, 0, 0); melee.cooldown = 0; Place(game.hero, meleeAim); game.invulnerable = 0;
+            Call("TickEnemy", melee, .01f); Call("TickEnemy", melee, .82f);
+            Require(game.hero.hp < heroHp && game.hero.hurt > 0, "Companion immunity also prevented player melee damage.");
+            AssertCompanionsUnhit(meleeAim, "Shared melee contact"); report.companionMeleeImmune = true;
+
+            ClearEnemies(); ClearShots(); PlaceCompanions(overlap);
+            Place(game.hero, new Vector2(3, TowerWorld.Ground)); game.invulnerable = 0; heroHp = game.hero.hp;
+            typeof(TowerGame).GetField("previousHeroPosition", Hidden).SetValue(game, game.hero.pos);
+            var caster = Spawn(-3, TowerWorld.Ground, 1); caster.cooldown = 0;
+            Call("TickEnemy", caster, .01f); Call("TickEnemy", caster, 1.01f);
+            Require(game.EnemyReleaseCount(caster) == 1 && Shots.Count == 3, "The real enemy fan did not fire.");
+            Call("TickShots", .75f);
+            Require(Shots.Count == 3 && game.hero.hp == heroHp, "A companion consumed a passing enemy projectile.");
+            AssertCompanionsUnhit(overlap, "Enemy projectile pass-through");
+            Call("TickShots", .7f);
+            Require(Shots.Count < 3 && game.hero.hp < heroHp, "A projectile passing through companions failed to hit the player.");
+            AssertCompanionsUnhit(overlap, "Enemy projectile player contact"); report.companionProjectilePassThrough = true;
+
+            ClearEnemies(); ClearShots();
+            var boss = Spawn(-3, TowerWorld.Ground);
+            for (int control = 0; control < 2; control++)
+            {
+                Place(boss, new Vector2(-3, TowerWorld.Ground)); Place(game.hero, overlap);
+                Call("ConfigureBoss", boss, 15); boss.cooldown = 0; Call("TickEnemy", boss, .01f);
+                Require(game.BossPatternName(boss) == "LeapingSlam" && game.BossLockedAim(boss) == overlap, "Boss slam did not target the player.");
+                if (control == 0) Place(game.hero, new Vector2(6, TowerWorld.Ground));
+                game.invulnerable = 0; heroHp = game.hero.hp;
+                for (int frame = 0; frame < 140 && game.BossReleaseCount(boss) == 0; frame++) Call("TickEnemy", boss, .02f);
+                Require(game.BossReleaseCount(boss) == 1, "Boss landing area did not release.");
+                Require(control == 0 ? game.hero.hp == heroHp : game.hero.hp < heroHp, "Boss slam did not preserve normal player contact rules.");
+                AssertCompanionsUnhit(overlap, "Boss landing area"); ClearShots();
+            }
+            report.companionBossAreaImmune = true;
+
+            ClearEnemies(); var target = Spawn(1, TowerWorld.Ground); Place(game.hero, overlap);
+            AugmentDefinition ice = null;
+            foreach (var definition in TowerRun.Augments)
+                if (definition.OwnerId == "player" && definition.Kind == RewardKind.Skill && definition.Effect == SkillEffect.IceNova) { ice = definition; break; }
+            Require(ice != null, "IceNova status fixture is missing.");
+            float enemyHp = target.hp;
+            Call("CastSkill", game.run.Player, new SkillState(ice, game.run.Player), game.hero, target);
+            Require(target.hp < enemyHp && target.hurt > 0 && target.slowTime > 0 && target.pos.x > 1, "Real status area did not damage, slow and push its enemy control.");
+            AssertCompanionsUnhit(overlap, "Overlapping damage/status area"); report.companionStatusImmune = true;
+            // Exercise every party role's attack after the hostile contacts.
+            foreach (var ally in game.allies)
+            {
+                var state = game.run.GetCompanion(ally.id); ClearShots(); enemyHp = target.hp;
+                Call("BeginAllyAttack", ally, state, target); Call("ResolveAllyAttack", ally, state, 1f);
+                Call("TickShots", .25f);
+                Require(target.hp < enemyHp, "An immune companion stopped attacking: " + ally.id);
+            }
+            report.companionsStillAttack = true;
+            report.checks.Add("All four companion roles reject direct damage/status targets and remain unhurt/unmoved through real enemy melee, fan projectiles and boss landing areas. Projectiles pass through to damage the player; IceNova still damages/slows/pushes enemies; every companion role still attacks.");
+            game.enabled = true;
+        }
         private IEnumerator Patterns()
         {
-            // Filled through the actual enemy telegraph/release APIs; input evasion remains a separate fixture below.
+            // Production preparation and release remain intact without projected paths or danger markers.
+            Setup(); ClearEnemies(); game.enabled = false;
+            Place(game.hero, new Vector2(0, TowerWorld.Ground));
+            var melee = Spawn(1, TowerWorld.Ground); melee.cooldown = 0;
+            var renderers = new HashSet<SpriteRenderer>(game.GetComponentsInChildren<SpriteRenderer>(true));
+            Call("TickEnemy", melee, .01f);
+            Require((string)Call("EnemyPatternName", melee) == "MeleeSlam" && melee.windup >= .79f, "Melee attack lost its preparation delay.");
+            float hp = game.hero.hp;
+            while (melee.windup > .021f)
+            {
+                RequireNoPreparationOverlay(renderers); Call("TickEnemy", melee, .02f);
+                Require(game.hero.hp == hp && (int)Call("EnemyReleaseCount", melee) == 0, "Melee damage occurred before preparation completed.");
+            }
+            RequireNoPreparationOverlay(renderers);
             yield return VerifyPatterns();
+            report.preparationHasNoOverlays = report.preparationBeforeDamage = true;
+        }
+        private void RequireNoPreparationOverlay(HashSet<SpriteRenderer> before)
+        {
+            foreach (var renderer in game.GetComponentsInChildren<SpriteRenderer>(true))
+                Require(before.Contains(renderer), "An enemy created a path or danger renderer during preparation: " + renderer.name);
         }
         private IEnumerator VerifyPatterns()
         {
@@ -183,14 +368,21 @@ namespace PrototypeLab.Roguelike
                 Place(game.hero, new Vector2(-4, TowerWorld.Ground));
                 var shooter = Spawn(3, TowerWorld.Ground, 1);
                 Call("ConfigureEnemy", shooter, 1, pattern); shooter.cooldown = 0;
+                var renderers = new HashSet<SpriteRenderer>(game.GetComponentsInChildren<SpriteRenderer>(true));
                 Call("TickEnemy", shooter, .01f);
                 Require((string)Call("EnemyPatternName", shooter) == names[pattern], "The deterministic enemy pattern did not match its ordinal.");
                 Vector2 locked = (Vector2)Call("EnemyLockedAim", shooter);
-                Require((float)Call("EnemyTelegraphRemaining", shooter) > 0 && Vector2.Distance(locked, game.hero.pos) < .001f, "Enemy aim was not locked when its telegraph began.");
+                Require((float)Call("EnemyTelegraphRemaining", shooter) >= (pattern == 2 ? 1.19f : .99f) && Vector2.Distance(locked, game.hero.pos) < .001f, "Enemy aim or preparation duration changed.");
+                RequireNoPreparationOverlay(renderers); float hp = game.hero.hp;
                 Place(game.hero, new Vector2(-1, TowerWorld.Ground)); Call("TickEnemy", shooter, .1f);
-                Require((Vector2)Call("EnemyLockedAim", shooter) == locked, "An enemy retargeted during a visible telegraph."); report.lockedAim = true;
-                if (pattern == 0) yield return Capture("telegraph", "탄막 검증 · 예고 시점의 조준점 고정");
-                for (int frame = 0; frame < 150 && (int)Call("EnemyReleaseCount", shooter) == 0; frame++) Call("TickEnemy", shooter, .02f);
+                Require((Vector2)Call("EnemyLockedAim", shooter) == locked, "An enemy retargeted during preparation."); report.lockedAim = true;
+                if (pattern == 0) yield return Capture("preparation", "탄막 검증 · 경로 표시 없이 공격 준비 동작 유지");
+                for (int frame = 0; frame < 150 && (int)Call("EnemyReleaseCount", shooter) == 0; frame++)
+                {
+                    RequireNoPreparationOverlay(renderers);
+                    Require(Shots.Count == 0 && game.hero.hp == hp, "An enemy attacked before preparation completed.");
+                    Call("TickEnemy", shooter, .02f);
+                }
                 Require((int)Call("EnemyReleaseCount", shooter) == 1 && Shots.Count == counts[pattern], "Incorrect first volley count for " + names[pattern] + ": " + Shots.Count);
                 Vector2 direction = (locked - shooter.pos).normalized;
                 var angles = new List<float>(); var velocities = new Dictionary<object, Vector2>(); var positions = new Dictionary<object, Vector2>();
@@ -218,7 +410,7 @@ namespace PrototypeLab.Roguelike
                     Require((int)Call("EnemyReleaseCount", shooter) == 2 && Shots.Count == (pattern == 1 ? 10 : 19), "Incorrect follow-up wave count for " + names[pattern]);
                     Require((Vector2)Call("EnemyLockedAim", shooter) == locked, "A follow-up wave retargeted the hero.");
                 }
-                report.checks.Add(names[pattern] + ": locked telegraph / first rays " + counts[pattern] + " / fixed trajectories / safe gap and follow-up verified.");
+                report.checks.Add(names[pattern] + ": locked aim / no preparation overlays / first volley " + counts[pattern] + " / fixed trajectories / safe gap and follow-up verified.");
                 if (pattern == 2)
                 {
                     typeof(TowerGame).GetField("previousHeroPosition", Hidden).SetValue(game, game.hero.pos);

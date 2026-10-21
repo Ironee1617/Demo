@@ -1,7 +1,7 @@
 param(
-    [ValidateSet('All', 'Companions', 'Combat', 'Boss')][string]$Suite = 'All',
+    [ValidateSet('All', 'Themes', 'Platforms', 'Companions', 'Movement', 'Combat', 'Boss', 'Polish', 'Oath')][string]$Suite = 'All',
     [string]$UnityCli,
-    [int]$TimeoutSeconds = 300
+    [int]$TimeoutSeconds = 900
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
@@ -31,16 +31,16 @@ $initialScenes = Invoke-Editor 'list_open_scenes'
 if (@($initialScenes.scenes | Where-Object { $_.isActive -and $_.path -eq 'Assets/Demos/Roguelike/20_Roguelike.unity' }).Count -ne 1) {
     throw 'Open the 20_Roguelike scene before running these scenarios.'
 }
-$suites = if ($Suite -eq 'All') { @('Companions', 'Combat', 'Boss') } else { @($Suite) }
+$suites = if ($Suite -eq 'All') { @('Platforms', 'Companions', 'Combat', 'Boss', 'Polish', 'Oath') } else { @($Suite) }
 foreach ($mode in $suites) {
     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
     $prefix = Join-Path $reportRoot ($mode.ToLowerInvariant() + '-' + $stamp)
     $reportFile = $prefix + '-report.json'
-    $className = 'Tower' + $(if ($mode -eq 'Companions') { 'Companion' } else { $mode }) + 'SmokeDriver'
+    $className = 'Tower' + $(if ($mode -in @('Companions', 'Movement')) { 'Companion' } elseif ($mode -eq 'Platforms') { 'Platform' } elseif ($mode -eq 'Themes') { 'Theme' } else { $mode }) + 'SmokeDriver'
     try {
         Invoke-Editor 'editor_play' | Out-Null
         Wait-Ready
-        $extra = if ($mode -eq 'Companions') { '' } else { ', false' }
+        $extra = if ($mode -eq 'Movement') { ', false, true' } elseif ($mode -eq 'Companions') { '' } else { ', false' }
         $code = 'var game = UnityEngine.Object.FindFirstObjectByType<PrototypeLab.Roguelike.TowerGame>(); if (game == null) throw new System.InvalidOperationException("TowerGame is missing."); var capture = game.GetComponent<PrototypeLab.Roguelike.TowerSmokeDriver>(); var driver = game.gameObject.AddComponent<PrototypeLab.Roguelike.' + $className + '>(); driver.Initialize(game, capture, ' + (CSharp-Path $prefix) + ', ' + (CSharp-Path $reportFile) + $extra + '); return true;'
         $started = Invoke-Editor 'eval' @($code)
         if (!$started.success) { throw "Could not start $mode scenario." }

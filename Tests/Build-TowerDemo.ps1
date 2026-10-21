@@ -2,15 +2,18 @@ param(
     [switch]$PrepareOnly,
     [switch]$ValidateOnly,
     [string]$UnityPath,
+    [string]$ValidationProjectPath,
+    [string]$BuildExecutable,
+    [string]$ReportDirectory,
     [int]$TimeoutSeconds = 900
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
-$validationRoot = Join-Path $projectRoot '.validation/TowerDemoProject'
+$validationRoot = if ($ValidationProjectPath) { [IO.Path]::GetFullPath($ValidationProjectPath) } else { Join-Path $projectRoot '.validation/TowerDemoProject' }
 $sourceRoot = Join-Path $projectRoot 'Assets/Demos/Roguelike'
-$reportRoot = Join-Path $projectRoot 'Artifacts/TowerDemo'
-$buildPath = Join-Path $projectRoot 'Build/TowerDemo/TowerDemo.exe'
+$reportRoot = if ($ReportDirectory) { [IO.Path]::GetFullPath($ReportDirectory) } else { Join-Path $projectRoot 'Artifacts/TowerDemo' }
+$buildPath = if ($BuildExecutable) { [IO.Path]::GetFullPath($BuildExecutable) } else { Join-Path $projectRoot 'Build/TowerDemo/TowerDemo.exe' }
 
 function Assert-InWorkspace([string]$Path) {
     $resolved = [IO.Path]::GetFullPath($Path)
@@ -76,6 +79,12 @@ function Copy-IndependentTree([string]$Source, [string]$Destination) {
 }
 
 Assert-InWorkspace $validationRoot | Out-Null
+foreach ($unsafeFolder in @('Temp', 'Library', 'obj', 'Build', 'Builds')) {
+    $unsafeRoot = Join-Path $projectRoot $unsafeFolder
+    if ($validationRoot -eq $unsafeRoot -or $validationRoot.StartsWith($unsafeRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Validation projects must stay outside Unity cleanup and build folders: $validationRoot"
+    }
+}
 Assert-AncestorsHaveNoLinks $validationRoot
 Assert-NoLinks $validationRoot
 Assert-AncestorsHaveNoLinks $buildPath

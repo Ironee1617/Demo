@@ -42,7 +42,7 @@ namespace PrototypeLab.Roguelike
         {
             float duration=Mathf.Clamp(state.AttackInterval*.65f,.24f,.62f);
             actor.facing=target.pos.x>actor.pos.x?1:-1;actor.cooldown=state.AttackInterval;actor.attackPose=duration;
-            actor.basicTarget=target;actor.basicPending=true;
+            actor.basicTarget=target;actor.basicPending=true;if(actor.grounded)actor.moveVelocity=0;
             actor.basicDelay=state.Definition.Role==CompanionRole.Vanguard?actor.art.AttackHitTime(duration):actor.art.AttackReleaseTime(duration);
             actor.art.PlayAttack(duration,actor.combo++%3);
         }
@@ -50,7 +50,7 @@ namespace PrototypeLab.Roguelike
         {
             if(!actor.basicPending)return;actor.basicDelay-=dt;if(actor.basicDelay>0)return;
             actor.basicPending=false;var target=actor.basicTarget;actor.basicTarget=null;
-            if(!CanTarget(target,state)||Vector2.Distance(actor.pos,target.pos)>state.Range+.55f||(!target.airborne&&Mathf.Abs(target.pos.y-actor.pos.y)>3.5f))return;
+            if(!ValidAllyTarget(target,state)||Vector2.Distance(actor.pos,target.pos)>state.Range+.55f||(state.Definition.Role==CompanionRole.Vanguard&&Mathf.Abs(target.pos.y-actor.pos.y)>3.5f))return;
             Color color;ColorUtility.TryParseHtmlString("#"+state.Definition.TintHex,out color);
             if(state.Definition.Role==CompanionRole.Vanguard)
             {SlashArc(actor.pos+new Vector2(actor.facing,.8f),actor.facing,color);if((target.pos.x-actor.pos.x)*actor.facing>-.4f)StrikeEnemy(target,state.Damage,state,actor.facing*.22f);}

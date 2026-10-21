@@ -7,10 +7,10 @@ namespace PrototypeLab.Roguelike
         private GUIStyle textStyle,buttonStyle;
         private TowerSmokeDriver captureDriver;
         private Font uiFont;
-        private float uiScale=1; private Vector2 uiOffset;
+        private float uiScale=1;private Vector2 uiOffset;
         private string inspectedOwner="player";
         private Vector2 detailScroll;
-        private readonly Color ink=new Color(.035f,.055f,.08f,.96f),paper=new Color(.90f,.92f,.91f),muted=new Color(.55f,.64f,.68f);
+        private readonly Color ink=new Color(.043f,.060f,.082f,.98f),paper=new Color(.92f,.92f,.88f),muted=new Color(.61f,.66f,.70f);
         private void OnGUI()
         {
             if(hero==null)return;
@@ -20,275 +20,254 @@ namespace PrototypeLab.Roguelike
             {
                 uiFont=Resources.Load<Font>("Tower/Font");
                 textStyle=new GUIStyle{font=uiFont,wordWrap=true,richText=false};
-                buttonStyle=new GUIStyle{font=uiFont,alignment=TextAnchor.MiddleCenter,fontSize=19};buttonStyle.normal.textColor=paper;buttonStyle.hover.textColor=Color.white;
+                buttonStyle=new GUIStyle{font=uiFont,alignment=TextAnchor.MiddleCenter,fontSize=18};
             }
             uiScale=Mathf.Min(Screen.width/1600f,Screen.height/900f);uiOffset=new Vector2((Screen.width-1600*uiScale)*.5f,(Screen.height-900*uiScale)*.5f);
             var oldMatrix=GUI.matrix;GUI.matrix=Matrix4x4.TRS(uiOffset,Quaternion.identity,Vector3.one*uiScale);
-            DrawWorldLabels();
+            if(!intro)DrawWorldLabels();
             if(intro){GUI.enabled=!help;DrawIntro();GUI.enabled=true;}
             else
             {
                 GUI.enabled=!menu&&!party&&!help&&!run.IsRewardPending&&hero.hp>0&&!run.IsComplete;
-                DrawHUD();
-                GUI.enabled=!party&&!help;
+                DrawHUD();GUI.enabled=!party&&!help;
                 if(run.IsRewardPending)DrawRewards();
                 GUI.enabled=!help;
-                if(party)DrawParty();
-                else if(menu)DrawMenu();
-                else if(hero.hp<=0)DrawEnding(false);
-                else if(run.IsComplete)DrawEnding(true);
+                if(party)DrawParty();else if(menu)DrawMenu();else if(hero.hp<=0)DrawEnding(false);else if(run.IsComplete)DrawEnding(true);
             }
             GUI.enabled=true;if(help)DrawHelp();GUI.matrix=oldMatrix;GUI.color=Color.white;
             if(captureHud)captureDriver.EndHudCapture();
         }
-        private void Fill(Rect rect,Color color){GUI.color=color;GUI.DrawTexture(rect,Texture2D.whiteTexture);GUI.color=Color.white;}
-        private void Border(Rect r,Color c,float thickness=1)
-        {Fill(new Rect(r.x,r.y,r.width,thickness),c);Fill(new Rect(r.x,r.yMax-thickness,r.width,thickness),c);Fill(new Rect(r.x,r.y,thickness,r.height),c);Fill(new Rect(r.xMax-thickness,r.y,thickness,r.height),c);}
-        private void Panel(Rect r,Color edge)
-        {Fill(r,ink);Border(r,new Color(edge.r,edge.g,edge.b,.45f));Fill(new Rect(r.x+14,r.y,48,2),edge);Fill(new Rect(r.xMax-62,r.yMax-2,48,2),edge);}
+        private void Fill(Rect r,Color c){GUI.color=c;GUI.DrawTexture(r,Texture2D.whiteTexture);GUI.color=Color.white;}
+        private void Border(Rect r,Color c,float n=1)
+        {Fill(new Rect(r.x,r.y,r.width,n),c);Fill(new Rect(r.x,r.yMax-n,r.width,n),c);Fill(new Rect(r.x,r.y,n,r.height),c);Fill(new Rect(r.xMax-n,r.y,n,r.height),c);}
         private void Label(Rect r,string text,int size,Color color,TextAnchor align=TextAnchor.UpperLeft,bool bold=false)
         {textStyle.fontSize=size;textStyle.alignment=align;textStyle.fontStyle=bold?FontStyle.Bold:FontStyle.Normal;textStyle.normal.textColor=color;GUI.Label(r,text,textStyle);}
-        private bool Button(Rect r,string text,Color accent,bool enabled=true)
-        {
-            bool hover=r.Contains(Event.current.mousePosition);Fill(r,enabled?(hover?new Color(accent.r*.32f,accent.g*.32f,accent.b*.32f,.98f):new Color(.08f,.12f,.16f,.97f)):new Color(.06f,.08f,.1f,.8f));
-            Border(r,enabled?new Color(accent.r,accent.g,accent.b,hover?1:.55f):new Color(.2f,.24f,.27f));
-            bool previous=GUI.enabled;GUI.enabled=previous&&enabled;buttonStyle.fontSize=19;bool clicked=GUI.Button(r,text,buttonStyle);GUI.enabled=previous;return clicked;
-        }
-        private void Portrait(Rect r,int index,Color frame)
-        {
-            Fill(r,new Color(.10f,.14f,.18f));var t=TowerActorArt.Portrait(index);
-            if(t!=null)GUI.DrawTexture(new Rect(r.x+3,r.y+3,r.width-6,r.height-6),t,ScaleMode.ScaleToFit,true);
-            Border(r,new Color(frame.r,frame.g,frame.b,.6f));
-        }
-        private Color TierColor(RewardTier tier){return tier==RewardTier.Silver?new Color(.70f,.78f,.86f):tier==RewardTier.Gold?TowerWorld.Gold:new Color(.55f,.80f,1f);}
+        private Color TierColor(RewardTier tier){return tier==RewardTier.Silver?silver:tier==RewardTier.Gold?brass:new Color(.52f,.76f,.94f);}
         private string TierName(RewardTier tier){return tier==RewardTier.Silver?"실버":tier==RewardTier.Gold?"골드":"다이아";}
         private string RoleName(CompanionRole role){return role==CompanionRole.Vanguard?"전사":role==CompanionRole.Archer?"궁수":role==CompanionRole.Mage?"마법사":"치유사";}
-        private string BossAttackLabel(Fighter boss)
-        {string pattern=BossPatternName(boss);return pattern=="CrownVolley"?"왕관 연사":pattern=="TwinSpiral"?"쌍나선 탄막":pattern=="LeapingSlam"?"도약 강타":"전투 준비";}
-        private string CategoryName(RewardOffer offer){return offer.Kind==RewardKind.Recruit?"동료 영입":offer.Kind==RewardKind.Trait?"특성":offer.IsUpgrade?"스킬 강화":"스킬 습득";}
-        internal void OpenParty(string owner)
-        {party=true;menu=false;dismissId="";inspectedOwner=owner;detailScroll=Vector2.zero;}
-        private Vector2 WorldGui(Vector2 p)
-        {Vector3 s=view.WorldToScreenPoint(p);return new Vector2((s.x-uiOffset.x)/uiScale,(Screen.height-s.y-uiOffset.y)/uiScale);}
+        private string CategoryName(RewardOffer offer){return offer.Kind==RewardKind.Oath?"서약 변형":offer.Kind==RewardKind.Recruit?"동료":offer.Kind==RewardKind.Trait?"특성":offer.IsUpgrade?"스킬 강화":"스킬";}
+        internal void OpenParty(string owner){party=true;menu=false;dismissId="";inspectedOwner=owner;detailScroll=Vector2.zero;}
+        private Vector2 WorldGui(Vector2 p){var s=view.WorldToScreenPoint(p);return new Vector2((s.x-uiOffset.x)/uiScale,(Screen.height-s.y-uiOffset.y)/uiScale);}
         private void DrawWorldLabels()
         {
             foreach(var e in enemies)
             {
-                var p=WorldGui(e.pos+Vector2.up*(e.isBoss?3.1f:e.kind==3?1.8f:e.kind==2?1.6f:1.2f));Fill(new Rect(p.x-31,p.y,62,4),new Color(.05f,.04f,.06f,.9f));Fill(new Rect(p.x-31,p.y,62*e.hp/e.maxHp,4),e.isBoss?TowerWorld.Gold:e.airborne?TowerWorld.Teal:new Color(.82f,.36f,.32f));
-                if(e.isBoss)Label(new Rect(p.x-105,p.y-24,210,22),"왕관의 수호자",15,TowerWorld.Gold,TextAnchor.MiddleCenter,true);
-                if(e.airborne)Label(new Rect(p.x-84,p.y-24,168,22),"공중 · 원거리 전용",12,TowerWorld.Teal,TextAnchor.MiddleCenter);
-                if(e.windup>0){Label(new Rect(p.x-105,p.y-49,210,24),(e.isBoss?BossAttackLabel(e):EnemyPatternName(e)=="MeleeSlam"?"내려치기":"탄막 경고")+" "+e.windup.ToString("0.0")+"초",14,TowerWorld.Gold,TextAnchor.MiddleCenter,true);}
+                if(e.isBoss||e.hp>=e.maxHp)continue;
+                var p=WorldGui(e.pos+Vector2.up*(e.kind==3?1.8f:e.kind==2?1.6f:1.2f));
+                Round(new Rect(p.x-28,p.y,56,5),new Color(.02f,.025f,.04f,.9f),2);
+                Round(new Rect(p.x-27,p.y+1,54*Mathf.Clamp01(e.hp/e.maxHp),3),e.airborne?silver:crimson,1);
             }
-            int companionLabel=0;
-            foreach(var a in allies)
+            foreach(var n in numbers)
             {
-                var state=run.GetCompanion(a.id);if(state==null)continue;var p=WorldGui(a.pos+Vector2.up*1.7f);
-                Label(new Rect(p.x-66,p.y-companionLabel++*15,132,25),state.Definition.Name+" · "+FormationName(state.Definition.Role),13,TowerWorld.Teal,TextAnchor.MiddleCenter);
+                var p=WorldGui(n.pos);var c=n.color;c.a=Mathf.Min(1,n.life*3);float w=Mathf.Max(90,n.text.Length*23+20);
+                Label(new Rect(p.x-w*.5f+1,p.y-14,w,35),n.text,22,new Color(0,0,0,c.a*.65f),TextAnchor.MiddleCenter,true);
+                Label(new Rect(p.x-w*.5f,p.y-16,w,35),n.text,22,c,TextAnchor.MiddleCenter,true);
             }
-            foreach(var n in numbers){var p=WorldGui(n.pos);var c=n.color;c.a=Mathf.Min(1,n.life*3);Label(new Rect(p.x-50,p.y-15,100,35),n.text,23,c,TextAnchor.MiddleCenter,true);}
             if(!intro&&run.IsFloorCleared&&!run.IsRewardPending&&!run.IsComplete)
-            {var p=WorldGui(new Vector2(TowerWorld.ExitX,TowerWorld.Ground+3.6f));Label(new Rect(p.x-95,p.y-25,190,50),"다음 층  ↑\n[E] 등반",18,TowerWorld.Teal,TextAnchor.MiddleCenter,true);}
+            {var p=WorldGui(new Vector2(TowerWorld.ExitX,TowerWorld.Ground+3.4f));Keycap(new Rect(p.x-18,p.y-16,36,30),"E");}
         }
         private void DrawHUD()
         {
-            Panel(new Rect(24,22,410,103),TowerWorld.Gold);Portrait(new Rect(37,34,76,76),0,TowerWorld.Gold);
-            Label(new Rect(129,31,280,29),"서약의 탑",22,paper,TextAnchor.UpperLeft,true);
-            if(PlayerShield>0)Label(new Rect(307,36,106,24),"보호막 "+Mathf.CeilToInt(PlayerShield),13,TowerWorld.Teal,TextAnchor.MiddleRight);
-            Label(new Rect(130,67,285,23),"HP  "+Mathf.CeilToInt(hero.hp)+" / "+run.Player.MaxHealth.ToString("0")+"   방어 "+run.Player.Armor.ToString("0"),15,paper);
-            Fill(new Rect(130,100,282,7),new Color(.18f,.13f,.16f));Fill(new Rect(130,100,282*Mathf.Clamp01(hero.hp/run.Player.MaxHealth),7),new Color(.77f,.33f,.31f));
-            Panel(new Rect(647,22,306,103),TowerWorld.Gold);
-            Label(new Rect(670,31,260,43),run.Floor.ToString("00")+" F",31,TowerWorld.Gold,TextAnchor.MiddleCenter,true);
-            Label(new Rect(670,79,260,26),run.IsFloorCleared?"층 클리어":TowerDifficulty.IsBossFloor(run.Floor)?"BOSS · 3층 주기":"클리어하면 증강 1회",15,TowerDifficulty.IsBossFloor(run.Floor)?TowerWorld.Gold:muted,TextAnchor.MiddleCenter);
-            if(Button(new Rect(1240,22,200,43),"영웅 · 동료 [Tab]",TowerWorld.Teal))OpenParty("player");
-            if(Button(new Rect(1452,22,122,43),"메뉴 [Esc]",muted))menu=!menu;
-            Label(new Rect(1260,82,314,30),run.IsFloorCleared?"CLEAR  ·  생명력 +18":"남은 수호자  "+enemies.Count,19,run.IsFloorCleared?TowerWorld.Teal:paper,TextAnchor.UpperRight);
+            // Soft edge shading keeps the arena unobstructed while anchoring the HUD.
+            Light(new Rect(0,0,1600,175),new Color(.005f,.012f,.025f,.65f));
+            Panel(new Rect(36,27,420,92),brass);
+            if(Button(new Rect(45,35,74,74),"",brass))OpenParty("player");
+            Portrait(new Rect(45,35,74,74),0,hudHitFlash>0?crimson:brass);
+            Label(new Rect(135,36,110,24),"생명력",15,muted);
+            Label(new Rect(246,35,190,27),Mathf.CeilToInt(hero.hp)+" / "+Mathf.CeilToInt(PlayerMaxHealth),20,paper,TextAnchor.MiddleRight,true);
+            Meter(new Rect(134,68,302,25),hero.hp/PlayerMaxHealth,hudHitFlash>0?Color.Lerp(crimson,Color.white,hudHitFlash):crimson,hudTrail,true);
+            if(PlayerShield>0)
+            {
+                Round(new Rect(137,98,296*Mathf.Clamp01(PlayerShield/(PlayerMaxHealth*.65f)),4),TowerWorld.Teal,2);
+                Label(new Rect(324,122,120,22),"보호막 "+Mathf.CeilToInt(PlayerShield),13,TowerWorld.Teal,TextAnchor.MiddleRight);
+            }
+            Label(new Rect(665,26,270,23),run.Theme.Name,16,paper,TextAnchor.MiddleCenter);
+            Label(new Rect(695,50,122,52),run.Floor.ToString("00"),43,brass,TextAnchor.MiddleRight,true);
+            Label(new Rect(827,72,90,25),"/ "+run.MaxFloor,18,muted);
             for(int i=0;i<run.MaxFloor;i++)
             {
-                var c=i<run.ClearedFloors?TowerWorld.Gold:i==run.Floor-1?TowerWorld.Teal:new Color(.2f,.27f,.32f);
-                bool bossMark=TowerDifficulty.IsBossFloor(i+1);
-                Fill(new Rect(594+i*17,bossMark?138:140,8,bossMark?12:8),bossMark&&i>=run.ClearedFloors?new Color(.7f,.48f,.24f):c);
+                Color c=i<run.ClearedFloors?brass:i==run.Floor-1?paper:new Color(.3f,.34f,.38f,.7f);
+                Diamond(new Vector2(800-(run.MaxFloor-1)*7+i*14,111),TowerDifficulty.IsBossFloor(i+1)?7:4,c);
             }
-            var activeBoss=enemies.Find(enemy=>enemy.isBoss&&enemy.hp>0);
-            if(activeBoss!=null)
+            if(Button(new Rect(1280,28,132,42),"동료",silver))OpenParty("player");Keycap(new Rect(1375,39,28,20),"Tab");
+            if(Button(new Rect(1424,28,112,42),"메뉴",muted))menu=!menu;Keycap(new Rect(1499,39,28,20),"Esc");
+            Label(new Rect(1300,84,236,24),run.IsFloorCleared?"층 클리어":"남은 적  "+enemies.Count,15,run.IsFloorCleared?brass:muted,TextAnchor.MiddleRight);
+            var boss=enemies.Find(e=>e.isBoss&&e.hp>0);
+            if(boss!=null)
             {
-                Panel(new Rect(450,158,700,62),TowerWorld.Gold);
-                Label(new Rect(466,163,382,22),"왕관의 수호자 · "+BossAttackLabel(activeBoss),16,TowerWorld.Gold,TextAnchor.MiddleLeft,true);
-                Label(new Rect(848,163,286,22),Mathf.CeilToInt(activeBoss.hp)+" / "+Mathf.CeilToInt(activeBoss.maxHp),14,paper,TextAnchor.MiddleRight);
-                Fill(new Rect(467,196,666,9),new Color(.22f,.11f,.1f));Fill(new Rect(467,196,666*Mathf.Clamp01(activeBoss.hp/activeBoss.maxHp),9),new Color(.92f,.47f,.27f));
+                Label(new Rect(500,141,600,30),boss.monster==null?"왕관의 수호자":boss.monster.Name,20,paper,TextAnchor.MiddleCenter,true);
+                Diamond(new Vector2(486,189),9,brass);Diamond(new Vector2(1114,189),9,brass);
+                Meter(new Rect(504,179,592,19),boss.hp/boss.maxHp,crimson,0,true);
             }
-            if(noticeTime>0&&!run.IsRewardPending)Label(new Rect(450,activeBoss!=null?226:179,700,46),notice,23,paper,TextAnchor.MiddleCenter,true);
+            if(noticeTime>0&&!run.IsRewardPending&&!menu&&!party&&!help)
+            {
+                float a=Mathf.Clamp01(noticeTime*2);float y=boss!=null?222:156;
+                Round(new Rect(520,y,560,45),new Color(.025f,.035f,.05f,a*.86f),6);
+                Label(new Rect(538,y+3,524,39),notice,18,Alpha(paper,a),TextAnchor.MiddleCenter);
+            }
+            for(int i=0;i<run.Companions.Count;i++)
+            {
+                var c=run.Companions[i];float x=36+i*150;bool sworn=run.Oath!=null&&run.Oath.CompanionId==c.Id;
+                if(Button(new Rect(x,790,140,76),"",sworn?brass:silver))OpenParty(c.Id);
+                Portrait(new Rect(x+8,800,50,56),c.Definition.ArtIndex,sworn?brass:silver);
+                Label(new Rect(x+66,803,70,25),c.Name,16,paper,TextAnchor.MiddleLeft,true);
+                Label(new Rect(x+66,833,66,21),sworn?"서약":"Lv. "+c.Level,13,sworn?brass:muted);
+            }
+            DrawOathGauge();
             if(run.IsFloorCleared&&!run.IsRewardPending&&!run.IsComplete)
             {
                 bool near=Mathf.Abs(hero.pos.x-TowerWorld.ExitX)<2;
-                if(Button(new Rect(1150,707,390,56),near?"[E]  다음 층으로 올라가기":"오른쪽의 빛나는 문으로 이동  →",TowerWorld.Teal,near))NextFloor();
+                if(Button(new Rect(1190,790,346,64),near?"다음 층으로  [E]":"출구로 이동  →",brass,near,true))NextFloor();
             }
-            Panel(new Rect(24,790,1550,88),muted);
-            for(int i=0;i<4;i++)
+            else if(!run.IsFloorCleared)
             {
-                HeroState state=i==0?run.Player:i-1<run.Companions.Count?run.Companions[i-1]:null;
-                float x=38+i*235;
-                if(state==null)
-                {Border(new Rect(x,801,221,64),new Color(.21f,.29f,.32f));Label(new Rect(x+13,811,197,46),"빈 동료 자리\n매 층 영입 기회",15,muted);continue;}
-                var companion=i==0?null:run.Companions[i-1];Color c=companion==null?TowerWorld.Gold:TierColor(companion.Definition.Tier);
-                if(Button(new Rect(x,800,223,66),"",c))OpenParty(state.Id);
-                Portrait(new Rect(x+4,803,60,60),companion==null?0:companion.Definition.ArtIndex,c);
-                Label(new Rect(x+75,808,144,23),state.Name+" Lv."+state.Level,17,paper,TextAnchor.UpperLeft,true);
-                Label(new Rect(x+75,840,144,22),(companion==null?"":""+FormationName(companion.Definition.Role)+" · ")+"스킬 "+state.Skills.Count+" / 특성 "+state.Traits.Count,12,c);
+                bool counter=CounterRemaining>0;Color c=counter?TowerWorld.Teal:brass;
+                Panel(new Rect(1290,786,246,80),c);Keycap(new Rect(1306,804,53,35),"Shift");
+                Label(new Rect(1374,797,146,28),counter?"반격 준비":dashCooldown>0?dashCooldown.ToString("0.0")+"초":"회피",20,c,TextAnchor.MiddleLeft,true);
+                Label(new Rect(1374,831,146,20),counter?"다음 검격 +50%":dashCooldown>0?"재사용 중":"준비 완료",13,muted);
+                float ready=counter?CounterRemaining/DodgeCounterDuration:1-Mathf.Clamp01(dashCooldown/(1.15f*run.Player.DodgeCooldownMultiplier));
+                Round(new Rect(1306,858,214*ready,3),c,1);
             }
-            Label(new Rect(996,807,550,27),"A/D 이동   Space 점프   J / 클릭 공격   Shift 회피",16,paper,TextAnchor.MiddleRight);
-            Label(new Rect(996,842,550,24),"Ctrl 정밀 이동 · E 등반 · Tab 능력  |  "+(dashCooldown>0?"회피 "+dashCooldown.ToString("0.0")+"초":"회피 준비"),13,dashCooldown>0?muted:TowerWorld.Teal,TextAnchor.MiddleRight);
         }
-        private void DrawIntro()
-        {
-            Fill(new Rect(0,0,1600,900),new Color(.015f,.025f,.04f,.43f));Panel(new Rect(100,158,740,575),TowerWorld.Gold);
-            Label(new Rect(144,191,650,35),"T O W E R   O F   C O M P A N I O N S",17,TowerWorld.Gold);
-            Label(new Rect(140,242,660,97),"서약의 탑",67,paper,TextAnchor.UpperLeft,true);
-            Label(new Rect(145,352,640,74),"혼자 시작해, 함께 오른다.\n영웅과 동료의 스킬을 조합하는 횡스크롤 로그라이크",22,muted);
-            Fill(new Rect(145,451,630,1),new Color(.39f,.35f,.25f));
-            Label(new Rect(145,476,640,80),"매 층마다 세 가지 증강  ·  영입, 스킬, 특성\n15명의 동료  ·  최대 3명과 완성하는 나만의 파티",20,paper);
-            if(Button(new Rect(145,590,355,64),"등반 시작  [Enter]",TowerWorld.Gold))StartClimb();
-            if(Button(new Rect(518,590,260,64),"조작 · 규칙",TowerWorld.Teal))help=true;
-            Label(new Rect(145,683,650,27),"PROTOTYPE 05   /   층별 성장 · 3층마다 보스",13,muted);
-            Label(new Rect(1010,300,490,110),"한 층을 오를 때마다,\n새로운 가능성이 열린다.",31,paper,TextAnchor.MiddleRight,true);
-            Label(new Rect(1015,453,485,108),"실버 40%    골드 40%    다이아 20%\n플레이어와 영입한 동료의 능력이 함께 등장합니다\n각 칸은 한 번씩 새로고침할 수 있습니다",17,TowerWorld.Gold,TextAnchor.UpperRight);
-        }
+        private void DrawIntro(){if(oathLobby)DrawOathSelection();else DrawMythSelection();}
         private void DrawRewards()
         {
-            Fill(new Rect(0,0,1600,900),new Color(.015f,.025f,.045f,.94f));
-            Label(new Rect(350,53,900,35),"FLOOR "+run.Floor.ToString("00")+"  /  OATH CHAMBER",17,TowerWorld.Gold,TextAnchor.MiddleCenter);
-            Label(new Rect(240,104,1120,67),"이번 층의 증강을 선택하세요",39,paper,TextAnchor.MiddleCenter,true);
-            Label(new Rect(200,183,1200,40),"영입 · 스킬 습득 · 스킬 강화 · 특성    |    실버 40% · 골드 40% · 다이아 20%",18,muted,TextAnchor.MiddleCenter);
+            MenuBackdrop("힘을 선택하세요","FLOOR "+run.Floor.ToString("00")+"  /  REWARD");
+            Label(new Rect(1130,83,400,36),CombatTime(LastFloorSeconds)+(LastFloorFlawless?"  ·  무피격":""),18,LastFloorFlawless?TowerWorld.Teal:muted,TextAnchor.MiddleRight);
             for(int i=0;i<run.Offers.Count;i++)
             {
-                var o=run.Offers[i];var d=TowerRun.GetDefinition(o.OwnerId);Color c=TierColor(o.Tier);float x=202+i*408;
+                var o=run.Offers[i];var d=TowerRun.GetDefinition(o.OwnerId);Color c=TierColor(o.Tier);float x=170+i*432;
+                Rect card=new Rect(x,202,396,534);Panel(card,c);
+                Light(new Rect(x+2,204,392,190),Alpha(c,.10f));
+                Label(new Rect(x+28,226,254,23),CategoryName(o),15,c,TextAnchor.MiddleLeft,true);
+                Label(new Rect(x+280,226,87,23),TierName(o.Tier),13,muted,TextAnchor.MiddleRight);
+                Halo(new Rect(x+65,247,266,200),Alpha(c,.28f));PortraitArt(new Rect(x+137,265,122,132),d==null?0:d.ArtIndex);
                 string owner=d==null?"플레이어":d.Name;
-                Panel(new Rect(x,246,380,485),c);Fill(new Rect(x,246,380,4),c);
-                Label(new Rect(x+20,263,340,28),TierName(o.Tier)+"  /  "+CategoryName(o),17,c,TextAnchor.MiddleCenter,true);
-                Portrait(new Rect(x+132,306,116,111),d==null?0:d.ArtIndex,c);
-                Label(new Rect(x+20,428,340,27),owner+(o.Kind==RewardKind.Recruit?" · "+RoleName(d.Role)+" · "+FormationName(d.Role):" 전용"),18,c,TextAnchor.MiddleCenter);
-                Label(new Rect(x+22,468,336,56),o.Title,22,paper,TextAnchor.MiddleCenter,true);
-                string badge=o.Kind==RewardKind.Recruit?"고유 특성 · 영입 즉시 적용":o.Kind==RewardKind.Trait?"Lv."+o.NextLevel+"  ·  지속 효과":"Lv."+o.NextLevel+"  ·  재사용 "+o.Cooldown.ToString("0.0")+"초";
-                Fill(new Rect(x+30,530,320,29),new Color(c.r*.17f,c.g*.17f,c.b*.17f,.8f));
-                Label(new Rect(x+34,533,312,23),badge,15,c,TextAnchor.MiddleCenter);
-                Label(new Rect(x+29,568,322,o.Kind==RewardKind.Recruit?85:105),o.Description,17,muted,TextAnchor.UpperCenter);
-                if(o.Kind==RewardKind.Recruit)
-                    Label(new Rect(x+26,649,328,29),"공격 "+d.Damage.ToString("0")+" · 간격 "+d.AttackInterval.ToString("0.00")+"초 · 사거리 "+d.Range.ToString("0.0"),14,c,TextAnchor.MiddleCenter);
-                if(Button(new Rect(x+28,684,324,32),o.Kind==RewardKind.Recruit?"이 동료 영입":"이 증강 선택",c)){SelectOffer(o.Id);return;}
-                if(Button(new Rect(x,749,380,43),run.CanReroll(i)?"↻  이 칸 새로고침  1 / 1":"새로고침 사용 완료  0 / 1",c,run.CanReroll(i))){run.Reroll(i);Sound(chimeSound,.25f);return;}
+                string title=o.Title.StartsWith(owner+" · ")?o.Title.Substring(owner.Length+3):o.Title;
+                if(o.Kind==RewardKind.Recruit)title=d.Name;
+                else if(o.Kind==RewardKind.Skill)title=title.Replace(" 습득","").Replace(" 강화","");
+                Label(new Rect(x+28,414,340,23),o.Kind==RewardKind.Recruit?RoleName(d.Role):owner,15,muted);
+                FitLabel(new Rect(x+26,449,344,70),title,26,22,paper,TextAnchor.UpperLeft,true);
+                Fill(new Rect(x+28,533,340,1),Alpha(c,.2f));
+                FitLabel(new Rect(x+28,552,340,112),ConciseDescription(o.Description),18,16,muted);
+                if(Button(new Rect(x+26,674,344,42),o.Kind==RewardKind.Recruit?"영입":"선택",c,true,true)){SelectOffer(o.Id);return;}
+                if(Button(new Rect(x+94,754,208,39),run.CanReroll(i)?"다시 뽑기":"사용 완료",muted,run.CanReroll(i))){run.Reroll(i);Sound(chimeSound,.25f);return;}
             }
-            Label(new Rect(210,819,920,48),"동료 "+run.Companions.Count+" / 3  ·  빈자리가 있으면 영입도 등장합니다.\n영입한 동료와 플레이어의 스킬·특성은 함께 추첨됩니다.",16,muted);
-            if(Button(new Rect(1160,820,264,45),"영웅 · 동료 상세",TowerWorld.Teal))OpenParty("player");
+            bool oathOffer=false;foreach(var offer in run.Offers)if(offer.Kind==RewardKind.Oath)oathOffer=true;
+            Label(new Rect(170,827,850,29),oathOffer?"서약 변형은 함께 적용됩니다.":"하나의 보상만 선택할 수 있습니다.",16,muted);
+            if(Button(new Rect(1226,818,240,44),"능력 확인",silver))OpenParty("player");
         }
         private void DrawParty()
         {
-            Fill(new Rect(0,0,1600,900),new Color(.015f,.025f,.04f,.96f));
-            Label(new Rect(160,66,1100,60),"영웅과 동료의 능력",37,paper,TextAnchor.UpperLeft,true);
-            Label(new Rect(160,139,1280,39),"스킬은 전투 중 자동 발동합니다. 영웅을 선택하면 능력치, 습득 스킬과 남은 재사용 시간을 확인합니다.",18,muted);
+            MenuBackdrop("동료와 능력","COMPANIONS");
+            if(Button(new Rect(1320,76,216,48),"돌아가기  [Tab]",brass)){party=false;dismissId="";}
             if(run.GetHero(inspectedOwner)==null)inspectedOwner="player";
-            for(int i=0;i<4;i++)
+            for(int i=0;i<=run.Companions.Count;i++)
             {
-                HeroState s=i==0?run.Player:i-1<run.Companions.Count?run.Companions[i-1]:null;float x=160+i*322;
-                if(s==null){Panel(new Rect(x,199,305,73),muted);Label(new Rect(x+15,214,275,44),"빈 동료 자리\n매 층 영입 증강에서 선택",15,muted,TextAnchor.MiddleCenter);continue;}
-                var d=i==0?null:run.Companions[i-1].Definition;Color c=d==null?TowerWorld.Gold:TierColor(d.Tier);
-                if(Button(new Rect(x,199,305,73),"",c)){inspectedOwner=s.Id;detailScroll=Vector2.zero;dismissId="";}
-                if(inspectedOwner==s.Id)Border(new Rect(x,199,305,73),c,2);
-                Portrait(new Rect(x+9,205,61,61),d==null?0:d.ArtIndex,c);
-                Label(new Rect(x+84,209,207,27),s.Name+"  Lv."+s.Level,19,paper,TextAnchor.UpperLeft,true);
-                Label(new Rect(x+84,244,207,23),d==null?"검의 서약자":FormationName(d.Role)+" · "+RoleName(d.Role)+" · "+TierName(d.Tier),14,c);
+                HeroState s=i==0?run.Player:run.Companions[i-1];var d=i==0?null:run.Companions[i-1].Definition;float x=96+i*358;
+                var r=new Rect(x,180,334,76);Color c=d==null?brass:TierColor(d.Tier);
+                if(Button(r,"",c)){inspectedOwner=s.Id;detailScroll=Vector2.zero;dismissId="";}
+                SelectionFrame(r,c,inspectedOwner==s.Id);Portrait(new Rect(x+12,190,55,55),d==null?0:d.ArtIndex,c);
+                Label(new Rect(x+84,191,220,27),s.Name,21,paper,TextAnchor.MiddleLeft,true);
+                Label(new Rect(x+84,224,220,22),d==null?"플레이어":"Lv. "+s.Level+"  ·  "+RoleName(d.Role),14,muted);
             }
-            HeroState selected=run.GetHero(inspectedOwner)??run.Player;var companion=run.GetCompanion(selected.Id);var definition=companion==null?null:companion.Definition;
-            Color accent=definition==null?TowerWorld.Gold:TierColor(definition.Tier);
-            Panel(new Rect(160,300,436,444),accent);Portrait(new Rect(183,324,112,112),definition==null?0:definition.ArtIndex,accent);
-            Label(new Rect(312,332,262,41),selected.Name,28,paper,TextAnchor.UpperLeft,true);
-            Label(new Rect(312,383,262,47),definition==null?"플레이어 · 검의 서약자":definition.Title+"\n"+RoleName(definition.Role),17,accent);
-            string stats;
-            if(companion==null)
-                stats="공격력 "+selected.Damage.ToString("0.0")+"    방어력 "+selected.Armor.ToString("0.0")+"\n최대 생명력 "+selected.MaxHealth.ToString("0")+"    이동 속도 "+selected.MoveSpeed.ToString("0.0")+"\n공격 간격 "+selected.AttackInterval.ToString("0.00")+"초    사거리 "+selected.Range.ToString("0.0");
-            else
-                stats="공격력 "+selected.Damage.ToString("0.0")+"    공격 간격 "+selected.AttackInterval.ToString("0.00")+"초\n사거리 "+selected.Range.ToString("0.0")+"    이동 속도 "+selected.MoveSpeed.ToString("0.0")+"\n스킬 위력 "+selected.SkillPowerMultiplier.ToString("0.00")+"배    "+(companion.HealAmount>0?"치유 "+companion.HealAmount.ToString("0.0"):"재사용 "+selected.CooldownMultiplier.ToString("0.00")+"배");
-            Label(new Rect(185,464,383,84),stats,18,paper);
-            if(companion!=null)Label(new Rect(185,549,385,20),FormationName(companion.Definition.Role)+" · "+(CanHitAirborne(companion)?"대공 가능":"지상 공격")+" · 피해는 플레이어만 받습니다",13,muted);
-            Label(new Rect(185,573,385,28),"고유 특성",17,accent,TextAnchor.UpperLeft,true);
-            Label(new Rect(185,614,385,102),definition==null?"검으로 가까운 적을 공격합니다. 점프와 무적 회피로 적의 공격을 피할 수 있습니다.\n증강으로 습득한 능력은 아래 상세 목록에 누적됩니다.":definition.Description,18,muted);
-            Panel(new Rect(619,300,821,444),accent);
-            DrawAbilities(new Rect(639,317,782,408),selected,accent);
-            if(definition!=null)
+            var selected=run.GetHero(inspectedOwner)??run.Player;var companion=run.GetCompanion(selected.Id);var definition=companion==null?null:companion.Definition;
+            Color accent=definition==null?brass:TierColor(definition.Tier);
+            Panel(new Rect(96,284,428,510),accent);Halo(new Rect(120,293,380,220),Alpha(accent,.25f));
+            PortraitArt(new Rect(234,302,150,150),definition==null?0:definition.ArtIndex);
+            Label(new Rect(123,453,374,42),selected.Name,30,paper,TextAnchor.MiddleCenter,true);
+            Label(new Rect(123,498,374,26),definition==null?"검의 서약자":definition.Title,16,accent,TextAnchor.MiddleCenter);
+            Fill(new Rect(124,541,372,1),Alpha(accent,.20f));
+            StatCell(new Rect(126,562,170,68),"공격력",selected.Damage.ToString("0.#"));
+            StatCell(new Rect(320,562,172,68),"공격 간격",selected.AttackInterval.ToString("0.00")+"초");
+            StatCell(new Rect(126,641,170,68),companion==null?"최대 생명력":"스킬 위력",companion==null?selected.MaxHealth.ToString("0"):selected.SkillPowerMultiplier.ToString("0.##")+"배");
+            StatCell(new Rect(320,641,172,68),companion==null?"방어력":"치유 배율",companion==null?selected.Armor.ToString("0"):selected.HealingMultiplier.ToString("0.##")+"배");
+            StatCell(new Rect(126,720,170,68),"이동 속도",selected.MoveSpeed.ToString("0.#"));
+            StatCell(new Rect(320,720,172,68),"사거리",selected.Range.ToString("0.#"));
+            Panel(new Rect(552,284,952,510),accent);DrawAbilities(new Rect(576,305,908,466),selected,accent);
+            bool bound=definition!=null&&run.Oath!=null&&definition.Id==run.Oath.CompanionId;
+            if(bound)Label(new Rect(109,819,415,30),"이번 등반의 서약 동료",16,brass);
+            else if(definition!=null)
             {
                 bool confirm=dismissId==definition.Id;
-                if(Button(new Rect(160,772,436,51),confirm?"해고 확정 · 습득한 능력도 제거":"이 동료 해고",confirm?new Color(1,.4f,.35f):muted))
+                if(Button(new Rect(96,814,428,46),confirm?"능력을 잃고 동료와 작별":"동료와 작별",confirm?crimson:muted))
                 {if(confirm){Dismiss(definition.Id);inspectedOwner="player";detailScroll=Vector2.zero;return;}dismissId=definition.Id;}
             }
-            else Label(new Rect(170,777,427,52),"플레이어는 해고할 수 없습니다.\n모든 능력은 이번 등반 동안 유지됩니다.",16,muted);
-            Label(new Rect(620,780,520,52),"해고하면 해당 동료의 능력도 사라지며,\n다음 증강부터 다시 영입 기회가 생깁니다.",16,muted);
-            if(Button(new Rect(1160,773,280,51),"돌아가기 [Tab]",TowerWorld.Gold)){party=false;dismissId="";}
         }
         private void DrawAbilities(Rect viewport,HeroState owner,Color accent)
         {
-            int lockedCount=0;
-            foreach(var augment in TowerRun.Augments)
-                if(augment.OwnerId==owner.Id&&augment.Kind==RewardKind.Skill&&owner.GetSkill(augment.Id)==null)lockedCount++;
-            float height=125+(owner.Skills.Count>0?owner.Skills.Count*148:53)+(owner.Traits.Count>0?owner.Traits.Count*136:56)+(lockedCount>0?58+lockedCount*119:0);
-            detailScroll=GUI.BeginScrollView(viewport,detailScroll,new Rect(0,0,752,Mathf.Max(viewport.height-2,height)),false,true);
-            float y=3;Label(new Rect(10,y,718,29),"습득한 스킬  "+owner.Skills.Count,21,accent,TextAnchor.UpperLeft,true);y+=43;
-            if(owner.Skills.Count==0){Label(new Rect(12,y,718,43),"아직 습득한 스킬이 없습니다. 매 층 증강에서 새 스킬을 선택하세요.",17,muted);y+=53;}
+            PrepareScrollStyle();var previousSkin=GUI.skin;GUI.skin=uiSkin;
+            float width=viewport.width-25;float height=OathDetailHeight(owner)+184+owner.Skills.Count*143+owner.Traits.Count*115;
+            var companion=run.GetCompanion(owner.Id);if(companion!=null)height+=122;
+            detailScroll=GUI.BeginScrollView(viewport,detailScroll,new Rect(0,0,width,Mathf.Max(viewport.height-2,height)),false,true);
+            float y=DrawOathDetails(owner,3);
+            if(companion!=null)
+            {
+                Label(new Rect(12,y,width-24,28),companion.Definition.InnateTrait,20,accent,TextAnchor.MiddleLeft,true);
+                Label(new Rect(12,y+36,width-24,65),companion.Definition.InnateDescription,18,muted);y+=122;
+            }
+            Label(new Rect(12,y,width-24,30),"스킬  "+owner.Skills.Count,21,paper,TextAnchor.MiddleLeft,true);y+=45;
+            if(owner.Skills.Count==0){Label(new Rect(12,y,width-24,38),"습득한 스킬 없음",17,muted);y+=44;}
             foreach(var skill in owner.Skills)
             {
-                Fill(new Rect(5,y,725,137),new Color(.07f,.11f,.15f));Border(new Rect(5,y,725,137),new Color(.20f,.29f,.34f));
-                Label(new Rect(19,y+10,410,28),skill.Definition.Name+"  Lv."+skill.Level,19,paper,TextAnchor.UpperLeft,true);
+                Round(new Rect(3,y,width-6,131),new Color(.072f,.095f,.123f),5);
+                Label(new Rect(18,y+12,width-245,29),skill.Definition.Name+"  "+skill.Level,20,paper,TextAnchor.UpperLeft,true);
                 float remaining=SkillRemaining(owner.Id,skill.Definition.Id);
-                Label(new Rect(420,y+11,294,24),(remaining>0?"남음 "+remaining.ToString("0.0")+"초  /  ":"준비 완료  /  ")+skill.Cooldown.ToString("0.0")+"초",15,remaining>0?muted:TowerWorld.Teal,TextAnchor.UpperRight);
-                Label(new Rect(20,y+44,690,80),skill.Description,17,muted);
-                y+=148;
+                Label(new Rect(width-224,y+13,202,25),remaining>0?remaining.ToString("0.0")+"초":"준비",15,remaining>0?muted:TowerWorld.Teal,TextAnchor.MiddleRight);
+                FitLabel(new Rect(18,y+49,width-40,78),skill.Description,17,16,muted);y+=143;
             }
-            y+=11;Label(new Rect(10,y,718,29),"습득한 특성  "+owner.Traits.Count,21,accent,TextAnchor.UpperLeft,true);y+=43;
-            if(owner.Traits.Count==0){Label(new Rect(12,y,718,49),"아직 추가 특성이 없습니다. 동료의 고유 특성은 영입 즉시 적용됩니다.",17,muted);y+=56;}
+            y+=14;Label(new Rect(12,y,width-24,30),"특성  "+owner.Traits.Count,21,paper,TextAnchor.MiddleLeft,true);y+=44;
+            if(owner.Traits.Count==0)Label(new Rect(12,y,width-24,35),"습득한 특성 없음",17,muted);
             foreach(var trait in owner.Traits)
             {
-                Fill(new Rect(5,y,725,125),new Color(.07f,.11f,.15f));Border(new Rect(5,y,725,125),new Color(.20f,.29f,.34f));
-                Label(new Rect(19,y+10,490,28),trait.Definition.Name+"  Lv."+trait.Level,19,paper,TextAnchor.UpperLeft,true);
-                Label(new Rect(516,y+12,196,24),"지속 효과",15,accent,TextAnchor.UpperRight);
-                Label(new Rect(20,y+44,690,74),trait.Description,17,muted);y+=136;
+                Round(new Rect(3,y,width-6,103),new Color(.072f,.095f,.123f),5);
+                Label(new Rect(18,y+10,width-40,28),trait.Definition.Name+"  "+trait.Level,20,paper,TextAnchor.UpperLeft,true);
+                Label(new Rect(18,y+44,width-40,58),ConciseDescription(trait.Description),17,muted);y+=115;
             }
-            if(lockedCount>0)
-            {
-                y+=11;Label(new Rect(10,y,718,29),"아직 배우지 않은 전용 스킬  "+lockedCount,20,muted,TextAnchor.UpperLeft,true);y+=43;
-                foreach(var augment in TowerRun.Augments)
-                {
-                    if(augment.OwnerId!=owner.Id||augment.Kind!=RewardKind.Skill||owner.GetSkill(augment.Id)!=null)continue;
-                    Fill(new Rect(5,y,725,108),new Color(.045f,.075f,.10f));Border(new Rect(5,y,725,108),new Color(.16f,.23f,.27f));
-                    Label(new Rect(19,y+10,402,28),augment.Name,18,muted,TextAnchor.UpperLeft,true);
-                    Label(new Rect(412,y+12,302,24),"미습득 · 증강으로 해금",14,muted,TextAnchor.UpperRight);
-                    Label(new Rect(20,y+43,690,57),augment.Description+"\n기본 재사용 "+augment.Cooldown.ToString("0.0")+"초",16,muted);
-                    y+=119;
-                }
-            }
-            GUI.EndScrollView();
+            GUI.EndScrollView();GUI.skin=previousSkin;
         }
         private void DrawMenu()
         {
-            Fill(new Rect(0,0,1600,900),new Color(.01f,.02f,.035f,.79f));Panel(new Rect(540,185,520,525),TowerWorld.Gold);
-            Label(new Rect(575,222,450,60),"잠시 쉬어가기",35,paper,TextAnchor.MiddleCenter,true);
-            if(Button(new Rect(600,322,400,56),"등반 계속 [Esc]",TowerWorld.Gold))menu=false;
-            if(Button(new Rect(600,399,400,56),"조작 · 규칙",TowerWorld.Teal))help=true;
-            if(Button(new Rect(600,476,400,56),"새로운 등반 시작",muted)){NewRun();intro=false;inspectedOwner="player";}
-            if(Button(new Rect(600,553,400,56),"데모 선택으로",muted))BackToHub();
-            Label(new Rect(580,654,440,30),"진행 시간 "+(int)elapsed/60+":"+((int)elapsed%60).ToString("00"),16,muted,TextAnchor.MiddleCenter);
+            Fill(new Rect(-200,-200,2000,1300),new Color(.01f,.018f,.03f,.85f));Panel(new Rect(540,166,520,572),brass);
+            Label(new Rect(586,208,428,29),"PAUSED",13,brass,TextAnchor.MiddleCenter,true);
+            Label(new Rect(582,251,436,59),"잠시 쉬어가기",35,paper,TextAnchor.MiddleCenter,true);
+            if(Button(new Rect(600,350,400,56),"계속하기",brass,true,true))menu=false;
+            if(Button(new Rect(600,423,400,48),"조작과 규칙",silver))help=true;
+            if(Button(new Rect(600,487,400,48),"신화 선택",muted)){NewRun();intro=true;inspectedOwner="player";}
+            if(Button(new Rect(600,551,400,48),"데모 선택",muted))BackToHub();
+            Label(new Rect(600,654,400,27),run.Floor+"층  ·  "+CombatTime(elapsed),16,muted,TextAnchor.MiddleCenter);
         }
         private void DrawEnding(bool won)
         {
-            Fill(new Rect(0,0,1600,900),new Color(.015f,.025f,.04f,.87f));Panel(new Rect(420,200,760,500),won?TowerWorld.Gold:new Color(.8f,.4f,.35f));
-            Label(new Rect(470,251,660,74),won?"탑의 정상에 도달했습니다":"이번 서약은 여기까지",39,paper,TextAnchor.MiddleCenter,true);
-            Label(new Rect(480,352,640,100),"도달 층  "+run.Floor+" / "+run.MaxFloor+"    ·    처치  "+kills+"\n동료  "+run.Companions.Count+" / 3    ·    등반 시간  "+(int)elapsed/60+":"+((int)elapsed%60).ToString("00"),23,muted,TextAnchor.MiddleCenter);
-            if(Button(new Rect(490,508,620,58),"다시 등반하기",TowerWorld.Gold)){NewRun();intro=false;inspectedOwner="player";}
-            if(Button(new Rect(490,589,620,48),"처음 화면으로",TowerWorld.Teal)){NewRun();intro=true;inspectedOwner="player";}
+            MenuBackdrop(won?(run.IsOathTrial?"서약을 완수했습니다":"탑의 정상에 도달했습니다"):"등반이 끝났습니다",won?"OATH FULFILLED":"JOURNEY ENDED");
+            Color c=won?brass:silver;
+            Halo(new Rect(450,135,700,520),Alpha(c,.20f));
+            Label(new Rect(600,202,400,110),run.Floor.ToString("00"),85,c,TextAnchor.MiddleCenter,true);
+            Label(new Rect(600,318,400,32),"/ "+run.MaxFloor+"층",22,muted,TextAnchor.MiddleCenter);
+            float x=240;
+            StatCell(new Rect(x,420,240,75),"처치",kills.ToString());StatCell(new Rect(x+290,420,240,75),"등반 시간",CombatTime(elapsed));
+            StatCell(new Rect(x+580,420,240,75),run.IsOathTrial?"서약 연계":"신화 포인트",run.IsOathTrial?run.Oath.Activations+"회":"+"+run.ClearedFloors+" P");
+            StatCell(new Rect(x+870,420,240,75),"무피격 클리어",FlawlessFloors+"층");
+            Fill(new Rect(240,534,1120,1),Alpha(c,.18f));
+            Label(new Rect(240,565,1120,64),"순간 회피  "+PerfectDodges+"     ·     반격 적중  "+CounterHits+"     ·     받은 피해  "+Mathf.CeilToInt(DamageTaken),18,muted,TextAnchor.MiddleCenter);
+            if(Button(new Rect(555,689,490,60),run.IsOathTrial?"다른 서약으로 도전":"다시 등반하기",brass,true,true))
+            {bool trial=run.IsOathTrial;NewRun();intro=true;oathLobby=trial;inspectedOwner="player";}
+            if(Button(new Rect(660,771,280,44),"데모 선택",muted))BackToHub();
         }
         private void DrawHelp()
         {
-            Fill(new Rect(0,0,1600,900),new Color(.015f,.025f,.04f,.97f));Panel(new Rect(230,100,1140,700),TowerWorld.Gold);
-            Label(new Rect(280,140,1040,60),"조작과 서약의 규칙",35,paper,TextAnchor.UpperLeft,true);
-            Label(new Rect(285,237,460,390),"A / D 또는 ← / →    이동\nSpace    점프\nJ 또는 마우스 왼쪽    검 공격\nShift    무적 회피 · 공격 중에도 사용 가능\nCtrl    정밀 이동 · 피격 중심 표시\nS / ↓    발판 아래로 내려가기\nE    클리어 후 문에서 등반\nTab    영웅 · 동료 능력 확인 / 해고\nEsc    일시정지 메뉴",20,paper);
-            Label(new Rect(790,237,520,435),"적이 보여주는 점선은 발사 전 고정한 방향입니다. 옆으로 이동하거나 점프·회피로 피하세요. 청록색 선은 탄막의 빈틈입니다.\n\n전위는 주인공 앞, 중위 궁수는 약간 뒤, 후위 마법사·치유사는 더 뒤에 배치됩니다. 공중 적은 원거리 동료만 공격합니다. 마지막 원거리 동료를 해고하면 공중 적이 착지합니다.\n\n매 층 몬스터를 모두 처치하면 생명력 18을 회복하고 증강 세 장 중 하나를 선택합니다. 동료는 최대 3명이며 스킬은 자동 발동합니다.\n\n각 증강 칸은 한 번씩 새로고침할 수 있습니다.",18,muted);
-            if(Button(new Rect(980,706,330,54),"알겠습니다",TowerWorld.Gold))help=false;
+            MenuBackdrop("조작과 규칙","FIELD GUIDE");
+            if(Button(new Rect(1320,76,216,48),"닫기",brass))help=false;
+            string[] keys={"A / D","Space","J","Shift","Ctrl","S / ↓","E","Tab"};
+            string[] actions={"이동","점프","검 공격 · 마우스 왼쪽도 가능","무적 회피","정밀 이동","발판 아래로","다음 층","동료와 능력"};
+            for(int i=0;i<keys.Length;i++){float y=207+i*69;Keycap(new Rect(116,y,100,39),keys[i]);Label(new Rect(239,y,430,39),actions[i],20,paper,TextAnchor.MiddleLeft);}
+            bool trial=run.IsOathTrial||oathLobby;
+            Panel(new Rect(772,198,712,574),brass);
+            Label(new Rect(808,229,640,37),trial?"서약 연계":"회피와 반격",27,brass,TextAnchor.MiddleLeft,true);
+            string rules=trial?"검격 적중 +1 · 순간 회피 +2\n기본 4충전 후 다음 검격 적중에 연계가 발동합니다. 헛스윙은 충전을 소모하지 않습니다.\n\n회피 시작 0.12초 안에 탄환을 통과하면 순간 회피입니다. 다음 검격의 반격 효과는 3초간 유지됩니다.\n\n여러 서약 변형은 함께 적용되며 충전은 다음 층에도 유지됩니다.\n\n5·10층 보스 · 10층 클리어로 종료\n신화 포인트는 적립하지 않습니다.":
+                "회피 시작 0.12초 안에 탄환을 통과하면 반격을 준비합니다. 3초 안에 맞힌 다음 검격은 피해가 50% 증가합니다.\n\n동료는 사거리 안의 적을 공격하고 발판을 따라옵니다. 피해는 플레이어만 받습니다.\n\n5층마다 보스와 싸웁니다. 층마다 증강 하나와 신화 포인트 1을 얻습니다.";
+            Label(new Rect(808,298,640,329),rules,20,muted);
+            Label(new Rect(808,675,640,65),"적을 모두 처치하면 생명력 18 회복\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회",18,paper);
         }
     }
 }
