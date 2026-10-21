@@ -49,6 +49,8 @@ namespace PrototypeLab.Aquarium
         public string visualAction = "";
         public float visualAt = -100, deathAt = -100, morphAt = -100;
         public int visualTarget, releaseSource, morphFrom = -1;
+        // A fish-disguised carrier that gulped an ally stays a fish until it has spat it out.
+        public float revealAt;
     }
 
     [Serializable]
@@ -133,7 +135,10 @@ namespace PrototypeLab.Aquarium
         public const float HungerSeconds = 60f, EatStun = 2f, AllyStun = 3f, MorphLock = 6f, HatchSeconds = 12f;
         public const float ScanDuration = 5f, ScanCooldown = 18f, MaxStamina = 100f;
         public const float TraceDuration = 9f, ReviewSeconds = 20f;
-        public const float FishFeedingSeconds = 4.2f, TentacleFeedingSeconds = 3.0f, SwallowVisualSeconds = 2.45f;
+        // R18: faster meals. The fish gulp is greedy and quick; the alien tentacle meal runs 1.32x faster.
+        public const float FishFeedingSeconds = 2.4f, TentacleFeedingSeconds = 2.3f, SwallowVisualSeconds = 2.45f;
+        // The eater turns to the meal and closes in; the meal itself is never moved.
+        public const float FishLungeReach = 1.2f, TentacleLungeReach = .9f, LungeSeconds = .45f, GulpRevealDelay = .75f;
         public const float ReleaseKickSeconds = .85f, ReleaseKickSpeed = 5.4f, SpitAnimationSeconds = 1.2f;
         public const float DeathReviewSeconds = 2.5f, FeedSoundRadius = 10f;
         public const float EggSinkSpeed = 1.2f, EggRadius = 0.4f;
@@ -235,7 +240,7 @@ namespace PrototypeLab.Aquarium
             {
                 p.alive = true; p.swallowedBy = 0; p.swallowedSpecies = -1; p.species = p.bot && p.team == Team.Hider ? 0 : -1;
                 p.releaseAt = p.revealUntil = p.nextAction = p.nextMorph = p.nextFeed = p.stunnedUntil = 0;
-                p.visualAction = ""; p.visualAt = p.deathAt = p.morphAt = -100; p.visualTarget = 0;
+                p.visualAction = ""; p.visualAt = p.deathAt = p.morphAt = -100; p.visualTarget = 0; p.revealAt = 0;
                 p.stamina = MaxStamina; p.lastMealAt = HuntAt; p.personalEaten = p.score = p.exposureScore = 0;
                 p.eggUsed = false; p.nextScan = p.scanUntil = p.morphLockedUntil = p.exposureSeconds = 0; p.deathReason = "";
                 p.velocity = new Point(); p.diedAt = 0; p.deathSpecies = -1;
@@ -253,7 +258,7 @@ namespace PrototypeLab.Aquarium
             Players.RemoveAll(p => p.filled);
             foreach (var p in Players)
             {
-                p.ready = p.bot || p.id == 1; p.alive = true; p.swallowedBy = 0; p.swallowedSpecies = -1; p.species = -1;
+                p.ready = p.bot || p.id == 1; p.alive = true; p.swallowedBy = 0; p.swallowedSpecies = -1; p.species = -1; p.revealAt = 0;
                 p.releaseAt = p.revealUntil = p.nextAction = p.nextMorph = p.nextFeed = p.stunnedUntil = 0;
                 p.stamina = MaxStamina; p.nextScan = p.scanUntil = p.morphLockedUntil = 0; p.deathReason = "";
                 p.velocity = new Point(); p.diedAt = 0; p.deathSpecies = -1;
@@ -323,6 +328,12 @@ namespace PrototypeLab.Aquarium
                 f.position = actual;
             }
             if (Phase != RoundPhase.Playing) { AquariumBodyCollision.Resolve(Players,Fish,Time); return; }
+            // A carrier that gulped an ally while disguised loses the disguise after the spit.
+            foreach (var p in Players) if (p.revealAt > 0 && Time >= p.revealAt)
+            {
+                p.revealAt = 0;
+                if (p.alive && p.species >= 0) { p.morphFrom = p.species; p.species = -1; p.revealUntil = Math.Max(p.revealUntil, Math.Max(p.morphLockedUntil, Time + 0.65f)); }
+            }
             // Release before either player consumes input, regardless of roster order.
             foreach (var p in Players) if (p.alive && p.swallowedBy != 0)
             {
@@ -343,13 +354,14 @@ namespace PrototypeLab.Aquarium
                     continue;
                 }
                 if (TickReleaseKick(p,dt)) continue;
+                bool feeding = TickFeedingLunge(p, dt);
                 SwimInput input;
                 if (p.bot) input = BotInput(p);
                 else if (!inputs.TryGetValue(p.id, out input) || Time - inputTimes[p.id] > 0.4f) input = new SwimInput();
                 var move = new Point(input.x, input.y, input.z);
                 if (move.Length > 1) move = move.Normalized;
                 var aim = new Point(input.aimX, input.aimY, input.aimZ);
-                if (aim.Length > 0.1f) p.facing = aim.Normalized;
+                if (aim.Length > 0.1f && !feeding) p.facing = aim.Normalized;
                 if ((p.team == Team.Seeker && Time < HuntAt) || Time < p.stunnedUntil)
                 { p.velocity = new Point(); input.action = input.morph = input.feed = input.scan = input.layEgg = false; p.stamina = Math.Min(MaxStamina, p.stamina + 18f * dt); continue; }
                 float speed = p.team == Team.Seeker ? SeekerSpeed : (input.slow ? 1.65f : HiderSpeed);
@@ -499,23 +511,30 @@ namespace PrototypeLab.Aquarium
             p.nextAction = Time + 0.65f;
             if (Players.Exists(h => h.swallowedBy == p.id)) return;
             Swimmer friend = null; Prey prey = null; float distance = 1.78f;
+            // Only an ally that looks like a fish can be mistaken for food: aliens in their own form are never eaten.
             foreach (var h in Players)
-                if (h.id != p.id && h.team == Team.Hider && h.alive && h.swallowedBy == 0 && !Players.Exists(c => c.swallowedBy == h.id) && InBite(p, h.position, distance))
+                if (h.id != p.id && h.team == Team.Hider && h.alive && h.swallowedBy == 0 && HasFishDisguise(h, Time) && !Players.Exists(c => c.swallowedBy == h.id) && InBite(p, h.position, distance))
                 { friend = h; distance = (h.position - p.position).Length; }
             foreach (var f in Fish) if (!f.eaten && !f.dead && InBite(p, f.position, distance))
             { prey = f; friend = null; distance = (f.position - p.position).Length; }
             Effect("bite", p.position + p.facing * 0.8f, p.facing, 0.3f);
             if (friend != null)
             {
+                // A disguised carrier gulps the ally as a fish; the ally struggles inside
+                // until it is spat out. An alien-form carrier keeps the tentacle meal.
+                bool gulp = HasFishDisguise(p, Time);
+                FaceMeal(p, friend.position);
                 p.stunnedUntil = friend.stunnedUntil = Time + AllyStun;
                 p.velocity = friend.velocity = new Point();
                 p.morphLockedUntil = friend.morphLockedUntil = Time + MorphLock;
-                p.visualAction = "TentacleEat"; p.visualAt = Time;
+                p.visualAction = gulp ? "AllyGulp" : "TentacleEat"; p.visualAt = Time; p.visualTarget = 0;
                 friend.visualAction = "Eaten"; friend.visualAt = Time;
                 // Preserve the visible disguise through capture; the forced reveal
                 // happens out of sight inside the carrier before expulsion.
                 friend.swallowedSpecies = friend.species >= 0 && (friend.revealUntil <= Time || Time-friend.morphAt < 1.4f) ? friend.species : -1;
-                p.species = friend.species = -1; p.revealUntil = friend.revealUntil = Time + MorphLock;
+                friend.species = -1; friend.revealUntil = Time + MorphLock;
+                if (gulp) p.revealAt = Time + AllyStun + GulpRevealDelay;
+                else { p.species = -1; p.revealUntil = Time + MorphLock; }
                 p.score -= 150;
                 Effect("allyEat",p.position,p.facing,TraceDuration,p.id);
                 friend.swallowedFrom = friend.position; friend.swallowedBy = p.id; friend.releaseAt = Time + AllyStun; friend.position = p.position;
@@ -523,6 +542,7 @@ namespace PrototypeLab.Aquarium
             else if (prey != null)
             {
                 prey.eaten = true; prey.eater = p.id; prey.visualAt = Time;
+                FaceMeal(p, prey.position);
                 p.visualAction = HasFishDisguise(p, Time) ? "Bite" : "TentacleEat"; p.visualAt = Time; p.visualTarget = prey.id;
                 float feeding=p.visualAction=="Bite"?FishFeedingSeconds:TentacleFeedingSeconds;
                 p.nextAction=Time+feeding;p.nextMorph=Math.Max(p.nextMorph,Time+feeding);
@@ -549,7 +569,13 @@ namespace PrototypeLab.Aquarium
             // Emerge just outside the two rounded hulls, then travel continuously.
             swallowed.position = Constrain(at + direction * (2*(AquariumBodyCollision.AlienRadius+AquariumBodyCollision.AlienHalf)+.03f), .4f);
             swallowed.revealUntil = Math.Max(swallowed.revealUntil, swallowed.morphLockedUntil);
-            if (carrier != null) { carrier.revealUntil = Math.Max(carrier.revealUntil, carrier.morphLockedUntil); carrier.nextAction = Math.Max(carrier.nextAction, Time + 0.8f); }
+            if (carrier != null)
+            {
+                // A disguised carrier spits as a fish and is exposed right after the spit.
+                if (carrier.revealAt > 0 && carrier.alive) carrier.revealAt = Time + GulpRevealDelay;
+                else carrier.revealUntil = Math.Max(carrier.revealUntil, carrier.morphLockedUntil);
+                carrier.nextAction = Math.Max(carrier.nextAction, Time + 0.8f);
+            }
             if (Phase == RoundPhase.Playing)
             {
                 BeginReleaseKick(swallowed,direction,"SpitOut");
@@ -564,6 +590,29 @@ namespace PrototypeLab.Aquarium
             player.velocity = new Point();
             player.facing=direction;player.visualAction=motion;player.visualAt=Time;
             player.nextAction=Math.Max(player.nextAction,Time+(motion=="SpitRecoil"?SpitAnimationSeconds:ReleaseKickSeconds));
+        }
+        private static void FaceMeal(Swimmer p, Point meal)
+        { var toward = meal - p.position; if (toward.Length > .01f) p.facing = toward.Normalized; }
+        private static bool IsMeal(string motion) { return motion == "Bite" || motion == "TentacleEat" || motion == "AllyGulp"; }
+        // The eater keeps turning to its meal while stunned and closes the gap quickly.
+        // Returns true while the meal owns the eater's facing.
+        private bool TickFeedingLunge(Swimmer p, float dt)
+        {
+            if (Time >= p.stunnedUntil || !IsMeal(p.visualAction)) return false;
+            Point meal; bool found = false; meal = new Point();
+            if (p.visualTarget != 0)
+                foreach (var f in Fish) if (f.id == p.visualTarget && f.eaten && f.eater == p.id) { meal = f.position; found = true; break; }
+            if (!found)
+                foreach (var h in Players) if (h.swallowedBy == p.id) { meal = h.swallowedFrom; found = true; break; }
+            if (!found) return true;
+            var delta = meal - p.position; float distance = delta.Length;
+            if (distance < .001f) return true;
+            var direction = delta / distance; p.facing = direction;
+            if (Time - p.visualAt > LungeSeconds) return true;
+            float reach = p.visualAction == "TentacleEat" ? TentacleLungeReach : FishLungeReach;
+            float step = (distance - reach) * (1 - (float)Math.Exp(-dt * 13f));
+            if (Math.Abs(step) > .0005f) p.position = AquariumBodyCollision.Move(p, direction * step, Players, Fish, Time);
+            return true;
         }
         private static float ReleaseTravel(float age)
         {
@@ -622,7 +671,7 @@ namespace PrototypeLab.Aquarium
                 egg.position += (fallingTo - egg.position) * Math.Min(1, Math.Max(0, surface));
                 if (Time < egg.hatchAt) continue;
                 target.alive = true; target.position = egg.position; target.species = -1; target.swallowedBy = 0; target.swallowedSpecies = -1;
-                target.visualAction = ""; target.visualAt = target.deathAt = target.morphAt = -100;
+                target.visualAction = ""; target.visualAt = target.deathAt = target.morphAt = -100; target.revealAt = 0;
                 target.stamina = MaxStamina; target.lastMealAt = Time; target.deathReason = "";
                 target.velocity = new Point(); target.diedAt = 0; target.deathSpecies = -1;
                 target.releaseAt = target.stunnedUntil = target.nextAction = target.nextMorph = target.morphLockedUntil = 0;
@@ -651,6 +700,7 @@ namespace PrototypeLab.Aquarium
         {
             player.diedAt = Time; player.deathSpecies = player.species >= 0 && Time >= player.revealUntil ? player.species : -1;
             player.velocity = new Point();
+            player.revealAt = 0;
             player.alive = false; player.deathAt = Time; player.visualAt = Time; player.visualAction = reason == "harpoon" ? "Harpoon" : "Eaten"; player.deathReason = reason; player.swallowedBy = 0;
             inputs.Remove(player.id); inputTimes.Remove(player.id); ReleaseCarried(player.id);
             Effect(reason == "starved" ? "starved" : "caught", player.position, player.facing, 1.2f);

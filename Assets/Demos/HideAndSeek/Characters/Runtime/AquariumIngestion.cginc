@@ -14,6 +14,11 @@ float3 IngestWorld(float3 p)
     float3 centre=_IngestMouth.xyz+_IngestAxis.xyz*max(lerp(-.06,.012,_IngestSeal),section);
     float3 radial=delta-_IngestAxis.xyz*axial;
     float depth=max(.06,_IngestDepth);
+    // R18: the meal is not moved onto the mouth axis. Sections far from the lips
+    // keep their sideways offset and the body bends into the mouth as it enters.
+    float3 lateral=(_IngestOrigin.xyz-_IngestMouth.xyz)-_IngestAxis.xyz*distance;
+    float keep=lerp(1,smoothstep(0,1,saturate((section-depth*.5)/(.55+depth))),smoothstep(0,.25,_Ingest));
+    centre+=lateral*keep;
     float limit=_IngestMouth.w*lerp(1,.97,_IngestSeal)+max(0,section-depth)*lerp(1.15,.52,_IngestSeal);
     float ratio=length(radial)/max(.001,limit);
     float fit=pow(1+pow(min(ratio,100),8),-1.0/8.0);

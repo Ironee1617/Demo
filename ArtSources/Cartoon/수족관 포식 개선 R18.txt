@@ -1,0 +1,74 @@
+수족관 술래잡기 — 포식/변신 개선 R18 (2026-10-19)
+=====================================================
+
+요청 사항과 적용 내용
+--------------------
+1) 외계인 눈 자동 깜빡임 (헤엄 / 아이들)
+   - AquariumRig.AutoBlink: 2~5초 불규칙 간격, 가끔 두 번 연속(연속은 한 번만), 빠르게 감고 천천히 뜸.
+   - Monster_Idle 클립에 있던 고정 깜빡임 대신 런타임 깜빡임이 항상 적용됨 (Swim 중에도).
+
+2) 외계인 모습인 외계인은 먹히지 않음
+   - AquariumModel.Bite: 동족은 물고기로 변신(위장)된 상태(HasFishDisguise)일 때만 먹이 후보.
+   - 변신 직후 0.65초(모습이 바뀌는 중)에도 먹히지 않음.
+
+3) 먹히는 쪽은 강제 이동 없음 / 먹는 쪽이 대상 쪽으로 회전
+   - 모델: 먹는 순간 facing을 먹이 방향으로 고정(경직 동안 마우스 조준이 덮어쓰지 않음),
+     0.45초 동안 먹이 쪽으로 돌진 (물고기 1.2 / 외계인 0.9 거리까지). 먹이 위치는 그대로.
+   - 화면: 먹이를 입 앞으로 끌어오던 StagePoint 궤도 이동 제거. 먹는 쪽이 입을 먹이에 맞춰 회전하고 다가감.
+     먹이는 흡입이 시작될 때만 몸이 물살 쪽으로 살짝 돌며(제자리 회전) 빨려 들어감.
+   - AquariumIngestion.cginc: 먹이가 입 축에서 벗어나 있어도 순간이동하지 않고 몸이 휘며 입으로 들어감.
+
+4) 물고기 변신 상태 포식: 입 더 크게 / 역동적 / 게걸스럽게 / 빠르게
+   - Fish0 입(Alien_Mouth_Open): 입구 반경 R17 대비 약 22% 크게 (.225→.275), 주름/뒤집힘 없음 확인.
+     먹이 반경 species.feedingMouthRadius .17 → .21.
+   - 타임라인 4.2초 → 2.4초: 0~0.22초 돌진하며 입이 확 벌어짐(몸 늘어남) → 0.30~0.88초 흡입
+     (입 주변을 축으로 머리를 좌우로 흔들고 펌프질) → 0.9초 입 닫힘(몸 찌그러짐) →
+     1.0~1.75초 우걱우걱 3번 씹기 + 꿀꺽 3번 부풂 → 2.4초까지 헤엄 자세로 복귀.
+
+5) 외계인 상태 포식 조금 더 빠르게
+   - 촉수 포식 전체를 1.32배속 (3.0초 → 2.3초). 클립은 그대로, AquariumFeeding.AlienPace로 재생 속도만 변경.
+
+6) 빨간 피 → 탁하고 짙은 보라색
+   - AquariumInkCloud ("eat" 효과): Pigment (.050,.014,.062), Edge (.215,.095,.250), 농도 ×1.45.
+   - 노란 잉크(변신 해제/동족/트림)는 그대로.
+
+7) 외계인 ↔ 물고기 변신 자연스럽게 (양방향 동일)
+   - 중간 형태에서 멈추지 않고 하나의 연속 이징으로 통과 (1.4초 → 1.25초).
+   - 시작 시 살짝 찌그러짐(예비동작) → 소용돌이처럼 비틀며 부풂 → 끝에 살짝 늘어났다 안착.
+
+8) 물고기 상태로 동족을 먹으면 안에서 난리치다 뱉어냄
+   - 새 동작 "AllyGulp": 물고기 모습 그대로 동족을 꿀꺽 → 1.05초부터 3초까지 몸이 불규칙하게
+     늘어났다 줄었다(갈수록 격해짐), 배가 불룩, 몸이 휙휙 꺾임 → 3초에 입을 크게 벌려 뱉음(물고기 SpitRecoil).
+   - 규칙 변경: 예전엔 동족을 먹는 순간 바로 외계인으로 드러났지만, 이제 물고기 상태로 먹은 경우
+     뱉은 뒤 0.75초에 외계인으로 드러남(노란 잉크와 함께 변신). 감점(-150), 경직, 변신 잠금은 그대로.
+     외계인 모습으로 위장한 동족을 먹은 경우는 예전과 같이 촉수 포식 + 즉시 노출.
+
+변경 파일 (Assets/Demos/HideAndSeek/)
+------------------------------------
+Scripts/AquariumModel.cs, Scripts/AquariumView.cs
+Characters/Runtime/AquariumCreature.cs, AquariumFeeding.cs, AquariumRig.cs, AquariumInkCloud.cs, AquariumIngestion.cginc
+Characters/Editor/AquariumCartoonImport.cs (Fish0 Bite/SpitRecoil 클립, 반경 .21)
+Characters/Editor/Fish0FeastR18.cs (신규: Fish0만 1회 재생성, 열린 씬 건드리지 않음)
+Characters/Editor/Fish0MawR17.cs (자동 실행 해제, 메뉴만 남김)
+ArtSources/Cartoon/Export/Fish0.cartoon, ArtSources/Cartoon/Tools/build_fish0_from_obj.py
+
+재생성 / 메뉴
+-------------
+Aquarium > Characters > Apply fish0 greedy gulp (R18)
+  - Fish0 메시/클립/종 반경만 다시 만듦. 외계인(cute monster)은 건드리지 않음.
+  - 주의: "Import approved cartoon models"(AquariumCartoonImport.Run)는 외계인을 문어로 덮어쓰므로 쓰지 말 것.
+
+조절 값
+-------
+AquariumModel: FishFeedingSeconds 2.4, TentacleFeedingSeconds 2.3, FishLungeReach 1.2, TentacleLungeReach .9,
+               LungeSeconds .45, GulpRevealDelay .75 (뱉은 뒤 노출까지)
+AquariumFeeding: AlignmentEnd/SuctionStart .30, SuctionEnd .88, FishMealVisible 1.05, AlienPace 1.32,
+                 HeadShake(머리 흔들기 세기), LungeSnap(돌진 시 먹이에 박히는 정도)
+AquariumCreature.Thrash: 동족이 안에서 난리치는 세기 (stretch .30, bulge .22)
+AquariumCreature.MorphBody: 변신 찌그러짐/비틀림(24도)/안착
+AquariumInkCloud: 보라 피 색/농도 (thick 1.45)
+
+검토 이미지: ArtSources/Cartoon/Review/R18_*.png
+백업(R17 상태): ArtSources/Cartoon/Source/BeforeR18_20261019/
+  - 되돌리기: 백업의 *.cs.txt 를 원래 위치에 .cs 로 복사, Fish0_R17.cartoon 을 Export/Fish0.cartoon 으로 복사 후
+    메뉴 "Apply fish0 wide maw (R17)" 실행.

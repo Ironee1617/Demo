@@ -345,9 +345,9 @@ namespace PrototypeLab.Aquarium
                 }
                 if(actor.creature!=null && !frozenPose)
                 {
-                    float actionLength=p.visualAction=="SpitRecoil"?AquariumModel.SpitAnimationSeconds:p.visualAction=="SpitOut"?AquariumModel.ReleaseKickSeconds:p.visualAction=="Bite"?AquariumModel.FishFeedingSeconds:p.visualAction=="TentacleEat"?AquariumModel.TentacleFeedingSeconds:2.4f;
+                    float actionLength=p.visualAction=="SpitRecoil"?AquariumModel.SpitAnimationSeconds:p.visualAction=="SpitOut"?AquariumModel.ReleaseKickSeconds:p.visualAction=="Bite"?AquariumModel.FishFeedingSeconds:p.visualAction=="TentacleEat"?AquariumModel.TentacleFeedingSeconds:p.visualAction=="AllyGulp"?AquariumModel.AllyStun+.2f:2.4f;
                     string motion=age<actionLength && !string.IsNullOrEmpty(p.visualAction)?p.visualAction:"Locomotion";
-                    if(motion=="Bite" && form<0)motion="TentacleEat";
+                    if((motion=="Bite" || motion=="AllyGulp") && form<0)motion="TentacleEat";
                     if(deathPose)motion=p.deathReason=="harpoon"?"Harpoon":"Eaten";
                     if(motion=="Bite" && form>=0 && age<AquariumFeeding.ReturnToFish)form+=100;
                     float poseTime=deathPose?Mathf.Min(visualTime,p.deathAt+2.4f):visualTime;
@@ -368,7 +368,7 @@ namespace PrototypeLab.Aquarium
             foreach(var p in state.players)
             {
                 float age=visualTime-p.visualAt;
-                if(p.swallowedBy==0 || age>=AquariumModel.SwallowVisualSeconds || state.phase==RoundPhase.Finished)continue;
+                if(p.swallowedBy==0 || age>=MealVisible(state,p.swallowedBy) || state.phase==RoundPhase.Finished)continue;
                 int capturedForm=p.swallowedSpecies;
                 var actor=Place(PlayerKey(p.id),capturedForm<0?"alien":FishKind(capturedForm),p.swallowedFrom,p.facing,dt,visualTime,false,state.time,renderAt);
                 actor.carried = true;
@@ -380,7 +380,7 @@ namespace PrototypeLab.Aquarium
             foreach (var f in state.fish)
             {
                 float age=visualTime-f.visualAt;
-                if(finished && (f.eaten || f.dead) || f.eaten && age>=AquariumModel.SwallowVisualSeconds)continue;
+                if(finished && (f.eaten || f.dead) || f.eaten && age>=MealVisible(state,f.eater))continue;
                 bool frozenPose=finished && actors.ContainsKey(FishKey(f.id));
                 var actor=Place(FishKey(f.id),FishKind(f.species),f.position,f.facing,dt,visualTime,f.dead && age>2.4f,state.time,renderAt);
                 if(frozenPose)continue;
@@ -447,6 +447,12 @@ namespace PrototypeLab.Aquarium
 
         }
 
+        // The meal is drawn until it is fully inside the eater's sealed mouth.
+        private static float MealVisible(AquariumSnapshot state,int eaterId)
+        {
+            foreach(var eater in state.players)if(eater.id==eaterId)return AquariumFeeding.MealVisibleSeconds(eater.visualAction);
+            return AquariumModel.SwallowVisualSeconds;
+        }
         private void IngestActor(Actor prey,Actor predator,float age)
         {
             if(predator.creature==null)return;

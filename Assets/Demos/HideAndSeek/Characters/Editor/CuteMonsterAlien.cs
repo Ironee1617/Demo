@@ -111,8 +111,127 @@ namespace PrototypeLab.Aquarium.Editor
                 foreach (var p in delta) { dv[p.Key] = p.Value.dp; dn[p.Key] = p.Value.dn; }
                 mesh.AddBlendShapeFrame(name, 100, dv, dn, null);
             }
+            // R19: the eyelid shell follows the eyeball it closes over (see EyelidFollowsEye).
+            var blink = d.shapes.Find(s => s.name == "Blink_100").delta;
+            if (blink != null)
+            {
+                var closed = new Vector3[n]; foreach (var p in blink) closed[p.Key] = p.Value.dp;
+                mesh.boneWeights = EyelidFollowsEye(d.pos, closed, d.weights, d.tri0.Concat(d.tri1).ToArray(), d.boneNames);
+            }
             mesh.RecalculateBounds(); mesh.RecalculateTangents();
             return SaveAsset(mesh, OutFolder + "/CuteMonster.asset");
+        }
+
+        // ================================================================ EYELID SKIN (R19)
+        // The eyelid shell rests inside the head and the Blink shapes slide it out over the
+        // eyeball. It used to be skinned like the head interior it rests in (Head_Top/Base),
+        // while the eyeball follows Eye under Head_Mid, so the jelly squash, the head sway and
+        // the bulges pushed the eye through the closing lid. Every lid vertex is now skinned
+        // like what it covers when closed: the eyeball (Head_Mid, plus a little gaze) and the
+        // socket skin at its rim. Lid and eye then share one transform and keep their gap.
+        public const float LidGaze = .35f;
+        public static BoneWeight[] EyelidFollowsEye(Vector3[] pos, Vector3[] closedDelta, BoneWeight[] weights, int[] triangles, string[] boneNames)
+        {
+            int n = pos.Length, nb = boneNames.Length; var result = (BoneWeight[])weights.Clone();
+            int eye = System.Array.IndexOf(boneNames, "Eye"), mid = System.Array.IndexOf(boneNames, "Head_Mid");
+            var lidIndex = new int[n]; var lids = new List<int>();
+            for (int i = 0; i < n; i++) { lidIndex[i] = -1; if (closedDelta[i].sqrMagnitude > 1e-10f) { lidIndex[i] = lids.Count; lids.Add(i); } }
+            if (lids.Count == 0 || eye < 0 || mid < 0) return result;
+            var bounds = new Bounds(pos[lids[0]] + closedDelta[lids[0]], Vector3.zero);
+            foreach (int i in lids) bounds.Encapsulate(pos[i] + closedDelta[i]);
+            bounds.Expand(.1f);
+            var targets = new List<int>();
+            for (int j = 0; j < n; j++) if (lidIndex[j] < 0 && bounds.Contains(pos[j])) targets.Add(j);
+            if (targets.Count == 0) return result;
+            // Inverse-distance blend of the 4 nearest surfaces under the closed lid.
+            var dense = new float[lids.Count, nb];
+            const int K = 4; var bestJ = new int[K]; var bestD = new float[K];
+            for (int l = 0; l < lids.Count; l++)
+            {
+                Vector3 c = pos[lids[l]] + closedDelta[lids[l]];
+                for (int k = 0; k < K; k++) { bestJ[k] = -1; bestD[k] = float.MaxValue; }
+                foreach (int j in targets)
+                {
+                    float dist = (pos[j] - c).sqrMagnitude; if (dist >= bestD[K - 1]) continue;
+                    int k = K - 1; while (k > 0 && bestD[k - 1] > dist) { bestD[k] = bestD[k - 1]; bestJ[k] = bestJ[k - 1]; k--; }
+                    bestD[k] = dist; bestJ[k] = j;
+                }
+                float total = 0;
+                for (int k = 0; k < K; k++)
+                {
+                    if (bestJ[k] < 0) continue; float w = 1 / (Mathf.Sqrt(bestD[k]) + .004f); w *= w; total += w;
+                    var bw = weights[bestJ[k]];
+                    dense[l, bw.boneIndex0] += bw.weight0 * w; dense[l, bw.boneIndex1] += bw.weight1 * w; dense[l, bw.boneIndex2] += bw.weight2 * w; dense[l, bw.boneIndex3] += bw.weight3 * w;
+                }
+                for (int b = 0; b < nb; b++) dense[l, b] /= total;
+                // The eyeball rolls with gaze inside the lid; the lid follows only a little of it.
+                float e = dense[l, eye]; dense[l, eye] = e * LidGaze; dense[l, mid] += e * (1 - LidGaze);
+            }
+            // Relax across the lid surface so the eyeball/skin hand-off has no seam.
+            var neighbours = new List<int>[lids.Count]; for (int l = 0; l < lids.Count; l++) neighbours[l] = new List<int>();
+            for (int t = 0; t + 2 < triangles.Length; t += 3)
+                for (int a = 0; a < 3; a++)
+                {
+                    int p = lidIndex[triangles[t + a]], q = lidIndex[triangles[t + (a + 1) % 3]];
+                    if (p >= 0 && q >= 0) { neighbours[p].Add(q); neighbours[q].Add(p); }
+                }
+            var next = new float[lids.Count, nb];
+            for (int pass = 0; pass < 4; pass++)
+            {
+                for (int l = 0; l < lids.Count; l++)
+                {
+                    int m = neighbours[l].Count;
+                    for (int b = 0; b < nb; b++) { float sum = 0; foreach (int q in neighbours[l]) sum += dense[q, b]; next[l, b] = m == 0 ? dense[l, b] : .5f * dense[l, b] + .5f * sum / m; }
+                }
+                var swap = dense; dense = next; next = swap;
+            }
+            // Split vertices (normal / UV seams) share one weight set, so the shell never cracks.
+            var groups = new Dictionary<Vector3Int, List<int>>();
+            for (int l = 0; l < lids.Count; l++)
+            {
+                var p = pos[lids[l]]; var key = new Vector3Int(Mathf.RoundToInt(p.x * 1e5f), Mathf.RoundToInt(p.y * 1e5f), Mathf.RoundToInt(p.z * 1e5f));
+                if (!groups.TryGetValue(key, out var g)) groups[key] = g = new List<int>(); g.Add(l);
+            }
+            var shared = new float[nb];
+            foreach (var g in groups.Values)
+            {
+                for (int b = 0; b < nb; b++) { float sum = 0; foreach (int l in g) sum += dense[l, b]; shared[b] = sum / g.Count; }
+                var top = TopFour(shared);
+                foreach (int l in g) result[lids[l]] = top;
+            }
+            return result;
+        }
+        static BoneWeight TopFour(float[] w)
+        {
+            var idx = new int[4]; var val = new float[4];
+            for (int b = 0; b < w.Length; b++)
+            {
+                float x = w[b]; if (x <= val[3]) continue;
+                int k = 3; while (k > 0 && val[k - 1] < x) { val[k] = val[k - 1]; idx[k] = idx[k - 1]; k--; }
+                val[k] = x; idx[k] = b;
+            }
+            float s = val[0] + val[1] + val[2] + val[3]; if (s <= 0) s = 1;
+            return new BoneWeight { boneIndex0 = idx[0], weight0 = val[0] / s, boneIndex1 = idx[1], weight1 = val[1] / s, boneIndex2 = idx[2], weight2 = val[2] / s, boneIndex3 = idx[3], weight3 = val[3] / s };
+        }
+        // Re-skins the eyelid of the existing alien mesh in place (prefab, clips and springs untouched).
+        [MenuItem("Aquarium/Characters/Fix cute monster eyelid skinning (R19)")]
+        public static void FixEyelids()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath); var rig = prefab != null ? prefab.GetComponent<AquariumRig>() : null;
+            if (rig == null || rig.skin == null || !rig.skin.sharedMesh.name.StartsWith("CuteMonster")) { Debug.LogWarning("Cute monster alien not found"); return; }
+            var mesh = rig.skin.sharedMesh; int key = mesh.GetBlendShapeIndex("Blink_100"); if (key < 0) { Debug.LogWarning("No Blink_100"); return; }
+            var closed = new Vector3[mesh.vertexCount]; mesh.GetBlendShapeFrameVertices(key, 0, closed, null, null);
+            var before = mesh.boneWeights; var after = EyelidFollowsEye(mesh.vertices, closed, before, mesh.triangles, rig.skin.bones.Select(b => b.name).ToArray());
+            int changed = 0;
+            for (int i = 0; i < before.Length; i++)
+            {
+                var a = before[i]; var b = after[i];
+                if (a.boneIndex0 != b.boneIndex0 || a.boneIndex1 != b.boneIndex1 || a.boneIndex2 != b.boneIndex2 || a.boneIndex3 != b.boneIndex3
+                    || Mathf.Abs(a.weight0 - b.weight0) > 1e-4f || Mathf.Abs(a.weight1 - b.weight1) > 1e-4f || Mathf.Abs(a.weight2 - b.weight2) > 1e-4f || Mathf.Abs(a.weight3 - b.weight3) > 1e-4f) changed++;
+            }
+            if (changed == 0) { Debug.Log("CUTE_MONSTER_EYELID_OK (already follows the eye)"); return; }
+            mesh.boneWeights = after; EditorUtility.SetDirty(mesh); AssetDatabase.SaveAssets();
+            Debug.Log("CUTE_MONSTER_EYELID_FIXED " + changed + " vertices");
         }
 
         [MenuItem("Aquarium/Characters/Apply cute monster alien")]

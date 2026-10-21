@@ -18,4 +18,4 @@ MonoBehaviour:
   closedFeeding: {fileID: 8886805995010208783, guid: 029fa9c3b54610142b64dcc709247f7e, type: 3}
   tint: {r: 0.91, g: 0.96, b: 1, a: 1}
   mouth: {x: 0, y: 0, z: 0.48}
-  feedingMouthRadius: 0.17
+  feedingMouthRadius: 0.21

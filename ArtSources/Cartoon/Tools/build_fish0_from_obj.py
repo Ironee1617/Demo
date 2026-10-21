@@ -126,7 +126,7 @@ mo = names.index('Alien_Mouth_Open')
 nc = np.array([new_snout[0], new_snout[1]])
 rel = P[:, :2] - nc
 nr = np.linalg.norm(rel, axis=1)
-gr = np.interp(nr, [0, .03, .10, .20, .30, .46], [0, .225, .29, .335, .37, .46])   # wider maw (R17)
+gr = np.interp(nr, [0, .03, .10, .20, .30, .46], [0, .275, .34, .38, .405, .47])   # greedy maw (R18; R17 was .225/.29/.335/.37/.46)
 zf = P[:, 2].max()
 zz = np.clip((P[:, 2] - .35) / (.50 - .35), 0, 1)
 wz = zz * zz * (3 - 2 * zz)
@@ -142,7 +142,7 @@ dd = np.clip(((zf - P[:, 2]) - .006) / (.035 - .006), 0, 1)
 inner = hh * hh * (3 - 2 * hh) * dd * dd * (3 - 2 * dd)
 mouth_delta = np.zeros_like(P)
 mouth_delta[:, :2] = rel * (scale - 1)[:, None]
-mouth_delta[:, 2] = -.16 * inner * wz
+mouth_delta[:, 2] = -.12 * inner * wz   # R18: shallower funnel keeps the huge maw fold-free (R17 -.16)
 eye_c = np.array([[0.218, -0.04, 0.27], [-0.218, -0.04, 0.27]])
 ed = np.min(np.linalg.norm(P[:, None, :] - eye_c[None], axis=2), axis=1)
 ee = np.clip((ed - .13) / (.24 - .13), 0, 1)

@@ -64,9 +64,11 @@ namespace PrototypeLab.Aquarium
             float fade=Mathf.SmoothStep(0,1,Mathf.InverseLerp(duration*.36f,duration,age));
             // Keep the held body and the leading end leaving the lip readable.
             float visibility=capture?.30f:oralJet?.75f:1;
-            properties.SetFloat("_Density",Mathf.SmoothStep(0,1,age/.14f)*1.65f*Mathf.Exp(-drift*.33f)*(1-fade)*visibility);
-            properties.SetColor("_Pigment",yellow?new Color(.68f,.31f,.008f):new Color(.13f,.0015f,.008f));
-            properties.SetColor("_EdgeTint",yellow?new Color(.98f,.73f,.045f):new Color(.48f,.010f,.027f));
+            // R18: the meal's blood is a dense, murky dark purple instead of red.
+            float thick=yellow?1:1.45f;
+            properties.SetFloat("_Density",Mathf.SmoothStep(0,1,age/.14f)*1.65f*thick*Mathf.Exp(-drift*.33f)*(1-fade)*visibility);
+            properties.SetColor("_Pigment",yellow?new Color(.68f,.31f,.008f):new Color(.050f,.014f,.062f));
+            properties.SetColor("_EdgeTint",yellow?new Color(.98f,.73f,.045f):new Color(.215f,.095f,.250f));
             volume.SetPropertyBlock(properties);
         }
 

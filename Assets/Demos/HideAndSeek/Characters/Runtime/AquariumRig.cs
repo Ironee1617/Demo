@@ -83,8 +83,37 @@ namespace PrototypeLab.Aquarium
                 b.localRotation=Quaternion.Slerp(idleRotations[i],b.localRotation,weight);b.localScale=Vector3.Lerp(idleScales[i],b.localScale,weight);
             }
             for(int i=1;i<idleShapes.Length;i++)skin.SetBlendShapeWeight(i,Mathf.Lerp(idleShapes[i],skin.GetBlendShapeWeight(i),weight));
-            if(cartoonKind=="Alien"){SetStreamAmount(weight);LimitWaveFrames(weight);}
+            if(cartoonKind=="Alien"){SetStreamAmount(weight);LimitWaveFrames(weight);AutoBlink(now);}
             FinishTransition(now);
+        }
+        // R18: the alien blinks on its own while idling and swimming. Irregular
+        // intervals (2-5 s) with an occasional double blink; quick close, slower open.
+        private int[] blinkKeys;
+        private System.Random blinkRandom;
+        private float blinkStart=-10,nextBlink=-1,blinkClock;
+        private bool blinkTwice;
+        private void AutoBlink(float now)
+        {
+            if(blinkKeys==null)
+            {
+                blinkKeys=new int[12];
+                for(int i=1;i<=12;i++)blinkKeys[i-1]=skin.sharedMesh.GetBlendShapeIndex(i%3==0?"Blink_"+(i*100/12):"BlinkStep_"+i.ToString("00"));
+                if(System.Array.IndexOf(blinkKeys,-1)>=0)blinkKeys=new int[0];
+            }
+            if(blinkKeys.Length==0)return;
+            if(blinkRandom==null)blinkRandom=new System.Random(GetInstanceID());
+            if(nextBlink<0 || now<blinkClock-.5f || now>nextBlink+10){nextBlink=now+.8f+(float)blinkRandom.NextDouble()*2.4f;blinkStart=-10;}
+            blinkClock=now;
+            if(now>=nextBlink)
+            {
+                blinkStart=now;
+                blinkTwice=!blinkTwice && blinkRandom.NextDouble()<.2;
+                nextBlink=now+(blinkTwice?.34f:2.0f+(float)blinkRandom.NextDouble()*3.0f);
+            }
+            float t=now-blinkStart;
+            float b=t<0||t>.27f?0:t<.07f?Mathf.SmoothStep(0,1,t/.07f):t<.11f?1:Mathf.SmoothStep(1,0,(t-.11f)/.16f);
+            for(int i=0;i<12;i++)
+                skin.SetBlendShapeWeight(blinkKeys[i],100*(i==11?Mathf.Clamp01(b*12-11):Mathf.Max(0,1-Mathf.Abs(b*12-(i+1)))));
         }
         public AnimationClip Clip(string name) { foreach(var c in clips) if(c.name==name || c.name.EndsWith("_"+name))return c; throw new System.InvalidOperationException("Missing clip "+name); }
         public void SamplePose(string name,float time,float now)

@@ -3,10 +3,22 @@ namespace PrototypeLab.Aquarium
 {
     public static class AquariumFeeding
     {
-        public const float AlignmentEnd=.62f, SuctionStart=.66f, SuctionEnd=1.62f;
-        public const float MouthClosed=2.20f, ReturnToFish=2.45f, ChewStart=3.10f;
-        public const float ClosingSilhouette=1.85f;
+        // R18 fish disguise: a fast, greedy gulp. The carrier turns and lunges onto a
+        // meal that stays where it was caught, sucks it in within ~0.6 s, then chomps.
+        public const float AlignmentEnd=.30f, SuctionStart=.30f, SuctionEnd=.88f;
+        public const float MouthClosed=1.00f, ReturnToFish=1.40f, ChewStart=1.02f;
+        public const float ClosingSilhouette=.95f;
+        // The meal is fully inside the sealed mouth; it is no longer drawn after this.
+        public const float FishMealVisible=1.05f;
+        // R18 alien form: the authored 3 s tentacle meal plays AlienPace times faster.
+        // Alignment/suction constants below are in authored clip time.
+        public const float AlienPace=1.32f;
         public const float AlienAlignmentEnd=.45f, AlienSuctionStart=1.18f, AlienSuctionEnd=1.98f, ExpulsionEnd=.90f;
+        public const float AlienMealVisible=1.85f;
+        // The carrier glides from its meal pose back onto its authoritative body.
+        public const float MealSettle=.42f;
+        public static float MealVisibleSeconds(string eaterAction)=>eaterAction=="TentacleEat"?AlienMealVisible:eaterAction=="Bite"||eaterAction=="AllyGulp"?FishMealVisible:AquariumModel.SwallowVisualSeconds;
+        public static float AlienClock(float age)=>age*AlienPace;
         public static float AlienPull(float age)=>Mathf.SmoothStep(0,1,Mathf.InverseLerp(.72f,1.20f,age));
         public static float AlienSuction(float age)=>Mathf.Clamp01((age-AlienSuctionStart)/(AlienSuctionEnd-AlienSuctionStart));
         // Give the carrier time to turn in place and approach. Match velocity at
@@ -21,20 +33,28 @@ namespace PrototypeLab.Aquarium
         {float t2=t*t,t3=t2*t;return (2*t3-3*t2+1)*a+(t3-2*t2+t)*da+(-2*t3+3*t2)*b+(t3-t2)*db;}
 
         public static float Suction(float age)=>Mathf.Clamp01((age-SuctionStart)/(SuctionEnd-SuctionStart));
-        // Move outside the predator first, turn on a clear orbit, then approach
-        // the front staging point. A rear meal never cuts across the torso.
+        // Fish lunge: closes the gap, snaps a little past it into the meal, then holds.
+        public static float Lunge(float age)=>Mathf.SmoothStep(0,1,Mathf.InverseLerp(.02f,.22f,age));
+        public static float LungeSnap(float age)=>Mathf.Sin(Mathf.PI*Mathf.Clamp01((age-.12f)/.30f));
+        // Greedy head shake while the meal is drawn in (radians of yaw, around the lips).
+        public static float HeadShake(float age)
+        {
+            float envelope=Mathf.SmoothStep(0,1,Mathf.InverseLerp(SuctionStart+.04f,SuctionStart+.16f,age))*(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(SuctionEnd-.14f,SuctionEnd+.04f,age)));
+            return envelope*(Mathf.Sin((age-SuctionStart)*Mathf.PI*2*4.2f)*.13f+Mathf.Sin((age-SuctionStart)*Mathf.PI*2*7.1f)*.04f);
+        }
+        // Legacy staging path (kept for QA tools). Meals are no longer moved to the mouth.
         public static Vector3 StagePoint(Vector3 source,Vector3 throat,Vector3 forward,Vector3 up,float distance,float clearance,float age)
         {
             forward=forward.normalized;Vector3 delta=source-throat;float start=delta.magnitude;
             Vector3 from=start>.00001f?delta/start:forward;
             float angle=Vector3.Angle(from,forward)*Mathf.Deg2Rad;
             float orbit=Mathf.Max(start,distance,clearance*Mathf.SmoothStep(0,1,Mathf.InverseLerp(.20f,.70f,angle)));
-            float turn=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.12f,.48f,age));
+            float turn=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.06f,.24f,age));
             Vector3 normal=Vector3.Cross(from,forward);
             if(normal.sqrMagnitude<.000001f)normal=Mathf.Abs(Vector3.Dot(from,up.normalized))<.95f?up-from*Vector3.Dot(up,from):Vector3.Cross(from,Vector3.right);
             Vector3 direction=Quaternion.AngleAxis(angle*Mathf.Rad2Deg*turn,normal.normalized)*from;
-            float radius=Mathf.Lerp(start,orbit,Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,.12f,age)));
-            radius=Mathf.Lerp(radius,distance,Mathf.SmoothStep(0,1,Mathf.InverseLerp(.48f,AlignmentEnd,age)));
+            float radius=Mathf.Lerp(start,orbit,Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,.06f,age)));
+            radius=Mathf.Lerp(radius,distance,Mathf.SmoothStep(0,1,Mathf.InverseLerp(.22f,AlignmentEnd,age)));
             if(age>=AlignmentEnd)return throat+forward*distance;
             return throat+direction*radius;
         }
@@ -49,6 +69,9 @@ namespace PrototypeLab.Aquarium
             float section=distance+axial-travel;
             Vector3 centre=mouth+axis*Mathf.Max(sealedCavity?.012f:-.06f,section);
             Vector3 radial=delta-axis*axial;depth=Mathf.Max(.06f,depth);
+            Vector3 lateral=(origin-mouth)-axis*distance;
+            float keep=Mathf.Lerp(1,Mathf.SmoothStep(0,1,Mathf.Clamp01((section-depth*.5f)/(.55f+depth))),Mathf.SmoothStep(0,1,Mathf.Clamp01(progress/.25f)));
+            centre+=lateral*keep;
             float limit=radius*(sealedCavity?.97f:1)+Mathf.Max(0,section-depth)*(sealedCavity?.52f:1.15f);
             float ratio=radial.magnitude/Mathf.Max(.001f,limit);
             float fit=Mathf.Pow(1+Mathf.Pow(Mathf.Min(ratio,100),8),-1f/8);

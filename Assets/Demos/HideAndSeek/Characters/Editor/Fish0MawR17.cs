@@ -12,7 +12,7 @@ namespace PrototypeLab.Aquarium.Editor
     // Rebuilds only Fish0 from ArtSources/Cartoon/Export once (the open scene is
     // not touched: work happens in a temporary additive scene). Waits for Edit mode.
     // Menu: Aquarium > Characters > Apply fish0 wide maw (R17)
-    [InitializeOnLoad]
+    // Superseded by Fish0FeastR18 (auto-apply moved there; this stays as a manual menu).
     public static class Fish0MawR17
     {
         const string Characters = "Assets/Demos/HideAndSeek/Characters/Resources/AquariumCharacters";
@@ -21,7 +21,6 @@ namespace PrototypeLab.Aquarium.Editor
         static string Export => Path.GetFullPath(Path.Combine(Application.dataPath, "../ArtSources/Cartoon/Export"));
         static string Marker => Path.Combine(Export, "Fish0.r17.applied");
 
-        static Fish0MawR17() { EditorApplication.delayCall += TryAuto; }
 
         static string Stamp()
         {

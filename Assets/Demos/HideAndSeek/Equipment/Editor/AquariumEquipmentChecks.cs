@@ -21,8 +21,8 @@ namespace PrototypeLab.Aquarium.Editor
             var prefab = Resources.Load<GameObject>("AquariumEquipment/Diver"); Require(prefab != null, "diver prefab");
             var rig = UnityEngine.Object.Instantiate(prefab).GetComponent<AquariumRig>();
             Require(rig.skin.bones.Length == 17 && rig.clips.Length >= 6, "diver rig with separate flexible fin tips and gameplay clips");
-            Require(rig.skin.sharedMesh.triangles.Length / 3 < 55000, "diver topology budget");
-            Require(rig.skin.sharedMaterials.Length == 2 && rig.skin.sharedMesh.subMeshCount == 2, "painted character atlas and clear lens");
+            Require(rig.skin.sharedMesh.triangles.Length / 3 < 70000, "diver topology budget (subdivided for smooth fins)");
+            Require(rig.skin.sharedMaterials.Length >= 1 && rig.skin.sharedMaterials.Length == rig.skin.sharedMesh.subMeshCount, "painted character atlas (matte face, no lens glints)");
             foreach (var material in rig.skin.sharedMaterials) Require(material != null && (material.shader.name == "Aquarium/Cartoon Character" || material.shader.name == "Standard"), "cartoon material shader available");
             foreach (var w in rig.skin.sharedMesh.boneWeights) Require(Mathf.Abs(w.weight0 + w.weight1 + w.weight2 + w.weight3 - 1) < .001f, "normalized skin weights");
             foreach (var clip in rig.clips)
@@ -51,7 +51,8 @@ namespace PrototypeLab.Aquarium.Editor
             var camera = new AquariumThirdPersonCamera(view.Camera); var state = model.Snapshot();
             view.Draw(state, 2, .0333f); view.Camera.transform.position = new Vector3(4.8f, 9.8f, 7); view.Camera.transform.LookAt(new Vector3(2.3f, 9, 4)); view.Camera.fieldOfView = 42;
             view.PresentEquipment(state, 0, false); Capture(view.Camera, rt, Path.Combine(output, "Diver-in-aquarium.png"));
-            view.Camera.transform.position = new Vector3(3.35f, 8.95f, 4.7f); view.Camera.transform.LookAt(new Vector3(2.65f, 8.82f, 4.65f)); view.Camera.fieldOfView = 40;
+            var heldGun = parent.GetComponentsInChildren<AquariumHarpoonGun>().First(); var gripAt = heldGun.transform.position + heldGun.transform.up * .12f;
+            view.Camera.transform.position = gripAt + new Vector3(.85f, .32f, -.42f); view.Camera.transform.LookAt(gripAt); view.Camera.fieldOfView = 40;
             Capture(view.Camera, rt, Path.Combine(output, "Trigger-grip.png"));
             camera.Prepare(state, 2, 0); camera.UpdatePose(state, view, 1); view.PresentEquipment(state, 2, true);
             Capture(view.Camera, rt, Path.Combine(output, "FPS-ready.png"));
@@ -79,7 +80,7 @@ namespace PrototypeLab.Aquarium.Editor
             Require(outbound && returned && ropeFrames > 80 && model.Harpoons.Count == 0 && fpsGun.loadedHarpoon.gameObject.activeSelf, "complete flight, reel and reload");
             view.PresentEquipment(state, 1, false); Require(!view.Camera.GetComponentsInChildren<AquariumHarpoonGun>().Any(), "equipment hidden for alien view");
             view.Camera.targetTexture = null; view.Dispose(); UnityEngine.Object.DestroyImmediate(parent); rt.Release(); UnityEngine.Object.DestroyImmediate(rt);
-            File.WriteAllText(Path.Combine(output, "validation.txt"), "Original character holding hand extracted into an 8-bone first-person rig; original HarpoonGun; all first-person clips retain edge lengths within 4 percent of the source shape; actual baked-skin camera review; lower-right muzzle; serialized host-authoritative flight/retrieval; " + ropeFrames + " tether frames; no duplicated loaded spear; 3-second reload; hider camera hides FPS weapon.");
+            File.WriteAllText(Path.Combine(output, "validation.txt"), "Painted diver's own gun arm (curled grip) posed in camera space as an 8-bone first-person rig; HarpoonGun with a separate firing spear; all first-person clips retain edge lengths within 4 percent of the source shape; actual baked-skin camera review; lower-right muzzle; serialized host-authoritative flight/retrieval; " + ropeFrames + " tether frames; no duplicated loaded spear; 3-second reload; hider camera hides FPS weapon.");
             Debug.Log("AQUARIUM_EQUIPMENT_CHECKS_OK ropeFrames=" + ropeFrames);
         }
         static void CheckFirstPersonHands()

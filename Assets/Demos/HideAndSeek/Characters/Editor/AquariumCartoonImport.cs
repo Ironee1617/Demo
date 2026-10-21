@@ -94,6 +94,7 @@ namespace PrototypeLab.Aquarium.Editor
         static void Reset(AquariumRig r)
         {for(int i=0;i<r.Bones.Length;i++){r.Bones[i].localPosition=r.restPositions[i];r.Bones[i].localRotation=r.restRotations[i];r.Bones[i].localScale=r.restScales[i];}for(int i=0;i<r.skin.sharedMesh.blendShapeCount;i++)r.skin.SetBlendShapeWeight(i,0);}
         static float S(float a,float b,float t)=>Mathf.SmoothStep(0,1,Mathf.InverseLerp(a,b,t));
+        static float Bump(float t,float a,float b)=>Mathf.Sin(Mathf.PI*Mathf.Clamp01((t-a)/(b-a)));
         static void Shape(AquariumRig r,string name,float value){int k=r.skin.sharedMesh.GetBlendShapeIndex(name);if(k>=0)r.skin.SetBlendShapeWeight(k,value*100);}
         static void CorrectProneNormals(AquariumRig rig,Data d)
         {
@@ -172,8 +173,28 @@ namespace PrototypeLab.Aquarium.Editor
             if(d.kind=="Fish")
             {
                 float amplitude=idle?.25f:1;Shape(r,"Swim_Left",Mathf.Max(0,wave)*amplitude);Shape(r,"Swim_Right",Mathf.Max(0,-wave)*amplitude);Shape(r,"Fin_Up",Mathf.Max(0,wave)*.65f);Shape(r,"Fin_Down",Mathf.Max(0,-wave)*.65f);
-                if(eat){Shape(r,"Alien_Mouth_Open",S(0,.52f,t)*(1-S(1.65f,2.2f,t)));Shape(r,"Swallow",S(.95f,1.45f,t)*(1-S(2.1f,2.8f,t)));}
                 body.localRotation=Quaternion.Euler(0,wave*(idle?1:2.5f),Mathf.Cos(t*5.236f)*1.2f);
+                if(eat)
+                {
+                    // R18 greedy gulp, locked to AquariumFeeding: the maw snaps wide during the
+                    // lunge (0-.22 s), holds through the violent suction (.30-.88 s), slams shut
+                    // with a gulp, then three greedy chomps with swallowing bulges; settles by 2.4 s.
+                    float gape=S(0,.14f,t)*(1-S(.86f,.95f,t));
+                    float chew=t>1.0f?Mathf.Max(0,Mathf.Sin((t-1.0f)*Mathf.PI*2/.25f))*(1-S(1.50f,1.75f,t))*.55f:0;
+                    Shape(r,"Alien_Mouth_Open",Mathf.Max(gape,chew));
+                    float gulp=Mathf.Min(1,S(.80f,.96f,t)*(1-S(1.02f,1.22f,t))+.8f*Bump(t,1.18f,1.45f)+.6f*Bump(t,1.45f,1.72f)+.4f*Bump(t,1.70f,2.0f));
+                    Shape(r,"Swallow",gulp);
+                    // Frantic tail and fins while feeding, easing back into the swim.
+                    float beat=Mathf.Sin(t*Mathf.PI*2/.42f),flap=Mathf.Sin(t*Mathf.PI*2/.30f),settle=S(1.9f,2.4f,t);
+                    Shape(r,"Swim_Left",Mathf.Lerp(Mathf.Max(0,beat)*.8f,Mathf.Max(0,wave),settle));Shape(r,"Swim_Right",Mathf.Lerp(Mathf.Max(0,-beat)*.8f,Mathf.Max(0,-wave),settle));
+                    Shape(r,"Fin_Up",Mathf.Lerp(Mathf.Max(0,flap),Mathf.Max(0,wave)*.65f,settle));Shape(r,"Fin_Down",Mathf.Lerp(Mathf.Max(0,-flap),Mathf.Max(0,-wave)*.65f,settle));
+                    // Stretch into the lunge, squash on impact and on the slam, swell with each gulp.
+                    float lunge=Bump(t,0,.24f),impact=Bump(t,.20f,.42f),slam=Bump(t,.86f,1.02f),swell=.06f*gulp;
+                    body.localScale=new Vector3(1-.05f*lunge+.05f*impact+.05f*slam+swell,1-.05f*lunge+.04f*impact+.04f*slam+swell*.8f,1+.12f*lunge-.08f*impact-.07f*slam);
+                    // No yaw while the meal is aimed; nod with each chomp afterwards.
+                    float nod=t>1.0f?Mathf.Sin((t-1.0f)*Mathf.PI*2/.25f)*(1-S(1.5f,1.8f,t))*5:0;
+                    body.localRotation=Quaternion.Slerp(Quaternion.Euler(nod-4*slam,0,0),Quaternion.Euler(0,wave*2.5f,Mathf.Cos(t*5.236f)*1.2f),settle);
+                }
             }
             else
             {
@@ -236,7 +257,13 @@ namespace PrototypeLab.Aquarium.Editor
                     b.rotation=body.rotation*Quaternion.FromToRotation(rest,direction);
                 }
             }
-            if(clip=="SpitRecoil" && d.kind=="Fish"){float k=(1-S(0,1.1f,t));body.localRotation*=Quaternion.Euler(-14*k,0,6*k);body.localScale=new Vector3(1+.035f*k,1-.02f*k,1-.04f*k);}
+            if(clip=="SpitRecoil" && d.kind=="Fish")
+            {
+                // R18: the swallowed ally is forced out of the wide maw. Heave, gape, recoil.
+                float k=(1-S(0,1.1f,t)),heave=Bump(t,0,.16f);
+                body.localRotation*=Quaternion.Euler(-14*k,0,6*k);body.localScale=new Vector3(1+.035f*k+.10f*heave,1-.02f*k+.08f*heave,1-.04f*k-.06f*heave);
+                Shape(r,"Alien_Mouth_Open",S(0,.07f,t)*(1-S(.50f,.80f,t)));Shape(r,"Swallow",S(0,.04f,t)*(1-S(.10f,.28f,t)));
+            }
             if(dead){float settle=S(.25f,2.1f,t);body.localRotation=Quaternion.Euler(0,0,clip=="Harpoon"?180*settle:12*wave*(1-settle));for(int i=0;i<r.skin.sharedMesh.blendShapeCount;i++)r.skin.SetBlendShapeWeight(i,r.skin.GetBlendShapeWeight(i)*(1-settle));}
             if(clip=="Morph"||clip=="Unmorph")r.SetCartoonFold(clip=="Morph"?S(0,1.4f,t):1-S(0,1.4f,t));
         }
@@ -274,10 +301,10 @@ namespace PrototypeLab.Aquarium.Editor
             if(string.IsNullOrEmpty(Source))throw new Exception("Set AQUARIUM_CARTOON_SOURCE");
             foreach(string name in new[]{"Alien","Fish0","Diver","DiverHands"}){var rig=Rig(Load(name),name.StartsWith("Diver")?Equipment:Characters);UnityEngine.Object.DestroyImmediate(rig.gameObject);}
             Gun("HarpoonGun");var fish=AssetDatabase.LoadAssetAtPath<GameObject>(Characters+"/Fish0.prefab");
-            foreach(var species in Resources.LoadAll<AquariumSpecies>("AquariumCharacters")){species.normal=fish;species.feeding=fish;species.closedFeeding=fish;species.feedingMouthRadius=.17f;species.tint=species.speciesId==0?Color.white:species.speciesId==1?new Color(.91f,.96f,1):new Color(1,.94f,.98f);EditorUtility.SetDirty(species);}
+            foreach(var species in Resources.LoadAll<AquariumSpecies>("AquariumCharacters")){species.normal=fish;species.feeding=fish;species.closedFeeding=fish;species.feedingMouthRadius=.21f;species.tint=species.speciesId==0?Color.white:species.speciesId==1?new Color(.91f,.96f,1):new Color(1,.94f,.98f);EditorUtility.SetDirty(species);}
             AssetDatabase.SaveAssets();RemoveObsolete();AssetDatabase.SaveAssets();AssetDatabase.Refresh();
             // Hand-keyed octopus Swim/TentacleEat/Bite replace the generated alien slots (see AlienOctopusAnimation).
-            AlienOctopusAnimation.Apply();Debug.Log("CARTOON_IMPORT_OK");
+            AlienOctopusAnimation.Apply();DiverHarpoon.Apply();Debug.Log("CARTOON_IMPORT_OK");
         }
         static void RemoveObsolete()
         {

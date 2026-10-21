@@ -54,15 +54,13 @@ namespace PrototypeLab.Aquarium
             overlay.targetTexture = world.targetTexture;
             float time = state.time, firedAt = player.nextAction - AquariumModel.HarpoonCooldown;
             float age = time - firedAt;
-            float recoil = age >= 0 && age < .5f ? Mathf.Sin(Mathf.Clamp01(age / .06f) * Mathf.PI * .5f) * Mathf.Exp(-age * 12) : 0;
-            float movement = Mathf.Clamp01(speed / 4.7f);
-            float bob = Mathf.Sin(time * 5) * .004f * movement;
-            float recovering = age > .3f && time < player.nextAction ? Mathf.Sin(Mathf.PI * Mathf.InverseLerp(.3f, AquariumModel.HarpoonCooldown, age)) : 0;
-            // Place the original character wrist below the viewport's lower edge.
-            pivot.localPosition = new Vector3(.065f + bob, -.20f - recovering * .025f + Mathf.Cos(time * 3.2f) * .002f, .18f - recoil * .07f);
-            pivot.localRotation = Quaternion.Euler(-recoil * 7 + recovering * 2, bob * 70, -recovering * 2);
-            pivot.localScale = Vector3.one * .72f;
-            hands.SamplePose(hands.cartoon ? "FPSIdle" : "Idle", time, time);
+            // The DiverHands rig is authored in camera space (the diver's own gun arm holding the
+            // harpoon gun in the lower right). Recoil, reel-in and the lock snap are keyed in its
+            // FPSFire / FPSReload clips; idle breathing and the swim sway blend by speed.
+            pivot.localPosition = Vector3.zero; pivot.localRotation = Quaternion.identity; pivot.localScale = Vector3.one;
+            if (hands.cartoon && age >= 0 && age < .5f) hands.SamplePose("FPSFire", age, time);
+            else if (hands.cartoon && age >= .5f && time < player.nextAction) hands.SamplePose("FPSReload", age, time);
+            else hands.SampleLocomotion(speed, time);
             gun.SetLoaded(time >= player.nextAction);
         }
 

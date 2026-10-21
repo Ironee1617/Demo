@@ -182,7 +182,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7674458116098210739}
   - component: {fileID: 333052029761725662}
-  - component: {fileID: 7794627763460163437}
+  - component: {fileID: 2026179582316104952}
   m_Layer: 0
   m_Name: Fish0
   m_TagString: Untagged
@@ -248,7 +248,7 @@ MonoBehaviour:
   restRotations:
   - {x: 0, y: 0, z: 0, w: 1}
   - {x: 0, y: 0, z: 0, w: 1}
---- !u!114 &7794627763460163437
+--- !u!114 &2026179582316104952
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
