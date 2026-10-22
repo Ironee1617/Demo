@@ -175,6 +175,13 @@ namespace PrototypeLab.Roguelike
             Texture texture = sprite != null && sprite.sprite != null ? sprite.sprite.texture : r.sharedMaterial != null ? r.sharedMaterial.mainTexture : null;
             return texture != null && texture.filterMode == FilterMode.Point;
         }
+        // Combat effects are generated at 128 pixels per unit with trilinear filtering; pixel-art actors stay point filtered.
+        private static bool HighResolution(Renderer r)
+        {
+            var sprite = r as SpriteRenderer;
+            Texture texture = sprite != null && sprite.sprite != null ? sprite.sprite.texture : r.sharedMaterial != null ? r.sharedMaterial.mainTexture : null;
+            return texture != null && texture.filterMode != FilterMode.Point && Mathf.Min(texture.width, texture.height) >= 32 && Mathf.Max(texture.width, texture.height) >= 64;
+        }
         private void VerifyAfterimage(TowerActorArt art)
         {
             var service = TowerVfx.Create(gallery); service.Afterimage(art.transform, .25f);
@@ -216,7 +223,7 @@ namespace PrototypeLab.Roguelike
                 var color = (Color)colorMethod.Invoke(game, new object[] { effects[i] });
                 services[i].Impact(effects[i], positions[i], 1.4f, color); services[i].Tick(.08f);
                 Require(Visible(roots[i]) > 0, "Invisible Impact VFX: " + effects[i]);
-                foreach (var r in roots[i].GetComponentsInChildren<Renderer>()) Require(PointFiltered(r), "VFX texture lost point filtering.");
+                foreach (var r in roots[i].GetComponentsInChildren<Renderer>()) Require(HighResolution(r), "VFX texture is not a filtered high-resolution sprite: " + r.name);
                 report.effectChecks.Add(effects[i] + ": Cast visible / Tick animated / Impact visible");
             }
             title = "실제 스킬 VFX · 충돌 단계 16종"; yield return Capture("effects-impact");
@@ -242,11 +249,11 @@ namespace PrototypeLab.Roguelike
             var style = new GUIStyle { font = font, fontSize = 25, wordWrap = true }; style.normal.textColor = new Color(.85f, .9f, .92f);
             GUI.Label(new Rect(18, 10, 1540, 42), title, style); style.fontSize = 15;
             for (int i = 0; i < labels.Count; i++) GUI.Label(labelRects[i], labels[i], style);
-            style.fontSize = 12; GUI.Label(new Rect(18, 878, 1540, 20), "Production animation and VFX / Pixel humanoids / Point filtering", style);
+            style.fontSize = 12; GUI.Label(new Rect(18, 878, 1540, 20), "Production animation and VFX / Pixel humanoids / High-resolution light effects", style);
         }
         private IEnumerator Capture(string suffix)
         {
-            string charactersToDraw = title + "Production animation and VFX / Pixel humanoids / Point filtering" + string.Join(" ", labels.ToArray());
+            string charactersToDraw = title + "Production animation and VFX / Pixel humanoids / High-resolution light effects" + string.Join(" ", labels.ToArray());
             foreach (int size in new[] { 25, 15, 12 }) font.RequestCharactersInTexture(charactersToDraw, size, FontStyle.Normal);
             yield return null;
             yield return null;

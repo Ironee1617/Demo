@@ -41,6 +41,8 @@ namespace PrototypeLab.Roguelike.Editor
                     throw new InvalidOperationException("Missing original effect texture: " + effect);
             for (int monster = 0; monster < 5; monster++)
                 RequireSprite("Tower/Monsters/monster_" + monster);
+            if (Resources.Load<Shader>("Tower/Effects/TowerEffectAdditive") == null)
+                throw new InvalidOperationException("Missing additive light shader at Resources/Tower/Effects/TowerEffectAdditive.");
             RequireShader("Sprites/Default");
             RequireShader("UI/Default");
             Debug.Log("TOWER_VALIDATE_OK scene, Korean font, art and sprite/UI shaders available.");
