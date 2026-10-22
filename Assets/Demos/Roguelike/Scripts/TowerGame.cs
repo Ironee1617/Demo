@@ -34,6 +34,10 @@ namespace PrototypeLab.Roguelike
         internal string dismissId="",notice="";
         internal float noticeTime,elapsed,invulnerable,dashCooldown,slashCooldown,attackTimer,dashTime;
         private float jumpBuffer,coyote,healClock,cameraLead=1.6f,cameraCeiling=1.8f;
+        // One extra jump in the air; touching any support restores it.
+        internal const int MaxAirJumps=1;
+        internal const float AirJumpVelocity=9.6f;
+        internal int airJumps;
         private Vector2 previousHeroPosition;
         private GameObject playerHitCore;
         internal bool FocusActive,FocusOverride;
@@ -95,7 +99,7 @@ namespace PrototypeLab.Roguelike
             // Real climbs open with a recruit from every mythology; fixtures compose their own parties.
             seed=fixedSeed??(Environment.TickCount&0x7fffffff);run=new TowerRun(seed,TowerRun.DefaultMaxFloor,!SmokeControlled,oathCompanionId);
             hero=Spawn("Player",0,false,new Vector2(-12,TowerWorld.Ground));hero.id="player";hero.hp=hero.maxHp=PlayerMaxHealth;ResetSkills();
-            elapsed=0;kills=0;healClock=0;invulnerable=0;dashCooldown=0;slashCooldown=0;attackTimer=0;dashTime=0;pendingSlash=false;jumpBuffer=0;coyote=0;
+            elapsed=0;kills=0;healClock=0;invulnerable=0;dashCooldown=0;slashCooldown=0;attackTimer=0;dashTime=0;pendingSlash=false;jumpBuffer=0;coyote=0;airJumps=MaxAirJumps;
             menu=party=help=oathLobby=shopOpen=false;dismissId="";notice="";toasts.Clear();FocusActive=false;cameraLead=1.6f;ResetPresentation();ResetAction();CreateHitCore();ResetCombatRewards();ClearOathEffects();
             SpawnFloor();
         }
@@ -203,10 +207,12 @@ namespace PrototypeLab.Roguelike
             FocusActive=SmokeControlled?FocusOverride:Input.GetKey(KeyCode.LeftControl)||Input.GetKey(KeyCode.RightControl);
             if(playerHitCore)playerHitCore.SetActive(FocusActive);
             if(jump)jumpBuffer=.14f;else jumpBuffer-=dt;
-            if(hero.grounded)coyote=.1f;else coyote-=dt;
+            if(hero.grounded){coyote=.1f;airJumps=MaxAirJumps;}else coyote-=dt;
             if(move!=0&&dashTime<=0&&(attackTimer<=0||!pendingSlash)&&hero.castRemaining<=0)hero.facing=move>0?1:-1;
             if(drop&&hero.grounded&&hero.pos.y>TowerWorld.Ground+.1f){jumpBuffer=0;coyote=0;}
             if(jumpBuffer>0&&coyote>0&&hero.dropTime<=0){hero.velocityY=10.7f;hero.grounded=false;jumpBuffer=0;coyote=0;jumpCut=false;Sound(slashSound,.28f);if(vfx!=null)vfx.Dust(hero.pos,0,.5f);}
+            // Past the coyote window a press spends the air jump, which also turns a fall back upward.
+            else if(jumpBuffer>0&&!hero.grounded&&airJumps>0&&hero.dropTime<=0){airJumps--;hero.velocityY=AirJumpVelocity;jumpBuffer=0;jumpCut=false;Sound(slashSound,.34f);if(vfx!=null){vfx.ImpactRing(hero.pos+Vector2.up*.1f,.5f,TowerWorld.Teal);vfx.Dust(hero.pos,0,.3f);}}
             // Releasing jump early cuts the rise for short hops.
             if(!jumpHeld&&!jumpCut&&!hero.grounded&&hero.velocityY>4){hero.velocityY*=.55f;jumpCut=true;}
             if(dash&&dashCooldown<=0){if(move!=0)hero.facing=move>0?1:-1;attackTimer=0;pendingSlash=false;lungeTime=0;CancelPlayerCast();hero.art.InterruptAction();dashTime=.18f;BeginDodgeCounter();dashCooldown=1.15f*run.Player.DodgeCooldownMultiplier;invulnerable=Mathf.Max(invulnerable,.25f);if(vfx!=null){vfx.Afterimage(hero.root.transform);vfx.Cast(SkillEffect.DashStrike,hero.pos+Vector2.up,1,TowerWorld.Teal);if(hero.grounded)vfx.Dust(hero.pos,hero.facing,.9f);vfx.SpeedLines(hero.pos+Vector2.up*.9f,hero.facing,TowerWorld.Teal);}Sound(slashSound,.5f);}

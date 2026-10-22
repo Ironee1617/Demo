@@ -349,7 +349,7 @@ namespace PrototypeLab.Roguelike
             MenuBackdrop("조작과 규칙","FIELD GUIDE");
             if(Button(new Rect(1320,76,216,48),"닫기",brass))help=false;
             string[] keys={"A / D","Space","J","Shift","Shift → J","Ctrl","S / ↓","E","Esc","Tab"};
-            string[] actions={"이동","점프 · 짧게 누르면 낮은 점프","검 공격 · 3타째 마무리 일격","무적 회피 · 공중에서도 높이 유지","돌진 베기 · 회피 중이나 직후 공격","정밀 이동","발판 아래로","가까운 문으로 이동 · 상인과 거래","메뉴 · 상점 나가기","동료와 능력"};
+            string[] actions={"이동","점프 · 공중에서 한 번 더 · 짧게 누르면 낮게","검 공격 · 3타째 마무리 일격","무적 회피 · 공중에서도 높이 유지","돌진 베기 · 회피 중이나 직후 공격","정밀 이동","발판 아래로","가까운 문으로 이동 · 상인과 거래","메뉴 · 상점 나가기","동료와 능력"};
             for(int i=0;i<keys.Length;i++){float y=196+i*58;Keycap(new Rect(96,y,120,36),keys[i]);Label(new Rect(234,y,520,36),actions[i],18,paper,TextAnchor.MiddleLeft);}
             bool trial=run.IsOathTrial||oathLobby;
             Panel(new Rect(772,198,712,574),brass);

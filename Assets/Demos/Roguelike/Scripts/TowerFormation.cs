@@ -19,8 +19,12 @@ namespace PrototypeLab.Roguelike
         {return FollowSlot(hero.grounded?hero.pos:new Vector2(hero.pos.x,TowerWorld.Ground),CompanionIndex(state));}
         private int CompanionIndex(CompanionState state)
         {if(state==null)return -1;for(int i=0;i<run.Companions.Count;i++)if(ReferenceEquals(run.Companions[i],state))return i;return -1;}
-        // Companions trail the hero one spacing apart on the support the hero stands on or lands on.
-        // A narrow ledge shrinks the spacing, and slots that do not fit behind the hero move in front.
+        internal static bool LeadsFormation(CompanionState state)
+        {return state!=null&&state.Definition.Role==CompanionRole.Vanguard;}
+        // Companions stand one spacing apart on the support the hero stands on or lands on:
+        // vanguards ahead of the hero's facing, everyone else behind, each side in party order.
+        // A narrow ledge shrinks the spacing, and a side without room spills past the other side's members;
+        // a vanguard spills only into free room behind and otherwise holds the front edge.
         private Vector2 FollowSlot(Vector2 anchor,int index)
         {
             if(index<0)return anchor;
@@ -29,8 +33,14 @@ namespace PrototypeLab.Roguelike
             if(support>=0){var ledge=world.Ledges[support];min=ledge.x-ledge.width*.5f+.3f;max=ledge.x+ledge.width*.5f-.3f;}
             float x0=Mathf.Clamp(anchor.x,min,max);int count=Mathf.Max(1,run.Companions.Count);
             float spacing=Mathf.Min(FollowSpacing,(max-min)/count);
+            int ahead=spacing>0?Mathf.FloorToInt(((formationFacing>0?max-x0:x0-min)+.001f)/spacing):0;
             int behind=spacing>0?Mathf.FloorToInt(((formationFacing>0?x0-min:max-x0)+.001f)/spacing):0;
-            float offset=index<behind?-(index+1)*spacing:(index-behind+1)*spacing;
+            bool leads=LeadsFormation(run.Companions[index]);int rank=0,leaders=0;
+            for(int i=0;i<run.Companions.Count;i++)
+            {bool other=LeadsFormation(run.Companions[i]);if(other)leaders++;if(i<index&&other==leads)rank++;}
+            int rear=Mathf.Min(run.Companions.Count-leaders,behind);
+            float offset=leads?rank>=ahead&&rank-ahead<behind-rear?-(rear+rank-ahead+1)*spacing:(rank+1)*spacing
+                :rank<behind?-(rank+1)*spacing:(Mathf.Min(leaders,ahead)+rank-behind+1)*spacing;
             return new Vector2(Mathf.Clamp(x0+formationFacing*offset,min,max),anchor.y);
         }
         private Vector2 AllyLeaderDestination(float leaderSpeed)
@@ -234,6 +244,8 @@ namespace PrototypeLab.Roguelike
                     if(actor.followMoving)
                     {
                         float speed=state.MoveSpeed+(target==null||followingRoute?Mathf.Min(Mathf.Abs(dx)*2,PlayerMoveSpeed):0);
+                        // A vanguard's slot runs ahead of the hero, so it keeps at least the hero's walking pace.
+                        if(target==null&&!followingRoute&&LeadsFormation(state))speed=Mathf.Max(speed,Mathf.Min(Mathf.Abs(leaderSpeed),PlayerMoveSpeed)+Mathf.Min(Mathf.Abs(dx)*2,1));
                         MoveAlly(actor,destination.x,speed,target==null&&!followingRoute?leaderSpeed:0,dt);
                     }
                     else actor.moveVelocity=0;

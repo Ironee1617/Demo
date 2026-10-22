@@ -17,7 +17,7 @@ namespace PrototypeLab.Roguelike
             public bool airborneTargetEligibility, airborneMeleeDamage, airborneRangedDamage, allRolesAcquisition;
             public bool soloFlyerSpawns, dismissalPreservesFlight, meleeClimbsToFlyer, meleeHeightLimited;
             public bool lockedAim, preparationHasNoOverlays, preparationBeforeDamage, fanPattern, gapPattern, radialPattern, fixedBulletTrajectory;
-            public bool stationaryBulletHit, jumpInputEvades, dashInputInvulnerable, sweptBulletHit, hostileBulletDeath, cameraStableOnHit, focusInputAndHitCore, readySkillWaitsForDash;
+            public bool stationaryBulletHit, jumpInputEvades, doubleJumpInput, dashInputInvulnerable, sweptBulletHit, hostileBulletDeath, cameraStableOnHit, focusInputAndHitCore, readySkillWaitsForDash;
             public bool nearestProjectileContact, sameFramePiercing, piercingDoesNotRepeat, splashKillRemoval, projectileRangeExpiry;
             public bool companionTargetExcluded, companionMeleeImmune, companionProjectilePassThrough, companionBossAreaImmune, companionStatusImmune, companionsStillAttack;
             public List<string> checks = new List<string>(), screenshots = new List<string>(), errors = new List<string>();
@@ -116,14 +116,14 @@ namespace PrototypeLab.Roguelike
         private IEnumerator Formations()
         {
             Setup("michael", "gabriel", "uriel"); yield return Wait(2.5f);
-            RequireSpacedSlots(1, "settle behind the player");
+            RequireSpacedSlots(1, "settle around the player");
             foreach (var state in game.run.Companions)
             {
                 var actor = game.allies.Find(a => a.id == state.Id);
                 Require(Mathf.Abs(actor.art.transform.localScale.x - .82f) < .001f && Mathf.Abs(actor.root.transform.localScale.x - 1) < .001f, "Companion art scale must be .82 without shrinking physics.");
             }
             report.formationForward = report.companionScale = true;
-            yield return Capture("formation-right", "추적 검증 · 플레이어 뒤로 간격을 두고 정렬");
+            yield return Capture("formation-right", "추적 검증 · 전사는 앞, 나머지는 뒤로 간격을 두고 정렬");
             game.MoveOverride = -1; yield return Wait(.24f); game.MoveOverride = 0; yield return Wait(2.6f);
             Require(game.hero.facing == -1, "Movement input did not reverse the hero facing.");
             RequireSpacedSlots(-1, "follow the reversing hero");
@@ -132,9 +132,9 @@ namespace PrototypeLab.Roguelike
             game.MoveOverride = -1; yield return Wait(2); game.MoveOverride = 0;
             foreach (var state in game.run.Companions) Require(Mathf.Abs(game.allies.Find(a => a.id == state.Id).pos.x - game.FormationAnchor(state).x) < .65f, "A companion fell behind the moving hero's formation: " + state.Id);
             report.movingFormationMaintained = true;
-            report.checks.Add("Companions settle in spaced slots behind the player, swap sides after a reversal, keep up while moving, and only ally artwork scales to .82.");
+            report.checks.Add("Vanguards settle in spaced slots ahead of the player and other companions behind, swap sides after a reversal, keep up while moving, and only ally artwork scales to .82.");
         }
-        // Grounded followers stand in their own slots behind the hero's facing, at least half a unit apart.
+        // Grounded vanguards stand ahead of the hero's facing and other followers behind it, each in its own slot at least half a unit apart.
         private void RequireSpacedSlots(int facing, string action)
         {
             var spots = new List<float> { game.hero.pos.x };
@@ -142,7 +142,8 @@ namespace PrototypeLab.Roguelike
             {
                 var actor = game.allies.Find(a => a.id == state.Id); var slot = game.FormationAnchor(state);
                 Require(Mathf.Abs(actor.pos.x - slot.x) < .3f, "A companion did not " + action + ": " + state.Id);
-                Require((game.hero.pos.x - actor.pos.x) * facing > .3f, "A companion stood in front of the hero instead of behind: " + state.Id);
+                bool leads = TowerGame.LeadsFormation(state);
+                Require((actor.pos.x - game.hero.pos.x) * facing * (leads ? 1 : -1) > .3f, leads ? "A vanguard stood behind the hero instead of in front: " + state.Id : "A companion stood in front of the hero instead of behind: " + state.Id);
                 spots.Add(actor.pos.x);
             }
             spots.Sort(); for (int i = 1; i < spots.Count; i++) Require(spots[i] - spots[i - 1] > .5f, "The hero and companions overlap after they " + action + ".");
@@ -447,6 +448,7 @@ namespace PrototypeLab.Roguelike
             game.JumpOverride = true; yield return null; game.JumpOverride = false;
             yield return Wait(.6f); Require(game.hero.hp == game.PlayerMaxHealth && game.hero.pos.y > TowerWorld.Ground + .6f, "Actual jump input failed to evade the same horizontal shot."); report.jumpInputEvades = true;
             yield return Capture("dodge", "탄막 검증 · 실제 점프 입력으로 수평 탄 회피");
+            yield return DoubleJump();
             ClearShots(); Place(game.hero, new Vector2(0, TowerWorld.Ground)); game.hero.facing = 1; game.invulnerable = 0; game.dashCooldown = 0;
             game.AttackOverride = true; yield return null; game.AttackOverride = false;
             Require(game.attackTimer > 0, "The dash cancellation fixture did not begin an attack.");
@@ -474,7 +476,27 @@ namespace PrototypeLab.Roguelike
             Fire(new Vector2(-5, TowerWorld.Ground + 1), new Vector2(5, TowerWorld.Ground + 1), 2000, 1000, true);
             yield return Wait(.2f);
             Require(game.hero.hp == 0 && !game.run.IsRewardPending && !game.run.IsFloorCleared, "A swept hostile shot failed to kill or death cleared the floor."); report.hostileBulletDeath = true;
-            report.checks.Add("Identical production bullets hit a stationary hero and miss after actual JumpOverride input; DashOverride grants invulnerability; fast swept shots hit/kill; hit camera remains fixed.");
+            report.checks.Add("Identical production bullets hit a stationary hero and miss after actual JumpOverride input; a falling hero jumps once more in the air; DashOverride grants invulnerability; fast swept shots hit/kill; hit camera remains fixed.");
+        }
+        // A second press while falling lifts the hero again; a third waits for landing, which restores the air jump.
+        private IEnumerator DoubleJump()
+        {
+            ClearShots(); game.invulnerable = 0; Place(game.hero, new Vector2(0, TowerWorld.Ground)); yield return null;
+            game.JumpOverride = true; yield return null; game.JumpOverride = false;
+            float limit = Time.realtimeSinceStartup + 3;
+            while (game.hero.grounded || game.hero.velocityY > -1) { Require(Time.realtimeSinceStartup < limit, "The double-jump fixture never began falling."); yield return null; }
+            Require(game.airJumps == TowerGame.MaxAirJumps, "The ground jump spent the air jump.");
+            float fallHeight = game.hero.pos.y;
+            game.JumpOverride = true; yield return null; game.JumpOverride = false;
+            Require(!game.hero.grounded && game.hero.velocityY > 0 && game.airJumps == 0, "A jump press while falling did not spend the air jump.");
+            while (game.hero.pos.y < fallHeight + .5f) { Require(Time.realtimeSinceStartup < limit && game.hero.velocityY > 0, "The air jump did not lift the falling hero."); yield return null; }
+            float rising = game.hero.velocityY;
+            game.JumpOverride = true; yield return null; game.JumpOverride = false;
+            Require(game.hero.velocityY <= rising, "A third jump press in the air jumped again.");
+            limit = Time.realtimeSinceStartup + 3;
+            while (!game.hero.grounded) { Require(Time.realtimeSinceStartup < limit, "The double-jumping hero never landed."); yield return null; }
+            yield return null;
+            Require(game.airJumps == TowerGame.MaxAirJumps, "Landing did not restore the air jump."); report.doubleJumpInput = true;
         }
         private void VerifyCameraHitAgainstControl()
         {
