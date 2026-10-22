@@ -15,8 +15,9 @@ namespace PrototypeLab.Roguelike
             public string mode = "towerThemeSmoke", finishedUtc;
             public bool success, allThemesRendered, isolatedPools, bossesTargetable, scaledStats, distinctSprites, actualFrameTicks, boundaryTransition, retiredRootsInactive;
             public bool bitmapCreaturesVerified, riggedCreaturesVerified, bitmapBackgroundsVerified, platformEdgesPreserved, noPreparationOverlays, rosterGalleryRendered, galleryFramingVerified;
-            public int sampledThemes, sampledSpecies, distinctPixelHashes, sampledFrames, bitmapAtlases, inspectedPlatformEdges, inspectedCreatureRigs;
-            public List<string> samples = new List<string>(), screenshots = new List<string>(), errors = new List<string>();
+            public int sampledThemes, sampledSpecies, distinctPixelHashes, sampledFrames, bitmapAtlases, inspectedPlatformEdges, inspectedCreatureRigs, backdropPlanes, backdropBands, backdropCoverageViews;
+            public float minimumBackdropPixelsPerUnit;
+            public List<string> samples = new List<string>(), screenshots = new List<string>(), nativeScreenshots = new List<string>(), errors = new List<string>();
         }
         private readonly ThemeReport report = new ThemeReport();
         private static readonly BindingFlags Hidden = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -94,7 +95,7 @@ namespace PrototypeLab.Roguelike
                 game.enabled = true; game.invulnerable = 1000; float beforeTick = game.elapsed;
                 for (int frame = 0; frame < 6; frame++) { yield return null; report.sampledFrames++; }
                 Require(game.elapsed > beforeTick, "The actual game update did not tick in the theme fixture.");
-                game.enabled = false; StageCapture(); world.Tick(.4f, false);
+                game.enabled = false; StageCapture(); world.Tick(.4f, false); VerifyBackdropCoverage(theme); CaptureNative(theme);
                 yield return capture.CaptureForSuite(prefix, theme.Id.ToString().ToLowerInvariant());
                 report.screenshots.Add(prefix + "-" + theme.Id.ToString().ToLowerInvariant() + ".png");
                 yield return CaptureRoster(theme);
@@ -134,7 +135,7 @@ namespace PrototypeLab.Roguelike
         }
         private void VerifyActors(TowerThemeDefinition theme, int floor)
         {
-            var variants = new HashSet<int>(); int regular = 0, bosses = 0, flyers=0;
+            var variants = new HashSet<int>(); var grounded = new HashSet<int>(); int regular = 0, bosses = 0, flyers=0;
             foreach (var actor in game.enemies)
             {
                 Require(actor.theme == theme.Id && actor.monster != null && actor.id == actor.monster.Id, "Actor came from another theme pool.");
@@ -147,7 +148,7 @@ namespace PrototypeLab.Roguelike
                 }
                 else
                 {
-                    if(actor.airborne)flyers++;else regular++;
+                    if(actor.airborne)flyers++;else{regular++;grounded.Add(actor.monster.Variant);}
                     bool owned = false; foreach (var monster in theme.Monsters) owned |= System.Object.ReferenceEquals(actor.monster, monster);
                     Require(owned, "Regular monster is outside the active pool."); variants.Add(actor.monster.Variant);
                     Near(actor.maxHp, (actor.kind == 3 ? 52 : actor.kind == 0 ? 60 : actor.kind == 1 ? 48 : 80) * TowerDifficulty.HealthMultiplier(floor) * actor.monster.HealthMultiplier, "regular health");
@@ -158,7 +159,10 @@ namespace PrototypeLab.Roguelike
                 Near(actor.attackRateScale, TowerDifficulty.AttackRateMultiplier(floor) * actor.monster.AttackRateMultiplier, "attack cadence");
                 VerifyCreatureRig(actor.art,TowerThemeMonsterArt.Get(theme.Id,actor.monster.Variant,actor.isBoss));
             }
-            Require(regular == TowerDifficulty.RegularCount(floor) && variants.Count == 6 && bosses == 1 && flyers==1, "Floor 10 did not instantiate six species, one flyer and one boss.");
+            // The 100-floor curve spawns fewer regulars early on; each grounded one is still a distinct species.
+            int expectedSpecies = Math.Min(6, TowerDifficulty.RegularCount(floor));
+            Require(regular == TowerDifficulty.RegularCount(floor) && grounded.Count == expectedSpecies && bosses == 1 && flyers==1,
+                "Floor " + floor + " expected " + expectedSpecies + " distinct grounded species, one flyer and one boss; got regular=" + regular + ", species=" + grounded.Count + ", flyers=" + flyers + ", bosses=" + bosses + ".");
             report.samples.Add(theme.Id + ": floor=" + floor + ", regular=" + regular + ", variants=" + variants.Count + ", bosses=" + bosses);
         }
         private Renderer VerifyCreatureRig(TowerActorArt art,Sprite expected)
@@ -200,12 +204,25 @@ namespace PrototypeLab.Roguelike
         }
         private void VerifyEnvironmentArt(TowerThemeDefinition theme)
         {
-            var texture = TowerThemeMonsterArt.SourceAtlas(theme.Id);
-            bool background = false;
+            // Baked high-resolution parallax planes replace the atlas panorama.
+            var planes = EnvironmentRoot.GetComponentsInChildren<TowerParallaxLayer>();
+            Require(planes.Length == 4, "The four parallax backdrop planes were not instantiated: " + theme.Id);
+            float minimumPpu = float.MaxValue;
+            foreach (var plane in planes)
+            {
+                Require(plane.Renderers.Count >= 3 && plane.Renderers.Count % 3 == 0, "A backdrop plane lost its repeating tiles: " + plane.name);
+                foreach (var tile in plane.Renderers)
+                {
+                    Require(tile.sprite != null && tile.sprite.texture != null && tile.sprite.texture.width >= 1024, "A backdrop band is missing: " + plane.name);
+                    Require(tile.sprite.texture.name.StartsWith(theme.Id.ToString().ToLowerInvariant() + "-", StringComparison.Ordinal), "A backdrop band belongs to another theme: " + tile.sprite.texture.name);
+                    minimumPpu = Mathf.Min(minimumPpu, tile.sprite.pixelsPerUnit);
+                }
+                report.backdropBands += plane.Renderers.Count / 3;
+            }
+            Require(minimumPpu >= 48, "Backdrop planes must carry at least 48 texels per unit: " + minimumPpu);
+            report.backdropPlanes += planes.Length;
+            report.minimumBackdropPixelsPerUnit = report.backdropPlanes == planes.Length ? minimumPpu : Mathf.Min(report.minimumBackdropPixelsPerUnit, minimumPpu);
             var renderers = EnvironmentRoot.GetComponentsInChildren<SpriteRenderer>();
-            foreach (var renderer in renderers)
-                if (renderer.sprite != null && renderer.sprite.texture == texture && renderer.bounds.size.x > 15 && renderer.bounds.size.y > 5) background = true;
-            Require(background, "The new theme bitmap background was not instantiated: " + theme.Id);
             Require(world.Ledges.Length == world.CurrentPattern.Platforms.Count, "Art changes altered the platform pattern count.");
             for (int i = 0; i < world.Ledges.Length; i++)
             {
@@ -219,6 +236,64 @@ namespace PrototypeLab.Roguelike
             }
             foreach (var item in game.GetComponentsInChildren<Transform>(true))
                 Require(item.name != "Locked warning dash" && !item.name.EndsWith(" warning", StringComparison.OrdinalIgnoreCase) && !item.name.StartsWith("Enemy telegraph", StringComparison.OrdinalIgnoreCase), "Removed path or danger preview returned: " + item.name);
+        }
+        /// <summary>The opaque sky plane must fill the view at every corner of the camera's travel.</summary>
+        private void VerifyBackdropCoverage(TowerThemeDefinition theme)
+        {
+            var view = game.view; Vector3 saved = view.transform.position; float savedSize = view.orthographicSize;
+            TowerParallaxLayer sky = null;
+            foreach (var plane in EnvironmentRoot.GetComponentsInChildren<TowerParallaxLayer>()) if (plane.name.EndsWith(" sky", StringComparison.Ordinal)) sky = plane;
+            Require(sky != null, "The sky backdrop plane is missing: " + theme.Id);
+            var cases = new List<Vector4> { new Vector4(saved.x, saved.y, savedSize, 0) };
+            foreach (var x in new[] { -7.5f, 21.5f }) foreach (var y in new[] { 0f, 9.2f }) cases.Add(new Vector4(x, y, 5.625f, 0));
+            try
+            {
+                foreach (var c in cases)
+                {
+                    view.orthographicSize = c.z; view.transform.position = new Vector3(c.x, c.y, saved.z);
+                    foreach (var plane in EnvironmentRoot.GetComponentsInChildren<TowerParallaxLayer>()) plane.Follow(view);
+                    float halfH = view.orthographicSize, halfW = halfH * view.aspect;
+                    float minX = float.MaxValue, maxX = float.MinValue, minY = float.MaxValue, maxY = float.MinValue;
+                    foreach (var part in sky.GetComponentsInChildren<SpriteRenderer>())
+                    { var b = part.bounds; minX = Mathf.Min(minX, b.min.x); maxX = Mathf.Max(maxX, b.max.x); minY = Mathf.Min(minY, b.min.y); maxY = Mathf.Max(maxY, b.max.y); }
+                    Require(minX <= c.x - halfW && maxX >= c.x + halfW && minY <= c.y - halfH && maxY >= c.y + halfH,
+                        "The sky plane leaves an uncovered edge at camera " + c + " for " + theme.Id);
+                    report.backdropCoverageViews++;
+                }
+            }
+            finally
+            {
+                view.orthographicSize = savedSize; view.transform.position = saved;
+                foreach (var plane in EnvironmentRoot.GetComponentsInChildren<TowerParallaxLayer>()) plane.Follow(view);
+            }
+        }
+        /// <summary>
+        /// Renders the map alone at the game's own 1080p pixel camera (3x pixel scale, 96 screen pixels
+        /// per unit), where the 96ppu planes land one texel per pixel. The HUD overlay is not part of it.
+        /// </summary>
+        private void CaptureNative(TowerThemeDefinition theme)
+        {
+            var view = game.view; Vector3 position = view.transform.position; float size = view.orthographicSize, aspect = view.aspect;
+            var target = RenderTexture.GetTemporary(1920, 1080, 24, RenderTextureFormat.ARGB32);
+            var previous = RenderTexture.active; Texture2D pixels = null;
+            try
+            {
+                view.targetTexture = target; view.aspect = 1920f / 1080; view.orthographicSize = 1080f / (64 * 3);
+                view.transform.position = new Vector3(-1, 0, position.z);
+                foreach (var plane in EnvironmentRoot.GetComponentsInChildren<TowerParallaxLayer>()) plane.Follow(view);
+                view.Render();
+                RenderTexture.active = target;
+                pixels = new Texture2D(1920, 1080, TextureFormat.RGB24, false);
+                pixels.ReadPixels(new Rect(0, 0, 1920, 1080), 0, 0); pixels.Apply();
+                string path = prefix + "-" + theme.Id.ToString().ToLowerInvariant() + "-1080p.png";
+                File.WriteAllBytes(path, pixels.EncodeToPNG()); report.nativeScreenshots.Add(path);
+            }
+            finally
+            {
+                view.targetTexture = null; view.aspect = aspect; view.orthographicSize = size; view.transform.position = position;
+                RenderTexture.active = previous; RenderTexture.ReleaseTemporary(target); if (pixels) Destroy(pixels);
+                foreach (var plane in EnvironmentRoot.GetComponentsInChildren<TowerParallaxLayer>()) plane.Follow(view);
+            }
         }
         private IEnumerator CaptureRoster(TowerThemeDefinition theme)
         {

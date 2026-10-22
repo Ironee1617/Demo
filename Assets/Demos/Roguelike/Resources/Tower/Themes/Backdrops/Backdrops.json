@@ -1,0 +1,33 @@
+{
+  "layers": [
+    {"theme": "lava", "file": "lava-0-sky", "plane": "sky", "factor": 0.95, "ppu": 48, "period": 30, "bottom": -11, "width": 1440, "height": 1008, "order": -97, "under": "ffa04a", "over": "160912"},
+    {"theme": "lava", "file": "lava-1-far", "plane": "far", "factor": 0.85, "ppu": 64, "period": 32, "bottom": -11, "width": 2048, "height": 1344, "order": -96, "under": "", "over": "1a0b14"},
+    {"theme": "lava", "file": "lava-2-mid", "plane": "mid", "factor": 0.65, "ppu": 96, "period": 36, "bottom": -9.5, "width": 3456, "height": 2112, "order": -95, "under": "", "over": ""},
+    {"theme": "lava", "file": "lava-3-near", "plane": "near", "factor": 0.4, "ppu": 96, "period": 40, "bottom": 4.5, "width": 3840, "height": 960, "order": -94, "under": "", "over": "0c070c"},
+    {"theme": "rock", "file": "rock-0-sky", "plane": "sky", "factor": 0.95, "ppu": 48, "period": 30, "bottom": -11, "width": 1440, "height": 1008, "order": -97, "under": "2e5a66", "over": "090d1d"},
+    {"theme": "rock", "file": "rock-1-far", "plane": "far", "factor": 0.85, "ppu": 64, "period": 32, "bottom": -11, "width": 2048, "height": 1344, "order": -96, "under": "", "over": "0d1120"},
+    {"theme": "rock", "file": "rock-2-mid", "plane": "mid", "factor": 0.65, "ppu": 96, "period": 36, "bottom": -9.5, "width": 3456, "height": 2112, "order": -95, "under": "", "over": ""},
+    {"theme": "rock", "file": "rock-3-near", "plane": "near", "factor": 0.4, "ppu": 96, "period": 40, "bottom": 2.33333, "width": 3840, "height": 1168, "order": -94, "under": "", "over": "080b14"},
+    {"theme": "jungle", "file": "jungle-0-sky", "plane": "sky", "factor": 0.95, "ppu": 48, "period": 30, "bottom": -11, "width": 1440, "height": 1008, "order": -97, "under": "143a39", "over": "0f272b"},
+    {"theme": "jungle", "file": "jungle-1-far", "plane": "far", "factor": 0.85, "ppu": 64, "period": 32, "bottom": -11, "width": 2048, "height": 1344, "order": -96, "under": "", "over": "0e2426"},
+    {"theme": "jungle", "file": "jungle-2-mid", "plane": "mid", "factor": 0.65, "ppu": 96, "period": 36, "bottom": -9.5, "width": 3456, "height": 2112, "order": -95, "under": "", "over": ""},
+    {"theme": "jungle", "file": "jungle-3-near", "plane": "near", "factor": 0.4, "ppu": 96, "period": 40, "bottom": 3.79167, "width": 3840, "height": 1028, "order": -94, "under": "", "over": "08171a"},
+    {"theme": "frozen", "file": "frozen-0-sky", "plane": "sky", "factor": 0.95, "ppu": 48, "period": 30, "bottom": -11, "width": 1440, "height": 1008, "order": -97, "under": "3e5e7c", "over": "0a1230"},
+    {"theme": "frozen", "file": "frozen-1-far", "plane": "far", "factor": 0.85, "ppu": 64, "period": 32, "bottom": -11, "width": 2048, "height": 1304, "order": -96, "under": "", "over": "0c1630"},
+    {"theme": "frozen", "file": "frozen-2-mid", "plane": "mid", "factor": 0.65, "ppu": 96, "period": 36, "bottom": -9.5, "width": 3456, "height": 2112, "order": -95, "under": "", "over": ""},
+    {"theme": "frozen", "file": "frozen-3-near", "plane": "near", "factor": 0.4, "ppu": 96, "period": 40, "bottom": 5.08333, "width": 3840, "height": 904, "order": -94, "under": "", "over": "0a1428"},
+    {"theme": "water", "file": "water-0-sky", "plane": "sky", "factor": 0.95, "ppu": 48, "period": 30, "bottom": -11, "width": 1440, "height": 1008, "order": -97, "under": "0c2a3c", "over": "0a1a2c"},
+    {"theme": "water", "file": "water-1-far", "plane": "far", "factor": 0.85, "ppu": 64, "period": 32, "bottom": -11, "width": 2048, "height": 1344, "order": -96, "under": "0c2a3c", "over": "0a1a2a"},
+    {"theme": "water", "file": "water-2-mid", "plane": "mid", "factor": 0.65, "ppu": 96, "period": 36, "bottom": -9.5, "width": 3456, "height": 1712, "order": -95, "under": "0c2a3c", "over": ""},
+    {"theme": "water", "file": "water-3-near", "plane": "near", "factor": 0.4, "ppu": 96, "period": 40, "bottom": 6.5, "width": 3840, "height": 768, "order": -94, "under": "", "over": "07141c"},
+    {"theme": "cloud", "file": "cloud-0-sky", "plane": "sky", "factor": 0.95, "ppu": 48, "period": 30, "bottom": -11, "width": 1440, "height": 1008, "order": -97, "under": "9a9cc4", "over": "262c58"},
+    {"theme": "cloud", "file": "cloud-1-far", "plane": "far", "factor": 0.85, "ppu": 64, "period": 32, "bottom": -11, "width": 2048, "height": 1284, "order": -96, "under": "8c8eb6", "over": ""},
+    {"theme": "cloud", "file": "cloud-2-mid", "plane": "mid", "factor": 0.65, "ppu": 96, "period": 36, "bottom": -9.5, "width": 3456, "height": 1796, "order": -95, "under": "8e8eb8", "over": ""},
+    {"theme": "cloud", "file": "cloud-3-near-0", "plane": "near", "factor": 0.4, "ppu": 96, "period": 40, "bottom": -8.5, "width": 3840, "height": 440, "order": -94, "under": "7476a8", "over": ""},
+    {"theme": "cloud", "file": "cloud-3-near-1", "plane": "near", "factor": 0.4, "ppu": 96, "period": 40, "bottom": 10.79167, "width": 3840, "height": 356, "order": -94, "under": "", "over": ""},
+    {"theme": "ruins", "file": "ruins-0-sky", "plane": "sky", "factor": 0.95, "ppu": 48, "period": 30, "bottom": -11, "width": 1440, "height": 1008, "order": -97, "under": "3e4a46", "over": "11181e"},
+    {"theme": "ruins", "file": "ruins-1-far", "plane": "far", "factor": 0.85, "ppu": 64, "period": 32, "bottom": -11, "width": 2048, "height": 1224, "order": -96, "under": "", "over": "10171c"},
+    {"theme": "ruins", "file": "ruins-2-mid", "plane": "mid", "factor": 0.65, "ppu": 96, "period": 36, "bottom": -9.5, "width": 3456, "height": 1740, "order": -95, "under": "", "over": ""},
+    {"theme": "ruins", "file": "ruins-3-near", "plane": "near", "factor": 0.4, "ppu": 96, "period": 40, "bottom": 6.25, "width": 3840, "height": 792, "order": -94, "under": "", "over": "0c1014"}
+  ]
+}

@@ -46,7 +46,10 @@ namespace PrototypeLab.Roguelike
                     Box("Buried strata",new Vector2(x,Ground-1.5f-j),Vector2.one,new Color(.63f,.63f,.68f),-22,TerrainTile(theme,(i+j+1)%4,true));
             }
             // A continuous edge shows the exact landing plane, including the boardwalk's transparent tiles.
-            Box(theme+" ground walkable surface",new Vector2(6,Ground-.03125f),new Vector2(80,.0625f),edge,-17);
+            // The 96ppu atlas paints its own lit lip, so the marker becomes a thin translucent line.
+            bool atlas=TerrainAtlas!=null;
+            float line=atlas?2f/AtlasPpu:.0625f;Color lineColor=atlas?new Color(edge.r,edge.g,edge.b,.5f):edge;
+            Box(theme+" ground walkable surface",new Vector2(6,Ground-line*.5f),new Vector2(80,line),lineColor,-17);
             foreach(var ledge in Ledges)
             {
                 float left=ledge.x-ledge.width*.5f;
@@ -58,20 +61,19 @@ namespace PrototypeLab.Roguelike
                     float tileScale=tileWidth/(tile.rect.width/tile.pixelsPerUnit);
                     Box(theme+" raised platform",new Vector2(left+i+tileWidth*.5f,ledge.y-.25f),new Vector2(tileScale,1),Color.white,-15,tile);
                 }
-                Box(theme+" platform walkable surface",new Vector2(ledge.x,ledge.y-.03125f),new Vector2(ledge.width,.0625f),edge,-13);
+                Box(theme+" platform walkable surface",new Vector2(ledge.x,ledge.y-line*.5f),new Vector2(ledge.width,line),lineColor,-13);
+                if(atlas)
+                {
+                    // The atlas strip carries each theme's underside; only the ends and boardwalk posts are added.
+                    float cap=16f/AtlasPpu;
+                    Box(theme+" platform left end",new Vector2(left+cap*.5f,ledge.y-.25f),Vector2.one,Color.white,-14,EndCap(theme,false));
+                    Box(theme+" platform right end",new Vector2(left+ledge.width-cap*.5f,ledge.y-.25f),Vector2.one,Color.white,-14,EndCap(theme,true));
+                    if(theme==TowerThemeId.Water)BoardwalkSupports(ledge,left);
+                    continue;
+                }
                 Box(theme+" platform front seam",new Vector2(ledge.x,ledge.y-.13f),new Vector2(ledge.width,.03125f),Color.Lerp(edge,stone,.6f),-14);
                 int hangingCount=Mathf.Max(2,Mathf.FloorToInt(ledge.width/1.05f));
-                if(theme==TowerThemeId.Water)
-                {
-                    int supportCount=Mathf.Max(2,Mathf.CeilToInt(ledge.width/2.4f));
-                    for(int i=0;i<supportCount;i++)
-                    {
-                        float x=Mathf.Lerp(left+.25f,left+ledge.width-.25f,i/(float)(supportCount-1));
-                        float height=ledge.y-Ground+.1f;
-                        Box("Raised boardwalk support",new Vector2(x,Ground+height*.5f-.2f),new Vector2(.16f,height),Hex("584b49"),-30);
-                        Box("Boardwalk support binding",new Vector2(x,ledge.y-.27f),new Vector2(.24f,.1f),Hex("a5946b"),-16);
-                    }
-                }
+                if(theme==TowerThemeId.Water)BoardwalkSupports(ledge,left);
                 else if(theme==TowerThemeId.Cloud)
                 {
                     var cloud=Cloud(ledge.x,ledge.y-.64f,ledge.width*.94f,Hex("939bb6"),-24);
@@ -101,8 +103,49 @@ namespace PrototypeLab.Roguelike
                 }
             }
         }
+        private void BoardwalkSupports(Ledge ledge,float left)
+        {
+            int supportCount=Mathf.Max(2,Mathf.CeilToInt(ledge.width/2.4f));
+            for(int i=0;i<supportCount;i++)
+            {
+                float x=Mathf.Lerp(left+.25f,left+ledge.width-.25f,i/(float)(supportCount-1));
+                float height=ledge.y-Ground+.1f;
+                Box("Raised boardwalk support",new Vector2(x,Ground+height*.5f-.2f),new Vector2(.16f,height),Hex("584b49"),-30);
+                Box("Boardwalk support binding",new Vector2(x,ledge.y-.27f),new Vector2(.24f,.1f),Hex("a5946b"),-16);
+            }
+        }
+        // Baked 96ppu terrain (Tools/TowerArt/BackdropPainter): per theme a 384x384 column holding
+        // props and end caps (row 0), the platform strip (96), buried strata (192) and ground (288).
+        private const int AtlasPpu=96,AtlasColumn=384;
+        private static Texture2D terrainAtlas;private static bool terrainAtlasChecked;
+        private static Texture2D TerrainAtlas
+        {
+            get
+            {
+                if(!terrainAtlasChecked)
+                {
+                    terrainAtlasChecked=true;terrainAtlas=Resources.Load<Texture2D>("Tower/Themes/Terrain");
+                    if(terrainAtlas!=null){terrainAtlas.filterMode=FilterMode.Point;terrainAtlas.wrapMode=TextureWrapMode.Clamp;}
+                }
+                return terrainAtlas;
+            }
+        }
+        private static Sprite AtlasSprite(string key,Rect rect,Vector2 pivot)
+        {
+            Sprite sprite;if(themeSprites.TryGetValue(key,out sprite))return sprite;
+            sprite=Sprite.Create(TerrainAtlas,rect,pivot,AtlasPpu,0,SpriteMeshType.FullRect);sprite.name=key;themeSprites.Add(key,sprite);return sprite;
+        }
+        private static Sprite EndCap(TowerThemeId theme,bool right)
+        {return AtlasSprite("terrain end "+theme+right,new Rect((int)theme*AtlasColumn+(right?304:288),0,16,AtlasPpu),new Vector2(.5f,.75f));}
         private static Sprite TerrainTile(TowerThemeId theme,int variant,bool buried=false,float visibleWidth=1,bool raised=false)
         {
+            if(TerrainAtlas!=null)
+            {
+                // Raised strips are one unit tall: the slab above, underside detail below, pivot on the slab centre.
+                int columns=Mathf.Clamp(Mathf.CeilToInt(visibleWidth*AtlasPpu),1,AtlasPpu),row=raised?96:buried?192:288;
+                return AtlasSprite("terrain atlas "+theme+variant+buried+raised+"-"+columns,
+                    new Rect((int)theme*AtlasColumn+(variant%4)*AtlasPpu,row,columns,AtlasPpu),raised?new Vector2(.5f,.75f):new Vector2(.5f,.5f));
+            }
             const int density=48;
             int pixels=Mathf.Clamp(Mathf.CeilToInt(visibleWidth*density),1,density),height=raised?24:density;
             string key="terrain authored "+theme+variant+buried+raised+"-"+pixels;Sprite sprite;if(themeSprites.TryGetValue(key,out sprite))return sprite;
@@ -205,6 +248,8 @@ namespace PrototypeLab.Roguelike
         }
         private bool BuildAuthoredBackdrop(TowerThemeId theme)
         {
+            // Baked high-resolution parallax planes; the atlas panorama remains the fallback.
+            if(TowerThemeBackdrop.Build(environment,theme))return true;
             Sprite sprite=TowerThemeMonsterArt.Background(theme);
             if(sprite==null)return false;
             // Cover the full camera height as well as the room width without stretching the painting.
@@ -224,12 +269,13 @@ namespace PrototypeLab.Roguelike
                 float x=-23+i*3.7f+Range(-.5f,.5f);
                 if(Mathf.Abs(x-ExitX)<1.8f)continue;
                 float size=Range(.65f,.95f);
-                var prop=Box(theme+" foreground detail",new Vector2(x,Ground+.4f*size),Vector2.one*size,Color.white,-32,ForegroundSprite(theme,i%3));
+                var prop=Box(theme+" foreground detail",new Vector2(x,TerrainAtlas!=null?Ground:Ground+.4f*size),Vector2.one*size,Color.white,-32,ForegroundSprite(theme,i%3));
                 if(i%2==1)prop.transform.localScale=new Vector3(-size,size,1);
             }
             if(theme==TowerThemeId.Water)
             {
-                Box("Open lagoon",new Vector2(6,-5.1f),new Vector2(100,4),Hex("234c68"),-47);
+                // Translucent, so the baked lagoon reflections read through beneath the walkway.
+                Box("Open lagoon",new Vector2(6,-5.1f),new Vector2(100,4),new Color(.137f,.298f,.408f,TowerThemeBackdrop.Bands(theme).Count>0?.5f:1),-47);
                 for(int i=0;i<19;i++)
                 {
                     float x=-27+i*4;
@@ -242,6 +288,7 @@ namespace PrototypeLab.Roguelike
         }
         private static Sprite ForegroundSprite(TowerThemeId theme,int variant)
         {
+            if(TerrainAtlas!=null)return AtlasSprite("foreground atlas "+theme+variant,new Rect((int)theme*AtlasColumn+(variant%3)*AtlasPpu,0,AtlasPpu,AtlasPpu),new Vector2(.5f,0));
             string key="foreground cluster "+theme+variant;Sprite sprite;if(themeSprites.TryGetValue(key,out sprite))return sprite;
             sprite=PixelSprite(48,40,48,(x,y)=>
             {
@@ -432,45 +479,69 @@ namespace PrototypeLab.Roguelike
         }
         private static Sprite GateSprite(TowerThemeId theme,Color frame)
         {
-            string key="carved ascent arch "+theme;Sprite sprite;if(themeSprites.TryGetValue(key,out sprite))return sprite;
-            Color outline=Color.Lerp(frame,Hex("111c2a"),.7f),shadow=Color.Lerp(frame,Hex("29303f"),.4f),light=Color.Lerp(frame,Hex("fff0ca"),.38f);
-            sprite=PixelSprite(112,156,48,(x,y)=>
+            // 96ppu: the same 2.33 x 3.25 unit silhouette as before, with carved mouldings, voussoirs and fluting.
+            string key="carved ascent arch hd "+theme;Sprite sprite;if(themeSprites.TryGetValue(key,out sprite))return sprite;
+            Color outline=Color.Lerp(frame,Hex("111c2a"),.7f),shadow=Color.Lerp(frame,Hex("29303f"),.4f),light=Color.Lerp(frame,Hex("fff0ca"),.38f),glint=Color.Lerp(frame,Hex("fff6e0"),.62f);
+            sprite=PixelSprite(224,312,96,(x,y)=>
             {
-                int dx=x-56,dy=y-105,rad=dx*dx+dy*dy;
-                bool arch=y>=105&&rad<48*48&&rad>32*32;
-                bool pillar=y>=7&&y<106&&((x>=8&&x<25)||(x>87&&x<=104));
-                bool foot=y<11&&y>1&&((x>=3&&x<30)||(x>82&&x<=109));
-                bool capital=y>=99&&y<111&&((x>=4&&x<29)||(x>83&&x<=108));
-                bool steps=y<8&&x>19&&x<93;
-                bool recess=(y>=8&&y<105&&x>=25&&x<=87)||(y>=105&&rad<=32*32);
-                if(recess)return y<15?Hex("38453e"):Hex("111d29");
+                // Geometry is measured in the original 48ppu units; shading works per 96ppu texel.
+                float u=(x+.5f)*.5f,v=(y+.5f)*.5f,dx=u-56,dy=v-105,rad=Mathf.Sqrt(dx*dx+dy*dy);
+                uint h=(uint)(x*73856093)^(uint)(y*19349663);h^=h>>13;h*=0x5bd1e995;h^=h>>15;float grain=(h&1023)/1023f;
+                bool arch=v>=105&&rad<48&&rad>32;
+                bool pillar=v>=7&&v<106&&((u>=8&&u<25)||(u>87&&u<=104));
+                bool foot=v<11&&v>1&&((u>=3&&u<30)||(u>82&&u<=109));
+                bool capital=v>=99&&v<111&&((u>=4&&u<29)||(u>83&&u<=108));
+                bool steps=v<8&&u>19&&u<93;
+                bool recess=(v>=8&&v<105&&u>=25&&u<=87)||(v>=105&&rad<=32);
+                if(recess)
+                {
+                    // A deep doorway: faint coursing in the back wall, lit from the threshold.
+                    float lift=Mathf.Clamp01((40-v)/32f);
+                    Color back=Color.Lerp(Hex("0e1824"),Hex("2c3a38"),lift*.8f);
+                    if(Mathf.Repeat(v,9)<.5f||Mathf.Repeat(u+(Mathf.Floor(v/9)%2)*7,14)<.5f)back=Color.Lerp(back,Color.black,.35f);
+                    return v<15?Color.Lerp(Hex("38453e"),Hex("4a5a50"),grain*.4f):back;
+                }
                 if(!arch&&!pillar&&!foot&&!capital&&!steps)return Color.clear;
                 Color c=frame;
                 if(arch)
                 {
-                    if(rad>46*46||rad<34*34)c=outline;
-                    else if(rad>43*43)c=light;
-                    else if(rad<37*37)c=shadow;
-                    float angle=Mathf.Atan2(dy,dx)*Mathf.Rad2Deg;
-                    if(Mathf.Repeat(angle+6,22.5f)<1.8f)c=outline;
-                    if(Mathf.Abs(dx)<5&&y>138)c=light;
+                    float t=(rad-32)/16,angle=Mathf.Atan2(dy,dx)*Mathf.Rad2Deg;
+                    if(rad>47.5f||rad<32.5f)c=outline;
+                    else if(t>.86f)c=t>.93f?glint:light;
+                    else if(t<.2f)c=t<.1f?Color.Lerp(shadow,outline,.5f):shadow;
+                    else if(Mathf.Abs(t-.55f)<.04f)c=shadow;
+                    if(Mathf.Repeat(angle+6,11.25f)<.9f&&rad>33&&rad<47)c=outline;
+                    else if(Mathf.Repeat(angle+6,11.25f)<1.8f&&rad>33&&rad<47&&c==frame)c=light;
+                    if(Mathf.Abs(dx)<5.5f&&v>138){c=Mathf.Abs(dx)>5||rad>47.5f?outline:dx<-2.5f?glint:dx>2.5f?shadow:light;}
+                }
+                else if(capital)
+                {
+                    float r=v-99;
+                    c=r<.5f||r>11.5f?outline:r>10.5f?glint:r>8?light:r<3?shadow:frame;
+                    if(Mathf.Abs(r-6)<.5f)c=outline;
+                    float cx=u<56?u-4:108-u;if(cx<.5f||cx>24.5f)c=outline;
                 }
                 else if(pillar)
                 {
-                    int local=x<56?x-8:104-x;
-                    if(local<2||local>14)c=outline;
-                    else if(local<5)c=light;
-                    else if(local>11)c=shadow;
-                    if(local==7||local==10)c=shadow;
-                    if(y%24==0||y%24==1)c=outline;
-                    if(y%24==22)c=light;
-                    if(y%24>7&&y%24<15&&local==8)c=light;
+                    float local=u<56?u-8:104-u;
+                    if(local<.5f||local>16.5f)c=outline;
+                    else if(local<3.5f)c=local<1.5f?glint:light;
+                    else if(local>13)c=shadow;
+                    else if(Mathf.Abs(local-6.5f)<.5f||Mathf.Abs(local-9.5f)<.5f||Mathf.Abs(local-12)<.5f)c=shadow;
+                    else if(Mathf.Abs(local-7.5f)<.5f||Mathf.Abs(local-10.5f)<.5f)c=light;
+                    float drum=Mathf.Repeat(v,24);
+                    if(drum<.5f)c=outline;else if(drum>23&&local>.5f&&local<16.5f)c=light;
+                    if(drum>7&&drum<15&&Mathf.Abs(local-8.5f)<1f)c=drum>8&&drum<14?glint:light;
                 }
                 else
                 {
-                    c=y%4==0?outline:y%4==3?light:frame;
-                    if(x<6||x>106)c=shadow;
+                    float r=Mathf.Repeat(v,4);
+                    c=r<.5f?outline:r>3?light:r>2?frame:Color.Lerp(frame,shadow,.5f);
+                    if(u<6||u>106)c=shadow;
                 }
+                // Weathered stone grain.
+                if(c==frame&&grain>.86f)c=Color.Lerp(frame,shadow,.6f);
+                else if(c==frame&&grain<.06f)c=light;
                 return c;
             });themeSprites.Add(key,sprite);return sprite;
         }

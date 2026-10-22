@@ -57,3 +57,7 @@ sysinfo.txt
 .unity-pipeline-runtime-port
 /Assets/Settings/Pipeline/Resources/RuntimePipelineConfig.asset*
 /Assets/Settings/Pipeline/Resources/RuntimePipelineBuildInfo.asset*
+
+# Backdrop painter: keep its project file, ignore build output.
+!/Tools/TowerArt/BackdropPainter/BackdropPainter.csproj
+/Tools/TowerArt/BackdropPainter/bin/
