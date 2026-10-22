@@ -63,12 +63,13 @@ public static class TowerOathTests
                 Check(run.ChooseOffer(run.Offers[0].Id) && run.AdvanceFloor(), "choice works even when oath pool exhausted");
             }
         });
-        test("normal runs retain their existing reward and progress rules", () => {
-            var run = new TowerRun(42, 1);
+        test("normal runs keep oath variants out of their reward and progress rules", () => {
+            var run = new TowerRun(42, 5, false);
             Check(run.Oath == null && run.Companions.Count == 0 && !run.IsOathTrial, "no free ally in normal mode");
-            run.ClearFloor(); Check(run.IsRewardPending && !run.IsComplete, "ordinary final reward unchanged");
+            for (int floor = 1; floor <= 5; floor++) { Check(run.ClearFloor(), "clear"); if (floor < 5) Check(!run.IsRewardPending && run.AdvanceFloor(), "plain floor"); }
+            Check(run.IsRewardPending && !run.IsComplete, "final fifth floor still offers its card");
             foreach (var offer in run.Offers) Check(offer.Kind != RewardKind.Oath, "oath trial isolated");
-            Check(new TowerProgress().RecordFloorClear(run) == 1, "normal points");
+            Check(new TowerProgress().RecordFloorClear(run) == 5, "normal points");
         });
     }
 }

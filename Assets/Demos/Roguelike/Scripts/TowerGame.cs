@@ -13,7 +13,7 @@ namespace PrototypeLab.Roguelike
             public float basicDelay,castRemaining; public bool basicPending; public Fighter basicTarget,combatTarget; public int combo;
             public float moveVelocity,followGroundY,followGroundX,dropTime,dropHeight;
             public int followSource=-2,followGoal=-2,followNext=-2; public bool followMoving,returningToFormation;
-            public int facing=1,kind,difficultyFloor=1; public string id; public bool grounded,airborne,isBoss,isEnemy; public float slowTime,stunTime; public Vector2 strikePoint;
+            public int facing=1,kind,difficultyFloor=1; public string id; public bool grounded,airborne,isBoss,isElite,isEnemy; public float slowTime,stunTime; public Vector2 strikePoint;
             public float damageScale=1,moveScale=1,bulletSpeedScale=1,attackRateScale=1;
             public TowerMonsterDefinition monster;
             public TowerThemeId theme;
@@ -52,7 +52,7 @@ namespace PrototypeLab.Roguelike
         internal bool SmokeControlled;
         internal float MoveOverride;
         internal bool AttackOverride,JumpOverride,DashOverride,DropOverride;
-        internal bool Paused { get { return intro||menu||party||help||run.IsRewardPending||hero.hp<=0||run.IsComplete; } }
+        internal bool Paused { get { return intro||menu||party||help||shopOpen||run.IsRewardPending||hero.hp<=0||run.IsComplete; } }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Enter()
@@ -72,7 +72,6 @@ namespace PrototypeLab.Roguelike
             music=TowerMusic.Create(transform);
             slashSound=Tone(220,.11f);hitSound=Tone(95,.10f);chimeSound=Tone(660,.28f);
             progress=TowerProgress.Load(PlayerPrefs.GetString(ProgressKey,""));
-            if(progress.HasSelectedMyth)previewMyth=progress.SelectedMythId;
             var launchArgs=Environment.GetCommandLineArgs();
             bool visualFixture=Array.IndexOf(launchArgs,"-towerAnimationSmoke")>=0||Array.IndexOf(launchArgs,"-towerArtSmoke")>=0||Array.IndexOf(launchArgs,"-towerMonsterRigSmoke")>=0;
             if(visualFixture)
@@ -80,7 +79,7 @@ namespace PrototypeLab.Roguelike
                 // Visual fixtures instantiate their own actors/camera. They do
                 // not require a random floor or unrelated theme resources.
                 SuppressProgressPersistence=true;enabled=false;seed=15;
-                run=new TowerRun(seed,25,TowerMythCatalog.StarterMythId);
+                run=new TowerRun(seed,TowerRun.DefaultMaxFloor,false);
             }
             else NewRun();
             var driver=gameObject.AddComponent<TowerSmokeDriver>();driver.Initialize(this);
@@ -93,10 +92,11 @@ namespace PrototypeLab.Roguelike
             foreach(var s in shots)if(s.root)Destroy(s.root);shots.Clear();
             numbers.Clear();
             if(hero!=null&&hero.root)Destroy(hero.root);
-            seed=fixedSeed??(Environment.TickCount&0x7fffffff);run=new TowerRun(seed,25,!SmokeControlled&&progress!=null&&!string.IsNullOrEmpty(progress.SelectedMythId)?progress.SelectedMythId:TowerMythCatalog.StarterMythId,oathCompanionId);
+            // Real climbs open with a recruit from every mythology; fixtures compose their own parties.
+            seed=fixedSeed??(Environment.TickCount&0x7fffffff);run=new TowerRun(seed,TowerRun.DefaultMaxFloor,!SmokeControlled,oathCompanionId);
             hero=Spawn("Player",0,false,new Vector2(-12,TowerWorld.Ground));hero.id="player";hero.hp=hero.maxHp=PlayerMaxHealth;ResetSkills();
             elapsed=0;kills=0;healClock=0;invulnerable=0;dashCooldown=0;slashCooldown=0;attackTimer=0;dashTime=0;pendingSlash=false;jumpBuffer=0;coyote=0;
-            menu=party=help=oathLobby=false;dismissId="";notice="";FocusActive=false;cameraLead=1.6f;ResetPresentation();CreateHitCore();ResetCombatRewards();ClearOathEffects();
+            menu=party=help=oathLobby=shopOpen=false;dismissId="";notice="";toasts.Clear();FocusActive=false;cameraLead=1.6f;ResetPresentation();ResetAction();CreateHitCore();ResetCombatRewards();ClearOathEffects();
             SpawnFloor();
         }
         private Fighter Spawn(string name,int index,bool monster,Vector2 pos)
@@ -111,12 +111,19 @@ namespace PrototypeLab.Roguelike
             ResetEnemyCombat();
             BeginFloorRecord();
             world.SetTheme(run.Theme.Id,run.Floor,seed);
+            world.SetFloorFeature(run.FloorType,run.IsBranchFloor);
             music.PlayTheme(run.Theme.Id);
             cameraCeiling=Mathf.Max(1.8f,world.HighestPlatform+4);
             hero.pos=new Vector2(-12,TowerWorld.Ground);hero.velocityY=0;hero.dropTime=0;hero.facing=1;hero.grounded=true;
-            hero.root.transform.position=hero.pos;previousHeroPosition=hero.pos;view.transform.position=new Vector3(-7,0,-10);
-            foreach(var s in shots)Destroy(s.root);shots.Clear();ClearFloorSkillEffects();
-            int count=TowerDifficulty.RegularCount(run.Floor);bool bossFloor=TowerDifficulty.IsBossFloor(run.Floor);
+            hero.root.transform.position=hero.pos;previousHeroPosition=hero.pos;view.transform.position=new Vector3(-7,0,-10);appliedShake=Vector3.zero;
+            foreach(var s in shots)Destroy(s.root);shots.Clear();ClearFloorSkillEffects();shopOpen=false;
+            if(run.FloorType==FloorType.Rest||run.FloorType==FloorType.Shop)
+            {
+                // Peaceful floors hold no monsters; the first update clears them.
+                SyncAllies();ResetAllyFormation();Notice(FloorTypeName(run.FloorType)+" 층  ·  "+FloorTypeSummary(run.FloorType),3);return;
+            }
+            bool elite=run.FloorType==FloorType.Elite;int scaled=DifficultyFloor(run.Floor);
+            int count=elite?TowerDifficulty.EliteCount(scaled):TowerDifficulty.RegularCount(scaled);bool bossFloor=!elite&&TowerDifficulty.IsBossFloor(run.Floor);
             var roster=new List<TowerMonsterDefinition>(run.Theme.Monsters);
             var floorRandom=new System.Random(unchecked(seed*397 ^ run.Floor*7919));
             for(int i=roster.Count-1;i>0;i--){int swap=floorRandom.Next(i+1);var saved=roster[i];roster[i]=roster[swap];roster[swap]=saved;}
@@ -131,7 +138,7 @@ namespace PrototypeLab.Roguelike
                 var e=Spawn(definition.Name,definition.Kind,true,new Vector2(x,TowerWorld.Ground));
                 e.monster=definition;e.id=definition.Id;e.theme=run.Theme.Id;
                 e.art.SetThemeMonster(e.theme,definition.Variant,false);
-                ConfigureEnemy(e,definition.Kind,i);enemies.Add(e);
+                ConfigureEnemy(e,definition.Kind,i);if(elite)MakeElite(e);enemies.Add(e);
             }
             if(run.Floor>=2)
             {
@@ -145,7 +152,7 @@ namespace PrototypeLab.Roguelike
                 }
                 var definition=run.Theme.Monsters[run.Theme.AirborneVariant];var flying=Spawn(definition.Name,3,true,new Vector2(perch.x,perch.y+.8f));
                 flying.monster=definition;flying.id=definition.Id;flying.theme=run.Theme.Id;flying.art.SetThemeMonster(flying.theme,definition.Variant,false);
-                ConfigureEnemy(flying,3,count);enemies.Add(flying);
+                ConfigureEnemy(flying,3,count);if(elite)MakeElite(flying);enemies.Add(flying);
             }
             if(bossFloor)
             {
@@ -153,36 +160,34 @@ namespace PrototypeLab.Roguelike
                 boss.monster=definition;boss.id=definition.Id;boss.theme=run.Theme.Id;boss.art.SetThemeMonster(boss.theme,0,true);
                 ConfigureBoss(boss,run.Floor);enemies.Add(boss);
             }
-            SyncAllies();ResetAllyFormation();Notice(bossFloor?run.Theme.Boss.Name+" 출현":"",bossFloor?3:0);
+            SyncAllies();ResetAllyFormation();
+            if(elite)Notice("엘리트 층  ·  클리어하면 증강",3);else Notice(bossFloor?run.Theme.Boss.Name+" 출현  ·  "+SignatureName(run.Theme.Id):"",bossFloor?3:0);
         }
         internal void StartClimb()
         {
             if(oathLobby){StartOathTrial(oathSelection);return;}
-            if(!SmokeControlled&&(progress==null||string.IsNullOrEmpty(progress.SelectedMythId)))
-            {mythMessage="등반할 신화를 먼저 선택하세요.";return;}
-            if(!SmokeControlled&&previewMyth!=progress.SelectedMythId)
-            {mythMessage="화면에서 보고 있는 신화를 선택한 뒤 시작하세요.";return;}
-            if(!SmokeControlled&&progress!=null&&!string.IsNullOrEmpty(progress.SelectedMythId)&&run.SelectedMythId!=progress.SelectedMythId)NewRun();
             intro=false;Notice("",0);
         }
         internal void SaveProgress(){if(progress==null||SuppressProgressPersistence||SmokeControlled)return;PlayerPrefs.SetString(ProgressKey,progress.Save());PlayerPrefs.Save();}
         private void OnApplicationPause(bool paused){if(paused)SaveProgress();}
         private void OnApplicationQuit(){SaveProgress();}
         private void OnDestroy()
-        {if(slashSound)Destroy(slashSound);if(hitSound)Destroy(hitSound);if(chimeSound)Destroy(chimeSound);if(uiGradient)Destroy(uiGradient);if(uiHalo)Destroy(uiHalo);if(uiDiamond)Destroy(uiDiamond);if(uiScrollThumb)Destroy(uiScrollThumb);if(uiSkin)Destroy(uiSkin);}
+        {if(slashSound)Destroy(slashSound);if(hitSound)Destroy(hitSound);if(chimeSound)Destroy(chimeSound);if(uiGradient)Destroy(uiGradient);if(uiHalo)Destroy(uiHalo);if(uiDiamond)Destroy(uiDiamond);if(uiGrain)Destroy(uiGrain);if(uiVignette)Destroy(uiVignette);if(uiScrollThumb)Destroy(uiScrollThumb);if(uiSkin)Destroy(uiSkin);}
         private void Update()
         {
-            float dt=Mathf.Min(Time.unscaledDeltaTime,.04f);
-            TickHUD(dt);
-            if(noticeTime>0)noticeTime-=dt;
+            float frame=Mathf.Min(Time.unscaledDeltaTime,.04f);
+            TickHUD(frame);TickToasts(frame);
+            if(noticeTime>0)noticeTime-=frame;
             if(!SmokeControlled)
             {
-                if(Input.GetKeyDown(KeyCode.Escape)){if(help)help=false;else if(intro){}else if(party){party=false;dismissId="";}else if(!run.IsRewardPending)menu=!menu;}
-                if(Input.GetKeyDown(KeyCode.Tab)&&!intro&&hero.hp>0&&!run.IsComplete){party=!party;dismissId="";}
+                if(Input.GetKeyDown(KeyCode.Escape)){if(help)help=false;else if(intro){}else if(shopOpen)shopOpen=false;else if(party){party=false;dismissId="";}else if(!run.IsRewardPending)menu=!menu;}
+                if(Input.GetKeyDown(KeyCode.Tab)&&!intro&&hero.hp>0&&!run.IsComplete){party=!party;dismissId="";shopOpen=false;}
                 if(Input.GetKeyDown(KeyCode.Return)&&intro&&!help)StartClimb();
             }
             ConfigurePixelCamera();
-            if(Paused){AnimateIdle(dt);TickDeaths(dt);return;}
+            if(Paused){AnimateIdle(frame);TickDeaths(frame);return;}
+            // A short hit stop slows the simulation; input, HUD and camera keep real time.
+            float dt=TickHitStop(frame);
             previousHeroPosition=hero.pos;
             CounterRemaining=Mathf.Max(0,CounterRemaining-dt);
             hero.castRemaining=Mathf.Max(0,hero.castRemaining-dt);
@@ -192,20 +197,35 @@ namespace PrototypeLab.Roguelike
             bool drop=SmokeControlled?DropOverride:Input.GetKey(KeyCode.S)||Input.GetKey(KeyCode.DownArrow);
             bool dash=SmokeControlled?DashOverride:Input.GetKeyDown(KeyCode.LeftShift)||Input.GetKeyDown(KeyCode.RightShift);
             bool attack=SmokeControlled?AttackOverride:(Input.GetKey(KeyCode.J)||(Input.GetMouseButton(0)&&!MouseInUI()));
+            // A fresh press during the dash cuts it into a dash slash; a held key waits for the dash to end.
+            bool attackPressed=!SmokeControlled&&(Input.GetKeyDown(KeyCode.J)||(Input.GetMouseButtonDown(0)&&!MouseInUI()));
+            bool jumpHeld=SmokeControlled||Input.GetKey(KeyCode.Space);
             FocusActive=SmokeControlled?FocusOverride:Input.GetKey(KeyCode.LeftControl)||Input.GetKey(KeyCode.RightControl);
             if(playerHitCore)playerHitCore.SetActive(FocusActive);
             if(jump)jumpBuffer=.14f;else jumpBuffer-=dt;
             if(hero.grounded)coyote=.1f;else coyote-=dt;
             if(move!=0&&dashTime<=0&&(attackTimer<=0||!pendingSlash)&&hero.castRemaining<=0)hero.facing=move>0?1:-1;
             if(drop&&hero.grounded&&hero.pos.y>TowerWorld.Ground+.1f){jumpBuffer=0;coyote=0;}
-            if(jumpBuffer>0&&coyote>0&&hero.dropTime<=0){hero.velocityY=10.7f;hero.grounded=false;jumpBuffer=0;coyote=0;Sound(slashSound,.28f);}
-            if(dash&&dashCooldown<=0){if(move!=0)hero.facing=move>0?1:-1;attackTimer=0;pendingSlash=false;CancelPlayerCast();hero.art.InterruptAction();dashTime=.18f;BeginDodgeCounter();dashCooldown=1.15f*run.Player.DodgeCooldownMultiplier;invulnerable=Mathf.Max(invulnerable,.25f);if(vfx!=null){vfx.Afterimage(hero.root.transform);vfx.Cast(SkillEffect.DashStrike,hero.pos+Vector2.up,1,TowerWorld.Teal);}Sound(slashSound,.5f);}
-            if(dashTime>0){dashTime-=dt;hero.pos.x+=hero.facing*19*dt;if(vfx!=null&&elapsed>=nextAfterimage){nextAfterimage=elapsed+.05f;vfx.Afterimage(hero.root.transform);}}
+            if(jumpBuffer>0&&coyote>0&&hero.dropTime<=0){hero.velocityY=10.7f;hero.grounded=false;jumpBuffer=0;coyote=0;jumpCut=false;Sound(slashSound,.28f);if(vfx!=null)vfx.Dust(hero.pos,0,.5f);}
+            // Releasing jump early cuts the rise for short hops.
+            if(!jumpHeld&&!jumpCut&&!hero.grounded&&hero.velocityY>4){hero.velocityY*=.55f;jumpCut=true;}
+            if(dash&&dashCooldown<=0){if(move!=0)hero.facing=move>0?1:-1;attackTimer=0;pendingSlash=false;lungeTime=0;CancelPlayerCast();hero.art.InterruptAction();dashTime=.18f;BeginDodgeCounter();dashCooldown=1.15f*run.Player.DodgeCooldownMultiplier;invulnerable=Mathf.Max(invulnerable,.25f);if(vfx!=null){vfx.Afterimage(hero.root.transform);vfx.Cast(SkillEffect.DashStrike,hero.pos+Vector2.up,1,TowerWorld.Teal);if(hero.grounded)vfx.Dust(hero.pos,hero.facing,.9f);vfx.SpeedLines(hero.pos+Vector2.up*.9f,hero.facing,TowerWorld.Teal);}Sound(slashSound,.5f);}
+            if(dashTime>0)
+            {
+                dashTime-=dt;hero.pos.x+=hero.facing*19*dt;
+                // Air dashes hold their height instead of dropping mid-dodge.
+                if(!hero.grounded)hero.velocityY=Mathf.Max(0,hero.velocityY);
+                if(vfx!=null&&elapsed>=nextAfterimage){nextAfterimage=elapsed+.05f;vfx.Afterimage(hero.root.transform);}
+                if(dashTime<=0)dashEndedAt=elapsed;
+            }
             else hero.pos.x+=move*PlayerMoveSpeed*(FocusActive?.45f:1)*(attackTimer>0?.85f:1)*dt;
+            TickLunge(dt);
             hero.pos.x=Mathf.Clamp(hero.pos.x,TowerWorld.Left+.6f,TowerWorld.Right-.6f);
 
+            bool wasAirborne=!hero.grounded;float fallSpeed=hero.velocityY;
             StepGravity(hero,dt,drop);hero.root.transform.position=hero.pos;
-            if(attack&&slashCooldown<=0&&hero.castRemaining<=0&&dashTime<=0)StartPlayerAttack();
+            LandingFeedback(wasAirborne,fallSpeed);
+            if(attack&&slashCooldown<=0&&hero.castRemaining<=0&&(dashTime<=0||attackPressed&&dashTime<=.12f))StartPlayerAttack();
             TickPlayerAttack(dt);
             hero.hurt=Mathf.Max(0,hero.hurt-dt);
             float actualHeroSpeed=dt>0?(hero.pos.x-previousHeroPosition.x)/dt:0;
@@ -218,14 +238,18 @@ namespace PrototypeLab.Roguelike
             if(enemies.Count==0&&!run.IsFloorCleared)
             {
                 run.ClearFloor();ClearOathEffects();foreach(var shot in shots)if(shot.root)Destroy(shot.root);shots.Clear();RecordFloorResult();int earned=SmokeControlled?0:progress.RecordFloorClear(run);if(earned>0)SaveProgress();CancelPendingSkills();hero.hp=Mathf.Min(PlayerMaxHealth,hero.hp+18);Sound(chimeSound,.8f);
-                Notice("층 클리어",2);
+                if(run.FloorType==FloorType.Rest||run.FloorType==FloorType.Shop)OnSpecialFloorCleared();
+                else Notice(run.IsBranchFloor?"층 클리어  ·  원하는 출구를 고르세요":"층 클리어",2.5f);
             }
-            if(!SmokeControlled&&run.IsFloorCleared&&!run.IsRewardPending&&Mathf.Abs(hero.pos.x-TowerWorld.ExitX)<2&&Input.GetKeyDown(KeyCode.E))NextFloor();
+            if(!SmokeControlled&&run.IsFloorCleared&&!run.IsRewardPending&&Input.GetKeyDown(KeyCode.E))
+            {if(NearMerchant)InteractMerchant();else{var gate=NearestGate();if(gate.HasValue)NextFloor(gate.Value);}}
             world.Tick(dt,run.IsFloorCleared&&!run.IsRewardPending);
-            if(move!=0)cameraLead=Mathf.MoveTowards(cameraLead,move*1.6f,dt*4);
+            if(move!=0)cameraLead=Mathf.MoveTowards(cameraLead,move*1.6f,frame*4);
             float cameraX=Mathf.Clamp(hero.pos.x+cameraLead,-7.5f,21.5f);
             Vector3 destination=new Vector3(cameraX,Mathf.Clamp(hero.pos.y+1.5f,0,cameraCeiling),-10);
-            view.transform.position=SnapCamera(Vector3.Lerp(view.transform.position,destination,1-Mathf.Exp(-dt*5)));
+            Vector3 settled=Vector3.Lerp(view.transform.position-appliedShake,destination,1-Mathf.Exp(-frame*5));
+            appliedShake=NextShake(frame);
+            view.transform.position=SnapCamera(settled+appliedShake);
         }
         private void AnimateIdle(float dt)
         {
@@ -248,11 +272,25 @@ namespace PrototypeLab.Roguelike
 
         private void PlayerSlash()
         {
+            // The third combo hit and dash slashes reach further, hit harder and knock back more.
+            bool dashSlash=slashIsDash,finisher=!dashSlash&&slashCombo==2;slashIsDash=false;slashCombo=0;
+            bool heavy=dashSlash||finisher;
             Vector2 origin=hero.pos+new Vector2(hero.facing*1.1f,1);
-            bool counter=CounterRemaining>0;SlashArc(origin,hero.facing,counter?TowerWorld.Teal:TowerWorld.Gold);bool connected=false;
+            bool counter=CounterRemaining>0;Color color=counter?TowerWorld.Teal:TowerWorld.Gold;
+            if(heavy&&vfx!=null)vfx.HeavySlash(origin,hero.facing,color);else SlashArc(origin,hero.facing,color);
+            bool connected=false;
+            float reach=run.Player.Range*(dashSlash?DashSlashReach:finisher?FinisherReach:1);
+            float damage=PlayerDamage*(counter?DodgeCounterMultiplier:1)*(dashSlash?DashSlashMultiplier:finisher?FinisherMultiplier:1);
+            float push=hero.facing*(heavy?.9f:.35f);
             Vector2 oathTarget=origin;float nearest=float.PositiveInfinity;
-            for(int i=enemies.Count-1;i>=0;i--){var e=enemies[i];if(CanTarget(e,run.Player)&&(e.pos.x-hero.pos.x)*hero.facing>-.4f&&Mathf.Abs(e.pos.x-hero.pos.x)<run.Player.Range&&Mathf.Abs((e.pos.y+.85f)-(hero.pos.y+.9f))<1.9f){float distance=(e.pos-hero.pos).sqrMagnitude;if(distance<nearest){nearest=distance;oathTarget=e.pos;}StrikeEnemy(e,PlayerDamage*(counter?DodgeCounterMultiplier:1),run.Player,hero.facing*.35f);connected=true;}}
-            if(connected){if(counter)ConsumeDodgeCounter();OnOathSwordHit(oathTarget);Sound(slashSound,.65f);}
+            for(int i=enemies.Count-1;i>=0;i--){var e=enemies[i];if(CanTarget(e,run.Player)&&(e.pos.x-hero.pos.x)*hero.facing>-.4f&&Mathf.Abs(e.pos.x-hero.pos.x)<reach&&Mathf.Abs((e.pos.y+.85f)-(hero.pos.y+.9f))<1.9f){float distance=(e.pos-hero.pos).sqrMagnitude;if(distance<nearest){nearest=distance;oathTarget=e.pos;}StrikeEnemy(e,damage,run.Player,push);connected=true;}}
+            if(connected)
+            {
+                if(counter)ConsumeDodgeCounter();OnOathSwordHit(oathTarget);Sound(slashSound,.65f);
+                if(dashSlash)DashSlashes++;else if(finisher)Finishers++;
+                HitStop(heavy?.075f:.035f);Shake(heavy?.11f:.04f,heavy?.16f:.08f);
+                if(heavy)FloatText(hero.pos+Vector2.up*2.6f,dashSlash?"돌진 베기":"마무리 일격",TowerWorld.Gold);
+            }
         }
 
         private void Fire(Vector2 from,Vector2 to,float speed,float damage,bool hostile,Color color,float area=0,HeroState owner=null,int pierce=1,float slowDuration=0)
@@ -264,11 +302,13 @@ namespace PrototypeLab.Roguelike
             if(hostile)StyleHostileLastShot();else StyleLastShot(owner is CompanionState&&((CompanionState)owner).Definition.Role==CompanionRole.Archer?SkillEffect.MultiShot:SkillEffect.ArcaneVolley);
         }
 
+        private bool criticalHit;
         private void DamageEnemy(Fighter e,float damage,float push)
         {
+            bool critical=criticalHit;criticalHit=false;
             if(!CanTarget(e,null))return;e.hp-=damage;e.hurt=.14f;e.pos.x=Mathf.Clamp(e.pos.x+push,TowerWorld.Left,TowerWorld.Right);
-            FloatText(e.pos+Vector2.up*1.8f,Mathf.CeilToInt(damage).ToString(),TowerWorld.Gold);Burst(e.pos+Vector2.up,TowerWorld.Gold,4,.3f);Sound(hitSound,.35f);
-            if(e.hp<=0){kills++;Burst(e.pos+Vector2.up,TowerWorld.Teal,12,.7f);enemies.Remove(e);RetireEnemy(e);}
+            FloatText(e.pos+Vector2.up*1.8f,Mathf.CeilToInt(damage)+(critical?"!":""),critical?new Color(1,.5f,.32f):TowerWorld.Gold);Burst(e.pos+Vector2.up,TowerWorld.Gold,4,.3f);Sound(hitSound,.35f);
+            if(e.hp<=0){kills++;if(vfx!=null)vfx.KillBurst(e.pos+Vector2.up*(e.isBoss?1.6f:.9f),e.isBoss?TowerWorld.Gold:TowerWorld.Teal);HitStop(e.isBoss?.12f:.05f);if(e.isBoss)Shake(.3f,.45f);enemies.Remove(e);RetireEnemy(e);}
         }
         private void HurtHero(float damage)
         {
@@ -278,7 +318,7 @@ namespace PrototypeLab.Roguelike
             FloorHits++;CounterRemaining=0;
             damage=MitigatePlayerDamage(damage);if(damage<=0)return;
             DamageTaken+=Mathf.Min(hero.hp,damage);
-            hero.hp=Mathf.Max(0,hero.hp-damage);hero.hurt=.25f;invulnerable=.65f;
+            hero.hp=Mathf.Max(0,hero.hp-damage);hero.hurt=.25f;invulnerable=.65f;HitStop(.05f);Shake(.16f,.22f);
             FloatText(hero.pos+Vector2.up*2,"−"+Mathf.RoundToInt(damage),new Color(1,.4f,.35f));Sound(hitSound,.8f);if(hero.hp<=0){ClearOathEffects();hero.art.PlayDeath(.65f);}
         }
         internal void SyncAllies()
@@ -292,10 +332,23 @@ namespace PrototypeLab.Roguelike
             }
         }
         internal void SelectOffer(long id)
-        { if(run.ChooseOffer(id)){ReconcileLoadout();Sound(chimeSound,.8f);Notice("증강 획득",2);} }
+        {
+            var offer=run.Offers.Count>0?FindOffer(id):null;bool recruit=offer!=null&&offer.Kind==RewardKind.Recruit;
+            if(!run.ChooseOffer(id))return;
+            ReconcileLoadout();Sound(chimeSound,.8f);
+            if(recruit)
+            {
+                var c=run.GetCompanion(offer.CompanionId);if(c==null)return;
+                var myth=TowerMythCatalog.Get(c.Definition.MythId);var synergy=TowerMythCatalog.GetSynergy(myth.Id);int members=run.MythCount(myth.Id);
+                Toast(c.Name+" 합류",RoleName(c.Definition.Role)+"  ·  "+myth.Name+"  "+members+" / 3",TierColor(c.Definition.Tier),3.2f);
+                if(members>=2)Toast("신화 시너지 「"+synergy.Name+"」 "+(members>=3?"2단계":"발동"),synergy.Describe(members),brass,4.2f);
+            }
+            else Toast(offer==null?"증강 획득":offer.Title.Replace(" 습득","").Replace(" 강화",""),offer==null?"":offer.Kind==RewardKind.Skill?(offer.IsUpgrade?"스킬 Lv."+offer.NextLevel+" 강화":"스킬 습득"):offer.Kind==RewardKind.Oath?"서약 변형":"특성 강화",offer==null?brass:TierColor(offer.Tier));
+        }
+        private RewardOffer FindOffer(long id){foreach(var offer in run.Offers)if(offer.Id==id)return offer;return null;}
         internal void Dismiss(string id)
-        { if(run.DismissCompanion(id)){ReconcileLoadout();dismissId="";Notice("동료와 작별했습니다",2);} }
-        internal void NextFloor(){if(run.AdvanceFloor())SpawnFloor();}
+        { var c=run.GetCompanion(id);if(run.DismissCompanion(id)){ReconcileLoadout();dismissId="";Toast("동료와 작별",(c==null?"":c.Name+"  ·  ")+"능력도 함께 사라졌습니다",muted);} }
+        internal void NextFloor(FloorType type=FloorType.Normal){if(run.AdvanceFloor(type))SpawnFloor();}
         internal void Notice(string text,float seconds){notice=text;noticeTime=seconds;}
         private void FloatText(Vector2 pos,string text,Color color){numbers.Add(new Number{pos=pos,text=text,color=color,life=.8f});}
         private void Burst(Vector2 pos,Color color,int count,float size)

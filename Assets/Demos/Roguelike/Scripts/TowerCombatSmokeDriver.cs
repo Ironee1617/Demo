@@ -116,26 +116,36 @@ namespace PrototypeLab.Roguelike
         private IEnumerator Formations()
         {
             Setup("michael", "gabriel", "uriel"); yield return Wait(2.5f);
+            RequireSpacedSlots(1, "settle behind the player");
             foreach (var state in game.run.Companions)
             {
                 var actor = game.allies.Find(a => a.id == state.Id);
-                Require(Mathf.Abs(actor.pos.x - game.hero.pos.x) < .5f, "A companion did not settle near the player: " + state.Id);
                 Require(Mathf.Abs(actor.art.transform.localScale.x - .82f) < .001f && Mathf.Abs(actor.root.transform.localScale.x - 1) < .001f, "Companion art scale must be .82 without shrinking physics.");
             }
             report.formationForward = report.companionScale = true;
-            yield return Capture("formation-right", "추적 검증 · 플레이어와 같은 위치 공유");
+            yield return Capture("formation-right", "추적 검증 · 플레이어 뒤로 간격을 두고 정렬");
             game.MoveOverride = -1; yield return Wait(.24f); game.MoveOverride = 0; yield return Wait(2.6f);
             Require(game.hero.facing == -1, "Movement input did not reverse the hero facing.");
-            foreach (var state in game.run.Companions)
-            {
-                Require(Mathf.Abs(game.allies.Find(a => a.id == state.Id).pos.x - game.hero.pos.x) < .5f, "A companion did not follow the reversing hero: " + state.Id);
-            }
+            RequireSpacedSlots(-1, "follow the reversing hero");
             report.formationReversed = report.stableSlots = true;
-            yield return Capture("formation-left", "추적 검증 · 방향 전환 후 함께 정지");
+            yield return Capture("formation-left", "추적 검증 · 방향 전환 후 반대쪽으로 정렬");
             game.MoveOverride = -1; yield return Wait(2); game.MoveOverride = 0;
             foreach (var state in game.run.Companions) Require(Mathf.Abs(game.allies.Find(a => a.id == state.Id).pos.x - game.FormationAnchor(state).x) < .65f, "A companion fell behind the moving hero's formation: " + state.Id);
             report.movingFormationMaintained = true;
-            report.checks.Add("Companions share the player's position, follow movement and reversals without requiring role offsets, and only ally artwork scales to .82.");
+            report.checks.Add("Companions settle in spaced slots behind the player, swap sides after a reversal, keep up while moving, and only ally artwork scales to .82.");
+        }
+        // Grounded followers stand in their own slots behind the hero's facing, at least half a unit apart.
+        private void RequireSpacedSlots(int facing, string action)
+        {
+            var spots = new List<float> { game.hero.pos.x };
+            foreach (var state in game.run.Companions)
+            {
+                var actor = game.allies.Find(a => a.id == state.Id); var slot = game.FormationAnchor(state);
+                Require(Mathf.Abs(actor.pos.x - slot.x) < .3f, "A companion did not " + action + ": " + state.Id);
+                Require((game.hero.pos.x - actor.pos.x) * facing > .3f, "A companion stood in front of the hero instead of behind: " + state.Id);
+                spots.Add(actor.pos.x);
+            }
+            spots.Sort(); for (int i = 1; i < spots.Count; i++) Require(spots[i] - spots[i - 1] > .5f, "The hero and companions overlap after they " + action + ".");
         }
         private IEnumerator Airborne()
         {

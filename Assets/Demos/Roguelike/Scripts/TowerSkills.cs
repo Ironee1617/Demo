@@ -231,8 +231,8 @@ namespace PrototypeLab.Roguelike
         private float StrikeEnemy(Fighter enemy,float damage,HeroState owner,float push)
         {
             if(!CanTarget(enemy,owner))return 0;
-            if(owner!=null&&UnityEngine.Random.value<owner.CritChance)damage*=1.75f;
-            float dealt=Mathf.Min(enemy.hp,damage);DamageEnemy(enemy,damage,push);
+            bool critical=owner!=null&&UnityEngine.Random.value<owner.CritChance;if(critical)damage*=1.75f;
+            float dealt=Mathf.Min(enemy.hp,damage);criticalHit=critical;DamageEnemy(enemy,damage,push);
             if(owner!=null&&owner.LifeSteal>0)HealPlayer(dealt*owner.LifeSteal,false);
             return dealt;
         }

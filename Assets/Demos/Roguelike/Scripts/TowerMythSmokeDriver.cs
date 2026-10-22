@@ -13,7 +13,7 @@ namespace PrototypeLab.Roguelike
         [Serializable] private sealed class MythReport
         {
             public string mode = "towerMythSmoke", finishedUtc;
-            public bool success, selectionGuard, previewGuard, selectedRun, floorPoints, pointReceipts, purchase, savedDataUntouched;
+            public bool success, openingRecruit, allMythsOffered, floorPoints, pointReceipts, shopPurchase, savedDataUntouched;
             public int atlases, companions, portraits, stateFrames, visibleStateFrames, gameplayClears;
             public List<string> checks = new List<string>(), screenshots = new List<string>(), errors = new List<string>();
         }
@@ -51,8 +51,6 @@ namespace PrototypeLab.Roguelike
         { if (type == LogType.Error || type == LogType.Exception || type == LogType.Assert) report.errors.Add(message + "\n" + trace); }
         private object Call(string method, params object[] arguments)
         { return typeof(TowerGame).GetMethod(method, Hidden).Invoke(game, arguments); }
-        private void Preview(string id)
-        { typeof(TowerGame).GetField("previewMyth", Hidden).SetValue(game, id); }
         private IEnumerator Guard(IEnumerator body)
         {
             var stack = new Stack<IEnumerator>(); stack.Push(body);
@@ -70,34 +68,42 @@ namespace PrototypeLab.Roguelike
         private IEnumerator Suite()
         {
             yield return Library();
-            game.progress = new TowerProgress(); game.SmokeControlled = false; game.NewRun(15); Preview("eden"); game.intro = true;
-            game.StartClimb(); report.selectionGuard = game.intro && !game.progress.HasSelectedMyth;
-            Require(report.selectionGuard, "The game started before the account explicitly selected a mythology.");
-            yield return Capture("selection-required");
-            Require(game.progress.TrySelect("eden"), "Could not select free starter."); game.SaveProgress();
-            game.NewRun(15); game.intro = true; yield return Capture("eden-selected");
-            Preview("olympus"); game.StartClimb(); report.previewGuard = game.intro;
-            Require(report.previewGuard && !game.progress.TrySelect("olympus"), "Previewing or selecting a locked mythology bypassed the start guard.");
-            yield return Capture("olympus-locked");
-            Preview("eden"); game.StartClimb(); Require(!game.intro && game.run.SelectedMythId == "eden", "Selected starter did not start its own run.");
+            // Every climb opens with a companion-only card set drawn from all mythologies.
+            game.progress = new TowerProgress(); game.SmokeControlled = false; game.NewRun(15); game.intro = true;
+            yield return Capture("title");
+            game.StartClimb();
+            report.openingRecruit = !game.intro && game.run.IsRewardPending && game.run.IsRecruitOffer && game.run.Offers.Count == TowerRun.OfferSlots;
+            foreach (var offer in game.run.Offers) report.openingRecruit &= offer.Kind == RewardKind.Recruit;
+            Require(report.openingRecruit, "A new climb did not open with a companion-only recruit.");
+            yield return Capture("opening-recruit");
+            var myths = new HashSet<string>();
+            for (int seed = 1; seed <= 40; seed++) foreach (var offer in new TowerRun(seed).Offers) myths.Add(TowerRun.GetDefinition(offer.CompanionId).MythId);
+            report.allMythsOffered = myths.Count >= 8;
+            Require(report.allMythsOffered, "Opening recruits did not span the mythologies.");
+            game.SelectOffer(game.run.Offers[0].Id); Require(game.run.Companions.Count == 1 && !game.run.IsRewardPending, "The opening recruit did not join.");
             for (int i = 0; i < 2; i++) { ClearByGameplay(); if (i == 0) NextFloor(); }
             var creditedRun = game.run;
             game.progress = TowerProgress.Load(game.progress.Save());
             report.pointReceipts = game.progress.Points == 2 && game.progress.RecordFloorClear(creditedRun) == 0;
             Require(report.pointReceipts, "Reloading account state awarded the same run again.");
-            game.NewRun(15); game.intro = false;
+            game.NewRun(15); game.intro = false; game.SelectOffer(game.run.Offers[0].Id);
             for (int i = 0; i < 3; i++) { ClearByGameplay(); if (i < 2) NextFloor(); }
             report.floorPoints = game.progress.Points == 5 && report.gameplayClears == 5;
             Require(report.floorPoints, "Five actual floor-clear updates did not award exactly five points.");
             yield return Capture("five-floor-points");
-            game.intro = true; Preview("olympus");
-            Require(game.progress.TryPurchase("olympus") && game.progress.Points == 0 && !game.progress.TryPurchase("olympus"), "Myth purchase did not deduct one exact price.");
-            game.SaveProgress(); report.purchase = game.progress.IsUnlocked("olympus");
-            yield return Capture("olympus-purchased");
-            Require(game.progress.TrySelect("olympus"), "Purchased mythology could not be selected."); game.SaveProgress(); game.NewRun(15); game.intro = true;
-            yield return Capture("olympus-selected");
-            game.StartClimb(); report.selectedRun = !game.intro && game.run.SelectedMythId == "olympus";
-            Require(report.selectedRun, "Starting a purchased mythology created the wrong companion pool.");
+            // A shop floor spends the same points: it clears on its first update and opens the stall.
+            game.NewRun(16); game.intro = false; game.SelectOffer(game.run.Offers[0].Id);
+            typeof(TowerRun).GetProperty("FloorType").SetValue(game.run, FloorType.Shop); Call("SpawnFloor");
+            Require(game.enemies.Count == 0, "A shop floor spawned monsters."); Call("Update");
+            Require(game.run.IsFloorCleared && !game.shopOpen && game.progress.Points == 6, "The shop floor did not clear with its point or opened by itself.");
+            Require(!game.InteractMerchant() && !game.shopOpen, "The stall opened from across the floor.");
+            game.hero.pos = TowerWorld.FeaturePosition; game.hero.root.transform.position = game.hero.pos;
+            Require(game.InteractMerchant() && game.shopOpen, "Walking up to the merchant did not open the stall.");
+            yield return Capture("shop");
+            game.hero.hp = game.hero.maxHp * .4f; int points = game.progress.Points;
+            Require(game.BuyShopItem(ShopItem.Heal) && game.progress.Points == points - TowerRun.HealPrice && game.hero.hp > game.hero.maxHp * .4f && !game.shopOpen, "A shop heal did not spend points, heal and close the stall.");
+            Require(!game.InteractMerchant() && !game.shopOpen && game.run.ShopTraded && game.ToastCount > 0, "The merchant traded twice or did not explain why.");
+            report.shopPurchase = true;
             report.savedDataUntouched = PlayerPrefs.GetString(ProgressKey, "") == originalSaved;
             Require(report.savedDataUntouched, "Runtime validation modified the player's saved account.");
             Finish(null);
@@ -114,13 +120,16 @@ namespace PrototypeLab.Roguelike
             int before = game.progress.Points;
             Call("PlayerSlash"); Require(game.enemies.Count == 0, "Actual player slash did not kill the fixture's final enemy.");
             Call("Update");
-            Require(game.run.IsRewardPending && game.progress.Points == before + 1, "Production clear path failed to award one point.");
-            Call("Update"); Call("Update"); Require(game.progress.Points == before + 1, "A pending floor reward awarded duplicate points.");
+            Require(game.run.IsFloorCleared && game.progress.Points == before + 1, "Production clear path failed to award one point.");
+            Call("Update"); Call("Update"); Require(game.progress.Points == before + 1, "A cleared floor awarded duplicate points.");
             Require(PlayerPrefs.GetString(ProgressKey, "") == originalSaved, "Point clear wrote test progression to PlayerPrefs.");
             report.gameplayClears++;
         }
         private void NextFloor()
-        { game.SelectOffer(game.run.Offers[0].Id); game.NextFloor(); Require(!game.run.IsFloorCleared, "Production stairs failed to advance after a reward."); }
+        {
+            if (game.run.IsRewardPending) game.SelectOffer(game.run.Offers[0].Id);
+            game.NextFloor(); Require(!game.run.IsFloorCleared, "Production stairs failed to advance after a clear.");
+        }
         private IEnumerator Library()
         {
             TowerMythArt.ValidateLibrary();

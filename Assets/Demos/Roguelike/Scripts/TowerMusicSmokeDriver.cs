@@ -72,7 +72,7 @@ namespace PrototypeLab.Roguelike
             foreach (var enemy in game.enemies) if (enemy.root) Destroy(enemy.root);
             game.enemies.Clear();
             Require(game.run.ClearFloor(), "The floor fixture could not clear.");
-            Require(game.run.ChooseOffer(game.run.Offers[0].Id), "The floor fixture could not choose its reward.");
+            Require(!game.run.IsRewardPending || game.run.ChooseOffer(game.run.Offers[0].Id), "The floor fixture could not choose its reward.");
             game.NextFloor();
         }
         private IEnumerator Suite()

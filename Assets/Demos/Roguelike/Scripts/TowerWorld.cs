@@ -63,6 +63,7 @@ namespace PrototypeLab.Roguelike
             foreach(var pulse in pulses){var c=pulse.color;c.a=.4f+Mathf.Sin(clock*1.6f+pulse.transform.localPosition.x)*.12f;pulse.color=c;}
             if(gateOpening!=null&&gateOpen!=open)
             {gateOpen=open;var c=gateOpening.color;c.a=open?.88f:.12f;gateOpening.color=c;}
+            TickFeatures(open);
         }
         public GameObject Box(string name,Vector2 pos,Vector2 size,Color color,int order,Sprite sprite=null)
         {return SpriteObject(environment!=null?environment:root,name,pos,size,color,order,sprite);}

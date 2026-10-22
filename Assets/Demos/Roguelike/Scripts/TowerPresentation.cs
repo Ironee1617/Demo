@@ -30,6 +30,7 @@ namespace PrototypeLab.Roguelike
             float duration=Mathf.Clamp(PlayerAttackInterval*.85f,.18f,.42f);
             slashCooldown=PlayerAttackInterval;attackTimer=duration;pendingSlash=true;
             playerHitRemaining=duration-hero.art.AttackHitTime(duration);
+            BeginAttackMotion(comboIndex,duration);
             hero.art.PlayAttack(duration,comboIndex);comboIndex=(comboIndex+1)%3;lastAttackAt=elapsed;
             LastPlayerAttackStartedAt=elapsed;LastPlayerAttackDuration=duration;Sound(slashSound,.35f);
         }

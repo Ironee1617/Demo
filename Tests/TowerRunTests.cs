@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using PrototypeLab.Roguelike;
 
 public static class TowerRunTests
@@ -17,13 +18,16 @@ public static class TowerRunTests
     { Check(Math.Abs(actual - expected) < .001f, message + ": " + actual + " != " + expected); }
     private static void Test(string name, Action body)
     { try { body(); passed++; Console.WriteLine("PASS " + name); } catch (Exception ex) { failed++; Console.Error.WriteLine("FAIL " + name + ": " + ex.Message); } }
-    private static void ToReward(TowerRun run)
+    // Clears and climbs plain floors until the next card set is waiting.
+    internal static void ToReward(TowerRun run)
     {
-        if (run.IsRewardPending) return;
-        Check(!run.IsComplete, "not complete before next reward");
-        if (run.IsFloorCleared) Check(run.AdvanceFloor(), "advance cleared floor");
-        Check(run.ClearFloor(), "clear active floor");
-        Check(run.IsRewardPending, "every floor opens a reward");
+        for (int guard = 0; guard < 20 && !run.IsRewardPending; guard++)
+        {
+            Check(!run.IsComplete, "not complete before next reward");
+            if (run.IsFloorCleared) Check(run.AdvanceFloor(), "advance cleared floor");
+            Check(run.ClearFloor(), "clear active floor");
+        }
+        Check(run.IsRewardPending, "a reward arrives within five floors");
     }
     private static RewardOffer Match(TowerRun run, Predicate<RewardOffer> predicate, int attempts = 500)
     {
@@ -44,35 +48,93 @@ public static class TowerRunTests
     }
     private static void Take(TowerRun run, string id)
     { var offer = Match(run, o => o.AugmentId == id); Check(run.ChooseOffer(offer.Id), "choose " + id); }
+    // Takes the opening, 30th and 60th floor recruits through the real reward flow.
     private static void FillParty(TowerRun run)
-    { while (run.Companions.Count < 3) { var offer = Match(run, o => o.Kind == RewardKind.Recruit); Check(run.ChooseOffer(offer.Id), "fill party"); } }
+    {
+        while (run.Companions.Count < TowerRun.MaxCompanions)
+        {
+            ToReward(run);
+            var choice = run.Offers[0];
+            if (run.IsRecruitOffer) Check(choice.Kind == RewardKind.Recruit, "recruit floors only offer companions");
+            Check(run.ChooseOffer(choice.Id), "fill party");
+        }
+    }
+    // Fixture-only party composition for synergy and pool tests.
+    internal static void Recruit(TowerRun run, string id)
+    { typeof(TowerRun).GetMethod("AddCompanion", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(run, new object[] { TowerRun.GetDefinition(id) }); }
     private static void Apply(HeroState hero, string id) { Check(hero.Apply(TowerRun.GetAugment(id)), "apply owned augment " + id); }
 
     public static int Main()
     {
-        Test("every cleared floor opens three choices and blocks advancement until one is selected", () => {
-            var run = new TowerRun(14);
-            Check(run.Floor == 1 && run.ClearedFloors == 0 && !run.AdvanceFloor(), "floor one start");
-            for (int floor = 1; floor <= 8; floor++) {
+        Test("cards arrive on every fifth floor and block advancement until one is selected", () => {
+            var run = new TowerRun(14, 100, false);
+            Check(run.Floor == 1 && run.ClearedFloors == 0 && !run.IsRewardPending && !run.AdvanceFloor(), "floor one start");
+            for (int floor = 1; floor <= 15; floor++) {
                 Check(run.ClearFloor() && !run.ClearFloor(), "one clear");
-                Check(run.IsRewardPending && run.Offers.Count == 3 && !run.AdvanceFloor(), "reward blocks stairs");
                 Check(run.ClearedFloors == floor && run.Floor == floor, "counts");
-                Check(run.ChooseOffer(run.Offers[0].Id), "choose exactly one");
+                bool reward = floor % 5 == 0;
+                Check(run.IsRewardPending == reward, "reward cadence on floor " + floor);
+                if (reward) { Check(run.Offers.Count == 3 && !run.AdvanceFloor(), "reward blocks stairs"); Check(run.ChooseOffer(run.Offers[0].Id), "choose exactly one"); }
                 Check(run.AdvanceFloor() && run.Floor == floor + 1, "next floor");
+            }
+        });
+        Test("a climb opens with three companion cards drawn from every mythology", () => {
+            var myths = new HashSet<string>();
+            for (int seed = 1; seed <= 60; seed++) {
+                var run = new TowerRun(seed);
+                Check(run.MaxFloor == 100 && run.IsRewardPending && run.IsRecruitOffer && run.Offers.Count == 3 && !run.IsFloorCleared, "opening recruit");
+                var ids = new HashSet<string>();
+                foreach (var o in run.Offers) { Check(o.Kind == RewardKind.Recruit && ids.Add(o.CompanionId), "distinct companions"); myths.Add(TowerRun.GetDefinition(o.CompanionId).MythId); }
+                Check(!run.ClearFloor() && run.ChooseOffer(run.Offers[1].Id) && run.Companions.Count == 1 && !run.IsRewardPending && !run.IsRecruitOffer, "opening recruit joins before floor one");
+            }
+            Check(myths.Count == TowerMythCatalog.Definitions.Count, "every mythology appears in opening recruits");
+        });
+        Test("floors thirty and sixty recruit only companions and no other card recruits", () => {
+            for (int seed = 1; seed <= 20; seed++) {
+                var run = new TowerRun(seed); Check(run.ChooseOffer(run.Offers[0].Id), "opening recruit");
+                while (run.Floor < 100 || !run.IsComplete) {
+                    ToReward(run);
+                    bool recruitFloor = run.Floor == 30 || run.Floor == 60;
+                    Check(run.IsRecruitOffer == recruitFloor, "recruit cadence on floor " + run.Floor);
+                    foreach (var o in run.Offers) Check((o.Kind == RewardKind.Recruit) == recruitFloor, "card kinds follow the floor on " + run.Floor);
+                    Check(run.ChooseOffer(run.Offers[0].Id), "take card");
+                    if (run.Floor == 60) Check(run.Companions.Count == 3, "three companions by sixty");
+                    if (run.IsComplete) break;
+                }
+                Check(run.IsComplete && run.Companions.Count == 3 && run.ClearedFloors == 100, "full climb");
+            }
+        });
+        Test("a full party at a recruit floor receives ordinary cards instead", () => {
+            var run = new TowerRun(5, 100, false);
+            Recruit(run, "zeus"); Recruit(run, "odin"); Recruit(run, "ra");
+            while (run.Floor < 30) { ToReward(run); if (run.Floor < 30) { Check(run.ChooseOffer(run.Offers[0].Id), "card"); Check(run.AdvanceFloor(), "advance"); } }
+            Check(run.IsRewardPending && !run.IsRecruitOffer, "no recruit with a full party");
+            foreach (var o in run.Offers) Check(o.Kind != RewardKind.Recruit, "no recruit cards");
+        });
+        Test("the first recruit card keeps a synergy route open for an existing party", () => {
+            for (int seed = 1; seed <= 40; seed++) {
+                var run = new TowerRun(seed); var first = run.Offers[0]; Check(run.ChooseOffer(first.Id), "opening");
+                string myth = TowerRun.GetDefinition(first.CompanionId).MythId;
+                while (run.Floor < 30 || !run.IsRecruitOffer) { ToReward(run); if (!run.IsRecruitOffer) { Check(run.ChooseOffer(run.Offers[0].Id), "card"); Check(run.AdvanceFloor(), "advance"); } }
+                Check(TowerRun.GetDefinition(run.Offers[0].CompanionId).MythId == myth, "slot zero shares a mythology");
+                string previous = run.Offers[0].CompanionId;
+                Check(run.Reroll(0) && run.Offers[0].CompanionId != previous && TowerRun.GetDefinition(run.Offers[0].CompanionId).MythId == myth, "reroll keeps the route with a new companion");
             }
         });
         Test("independent rarity boundaries preserve forty forty twenty", () => {
             double[] rolls = { 0, .39999999, .4, .79999999, .8, .99999999 };
             for (int i = 0; i < rolls.Length; i++) {
-                var run = new TowerRun(new ControlledRandom(rolls[i])); ToReward(run);
+                var recruit = new TowerRun(new ControlledRandom(rolls[i]));
+                foreach (var offer in recruit.Offers) Check((int)offer.Tier == i / 2 && TowerRun.GetDefinition(offer.CompanionId).Tier == offer.Tier, "recruit rarity boundary");
+                var run = new TowerRun(new ControlledRandom(rolls[i]), 100, false); ToReward(run);
                 foreach (var offer in run.Offers) {
                     Check((int)offer.Tier == i / 2, "rarity boundary");
-                    Check(offer.Kind == RewardKind.Recruit ? TowerRun.GetDefinition(offer.OwnerId).Tier == offer.Tier : TowerRun.GetAugment(offer.AugmentId).Tier == offer.Tier, "catalog tier eligibility");
+                    Check(offer.Kind != RewardKind.Recruit && TowerRun.GetAugment(offer.AugmentId).Tier == offer.Tier, "catalog tier eligibility");
                 }
             }
         });
         Test("thirty thousand offers have configured odds and independently mixed tiers", () => {
-            var run = new TowerRun(27611, 10000); int[] counts = new int[3]; int mixed = 0;
+            var run = new TowerRun(27611, 50000, false); int[] counts = new int[3]; int mixed = 0;
             for (int i = 0; i < 10000; i++) {
                 ToReward(run); foreach (var offer in run.Offers) counts[(int)offer.Tier]++;
                 if (run.Offers[0].Tier != run.Offers[1].Tier || run.Offers[0].Tier != run.Offers[2].Tier) mixed++;
@@ -104,25 +166,24 @@ public static class TowerRunTests
         Test("new players and recruited companions start without learned skills or traits", () => {
             var run = new TowerRun(new ControlledRandom(.1));
             Check(run.Player.Skills.Count == 0 && run.Player.Traits.Count == 0, "no player autoskills before unlock");
-            ToReward(run); var recruit = run.Offers[0]; Check(recruit.Kind == RewardKind.Recruit && run.ChooseOffer(recruit.Id), "real recruit");
+            var recruit = run.Offers[0]; Check(recruit.Kind == RewardKind.Recruit && run.ChooseOffer(recruit.Id), "real recruit");
             var state = run.GetCompanion(recruit.OwnerId);
             Check(state.Skills.Count == 0 && state.Traits.Count == 0 && state.Level == 1, "no unselected companion skills");
             Close(run.Player.Damage, 28, "base damage"); Close(run.Player.MaxHealth, 160, "base health"); Close(run.Player.Armor, 0, "base armor"); Close(run.Player.MoveSpeed, 6, "base movement"); Close(run.Player.AttackInterval, .43f, "base interval");
         });
-        Test("open party slots allow recruitment mixed with player skills and stats", () => {
-            bool mixed = false, playerSkill = false, playerTrait = false;
+        Test("ordinary cards mix player and owned companion growth without recruitment", () => {
+            bool companion = false, playerSkill = false, playerTrait = false;
             for (int seed = 1; seed <= 100; seed++) {
-                var run = new TowerRun(seed); ToReward(run); bool recruit = false, augment = false;
+                var run = new TowerRun(seed); Check(run.ChooseOffer(run.Offers[0].Id), "opening recruit"); ToReward(run);
                 foreach (var o in run.Offers) {
-                    if (o.Kind == RewardKind.Recruit) recruit = true;
-                    else { augment = true; Check(o.OwnerId == "player", "unowned companion cannot gain skills"); playerSkill |= o.Kind == RewardKind.Skill; playerTrait |= o.Kind == RewardKind.Trait; }
+                    Check(o.Kind != RewardKind.Recruit && run.GetHero(o.OwnerId) != null, "only owned heroes grow");
+                    companion |= o.OwnerId != "player"; playerSkill |= o.OwnerId == "player" && o.Kind == RewardKind.Skill; playerTrait |= o.OwnerId == "player" && o.Kind == RewardKind.Trait;
                 }
-                mixed |= recruit && augment;
             }
-            Check(mixed && playerSkill && playerTrait, "all valid categories can appear together with a vacancy");
+            Check(companion && playerSkill && playerTrait, "all valid categories appear");
         });
         Test("a full party receives both player and companion augments without recruitment", () => {
-            var run = new TowerRun(81, 300); FillParty(run); bool player = false, ally = false, skill = false, trait = false;
+            var run = new TowerRun(81, 1000); FillParty(run); bool player = false, ally = false, skill = false, trait = false;
             for (int i = 0; i < 100; i++) {
                 ToReward(run); foreach (var o in run.Offers) {
                     Check(o.Kind != RewardKind.Recruit && run.GetHero(o.OwnerId) != null, "full party eligible owner");
@@ -135,7 +196,7 @@ public static class TowerRunTests
         Test("all three cards may target the same owned companion without category quotas", () => {
             bool observed = false;
             for (int seed = 1; seed <= 200 && !observed; seed++) {
-                var run = new TowerRun(seed, 100); FillParty(run);
+                var run = new TowerRun(seed, 200, false); Recruit(run, "zeus"); Recruit(run, "thor"); Recruit(run, "isis");
                 for (int step = 0; step < 12 && !observed; step++) {
                     ToReward(run); string owner = run.Offers[0].OwnerId;
                     observed = owner != "player" && run.Offers[1].OwnerId == owner && run.Offers[2].OwnerId == owner;
@@ -145,7 +206,7 @@ public static class TowerRunTests
             Check(observed, "same companion across all three choices is reachable");
         });
         Test("visible cards and rerolls never duplicate augment identities", () => {
-            var run = new TowerRun(332, 200);
+            var run = new TowerRun(332, 1000);
             for (int i = 0; i < 100; i++) {
                 ToReward(run); var identities = new HashSet<string>();
                 foreach (var o in run.Offers) Check(identities.Add(o.AugmentId), "initial distinct identities");
@@ -158,15 +219,15 @@ public static class TowerRunTests
                 Check(run.ChooseOffer(run.Offers[0].Id), "select card");
             }
         });
-        Test("reroll budgets are independent and reset only at the next floor", () => {
-            var run = new TowerRun(19); ToReward(run); long second = run.Offers[1].Id, third = run.Offers[2].Id;
+        Test("reroll budgets are independent and reset only at the next card set", () => {
+            var run = new TowerRun(19, 100, false); ToReward(run); long second = run.Offers[1].Id, third = run.Offers[2].Id;
             Check(!run.Reroll(-1) && !run.Reroll(3), "invalid slot"); Check(run.Reroll(0), "first reroll");
             Check(run.Offers[1].Id == second && run.Offers[2].Id == third && run.CanReroll(1) && run.CanReroll(2), "other slots unchanged");
             Check(run.ChooseOffer(run.Offers[0].Id), "consume selection"); ToReward(run);
-            for (int slot = 0; slot < 3; slot++) Check(run.CanReroll(slot), "new floor refreshes allowances");
+            for (int slot = 0; slot < 3; slot++) Check(run.CanReroll(slot), "new card set refreshes allowances");
         });
         Test("real skill selection learns then upgrades only its owner with accurate cooldown preview", () => {
-            var run = new TowerRun(45, 2000);
+            var run = new TowerRun(45, 20000, false);
             for (int level = 1; level <= 3; level++) {
                 var offer = Match(run, o => o.AugmentId == "player.fireball"); float preview = offer.Cooldown;
                 Check(offer.NextLevel == level && offer.IsUpgrade == (level > 1), "learn versus level-up text");
@@ -231,7 +292,7 @@ public static class TowerRunTests
             string[] cappedIds = { "player.precision", "player.vampire", "player.focus", "player.evasion" };
             int[] capLevels = { 7, 10, 8, 5 };
             foreach (double roll in new[] { .6, .9 }) {
-                var run = new TowerRun(new ControlledRandom(roll), 4);
+                var run = new TowerRun(new ControlledRandom(roll), 20, false);
                 for (int stat = 0; stat < cappedIds.Length; stat++) {
                     var definition = TowerRun.GetAugment(cappedIds[stat]);
                     for (int i = 1; i < capLevels[stat]; i++) Apply(run.Player, definition.Id);
@@ -241,7 +302,7 @@ public static class TowerRunTests
                 }
                 Apply(run.Player, "player.reach"); Apply(run.Player, "player.echo");
                 Check(run.Player.CanImproveTrait(TowerRun.GetAugment("player.reach")) && run.Player.CanImproveTrait(TowerRun.GetAugment("player.echo")), "uncapped repeated growth remains eligible");
-                for (int floor = 0; floor < 4; floor++) {
+                for (int reward = 0; reward < 4; reward++) {
                     ToReward(run);
                     for (int attempt = 0; attempt < 4; attempt++) {
                         foreach (var offer in run.Offers) {
@@ -255,8 +316,8 @@ public static class TowerRunTests
             }
         });
         Test("an exhausted custom-length gold pool retains three distinct cards and working rerolls", () => {
-            var run = new TowerRun(new ControlledRandom(.6), 5);
-            Take(run, "recruit:raphael"); Take(run, "recruit:uriel");
+            var run = new TowerRun(new ControlledRandom(.6), 5, false);
+            Recruit(run, "raphael"); Recruit(run, "uriel");
             foreach (var definition in TowerRun.Augments) if (definition.OwnerId == "player" && definition.Kind == RewardKind.Skill)
                 for (int i = 0; i < 3; i++) Apply(run.Player, definition.Id);
             foreach (string id in new[] { "player.precision", "player.vampire", "player.focus" })
@@ -289,29 +350,89 @@ public static class TowerRunTests
             Check(run.Player.Skills.Count == playerSkillCount && run.Player.Traits.Count == playerTraitCount && run.Player.Armor == playerArmor, "player state preserved");
             Check(run.CanReroll(0) && !run.CanReroll(1) && run.CanReroll(2), "spent reroll remains spent");
             foreach (long id in stale) Check(!run.ChooseOffer(id), "all obsolete cards rejected");
-            foreach (var o in run.Offers) Check(o.Kind == RewardKind.Recruit || o.OwnerId != removedId, "dismissed owner's skills excluded");
-            var recruitment = Match(run, o => o.AugmentId == "recruit:" + removedId); Check(run.ChooseOffer(recruitment.Id), "fresh recruitment");
+            foreach (var o in run.Offers) Check(o.Kind != RewardKind.Recruit && o.OwnerId != removedId, "dismissed owner's skills excluded and no recruit outside recruit floors");
+            Recruit(run, removedId);
             var fresh = run.GetCompanion(removedId); Check(!Object.ReferenceEquals(removed, fresh) && fresh.Skills.Count == 0 && fresh.Traits.Count == 0 && fresh.Level == 1, "recruited copy has no old progression");
         });
         Test("player fallback prevents exhausted tier pools even with every player skill capped", () => {
             foreach (double roll in new[] { .1, .6, .9 }) {
-                var run = new TowerRun(new ControlledRandom(roll), 20);
+                var run = new TowerRun(new ControlledRandom(roll), 80, false);
                 foreach (var a in TowerRun.Augments) if (a.OwnerId == "player" && a.Kind == RewardKind.Skill) for (int i = 0; i < 3; i++) Apply(run.Player, a.Id);
-                for (int floor = 0; floor < 12; floor++) {
+                for (int reward = 0; reward < 12; reward++) {
                     ToReward(run); for (int slot = 0; slot < 3; slot++) Check(run.Reroll(slot), "fallback reroll");
                     Check(run.Offers.Count == 3 && run.ChooseOffer(run.Offers[0].Id), "fallback selection");
                 }
             }
         });
         Test("one selection invalidates the entire reward including retained cards from old floors", () => {
-            var run = new TowerRun(88); ToReward(run); long first = run.Offers[0].Id, other = run.Offers[1].Id;
+            var run = new TowerRun(88, 100, false); ToReward(run); long first = run.Offers[0].Id, other = run.Offers[1].Id;
             Check(run.ChooseOffer(first) && !run.ChooseOffer(first) && !run.ChooseOffer(other) && !run.Reroll(1), "single consumption");
             ToReward(run); Check(!run.ChooseOffer(first) && !run.ChooseOffer(other), "ids not reused across floors");
         });
-        Test("final floor completes only after its final choice", () => {
-            var run = new TowerRun(67);
-            for (int floor = 1; floor <= 25; floor++) { ToReward(run); Check(!run.IsComplete && run.Floor == floor, "pending final choice"); Check(run.ChooseOffer(run.Offers[0].Id), "final selection"); }
-            Check(run.IsComplete && run.ClearedFloors == 25 && !run.AdvanceFloor() && !run.ClearFloor(), "completed run stops");
+        Test("the hundredth floor completes only after its final choice", () => {
+            var run = new TowerRun(67); Check(run.ChooseOffer(run.Offers[0].Id), "opening");
+            for (int reward = 1; reward <= 20; reward++) { ToReward(run); Check(!run.IsComplete && run.Floor == reward * 5, "pending choice on floor " + run.Floor); Check(run.ChooseOffer(run.Offers[0].Id), "selection"); if (reward < 20) Check(run.AdvanceFloor(), "advance"); }
+            Check(run.IsComplete && run.ClearedFloors == 100 && !run.AdvanceFloor() && !run.ClearFloor(), "completed run stops");
+        });
+        Test("fifth floors branch to elite, rest and shop floors which replace the next floor", () => {
+            var run = new TowerRun(31, 100, false);
+            for (int floor = 1; floor < 5; floor++) { Check(run.ClearFloor() && !run.IsBranchFloor, "plain floor"); foreach (var type in new[] { FloorType.Elite, FloorType.Rest, FloorType.Shop }) Check(!run.AdvanceFloor(type), "no branch before floor five"); Check(run.AdvanceFloor(), "plain advance"); }
+            Check(run.ClearFloor() && run.IsBranchFloor && run.IsRewardPending && !run.AdvanceFloor(FloorType.Elite), "branch waits for the card");
+            Check(run.ChooseOffer(run.Offers[0].Id) && run.AdvanceFloor(FloorType.Elite) && run.Floor == 6 && run.FloorType == FloorType.Elite, "elite floor six");
+            Check(run.ClearFloor() && run.IsRewardPending && !run.IsRecruitOffer && run.Offers.Count == 3, "elite clear grants a card");
+            Check(run.ChooseOffer(run.Offers[0].Id) && !run.IsBranchFloor && !run.AdvanceFloor(FloorType.Rest) && run.AdvanceFloor() && run.FloorType == FloorType.Normal, "elite floors do not branch");
+            while (run.Floor < 10) { run.ClearFloor(); if (run.IsRewardPending) run.ChooseOffer(run.Offers[0].Id); if (run.Floor < 10) run.AdvanceFloor(); }
+            Check(run.ClearFloor() && run.ChooseOffer(run.Offers[0].Id) && run.AdvanceFloor(FloorType.Rest) && run.FloorType == FloorType.Rest, "rest floor eleven");
+            Check(run.ClearFloor() && !run.IsRewardPending && run.ShopOffers.Count == 0 && run.ClearedFloors == 11, "rest floors clear without cards or stalls");
+            var final = new TowerRun(31, 5, false); for (int floor = 1; floor <= 5; floor++) { final.ClearFloor(); if (final.IsRewardPending) final.ChooseOffer(final.Offers[0].Id); if (floor < 5) final.AdvanceFloor(); }
+            Check(final.IsComplete && !final.IsBranchFloor && !final.AdvanceFloor(FloorType.Shop), "the summit never branches");
+            var trial = new TowerRun(31, oathCompanionId:"michael"); for (int floor = 1; floor <= 5; floor++) { trial.ClearFloor(); trial.ChooseOffer(trial.Offers[0].Id); if (floor < 5) trial.AdvanceFloor(); }
+            Check(!trial.IsBranchFloor && !trial.AdvanceFloor(FloorType.Elite), "oath trial keeps one exit");
+        });
+        Test("shop floors trade once for a card, healing or vitality paid with floor points", () => {
+            var run = new TowerRun(77, 100, false);
+            for (int floor = 1; floor <= 5; floor++) { run.ClearFloor(); if (run.IsRewardPending) run.ChooseOffer(run.Offers[0].Id); if (floor < 5) run.AdvanceFloor(); }
+            Check(run.AdvanceFloor(FloorType.Shop) && run.FloorType == FloorType.Shop && run.ShopOffers.Count == 0, "stall opens only after the clear");
+            var wallet = TowerProgress.Load("2|20|");
+            Check(!run.CanBuy(ShopItem.Heal, 99) && !run.Buy(ShopItem.Heal, wallet), "cannot buy before the floor clears");
+            Check(run.ClearFloor() && !run.IsRewardPending && run.ShopOffers.Count == 3 && !run.ShopTraded, "shop clears into three wares");
+            Check(!run.CanBuy(ShopItem.Augment, TowerRun.AugmentPrice - 1), "points must cover the price");
+            Check(run.Buy(ShopItem.Augment, wallet) && wallet.Points == 20 - TowerRun.AugmentPrice && run.IsRewardPending && !run.IsRecruitOffer && run.Offers.Count == 3, "bought card opens a reward");
+            Check(run.ShopTraded && run.ShopPurchases == 1, "one trade recorded");
+            Check(run.ChooseOffer(run.Offers[0].Id), "take the bought card");
+            foreach (var item in new[] { ShopItem.Augment, ShopItem.Heal, ShopItem.Vitality })
+                Check(!run.CanBuy(item, 999) && !run.Buy(item, wallet), "the merchant trades only once per floor");
+            Check(wallet.Points == 20 - TowerRun.AugmentPrice, "refused trades spend nothing");
+            Check(run.AdvanceFloor() && run.ShopOffers.Count == 0 && !run.ShopTraded, "stall closes on leaving");
+            var vitality = new TowerRun(78, 100, false);
+            for (int floor = 1; floor <= 5; floor++) { vitality.ClearFloor(); if (vitality.IsRewardPending) vitality.ChooseOffer(vitality.Offers[0].Id); if (floor < 5) vitality.AdvanceFloor(); }
+            Check(vitality.AdvanceFloor(FloorType.Shop) && vitality.ClearFloor(), "second shop");
+            float health = vitality.Player.MaxHealth; int before = wallet.Points;
+            Check(vitality.Buy(ShopItem.Vitality, wallet) && wallet.Points == before - TowerRun.VitalityPrice && Math.Abs(vitality.Player.MaxHealth - health - TowerRun.VitalityHealth) < .001f, "vitality raises max health");
+            Check(!vitality.Buy(ShopItem.Heal, wallet) && wallet.Points == before - TowerRun.VitalityPrice, "a heal after vitality is refused");
+        });
+        Test("two or three companions of one mythology unlock its synergy for the right heroes", () => {
+            var run = new TowerRun(3, 100, false);
+            Recruit(run, "zeus"); Recruit(run, "odin");
+            var zeus = run.GetCompanion("zeus"); float basePower = zeus.SkillPowerMultiplier, playerPower = run.Player.SkillPowerMultiplier;
+            Check(run.ActiveSynergies.Count == 0 && run.MythCount("olympus") == 1, "one member is not a synergy");
+            Recruit(run, "poseidon");
+            Check(run.ActiveSynergies.Count == 1 && run.ActiveSynergies[0].Definition.MythId == "olympus" && run.ActiveSynergies[0].Level == 2, "two olympians activate");
+            Close(zeus.SkillPowerMultiplier, basePower + .25f, "member skill power"); Close(run.GetCompanion("poseidon").SkillPowerMultiplier, basePower + .25f, "second member");
+            Close(run.GetCompanion("odin").SkillPowerMultiplier, 1, "other mythology unaffected"); Close(run.Player.SkillPowerMultiplier, playerPower, "player unaffected");
+            Check(run.DismissCompanion("odin"), "make room"); Recruit(run, "hades");
+            Check(run.ActiveSynergies[0].Members == 3 && run.ActiveSynergies[0].Level == 3, "three olympians");
+            Close(zeus.SkillPowerMultiplier, basePower + .5f, "three-member power replaces two"); Close(zeus.CritChance, .1f, "three-member crit");
+            Check(run.DismissCompanion("hades") && run.DismissCompanion("poseidon"), "break the set");
+            Close(zeus.SkillPowerMultiplier, basePower, "synergy ends with the party");
+            var korea = new TowerRun(4, 100, false); float health = korea.Player.MaxHealth;
+            Recruit(korea, "dangun"); Recruit(korea, "jumong");
+            Close(korea.Player.MaxHealth, health * 1.15f, "player-target synergy"); Close(korea.Player.Armor, 4, "player armor synergy");
+            Close(korea.GetCompanion("dangun").MaxHealth, TowerRun.GetDefinition("dangun").MaxHealth, "player-only bonus skips companions");
+            var asgard = new TowerRun(5, 100, false); float damage = asgard.Player.Damage; Recruit(asgard, "thor"); Recruit(asgard, "loki"); Recruit(asgard, "zeus");
+            Close(asgard.Player.Damage, damage * 1.12f, "party synergy reaches the player"); Close(asgard.GetCompanion("zeus").Damage, TowerRun.GetDefinition("zeus").Damage * 1.12f, "and every companion");
+            foreach (var synergy in TowerMythCatalog.Synergies)
+                Check(synergy.Bonuses(2).Count > 0 && synergy.Bonuses(3).Count >= synergy.Bonuses(2).Count && synergy.Bonuses(1).Count == 0 && !String.IsNullOrEmpty(synergy.Describe(3)), "complete synergy: " + synergy.MythId);
         });
         TowerMythTests.Register(Test);
         TowerOathTests.Register(Test);

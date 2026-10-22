@@ -196,9 +196,7 @@ namespace PrototypeLab.Roguelike
             foreach (var actor in game.allies) if (actor.root) actor.root.SetActive(false);
             foreach (var actor in game.enemies) if (actor.root) actor.root.SetActive(false);
             game.SmokeControlled = true; game.NewRun(74);
-            var definition = TowerRun.GetDefinition(id);
-            game.run = new TowerRun(74, 25, definition.MythId);
-            Require(game.run.SelectedMythId == definition.MythId, "Companion fixture must use its own mythology.");
+            game.run = new TowerRun(74, TowerRun.DefaultMaxFloor, false);
             game.MoveOverride = 0; game.FocusOverride = false;
             game.AttackOverride = game.JumpOverride = game.DashOverride = game.DropOverride = false;
             Place(game.hero, new Vector2(-10, TowerWorld.Ground)); game.hero.facing = 1;
@@ -476,10 +474,17 @@ namespace PrototypeLab.Roguelike
             roster.Add(new CompanionState(TowerRun.GetDefinition("raphael"))); game.ReconcileLoadout();
             Place(game.hero, new Vector2(low.x, low.y));
             foreach (var actor in game.allies) { Place(actor, game.hero.pos); actor.combatTarget = null; actor.returningToFormation = true; }
-            yield return Simulate(.7f);
+            yield return Simulate(1.4f);
+            var spots = new List<float> { game.hero.pos.x };
             foreach (var actor in game.allies)
-                Require(actor.grounded && Vector2.Distance(actor.pos, game.hero.pos) < .12f, "A follower was pushed away from an already valid shared platform position.");
-            current.detail = "Three companions remained with the player at one valid platform position without spreading into formation slots.";
+            {
+                var slot = game.FormationAnchor(game.run.GetCompanion(actor.id));
+                Require(actor.grounded && Mathf.Abs(actor.pos.y - low.y) < .08f && Mathf.Abs(actor.pos.x - slot.x) < .2f, "A follower did not settle into its own slot on the shared platform.");
+                Require(Mathf.Abs(actor.pos.x - low.x) <= low.width * .5f, "A follower slot left the shared platform.");
+                spots.Add(actor.pos.x);
+            }
+            spots.Sort(); for (int i = 1; i < spots.Count; i++) Require(spots[i] - spots[i - 1] > .25f, "The player and followers still overlap on the shared platform.");
+            current.detail = "Three companions spread from the player's position into separate slots on one shared platform.";
         }
         private IEnumerator MovingJumpAndAttack()
         {
@@ -621,11 +626,14 @@ namespace PrototypeLab.Roguelike
             roster.Clear();
             foreach (string id in new[] { "gabriel", "uriel", "raphael" }) roster.Add(new CompanionState(TowerRun.GetDefinition(id)));
             game.ReconcileLoadout();
-            var slots = new List<float>();
-            foreach (var companion in game.run.Companions) slots.Add(game.FormationAnchor(companion).x);
-            slots.Sort();
-            Require(slots.TrueForAll(x => Mathf.Abs(x - game.hero.pos.x) < .01f), "Companions still require separated formation slots on a narrow platform.");
-            current.detail = "Actual Update routed a ground-level follower through intermediate ledges to the top-tier platform in " + world.CurrentPattern.Name + " in " + jumps + " jumps, settled after braking, and allowed all followers to share the player's platform position.";
+            var slots = new List<float> { game.hero.pos.x };
+            foreach (var companion in game.run.Companions)
+            {
+                var slot = game.FormationAnchor(companion); slots.Add(slot.x);
+                Require(Mathf.Abs(slot.y - high.y) < .08f && Mathf.Abs(slot.x - high.x) <= high.width * .5f, "A follower slot left the narrow top-tier platform.");
+            }
+            slots.Sort(); for (int i = 1; i < slots.Count; i++) Require(slots[i] - slots[i - 1] > .2f, "Follower slots overlap on a narrow platform.");
+            current.detail = "Actual Update routed a ground-level follower through intermediate ledges to the top-tier platform in " + world.CurrentPattern.Name + " in " + jumps + " jumps, settled after braking, and fitted three separate follower slots on the player's platform.";
         }
 
         private static void Require(bool condition, string message)

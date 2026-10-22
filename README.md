@@ -8,7 +8,7 @@
 
 ## 서약의 탑 · 2D 로그라이크 데모
 
-**최신 개선판 실행:** `Build/TowerEdenBalanced/TowerEdenBalanced.exe` 또는 Unity의 `Assets/Demos/Roguelike/20_Roguelike.unity`에서 Play. 25층을 등반하며 **1층부터 매 층** 영입·스킬 습득·스킬 강화·특성 세 장 중 하나를 선택합니다. 10개 신화의 동료 50명 중 선택한 신화의 5명이 등장하며 최대 3명을 영입합니다. 영웅별 전용 능력, 해고, 칸별 1회 새로고침, 실버 40%·골드 40%·다이아 20%를 지원합니다. A/D 이동 · Space 점프 · J/클릭 공격 · Shift 회피 · E 등반 · Tab 영웅·동료 능력 확인. 순간 회피로 탄환을 통과하면 다음 검격이 강화되며, 무피격 클리어와 반격 기록을 남깁니다. [캐릭터 외곽·사지·보행 정비](Docs/Roguelike-Limb-Repair.md) · [공중 전투·발판 변경 내역](Docs/Roguelike-Sky-Rig.md) · [앞선 전투·보상 개선](Docs/Roguelike-Polish.md).
+**최신 개선판 실행:** Unity의 `Assets/Demos/Roguelike/20_Roguelike.unity`에서 Play. **100층**을 등반하며 5층마다 테마·보스가 바뀌고 증강 세 장 중 하나를 고릅니다. 신화 선택 없이 **출발할 때, 30층, 60층**에 10개 신화 50명 전체에서 동료를 한 명씩 영입하며, 같은 신화 동료 2·3명은 신화 시너지를 발동합니다. 5층마다 일반 출구 대신 **휴식(생명력 50% 회복)·상점(상인에게 가서 층 포인트로 한 번 거래)·엘리트(클리어 시 증강)** 문 3개 중 하나를 고릅니다. 보스 7종은 공통 기술과 테마 고유 기술을 번갈아 쓰고 체력 50% 아래에서 격노합니다. A/D 이동 · Space 점프(짧게 누르면 낮은 점프) · J/클릭 공격(3타째 마무리 일격) · Shift 회피(공중에서 높이 유지) · 회피 중·직후 공격으로 돌진 베기 · E 출구·상인 거래 · Tab 영웅·동료 능력 확인. 기존 빌드 `Build/TowerEdenBalanced/`는 이전 25층 규칙입니다. [100층 개편 내역](Docs/Roguelike-Demo.md#100층-개편) [캐릭터 외곽·사지·보행 정비](Docs/Roguelike-Limb-Repair.md) · [공중 전투·발판 변경 내역](Docs/Roguelike-Sky-Rig.md) · [앞선 전투·보상 개선](Docs/Roguelike-Polish.md).
 
 [실행·조작·규칙·구현 설명](Docs/Roguelike-Demo.md) · [에덴 천사 도트·애니메이션 개편](Docs/Roguelike-Eden-Cute.md)
 

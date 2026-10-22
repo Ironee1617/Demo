@@ -169,7 +169,7 @@ namespace PrototypeLab.Roguelike
             game.invulnerable=0;Call("HurtHero",10000f);
             Check(game.hero.hp==0&&!game.OathEchoPending,"Death cancels a pending echo.");
             game.NewRun(74);
-            Check(game.run.Oath==null&&!game.OathEchoPending&&game.run.MaxFloor==25&&game.run.Companions.Count==0,"Returning to the normal game resets all trial state.");
+            Check(game.run.Oath==null&&!game.OathEchoPending&&game.run.MaxFloor==TowerRun.DefaultMaxFloor&&game.run.Companions.Count==0,"Returning to the normal game resets all trial state.");
             Finish(null);
         }
         private void CrossBullet()

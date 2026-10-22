@@ -18,8 +18,8 @@ public static class TowerThemeTests
     { try { body(); passed++; Console.WriteLine("PASS " + name); } catch (Exception ex) { failed++; Console.Error.WriteLine("FAIL " + name + ": " + ex.Message); } }
     private static void ClearAndChoose(TowerRun run)
     {
-        Require(run.ClearFloor() && run.IsRewardPending, "clear floor and show rewards");
-        Require(run.ChooseOffer(run.Offers[0].Id), "choose a real eligible reward");
+        Require(run.ClearFloor() && run.IsRewardPending == (run.Floor % TowerRun.RewardInterval == 0), "clear floor and show rewards on fifth floors");
+        Require(!run.IsRewardPending || run.ChooseOffer(run.Offers[0].Id), "choose a real eligible reward");
     }
     private static void ValidMonster(TowerMonsterDefinition monster, HashSet<string> ids, HashSet<string> names)
     {
@@ -77,13 +77,17 @@ public static class TowerThemeTests
         });
         Test("themes stay fixed through combat and rewards and change only on five-floor boundaries", () => {
             var run = new TowerRun(91025, 1000); var blockTheme = run.Theme; int changes = 0;
+            Require(run.Reroll(0) && run.ChooseOffer(run.Offers[0].Id) && Object.ReferenceEquals(run.Theme, blockTheme), "opening recruit preserves theme");
             for (int floor = 1; floor <= run.MaxFloor; floor++)
             {
                 Require(run.Floor == floor && Object.ReferenceEquals(run.Theme, blockTheme), "theme held on active floor " + floor);
                 Require(!run.AdvanceFloor() && Object.ReferenceEquals(run.Theme, blockTheme), "uncleared stairs preserve theme");
                 Require(run.ClearFloor() && Object.ReferenceEquals(run.Theme, blockTheme), "clear preserves theme");
-                Require(!run.AdvanceFloor() && run.Reroll(0) && Object.ReferenceEquals(run.Theme, blockTheme), "pending reward and reroll preserve theme");
-                Require(run.ChooseOffer(run.Offers[0].Id) && Object.ReferenceEquals(run.Theme, blockTheme), "selection preserves theme");
+                if (run.IsRewardPending)
+                {
+                    Require(!run.AdvanceFloor() && run.Reroll(0) && Object.ReferenceEquals(run.Theme, blockTheme), "pending reward and reroll preserve theme");
+                    Require(run.ChooseOffer(run.Offers[0].Id) && Object.ReferenceEquals(run.Theme, blockTheme), "selection preserves theme");
+                }
                 if (floor == run.MaxFloor) { Require(run.IsComplete && !run.AdvanceFloor() && Object.ReferenceEquals(run.Theme, blockTheme), "complete run preserves final theme"); break; }
                 Require(run.AdvanceFloor(), "advance after chosen reward");
                 if (floor % TowerThemeCatalog.FloorsPerTheme == 0)
@@ -93,7 +97,7 @@ public static class TowerThemeTests
             Require(changes == 199, "one transition for every completed five-floor block");
         });
         Test("theme transitions do not consume the reward random stream", () => {
-            var random = new CountingRandom(773); var run = new TowerRun(random, 16);
+            var random = new CountingRandom(773); var run = new TowerRun(random, 16, false);
             Require(random.Seeds == 1 && random.Integers == 0 && random.Doubles == 0, "only one independent theme seed is drawn");
             for (int floor = 1; floor <= 15; floor++)
             {
@@ -104,25 +108,30 @@ public static class TowerThemeTests
         });
         Test("reward rerolls and choices cannot change a seeded theme sequence", () => {
             var first = new TowerRun(20918, 101); var second = new TowerRun(20918, 101);
+            Require(first.ChooseOffer(first.Offers[0].Id) && second.Reroll(1) && second.ChooseOffer(second.Offers[1].Id), "different opening recruits");
             for (int floor = 1; floor <= 100; floor++)
             {
                 Require(first.Theme.Id == second.Theme.Id, "same seeded theme despite different rewards on floor " + floor);
                 ClearAndChoose(first);
-                Require(second.ClearFloor() && second.Reroll(0) && second.Reroll(1) && second.Reroll(2), "vary reward random consumption");
-                Require(second.ChooseOffer(second.Offers[2].Id), "choose a different reward slot");
+                Require(second.ClearFloor(), "clear second sequence");
+                if (second.IsRewardPending)
+                {
+                    Require(second.Reroll(0) && second.Reroll(1) && second.Reroll(2), "vary reward random consumption");
+                    Require(second.ChooseOffer(second.Offers[2].Id), "choose a different reward slot");
+                }
                 Require(first.AdvanceFloor() && second.AdvanceFloor(), "advance both theme sequences");
             }
             Require(first.Theme.Id == second.Theme.Id, "same seeded theme after twenty block changes");
         });
         Test("five-floor blocks and theme-ending boss floors agree", () => {
             Require(TowerThemeCatalog.FloorsPerTheme == 5, "five floors per theme"); int bosses = 0;
-            for (int floor = 1; floor <= 25; floor++)
+            for (int floor = 1; floor <= 100; floor++)
             {
                 Require(TowerThemeCatalog.BlockForFloor(floor) == (floor - 1) / 5, "block index on floor " + floor);
                 Require(TowerDifficulty.IsBossFloor(floor) == (floor % 5 == 0), "one boss at each theme ending");
                 if (TowerDifficulty.IsBossFloor(floor)) bosses++;
             }
-            Require(bosses == 5 && TowerDifficulty.IsBossFloor(25), "final floor includes a theme boss");
+            Require(bosses == 20 && TowerDifficulty.IsBossFloor(100), "final floor includes a theme boss");
         });
         Test("invalid catalog inputs fail without a random selection", () => {
             bool invalidFloor = false, nullRandom = false;

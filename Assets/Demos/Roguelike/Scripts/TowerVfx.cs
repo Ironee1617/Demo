@@ -178,6 +178,66 @@ namespace PrototypeLab.Roguelike
             Shards(pos + new Vector2(facing * .5f, 0), tint, 3, .25f);
         }
 
+        // Combo finishers and dash slashes: a larger original trail with a ring and extra shards.
+        public void HeavySlash(Vector2 pos, int facing, Color tint)
+        {
+            EnsureOriginals();
+            var clip = NewClip("Original sword trail finisher", pos, slashFrames, 5.6f, tint, .3f);
+            clip.scale = new Vector3(clip.scale.x * (facing < 0 ? -1 : 1), clip.scale.y * 1.15f, 1);
+            clip.growth = .12f; clip.root.transform.localScale = clip.scale; clip.renderer.sortingOrder = 131;
+            Shards(pos + new Vector2(facing * .8f, 0), tint, 8, .32f);
+            ImpactRing(pos + new Vector2(facing * 1.1f, 0), .8f, tint);
+        }
+
+        public void Dust(Vector2 pos, int direction, float strength)
+        {
+            int count = Mathf.Clamp(Mathf.RoundToInt(4 + strength * 4), 3, 12);
+            for (int i = 0; i < count; i++)
+            {
+                float side = direction == 0 ? (i % 2 == 0 ? 1 : -1) : -direction;
+                float spread = (i * 37 + sequence * 11) % 100 / 100f;
+                var clip = NewClip("Pixel dust puff", pos + new Vector2(side * spread * .3f, .06f), new[] { Pixel() }, 1, new Color(.86f, .8f, .68f, .55f), .26f + spread * .18f);
+                float size = .09f + i % 3 * .035f;
+                clip.scale = new Vector3(size, size, 1); clip.growth = .9f;
+                clip.velocity = new Vector2(side * (1.2f + spread * 2.2f) * (.6f + strength * .4f), .3f + spread * .8f);
+                clip.root.transform.localScale = clip.scale; clip.renderer.sortingOrder = 118;
+            }
+            sequence++;
+        }
+
+        public void SpeedLines(Vector2 center, int facing, Color tint)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                float y = center.y - .55f + i * .38f, length = .9f + i % 2 * .6f;
+                Vector2 from = new Vector2(center.x - facing * (.4f + i % 3 * .3f), y);
+                Segment(from, from - new Vector2(facing * length, 0), i % 2 == 0 ? new Color(1, 1, 1, .7f) : tint, .045f, .16f);
+            }
+        }
+
+        public void ImpactRing(Vector2 pos, float radius, Color tint)
+        {
+            const int count = 12;
+            for (int i = 0; i < count; i++)
+            {
+                float angle = i * Mathf.PI * 2 / count + sequence * .3f;
+                Vector2 direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle) * .55f);
+                var clip = NewClip("Pixel impact ring", pos + direction * radius * .25f, new[] { Pixel() }, 1, i % 2 == 0 ? new Color(1, .97f, .85f) : tint, .2f);
+                clip.scale = new Vector3(.22f, .05f, 1); clip.angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+                clip.velocity = direction * radius * 4.5f; clip.renderer.sortingOrder = 131;
+                clip.root.transform.localScale = clip.scale; clip.root.transform.localRotation = Quaternion.Euler(0, 0, clip.angle);
+            }
+            sequence++;
+        }
+
+        public void KillBurst(Vector2 pos, Color tint)
+        {
+            var flash = NewClip("Pixel defeat flash", pos, new[] { TowerWorld.Glow }, 1.5f, new Color(1, .96f, .85f, .85f), .2f);
+            flash.growth = .7f; flash.renderer.sortingOrder = 132;
+            ImpactRing(pos, 1.1f, tint);
+            Shards(pos, tint, 10, .42f);
+        }
+
         public void Hit(Vector2 pos, Color tint)
         {
             var spark = NewClip("Pixel hit cross", pos, new[] { Pixel() }, .42f, new Color(1, .96f, .72f), .10f);

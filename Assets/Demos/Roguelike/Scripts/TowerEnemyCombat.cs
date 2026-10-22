@@ -18,14 +18,15 @@ namespace PrototypeLab.Roguelike
         private void ConfigureEnemy(Fighter actor, int kind, int ordinal)
         {
             actor.kind = kind;
-            actor.isBoss = false;
+            actor.isBoss = false; actor.isElite = false;
             actor.airborne = kind == 3;
             actor.difficultyFloor = run == null ? 1 : run.Floor;
-            actor.damageScale = TowerDifficulty.DamageMultiplier(actor.difficultyFloor);
-            actor.moveScale = TowerDifficulty.MoveMultiplier(actor.difficultyFloor);
-            actor.bulletSpeedScale = TowerDifficulty.BulletMultiplier(actor.difficultyFloor);
-            actor.attackRateScale = TowerDifficulty.AttackRateMultiplier(actor.difficultyFloor);
-            actor.hp = actor.maxHp = (kind == 3 ? 52 : kind == 2 ? 80 : kind == 1 ? 48 : 60) * TowerDifficulty.HealthMultiplier(actor.difficultyFloor);
+            int scaled = DifficultyFloor(actor.difficultyFloor);
+            actor.damageScale = TowerDifficulty.DamageMultiplier(scaled);
+            actor.moveScale = TowerDifficulty.MoveMultiplier(scaled);
+            actor.bulletSpeedScale = TowerDifficulty.BulletMultiplier(scaled);
+            actor.attackRateScale = TowerDifficulty.AttackRateMultiplier(scaled);
+            actor.hp = actor.maxHp = (kind == 3 ? 52 : kind == 2 ? 80 : kind == 1 ? 48 : 60) * TowerDifficulty.HealthMultiplier(scaled);
             ApplyMonsterStats(actor);
             actor.cooldown = (.9f + ordinal * .27f) / actor.attackRateScale;
             actor.windup = actor.attackPose = actor.slowTime = actor.stunTime = 0;

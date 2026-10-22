@@ -4,8 +4,6 @@ namespace PrototypeLab.Roguelike
 {
     public sealed partial class TowerGame
     {
-        private string previewMyth="eden",mythMessage="";
-        private int previewCompanion;
         private void DrawMythPortrait(Rect rect,int artIndex)
         {
             var sprite=TowerMythArt.PortraitSprite(artIndex);var texture=sprite.texture;var cell=sprite.rect;
@@ -14,57 +12,45 @@ namespace PrototypeLab.Roguelike
             var destination=new Rect(rect.center.x-width*.5f,rect.center.y-height*.5f,width,height);
             GUI.DrawTextureWithTexCoords(destination,texture,new Rect(cell.x/texture.width,cell.y/texture.height,cell.width/texture.width,cell.height/texture.height),true);
         }
-        private void DrawMythSelection()
+        // Title screen: the climb's structure on the left, the mythology synergy codex on the right.
+        private void DrawTitle()
         {
-            MenuBackdrop("서약의 탑","TOWERBOUND");
+            MenuBackdrop("서약의 탑","TOWERBOUND  ·  100 FLOORS");
             Label(new Rect(1150,72,180,47),progress.Points+" P",28,brass,TextAnchor.MiddleRight,true);
             if(Button(new Rect(1364,76,172,44),"도움말",muted))help=true;
-            Label(new Rect(65,176,450,27),"신화",17,muted);
-            for(int i=0;i<TowerMythCatalog.Definitions.Count;i++)
+            Panel(new Rect(64,176,560,516),brass);
+            Label(new Rect(96,200,500,36),"등반 안내",24,paper,TextAnchor.MiddleLeft,true);
+            string[] heads={"100층","동료 영입","증강","갈림길","포인트"};
+            string[] lines={"5층마다 테마와 보스가 바뀝니다. 보스는 테마마다 고유 기술을 씁니다.",
+                "출발할 때, 그리고 30층과 60층에서 모든 신화의 동료 중 한 명을 고릅니다.",
+                "5층마다 증강 3장 중 1장을 고릅니다. 엘리트 층을 깨도 한 장 더 얻습니다.",
+                "5층마다 일반 출구 대신 휴식 · 상점 · 엘리트 문 3개 중 하나를 고릅니다.",
+                "층을 클리어할 때마다 1 P를 얻고, 상인에게 가서 한 번 거래할 때 씁니다."};
+            for(int i=0;i<heads.Length;i++)
             {
-                var myth=TowerMythCatalog.Definitions[i];float x=64+i%2*272,y=220+i/2*98;
-                bool owned=progress.IsUnlocked(myth.Id),viewing=previewMyth==myth.Id;
-                Rect r=new Rect(x,y,256,82);Color c=owned?brass:muted;
-                if(Button(r,"",c)){previewMyth=myth.Id;previewCompanion=0;mythMessage="";}
-                SelectionFrame(r,brass,viewing);
-                Label(new Rect(x+19,y+13,218,28),myth.Name,20,owned?paper:muted,TextAnchor.MiddleLeft,true);
-                Label(new Rect(x+19,y+47,215,22),progress.SelectedMythId==myth.Id?"선택됨":owned?"보유":myth.Price+" P  ·  잠김",13,viewing?brass:muted);
+                float y=256+i*84;Diamond(new Vector2(104,y+13),7,brass);
+                Label(new Rect(124,y,460,26),heads[i],18,brass,TextAnchor.MiddleLeft,true);
+                Label(new Rect(124,y+29,470,48),lines[i],15,muted);
             }
-            var current=TowerMythCatalog.Get(previewMyth)??TowerMythCatalog.Definitions[0];
-            previewCompanion=Mathf.Clamp(previewCompanion,0,current.CompanionIds.Count-1);
             Panel(new Rect(656,176,880,516),brass);
-            Label(new Rect(690,196,785,51),current.Name,31,paper,TextAnchor.MiddleLeft,true);
-            Label(new Rect(692,260,787,50),current.Description,17,muted);
-            var dfn=TowerRun.GetDefinition(current.CompanionIds[previewCompanion]);
-            Halo(new Rect(668,304,320,320),Alpha(brass,.25f));PortraitArt(new Rect(697,337,252,252),dfn.ArtIndex);
-            Label(new Rect(980,329,510,41),dfn.Name,29,paper,TextAnchor.MiddleLeft,true);
-            Label(new Rect(982,377,510,27),RoleName(dfn.Role)+"  ·  "+dfn.Title,16,brass);
-            Label(new Rect(982,427,510,28),dfn.InnateTrait,20,paper,TextAnchor.MiddleLeft,true);
-            Label(new Rect(982,469,510,94),dfn.InnateDescription,18,muted);
-            for(int i=0;i<current.CompanionIds.Count;i++)
+            Label(new Rect(690,196,520,36),"신화 시너지",24,paper,TextAnchor.MiddleLeft,true);
+            Label(new Rect(1130,200,380,30),"같은 신화 동료 2명 · 3명",15,muted,TextAnchor.MiddleRight);
+            for(int i=0;i<TowerMythCatalog.Synergies.Count;i++)
             {
-                var d=TowerRun.GetDefinition(current.CompanionIds[i]);float x=981+i*102;Rect r=new Rect(x,586,86,80);
-                if(Button(r,"",silver))previewCompanion=i;SelectionFrame(r,brass,previewCompanion==i);
-                PortraitArt(new Rect(x+7,592,72,67),d.ArtIndex);
+                var synergy=TowerMythCatalog.Synergies[i];var myth=TowerMythCatalog.Get(synergy.MythId);float y=244+i*44;
+                if(i%2==0)Round(new Rect(672,y-2,848,44),new Color(1,1,1,.025f),4);
+                Label(new Rect(690,y,150,20),myth.Name,15,paper,TextAnchor.MiddleLeft,true);
+                Label(new Rect(690,y+20,150,20),synergy.Name,13,brass);
+                Label(new Rect(850,y+1,660,20),"2명  "+synergy.Describe(2),13,muted);
+                Label(new Rect(850,y+20,660,20),"3명  "+synergy.Describe(3),13,muted);
             }
-            bool unlocked=progress.IsUnlocked(current.Id),selected=progress.SelectedMythId==current.Id;
-            if(!unlocked)
-            {
-                if(Button(new Rect(1046,718,490,57),"신화 해금  ·  "+current.Price+" P",brass,progress.Points>=current.Price,true))
-                {if(progress.TryPurchase(current.Id)){SaveProgress();mythMessage="신화 해금 완료";Sound(chimeSound,.5f);}}
-                if(progress.Points<current.Price)Label(new Rect(656,731,366,30),"층 클리어마다 1 P 획득",16,muted);
-            }
-            else
-            {
-                if(Button(new Rect(656,718,355,57),selected?"선택한 신화":"이 신화 선택",silver,!selected))
-                {if(progress.TrySelect(current.Id)){SaveProgress();NewRun();intro=true;mythMessage="";}}
-                if(Button(new Rect(1046,718,490,57),"등반 시작",brass,selected,true))StartClimb();
-            }
-            if(!string.IsNullOrEmpty(mythMessage))Label(new Rect(64,727,544,39),mythMessage,16,brass);
+            Fill(new Rect(64,708,1472,1),new Color(.5f,.56f,.63f,.15f));
+            if(Button(new Rect(1046,722,490,57),"등반 시작",brass,true,true))StartClimb();
+            Label(new Rect(64,733,940,32),"Enter로도 시작할 수 있습니다  ·  출발과 함께 첫 동료를 영입합니다",16,muted);
             Fill(new Rect(64,804,1472,1),new Color(.5f,.56f,.63f,.15f));
             Label(new Rect(64,829,480,29),"서약 연계  ·  세 천사와 함께하는 10층",18,paper,TextAnchor.MiddleLeft);
             if(Button(new Rect(566,820,318,50),"서약 시험장",brass,true,true))oathLobby=true;
-            Label(new Rect(1000,831,536,28),"일반 등반 25층",16,muted,TextAnchor.MiddleRight);
+            Label(new Rect(1000,831,536,28),"일반 등반 100층",16,muted,TextAnchor.MiddleRight);
         }
     }
 }

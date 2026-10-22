@@ -11,6 +11,8 @@ namespace PrototypeLab.Roguelike
     public enum UpgradeStat { Damage, Haste, Ability }
     public enum HeroStat { Damage, MaxHealth, Armor, MoveSpeed, AttackSpeed, Range, CritChance, LifeSteal, Cooldown, SkillPower, Projectiles, Regeneration, DodgeCooldown, Area, Healing }
     public enum SkillEffect { Fireball, IceNova, ChainLightning, Meteor, ArcaneVolley, Shockwave, BladeStorm, DashStrike, MultiShot, PierceShot, RainArrows, PoisonCloud, HealPulse, ShieldPulse, LifeDrain, Sentry }
+    public enum FloorType { Normal, Elite, Rest, Shop }
+    public enum ShopItem { Augment, Heal, Vitality }
 
     public sealed class CompanionDefinition
     {
@@ -142,6 +144,9 @@ namespace PrototypeLab.Roguelike
     public class HeroState
     {
         private readonly float baseDamage, baseHealth, baseArmor, baseMoveSpeed, baseInterval, baseRange;
+        private float vitality;
+        // Run-level bonuses that do not come from cards, such as mythology synergies.
+        internal Func<HeroStat, float> ExternalBonus;
         private readonly List<SkillState> skills = new List<SkillState>();
         private readonly List<TraitState> traits = new List<TraitState>();
         private readonly ReadOnlyCollection<SkillState> skillView;
@@ -176,15 +181,21 @@ namespace PrototypeLab.Roguelike
             baseMoveSpeed = moveSpeed; baseInterval = interval; baseRange = range;
             skillView = skills.AsReadOnly(); traitView = traits.AsReadOnly();
         }
+        public float BonusHealth { get { return vitality; } }
+        internal void AddVitality(float amount) { vitality += Math.Max(0, amount); }
         private float Bonus(HeroStat stat)
-        { float value = 0; foreach (var trait in traits) if (trait.Definition.Stat == stat) value += trait.Value; return value; }
+        {
+            float value = ExternalBonus == null ? 0 : ExternalBonus(stat);
+            foreach (var trait in traits) if (trait.Definition.Stat == stat) value += trait.Value;
+            return value;
+        }
         private float StatValue(HeroStat stat, float additionalBonus = 0)
         {
             float bonus = Bonus(stat) + additionalBonus;
             switch (stat)
             {
                 case HeroStat.Damage: return baseDamage * (1 + bonus);
-                case HeroStat.MaxHealth: return baseHealth * (1 + bonus);
+                case HeroStat.MaxHealth: return baseHealth * (1 + bonus) + vitality;
                 case HeroStat.Armor: return baseArmor + bonus;
                 case HeroStat.MoveSpeed: return baseMoveSpeed * (1 + bonus);
                 case HeroStat.AttackSpeed: return baseInterval / (1 + bonus);
@@ -303,70 +314,113 @@ namespace PrototypeLab.Roguelike
         }
     }
 
+    public sealed class ShopOffer
+    {
+        public ShopItem Item { get; private set; }
+        public string Name { get; private set; }
+        public string Description { get; private set; }
+        public int Price { get; private set; }
+        internal ShopOffer(ShopItem item, string name, string description, int price)
+        { Item = item; Name = name; Description = description; Price = price; }
+    }
+
     public sealed class TowerRun
     {
-        public const int MaxCompanions = 3, RewardInterval = 1, OfferSlots = 3;
+        public const int MaxCompanions = 3, OfferSlots = 3, DefaultMaxFloor = 100, RewardInterval = 5;
+        public const int AugmentPrice = 5, HealPrice = 2, VitalityPrice = 4;
+        public const float RestHealFraction = .5f, ShopHealFraction = .35f, VitalityHealth = 15;
+        // The run opens with one recruit; these floors grant the second and third.
+        public static readonly IReadOnlyList<int> RecruitFloors = Array.AsReadOnly(new[] { 30, 60 });
         private readonly Random random;
         private readonly Random themeRandom;
         private readonly List<CompanionState> companions = new List<CompanionState>();
         private readonly List<RewardOffer> offers = new List<RewardOffer>();
+        private readonly List<ShopOffer> shop = new List<ShopOffer>();
         private readonly bool[] rerolled = new bool[OfferSlots];
         private readonly ReadOnlyCollection<CompanionState> companionView;
         private readonly ReadOnlyCollection<RewardOffer> offerView;
+        private readonly ReadOnlyCollection<ShopOffer> shopView;
         private long nextOfferId = 1;
         public int Floor { get; private set; }
         public int ClearedFloors { get; private set; }
         public int MaxFloor { get; private set; }
+        public FloorType FloorType { get; private set; }
         public TowerThemeDefinition Theme { get; private set; }
-        public string SelectedMythId { get; private set; }
         public string RunId { get; private set; }
         public bool IsFloorCleared { get; private set; }
         public bool IsRewardPending { get; private set; }
+        public bool IsRecruitOffer { get; private set; }
+        public int ShopPurchases { get; private set; }
+        // The merchant trades once per shop floor; after one purchase the stall closes.
+        public bool ShopTraded { get; private set; }
         public bool IsComplete { get { return IsFloorCleared && Floor >= MaxFloor && !IsRewardPending; } }
+        // The last floor of each five-floor block opens extra exits to elite, rest and shop floors.
+        public bool IsBranchFloor { get { return !IsOathTrial && Floor % RewardInterval == 0 && Floor < MaxFloor; } }
         public HeroState Player { get; private set; }
         public OathState Oath { get; private set; }
         public bool IsOathTrial { get { return Oath != null; } }
         public IReadOnlyList<CompanionState> Companions { get { return companionView; } }
         public IReadOnlyList<RewardOffer> Offers { get { return offerView; } }
+        public IReadOnlyList<ShopOffer> ShopOffers { get { return shopView; } }
         public static readonly IReadOnlyList<CompanionDefinition> Definitions = TowerAugmentCatalog.Companions;
         public static readonly IReadOnlyList<AugmentDefinition> Augments = TowerAugmentCatalog.Augments;
-        public TowerRun(int seed = 1, int maxFloor = 25, string mythId = TowerMythCatalog.StarterMythId, string oathCompanionId = null)
-            : this(new Random(seed), maxFloor, mythId, new Random(unchecked(seed * 397 ^ 0x51ED270B)), oathCompanionId) { }
-        public TowerRun(Random random, int maxFloor = 25, string mythId = TowerMythCatalog.StarterMythId)
-            : this(random, maxFloor, mythId, new Random(random == null ? 0 : random.Next())) { }
-        private TowerRun(Random random, int maxFloor, string mythId, Random themeRandom, string oathCompanionId = null)
+        public TowerRun(int seed = 1, int maxFloor = DefaultMaxFloor, bool startingRecruit = true, string oathCompanionId = null)
+            : this(new Random(seed), maxFloor, new Random(unchecked(seed * 397 ^ 0x51ED270B)), startingRecruit, oathCompanionId) { }
+        public TowerRun(Random random, int maxFloor = DefaultMaxFloor, bool startingRecruit = true)
+            : this(random, maxFloor, new Random(random == null ? 0 : random.Next()), startingRecruit, null) { }
+        private TowerRun(Random random, int maxFloor, Random themeRandom, bool startingRecruit, string oathCompanionId)
         {
             if (random == null) throw new ArgumentNullException("random");
             if (maxFloor < 1) throw new ArgumentOutOfRangeException("maxFloor");
-            if (TowerMythCatalog.Get(mythId) == null) throw new ArgumentException("Unknown myth: " + mythId, "mythId");
-            this.random = random; MaxFloor = maxFloor; Floor = 1;
+            this.random = random; MaxFloor = maxFloor; Floor = 1; FloorType = FloorType.Normal;
             this.themeRandom = themeRandom; Theme = TowerThemeCatalog.Roll(themeRandom);
-            SelectedMythId = mythId; RunId = Guid.NewGuid().ToString("N");
+            RunId = Guid.NewGuid().ToString("N");
             Player = new HeroState("player", "플레이어", 28, 160, 0, 6, .43f, 2.6f);
-            companionView = companions.AsReadOnly(); offerView = offers.AsReadOnly();
+            Player.ExternalBonus = stat => SynergyBonus(Player, stat);
+            companionView = companions.AsReadOnly(); offerView = offers.AsReadOnly(); shopView = shop.AsReadOnly();
             if (oathCompanionId != null)
             {
-                Oath = new OathState(oathCompanionId); MaxFloor = 10; SelectedMythId = TowerMythCatalog.StarterMythId;
-                companions.Add(new CompanionState(GetDefinition(oathCompanionId)));
+                Oath = new OathState(oathCompanionId); MaxFloor = 10;
+                AddCompanion(GetDefinition(oathCompanionId));
             }
+            else if (startingRecruit) BeginReward(true);
         }
         public static CompanionDefinition GetDefinition(string id)
         { for (int i = 0; i < Definitions.Count; i++) if (Definitions[i].Id == id) return Definitions[i]; return null; }
         public static AugmentDefinition GetAugment(string id)
         { for (int i = 0; i < Augments.Count; i++) if (Augments[i].Id == id) return Augments[i]; return null; }
+        public static bool IsRecruitFloor(int floor)
+        { for (int i = 0; i < RecruitFloors.Count; i++) if (RecruitFloors[i] == floor) return true; return false; }
         public CompanionState GetCompanion(string id) { return companions.Find(c => c.Id == id); }
         public HeroState GetHero(string id) { return id == "player" ? Player : GetCompanion(id); }
+        public int MythCount(string mythId)
+        { int count = 0; foreach (var companion in companions) if (companion.Definition.MythId == mythId) count++; return count; }
+        public IReadOnlyList<MythSynergyState> ActiveSynergies
+        {
+            get
+            {
+                var active = new List<MythSynergyState>();
+                foreach (var synergy in TowerMythCatalog.Synergies)
+                { int count = MythCount(synergy.MythId); if (count >= 2) active.Add(new MythSynergyState(synergy, count)); }
+                return active.AsReadOnly();
+            }
+        }
         public bool ClearFloor()
         {
             if (IsFloorCleared || IsRewardPending || IsComplete) return false;
-            IsFloorCleared = true; ClearedFloors++; IsRewardPending = true;
-            if (IsOathTrial && Floor == MaxFloor) { IsRewardPending = false; offers.Clear(); return true; }
-            Array.Clear(rerolled, 0, rerolled.Length); GenerateOffers(); return true;
+            IsFloorCleared = true; ClearedFloors++;
+            if (IsOathTrial) { if (Floor < MaxFloor) BeginReward(false); }
+            else if (FloorType == FloorType.Elite) BeginReward(false);
+            else if (FloorType == FloorType.Normal && Floor % RewardInterval == 0)
+                BeginReward(IsRecruitFloor(Floor) && companions.Count < MaxCompanions);
+            else if (FloorType == FloorType.Shop) OpenShop();
+            return true;
         }
-        public bool AdvanceFloor()
+        public bool AdvanceFloor(FloorType next = FloorType.Normal)
         {
             if (!IsFloorCleared || IsRewardPending || IsComplete) return false;
-            Floor++; IsFloorCleared = false;
+            if (next != FloorType.Normal && !IsBranchFloor) return false;
+            Floor++; IsFloorCleared = false; FloorType = next; shop.Clear(); ShopTraded = false;
             if ((Floor - 1) % TowerThemeCatalog.FloorsPerTheme == 0)
                 Theme = TowerThemeCatalog.Roll(themeRandom, Theme.Id);
             return true;
@@ -385,8 +439,8 @@ namespace PrototypeLab.Roguelike
             if (offer.Kind == RewardKind.Recruit)
             {
                 var definition = GetDefinition(offer.CompanionId);
-                if (companions.Count >= MaxCompanions || GetCompanion(offer.CompanionId) != null || definition == null || definition.MythId != SelectedMythId) return false;
-                companions.Add(new CompanionState(definition));
+                if (!CanRecruit(definition)) return false;
+                AddCompanion(definition);
             }
             else if (offer.Kind == RewardKind.Oath)
             {
@@ -398,7 +452,7 @@ namespace PrototypeLab.Roguelike
                 var augment = GetAugment(offer.AugmentId);
                 if (hero == null || augment == null || !hero.Apply(augment)) return false;
             }
-            IsRewardPending = false; offers.Clear(); return true;
+            IsRewardPending = false; IsRecruitOffer = false; offers.Clear(); return true;
         }
         public bool DismissCompanion(string id)
         {
@@ -408,6 +462,68 @@ namespace PrototypeLab.Roguelike
             if (IsRewardPending) GenerateOffers();
             return true;
         }
+        public ShopOffer GetShopOffer(ShopItem item) { return shop.Find(o => o.Item == item); }
+        public bool CanBuy(ShopItem item, int points)
+        {
+            var offer = GetShopOffer(item);
+            return FloorType == FloorType.Shop && IsFloorCleared && !IsRewardPending && !ShopTraded && offer != null && points >= offer.Price;
+        }
+        // Prices are paid with the floor points that previously unlocked mythologies.
+        public bool Buy(ShopItem item, TowerProgress wallet)
+        {
+            if (wallet == null || !CanBuy(item, wallet.Points)) return false;
+            var offer = GetShopOffer(item);
+            if (!wallet.TrySpend(offer.Price)) return false;
+            ShopTraded = true; ShopPurchases++;
+            if (item == ShopItem.Augment) BeginReward(false);
+            else if (item == ShopItem.Vitality) Player.AddVitality(VitalityHealth);
+            return true;
+        }
+        private void OpenShop()
+        {
+            shop.Clear();
+            shop.Add(new ShopOffer(ShopItem.Augment, "증강 한 번 더", "증강 카드 3장 중 1장을 고릅니다.", AugmentPrice));
+            shop.Add(new ShopOffer(ShopItem.Heal, "회복의 물약", "최대 생명력의 " + AugmentDefinition.Number(ShopHealFraction * 100) + "%를 회복합니다.", HealPrice));
+            shop.Add(new ShopOffer(ShopItem.Vitality, "생명의 정수", "이번 등반 동안 최대 생명력 +" + AugmentDefinition.Number(VitalityHealth) + "\n늘어난 만큼 회복합니다.", VitalityPrice));
+        }
+        private void BeginReward(bool recruit)
+        {
+            IsRewardPending = true; IsRecruitOffer = recruit;
+            Array.Clear(rerolled, 0, rerolled.Length); GenerateOffers();
+        }
+        private bool CanRecruit(CompanionDefinition definition)
+        {
+            if (definition == null || companions.Count >= MaxCompanions || GetCompanion(definition.Id) != null) return false;
+            return IsOathTrial ? OathState.Supports(definition.Id) : IsRecruitOffer;
+        }
+        private void AddCompanion(CompanionDefinition definition)
+        {
+            var companion = new CompanionState(definition);
+            companion.ExternalBonus = stat => SynergyBonus(companion, stat);
+            companions.Add(companion);
+        }
+        private float SynergyBonus(HeroState hero, HeroStat stat)
+        {
+            if (companions.Count < 2) return 0;
+            float total = 0;
+            foreach (var synergy in TowerMythCatalog.Synergies)
+            {
+                int count = MythCount(synergy.MythId);
+                if (count < 2) continue;
+                foreach (var bonus in synergy.Bonuses(count))
+                    if (bonus.Stat == stat && Applies(bonus.Target, hero, synergy.MythId)) total += bonus.Value;
+            }
+            return total;
+        }
+        private static bool Applies(SynergyTarget target, HeroState hero, string mythId)
+        {
+            var companion = hero as CompanionState;
+            if (target == SynergyTarget.Party) return true;
+            if (target == SynergyTarget.Player) return companion == null;
+            return companion != null && companion.Definition.MythId == mythId;
+        }
+        private static RewardTier RollTier(double roll)
+        { return roll < .4 ? RewardTier.Silver : roll < .8 ? RewardTier.Gold : RewardTier.Diamond; }
         private void GenerateOffers()
         { offers.Clear(); for (int slot = 0; slot < OfferSlots; slot++) offers.Add(CreateOffer(slot, null)); }
         private sealed class Candidate
@@ -417,8 +533,25 @@ namespace PrototypeLab.Roguelike
             public string Id { get { return Recruit != null ? "recruit:" + Recruit.Id : Augment.Id; } }
             public int Weight { get { return Recruit != null ? 12 : Augment.Kind == RewardKind.Skill ? Augment.OwnerId == "player" ? 6 : 10 : Augment.OwnerId == "player" ? 4 : 6; } }
         }
+        private RewardOffer CreateRecruitOffer(int slot, string previousAugment)
+        {
+            Predicate<CompanionDefinition> open = d => GetCompanion(d.Id) == null && "recruit:" + d.Id != previousAugment &&
+                !offers.Exists(o => o.Slot != slot && o.CompanionId == d.Id);
+            var pool = new List<CompanionDefinition>();
+            // Every mythology is open. The first card keeps a synergy route alive for an existing party.
+            if (slot == 0 && companions.Count > 0)
+                foreach (var definition in Definitions) if (open(definition) && MythCount(definition.MythId) > 0) pool.Add(definition);
+            if (pool.Count == 0)
+            {
+                RewardTier tier = RollTier(random.NextDouble());
+                foreach (var definition in Definitions) if (open(definition) && definition.Tier == tier) pool.Add(definition);
+                if (pool.Count == 0) foreach (var definition in Definitions) if (open(definition)) pool.Add(definition);
+            }
+            return new RewardOffer(nextOfferId++, slot, pool[random.Next(pool.Count)]);
+        }
         private RewardOffer CreateOffer(int slot, string previousAugment)
         {
+            if (IsRecruitOffer) return CreateRecruitOffer(slot, previousAugment);
             if (Oath != null && slot == 0)
             {
                 var available = new List<OathAugmentDefinition>();
@@ -427,13 +560,13 @@ namespace PrototypeLab.Roguelike
                 if (available.Count > 0)
                     return new RewardOffer(nextOfferId++, slot, available[random.Next(available.Count)], Oath.CompanionId);
             }
-            double roll = random.NextDouble();
-            RewardTier tier = roll < .4 ? RewardTier.Silver : roll < .8 ? RewardTier.Gold : RewardTier.Diamond;
+            RewardTier tier = RollTier(random.NextDouble());
             var candidates = new List<Candidate>();
-            if (companions.Count < MaxCompanions)
+            // Regular cards no longer recruit; only the oath trial keeps its angels in the mixed pool.
+            if (IsOathTrial && companions.Count < MaxCompanions)
                 foreach (var definition in Definitions)
-                    if (definition.MythId == SelectedMythId && definition.Tier == tier && GetCompanion(definition.Id) == null &&
-                        (!IsOathTrial || OathState.Supports(definition.Id))) candidates.Add(new Candidate { Recruit = definition });
+                    if (definition.Tier == tier && GetCompanion(definition.Id) == null && OathState.Supports(definition.Id))
+                        candidates.Add(new Candidate { Recruit = definition });
             foreach (var definition in Augments)
             {
                 if (definition.Tier != tier) continue;

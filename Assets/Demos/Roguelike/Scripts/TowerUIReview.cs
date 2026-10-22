@@ -54,9 +54,10 @@ namespace PrototypeLab.Roguelike
         }
         private IEnumerator Suite()
         {
-            game.progress=new TowerProgress();game.NewRun(74);game.intro=true;
-            yield return Capture("myths");
-            Set("previewMyth","olympus");yield return Capture("locked");
+            // Production runs open with a recruit; fixture runs skip it, so create this one as a real climb.
+            game.progress=new TowerProgress();game.SmokeControlled=false;game.NewRun(74);game.SmokeControlled=true;game.intro=true;
+            yield return Capture("title");
+            game.intro=false;yield return Capture("recruit");game.intro=true;
             game.oathLobby=true;yield return Capture("oaths");
             Set("oathSelection","raphael");yield return Capture("oaths-raphael");
             game.StartOathTrial("michael",74);game.noticeTime=0;
@@ -82,8 +83,22 @@ namespace PrototypeLab.Roguelike
             game.hero.hp=0;yield return Capture("defeat");
             game.StartOathTrial("raphael",74);game.noticeTime=0;SetFloor(10);game.run.ClearFloor();
             yield return Capture("victory");
-            game.NewRun(74);game.intro=false;game.noticeTime=0;
+            game.SmokeControlled=false;game.NewRun(74);game.SmokeControlled=true;game.intro=false;game.SelectOffer(game.run.Offers[0].Id);game.noticeTime=0;
             yield return Capture("normal-hud");
+            // Branch exits on a fifth floor, then the shop floor they lead to.
+            SetFloor(5);foreach(var e in game.enemies)if(e.root)Destroy(e.root);game.enemies.Clear();
+            game.run.ClearFloor();if(game.run.IsRewardPending)game.SelectOffer(game.run.Offers[0].Id);
+            game.hero.pos=new Vector2(TowerWorld.GateX(FloorType.Shop),TowerWorld.Ground);game.hero.root.transform.position=game.hero.pos;game.noticeTime=0;
+            game.view.transform.position=new Vector3(19,0,-10);
+            yield return Capture("branch-exits");
+            game.progress=TowerProgress.Load("2|30|");game.NextFloor(FloorType.Shop);Call("Update");game.noticeTime=0;
+            game.hero.pos=TowerWorld.FeaturePosition+Vector2.left*1.2f;game.hero.root.transform.position=game.hero.pos;game.view.transform.position=new Vector3(3,0,-10);
+            yield return Capture("shop-floor");
+            // The game's Update is paused during review, so toasts are aged by hand to their resting state.
+            game.InteractMerchant();Call("TickToasts",10f);yield return Capture("shop");
+            game.BuyShopItem(ShopItem.Augment);Call("TickToasts",.5f);yield return Capture("shop-bought");
+            if(game.run.IsRewardPending)game.SelectOffer(game.run.Offers[0].Id);
+            Call("TickToasts",10f);game.InteractMerchant();Call("TickToasts",.5f);yield return Capture("shop-closed");
         }
         private void Finish()
         {

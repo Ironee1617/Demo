@@ -14,8 +14,25 @@ namespace PrototypeLab.Roguelike
         }
         internal static string FormationName(CompanionRole role)
         {return role==CompanionRole.Vanguard?"전위":role==CompanionRole.Archer?"중위":"후위";}
+        internal const float FollowSpacing=1.05f;
         internal Vector2 FormationAnchor(CompanionState state)
-        {return hero.pos;}
+        {return FollowSlot(hero.grounded?hero.pos:new Vector2(hero.pos.x,TowerWorld.Ground),CompanionIndex(state));}
+        private int CompanionIndex(CompanionState state)
+        {if(state==null)return -1;for(int i=0;i<run.Companions.Count;i++)if(ReferenceEquals(run.Companions[i],state))return i;return -1;}
+        // Companions trail the hero one spacing apart on the support the hero stands on or lands on.
+        // A narrow ledge shrinks the spacing, and slots that do not fit behind the hero move in front.
+        private Vector2 FollowSlot(Vector2 anchor,int index)
+        {
+            if(index<0)return anchor;
+            float min=TowerWorld.Left+.6f,max=TowerWorld.Right-.6f;
+            int support=AllySupport(anchor.y,anchor.x);
+            if(support>=0){var ledge=world.Ledges[support];min=ledge.x-ledge.width*.5f+.3f;max=ledge.x+ledge.width*.5f-.3f;}
+            float x0=Mathf.Clamp(anchor.x,min,max);int count=Mathf.Max(1,run.Companions.Count);
+            float spacing=Mathf.Min(FollowSpacing,(max-min)/count);
+            int behind=spacing>0?Mathf.FloorToInt(((formationFacing>0?x0-min:max-x0)+.001f)/spacing):0;
+            float offset=index<behind?-(index+1)*spacing:(index-behind+1)*spacing;
+            return new Vector2(Mathf.Clamp(x0+formationFacing*offset,min,max),anchor.y);
+        }
         private Vector2 AllyLeaderDestination(float leaderSpeed)
         {
             if(hero.grounded)return hero.pos;
@@ -102,7 +119,7 @@ namespace PrototypeLab.Roguelike
             {
                 if(source==goal)
                 {
-                    jump=followLeader&&!hero.grounded&&hero.velocityY>0&&hero.pos.y>=actor.pos.y&&Mathf.Abs(hero.pos.x-actor.pos.x)<1;
+                    jump=followLeader&&!hero.grounded&&hero.velocityY>0&&hero.pos.y>=actor.pos.y&&Mathf.Abs(hero.pos.x-actor.pos.x)<1+FollowSpacing*TowerRun.MaxCompanions;
                     actor.followSource=source;actor.followGoal=goal;actor.followNext=-2;return anchor;
                 }
                 if(actor.followSource!=source||actor.followGoal!=goal)
@@ -152,6 +169,7 @@ namespace PrototypeLab.Roguelike
             if(Mathf.Abs(leaderSpeed)>.1f&&(leaderSpeed>0?1:-1)!=formationFacing)
             {formationTurnTime+=dt;if(formationTurnTime>=.14f){formationFacing=-formationFacing;formationTurnTime=0;}}
             else formationTurnTime=0;
+            Vector2 leaderAnchor=AllyLeaderDestination(leaderSpeed);
             foreach(var actor in allies)
             {
                 var state=run.GetCompanion(actor.id);if(state==null)continue;
@@ -163,8 +181,8 @@ namespace PrototypeLab.Roguelike
                     actor.combatTarget=actor.basicTarget=null;actor.basicPending=false;actor.returningToFormation=true;
                     if(actor.grounded){actor.moveVelocity=0;actor.followMoving=false;actor.followSource=actor.followGoal=actor.followNext=-2;}
                 }
-                Vector2 anchor=AllyLeaderDestination(leaderSpeed);
-                if(actor.returningToFormation&&actor.grounded&&hero.grounded&&Vector2.Distance(hero.pos,actor.pos)<1.2f)actor.returningToFormation=false;
+                Vector2 anchor=FollowSlot(leaderAnchor,CompanionIndex(state));
+                if(actor.returningToFormation&&actor.grounded&&hero.grounded&&Vector2.Distance(anchor,actor.pos)<1.2f)actor.returningToFormation=false;
                 if(actor.combatTarget==null)
                 {
                     actor.combatTarget=ClosestEnemy(actor.pos,state.Range-.05f,state);
@@ -209,7 +227,8 @@ namespace PrototypeLab.Roguelike
                 if((actionLocked||inRange)&&actor.grounded){actor.moveVelocity=0;actor.followMoving=false;actor.followSource=actor.followGoal=actor.followNext=-2;}
                 else
                 {
-                    if(Mathf.Abs(dx)>.45f)actor.followMoving=true;
+                    // A standing leader lets followers close small gaps so they settle exactly in their slots.
+                    if(Mathf.Abs(dx)>.45f||Mathf.Abs(dx)>.2f&&Mathf.Abs(leaderSpeed)<.1f)actor.followMoving=true;
                     else if(Mathf.Abs(dx)<.12f&&Mathf.Abs(leaderSpeed)<.1f)actor.followMoving=false;
                     if(target!=null||followingRoute)actor.followMoving=Mathf.Abs(dx)>.12f;
                     if(actor.followMoving)
