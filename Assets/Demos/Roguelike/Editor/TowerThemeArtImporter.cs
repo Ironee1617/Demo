@@ -13,6 +13,13 @@ namespace PrototypeLab.Roguelike.Editor
             importer.textureType=TextureImporterType.Default;importer.filterMode=FilterMode.Point;importer.wrapMode=TextureWrapMode.Clamp;
             importer.mipmapEnabled=false;importer.isReadable=true;importer.alphaIsTransparency=true;importer.textureCompression=TextureImporterCompression.Uncompressed;
             importer.npotScale=TextureImporterNPOTScale.None;importer.maxTextureSize=4096;
+            // Parallax strips are large and only drawn: block-compress them (dimensions are multiples
+            // of four) and keep no CPU copy. The runtime picks point or bilinear sampling per screen scale.
+            if(assetPath.Contains("/Backdrops/"))
+            {
+                importer.isReadable=false;importer.textureCompression=TextureImporterCompression.CompressedHQ;
+                importer.filterMode=FilterMode.Bilinear;importer.maxTextureSize=8192;
+            }
         }
     }
 }
