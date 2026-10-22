@@ -79,7 +79,7 @@ if ($CombatOnly) {
         if (!$report.$check) { throw "Companion hit immunity check was not verified: $check" }
     }
 }
-$expectedCaptures = if ($ArtOnly) { 15 } elseif ($CompanionsOnly) { 7 } elseif ($PolishOnly) { 3 } else { 6 }
+$expectedCaptures = if ($ArtOnly) { 15 } elseif ($CompanionsOnly) { 7 } elseif ($PolishOnly) { 3 } elseif ($mode -eq 'playtest') { 8 } else { 6 }
 if ($report.screenshots.Count -ne $expectedCaptures) { throw "Tower smoke must capture all $expectedCaptures required screens." }
 Add-Type -AssemblyName System.Drawing
 foreach ($screenshot in $report.screenshots) {
@@ -98,4 +98,4 @@ elseif ($BossOnly) { Write-Host 'Verified floor scaling, boss cadence, exclusive
 elseif ($MythOnly) { Write-Host 'Verified selection guards,10 atlases,50 portraits,300 visible state frames, actual floor points, purchases and untouched saved account.' }
 elseif ($CompanionsOnly) { Write-Host 'Verified all50 companion basic attacks and200 owned skills through actual Update, timing, flying-target reach, upper-platform formation and dismissal.' }
 elseif ($PolishOnly) { Write-Host 'Verified dodge counters, pause/expiry, flawless records, clear safety and run resets.' }
-else { Write-Host 'Verified combat, mixed rewards, learned skills, contact/release timing, hero stats, dismissal and completion.' }
+else { Write-Host 'Verified the 100-floor climb: combat, recruit floors, fifth/elite-floor cards, elite/rest/shop branches, shop points, synergy, learned skills, contact/release timing, hero stats, dismissal and completion.' }

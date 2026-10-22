@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('All', 'Themes', 'Platforms', 'Companions', 'Movement', 'Combat', 'Boss', 'Polish', 'Oath')][string]$Suite = 'All',
+    [ValidateSet('All', 'Themes', 'Platforms', 'Companions', 'Movement', 'Combat', 'Boss', 'Polish', 'Oath', 'Climb')][string]$Suite = 'All',
     [string]$UnityCli,
     [int]$TimeoutSeconds = 900
 )
@@ -8,7 +8,11 @@ $projectRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 if (!$UnityCli) { $UnityCli = (Get-Command unity -ErrorAction Stop).Source }
 $reportRoot = Join-Path $projectRoot 'Artifacts/TowerEditor'
 [IO.Directory]::CreateDirectory($reportRoot) | Out-Null
+# Windows PowerShell 5.1 (and 7.0-7.2) pass native arguments without escaping embedded quotes,
+# which splits eval code at its string literals. PowerShell 7.3+ escapes them itself.
+$legacyNativeArguments = (Get-Variable PSNativeCommandArgumentPassing -ValueOnly -ErrorAction SilentlyContinue) -in @($null, 'Legacy')
 function Invoke-Cli([string[]]$Arguments) {
+    if ($legacyNativeArguments) { $Arguments = @($Arguments | ForEach-Object { [regex]::Replace($_, '(\\*)"', '$1$1\"') }) }
     $output = & $UnityCli @Arguments
     $exitCode = $LASTEXITCODE
     $response = $output | ConvertFrom-Json
@@ -41,7 +45,11 @@ foreach ($mode in $suites) {
         Invoke-Editor 'editor_play' | Out-Null
         Wait-Ready
         $extra = if ($mode -eq 'Movement') { ', false, true' } elseif ($mode -eq 'Companions') { '' } else { ', false' }
-        $code = 'var game = UnityEngine.Object.FindFirstObjectByType<PrototypeLab.Roguelike.TowerGame>(); if (game == null) throw new System.InvalidOperationException("TowerGame is missing."); var capture = game.GetComponent<PrototypeLab.Roguelike.TowerSmokeDriver>(); var driver = game.gameObject.AddComponent<PrototypeLab.Roguelike.' + $className + '>(); driver.Initialize(game, capture, ' + (CSharp-Path $prefix) + ', ' + (CSharp-Path $reportFile) + $extra + '); return true;'
+        $code = 'var game = UnityEngine.Object.FindFirstObjectByType<PrototypeLab.Roguelike.TowerGame>(); if (game == null) throw new System.InvalidOperationException("TowerGame is missing."); var capture = game.GetComponent<PrototypeLab.Roguelike.TowerSmokeDriver>(); '
+        $paths = (CSharp-Path $prefix) + ', ' + (CSharp-Path $reportFile)
+        # Climb is the player's -towerSmoke 100-floor run, hosted by the capture driver itself.
+        if ($mode -eq 'Climb') { $code += 'capture.StartClimbSmoke(game, ' + $paths + '); return true;' }
+        else { $code += 'var driver = game.gameObject.AddComponent<PrototypeLab.Roguelike.' + $className + '>(); driver.Initialize(game, capture, ' + $paths + $extra + '); return true;' }
         $started = Invoke-Editor 'eval' @($code)
         if (!$started.success) { throw "Could not start $mode scenario." }
         Write-Host "Started $mode via Unity CLI; report: $reportFile"
@@ -52,7 +60,7 @@ foreach ($mode in $suites) {
         }
         # The editor writes the file synchronously; allow the handle to close before reading.
         Start-Sleep -Milliseconds 100
-        $report = Get-Content -LiteralPath $reportFile -Raw | ConvertFrom-Json
+        $report = Get-Content -LiteralPath $reportFile -Raw -Encoding UTF8 | ConvertFrom-Json
         if (!$report.success -or @($report.errors).Count -gt 0) {
             $report.errors | ForEach-Object { Write-Host $_ }
             throw "$mode failed. See $reportFile"
