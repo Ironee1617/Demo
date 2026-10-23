@@ -32,19 +32,35 @@ namespace PrototypeLab.Roguelike
             }
         }
 
+        /// <summary>
+        /// Tracks are still stored under the painted board names; each mythology plays its board's track. Hell slows
+        /// the ember track into a dirge, the abyss drags the tomb track lower still, and the village plays the garden track.
+        /// </summary>
+        internal static string Track(TowerThemeId theme, out float pitch)
+        {
+            switch (theme)
+            {
+                case TowerThemeId.Hell: pitch = .86f; return "lava";
+                case TowerThemeId.Abyss: pitch = .72f; return "ruins";
+                case TowerThemeId.Village: pitch = .94f; return "jungle";
+                default: pitch = 1; return TowerThemeMonsterArt.Sheet(theme);
+            }
+        }
+
         public void PlayTheme(TowerThemeId theme)
         {
             if (CurrentTheme == theme && active >= 0 && decks[active].clip != null) return;
-            var clip = Resources.Load<AudioClip>("Tower/Music/" + theme.ToString().ToLowerInvariant());
+            float pitch;
+            var clip = Resources.Load<AudioClip>("Tower/Music/" + Track(theme, out pitch));
             if (clip == null) { Debug.LogWarning("Missing tower theme music: " + theme, this); return; }
 
             int incoming = -1;
-            for (int i = 0; i < decks.Length; i++) if (decks[i].clip == clip) incoming = i;
+            for (int i = 0; i < decks.Length; i++) if (decks[i].clip == clip && Mathf.Approximately(decks[i].pitch, pitch)) incoming = i;
             if (incoming < 0)
             {
                 // If a run is restarted during a fade, retain the louder deck.
                 incoming = decks[0].volume <= decks[1].volume ? 0 : 1;
-                decks[incoming].Stop(); decks[incoming].volume = 0; decks[incoming].clip = clip;
+                decks[incoming].Stop(); decks[incoming].volume = 0; decks[incoming].clip = clip; decks[incoming].pitch = pitch;
                 decks[incoming].Play();
             }
             active = incoming; CurrentTheme = theme; fadeTime = 0; fading = true;

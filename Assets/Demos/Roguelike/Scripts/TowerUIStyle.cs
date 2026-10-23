@@ -198,6 +198,7 @@ namespace PrototypeLab.Roguelike
         private static readonly Rect ShopButtonRect=new Rect(1190,716,346,56);
         private bool HUDHit(Vector2 p)
         {
+            if(village)return VillageHUDHit(p);
             if(new Rect(1280,28,256,42).Contains(p)||new Rect(36,27,420,92).Contains(p))return true;
             for(int i=0;i<run.Companions.Count;i++)if(new Rect(36+i*150,790,140,76).Contains(p))return true;
             if(run.FloorType==FloorType.Shop&&run.IsFloorCleared&&NearMerchant&&ShopButtonRect.Contains(p))return true;

@@ -5,14 +5,6 @@ using PrototypeLab.Roguelike;
 public static class TowerThemeTests
 {
     private static int passed, failed;
-    private sealed class CountingRandom : Random
-    {
-        public int Seeds, Integers, Doubles;
-        public CountingRandom(int seed) : base(seed) { }
-        public override int Next() { Seeds++; return base.Next(); }
-        public override int Next(int maxValue) { Integers++; return base.Next(maxValue); }
-        public override double NextDouble() { Doubles++; return base.NextDouble(); }
-    }
     private static void Require(bool value, string message) { if (!value) throw new Exception(message); }
     private static void Test(string name, Action body)
     { try { body(); passed++; Console.WriteLine("PASS " + name); } catch (Exception ex) { failed++; Console.Error.WriteLine("FAIL " + name + ": " + ex.Message); } }
@@ -32,10 +24,10 @@ public static class TowerThemeTests
     }
     public static int Main()
     {
-        Test("seven isolated themes contain forty-two regular species and seven bosses", () => {
-            Require(TowerThemeCatalog.All.Count == 7, "seven requested themes");
+        Test("nine chapter themes contain fifty-four regular species, nine bosses and one final evil god", () => {
+            Require(TowerThemeCatalog.All.Count == 9, "nine chapter themes");
             var themeIds = new HashSet<TowerThemeId>(); var themeNames = new HashSet<string>();
-            var ids = new HashSet<string>(); var names = new HashSet<string>(); int regular = 0;
+            var ids = new HashSet<string>(); var names = new HashSet<string>(); int regular = 0, finals = 0;
             foreach (var theme in TowerThemeCatalog.All)
             {
                 Require(themeIds.Add(theme.Id) && themeNames.Add(theme.Name), "unique theme identity and name");
@@ -49,96 +41,61 @@ public static class TowerThemeTests
                     Require(variants.Add(monster.Variant), "distinct regular monster art in " + theme.Name); regular++;
                 }
                 Require(kinds.Count == 3, "melee, ranged and heavy enemies in " + theme.Name);
+                Require(theme.AirborneVariant >= 0 && theme.AirborneVariant < theme.Monsters.Count, "flyer art slot in " + theme.Name);
                 ValidMonster(theme.Boss, ids, names);
                 Require(theme.Boss.Kind == 4, "theme boss uses the grounded boss combat kind");
+                if (theme.FinalBoss != null)
+                {
+                    ValidMonster(theme.FinalBoss, ids, names); finals++;
+                    Require(theme.FinalBoss.Kind == 4 && theme.FinalBoss.Variant == TowerThemeCatalog.FinalVariant, "final boss art and combat kind");
+                    Require(theme.FinalBoss.HealthMultiplier > theme.Boss.HealthMultiplier, "the evil god outlasts its herald");
+                }
             }
-            foreach (TowerThemeId id in Enum.GetValues(typeof(TowerThemeId))) Require(themeIds.Contains(id), "missing requested theme " + id);
-            Require(regular == 42 && ids.Count == 49 && names.Count == 49, "complete isolated regular and boss pools");
+            foreach (TowerThemeId id in Enum.GetValues(typeof(TowerThemeId)))
+                Require(themeIds.Contains(id) == (id != TowerThemeId.Village), "chapter catalog covers every tower theme but not the village: " + id);
+            Require(regular == 54 && finals == 1 && ids.Count == 64 && names.Count == 64, "complete regular, boss and final pools");
+            Require(TowerThemeCatalog.Get(TowerThemeId.Abyss).FinalBoss != null, "the evil god waits in the abyss");
         });
-        Test("first theme is random and repeatable for a seed", () => {
-            var observed = new HashSet<TowerThemeId>();
-            for (int seed = 0; seed < 700; seed++)
+        Test("ten-floor chapters follow the requested order up to the ninetieth floor", () => {
+            var order = new[] { TowerThemeId.Olympus, TowerThemeId.Asgard, TowerThemeId.Dangun, TowerThemeId.Eden, TowerThemeId.Veda,
+                TowerThemeId.Papyrus, TowerThemeId.Chinese, TowerThemeId.Hell, TowerThemeId.Abyss };
+            Require(TowerThemeCatalog.FloorsPerTheme == 10 && TowerRun.DefaultMaxFloor == 90, "ten floors per theme, ninety floors");
+            for (int floor = 1; floor <= 90; floor++)
             {
-                var first = new TowerRun(seed); var second = new TowerRun(seed);
-                Require(first.Theme != null && first.Theme.Id == second.Theme.Id, "repeatable initial theme for seed " + seed);
-                observed.Add(first.Theme.Id);
+                Require(TowerThemeCatalog.BlockForFloor(floor) == (floor - 1) / 10, "block index on floor " + floor);
+                Require(TowerThemeCatalog.ForFloor(floor).Id == order[(floor - 1) / 10], "theme on floor " + floor);
             }
-            Require(observed.Count == 7, "all seven themes are reachable as the first block");
+            Require(TowerThemeCatalog.ForFloor(71).Id == TowerThemeId.Hell && TowerThemeCatalog.ForFloor(80).Id == TowerThemeId.Hell, "hell spans 71-80");
+            Require(TowerThemeCatalog.ForFloor(81).Id == TowerThemeId.Abyss && TowerThemeCatalog.ForFloor(90).Id == TowerThemeId.Abyss, "the abyss spans 81-90");
+            Require(TowerThemeCatalog.ForFloor(500).Id == TowerThemeId.Abyss, "custom climbs past ninety stay in the abyss");
         });
-        Test("each roll excludes its predecessor while all six alternatives remain reachable", () => {
-            var random = new Random(8034);
-            foreach (var previous in TowerThemeCatalog.All)
-            {
-                var observed = new HashSet<TowerThemeId>();
-                for (int attempt = 0; attempt < 700; attempt++)
-                { var next = TowerThemeCatalog.Roll(random, previous.Id); Require(next.Id != previous.Id, "previous theme excluded"); observed.Add(next.Id); }
-                Require(observed.Count == 6, "all six remaining choices stay eligible after " + previous.Name);
-            }
-        });
-        Test("themes stay fixed through combat and rewards and change only on five-floor boundaries", () => {
-            var run = new TowerRun(91025, 1000); var blockTheme = run.Theme; int changes = 0;
-            Require(run.Reroll(0) && run.ChooseOffer(run.Offers[0].Id) && Object.ReferenceEquals(run.Theme, blockTheme), "opening recruit preserves theme");
+        Test("a run's theme follows its floor through combat, rewards and stairs", () => {
+            var run = new TowerRun(91025, 90, false);
             for (int floor = 1; floor <= run.MaxFloor; floor++)
             {
-                Require(run.Floor == floor && Object.ReferenceEquals(run.Theme, blockTheme), "theme held on active floor " + floor);
-                Require(!run.AdvanceFloor() && Object.ReferenceEquals(run.Theme, blockTheme), "uncleared stairs preserve theme");
-                Require(run.ClearFloor() && Object.ReferenceEquals(run.Theme, blockTheme), "clear preserves theme");
-                if (run.IsRewardPending)
-                {
-                    Require(!run.AdvanceFloor() && run.Reroll(0) && Object.ReferenceEquals(run.Theme, blockTheme), "pending reward and reroll preserve theme");
-                    Require(run.ChooseOffer(run.Offers[0].Id) && Object.ReferenceEquals(run.Theme, blockTheme), "selection preserves theme");
-                }
-                if (floor == run.MaxFloor) { Require(run.IsComplete && !run.AdvanceFloor() && Object.ReferenceEquals(run.Theme, blockTheme), "complete run preserves final theme"); break; }
+                var expected = TowerThemeCatalog.ForFloor(floor);
+                Require(run.Floor == floor && Object.ReferenceEquals(run.Theme, expected), "theme held on active floor " + floor);
+                ClearAndChoose(run);
+                Require(Object.ReferenceEquals(run.Theme, expected), "clear and reward preserve theme on " + floor);
+                if (floor == run.MaxFloor) { Require(run.IsComplete && !run.AdvanceFloor(), "complete run stops"); break; }
                 Require(run.AdvanceFloor(), "advance after chosen reward");
-                if (floor % TowerThemeCatalog.FloorsPerTheme == 0)
-                { Require(run.Theme.Id != blockTheme.Id, "adjacent blocks never repeat at " + floor); blockTheme = run.Theme; changes++; }
-                else Require(Object.ReferenceEquals(run.Theme, blockTheme), "no mid-block reroll at " + floor);
-            }
-            Require(changes == 199, "one transition for every completed five-floor block");
-        });
-        Test("theme transitions do not consume the reward random stream", () => {
-            var random = new CountingRandom(773); var run = new TowerRun(random, 16, false);
-            Require(random.Seeds == 1 && random.Integers == 0 && random.Doubles == 0, "only one independent theme seed is drawn");
-            for (int floor = 1; floor <= 15; floor++)
-            {
-                ClearAndChoose(run); int seeds = random.Seeds, integers = random.Integers, doubles = random.Doubles;
-                Require(run.AdvanceFloor(), "advance random-stream scenario");
-                Require(random.Seeds == seeds && random.Integers == integers && random.Doubles == doubles, "theme selection does not disturb future rewards at " + floor);
             }
         });
-        Test("reward rerolls and choices cannot change a seeded theme sequence", () => {
-            var first = new TowerRun(20918, 101); var second = new TowerRun(20918, 101);
-            Require(first.ChooseOffer(first.Offers[0].Id) && second.Reroll(1) && second.ChooseOffer(second.Offers[1].Id), "different opening recruits");
-            for (int floor = 1; floor <= 100; floor++)
+        Test("chapter-ending and mid-chapter floors keep a boss every fifth floor", () => {
+            int bosses = 0;
+            for (int floor = 1; floor <= 90; floor++)
             {
-                Require(first.Theme.Id == second.Theme.Id, "same seeded theme despite different rewards on floor " + floor);
-                ClearAndChoose(first);
-                Require(second.ClearFloor(), "clear second sequence");
-                if (second.IsRewardPending)
-                {
-                    Require(second.Reroll(0) && second.Reroll(1) && second.Reroll(2), "vary reward random consumption");
-                    Require(second.ChooseOffer(second.Offers[2].Id), "choose a different reward slot");
-                }
-                Require(first.AdvanceFloor() && second.AdvanceFloor(), "advance both theme sequences");
-            }
-            Require(first.Theme.Id == second.Theme.Id, "same seeded theme after twenty block changes");
-        });
-        Test("five-floor blocks and theme-ending boss floors agree", () => {
-            Require(TowerThemeCatalog.FloorsPerTheme == 5, "five floors per theme"); int bosses = 0;
-            for (int floor = 1; floor <= 100; floor++)
-            {
-                Require(TowerThemeCatalog.BlockForFloor(floor) == (floor - 1) / 5, "block index on floor " + floor);
-                Require(TowerDifficulty.IsBossFloor(floor) == (floor % 5 == 0), "one boss at each theme ending");
+                Require(TowerDifficulty.IsBossFloor(floor) == (floor % 5 == 0), "boss cadence on floor " + floor);
                 if (TowerDifficulty.IsBossFloor(floor)) bosses++;
             }
-            Require(bosses == 20 && TowerDifficulty.IsBossFloor(100), "final floor includes a theme boss");
+            Require(bosses == 18 && TowerDifficulty.IsBossFloor(90), "the final floor holds a boss");
         });
-        Test("invalid catalog inputs fail without a random selection", () => {
-            bool invalidFloor = false, nullRandom = false;
+        Test("invalid catalog inputs fail", () => {
+            bool invalidFloor = false;
             try { TowerThemeCatalog.BlockForFloor(0); } catch (ArgumentOutOfRangeException) { invalidFloor = true; }
-            try { TowerThemeCatalog.Roll(null); } catch (ArgumentNullException) { nullRandom = true; }
-            Require(invalidFloor && nullRandom, "invalid inputs are rejected");
+            Require(invalidFloor, "invalid inputs are rejected");
         });
+        TowerCampaignTests.Run(Test);
         Console.WriteLine("TOWER_THEME_TESTS_" + (failed == 0 ? "OK " : "FAILED ") + passed + "/" + (passed + failed));
         return failed == 0 ? 0 : 1;
     }

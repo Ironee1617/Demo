@@ -99,7 +99,7 @@ namespace PrototypeLab.Roguelike
             {
                 var actor=TowerActorArt.Create(stage.transform,kind,true);
                 var rig=actor.GetComponent<TowerMonsterRig>();float h=kind==4?50f/32:kind==0?30f/32:kind==1?33f/32:kind==2?45f/32:50f/32;
-                try{CheckMotion(rig,TowerThemeId.Lava,kind,kind==4,h,true);CheckAttack(rig,TowerThemeId.Lava,kind,kind==4,h,true);}
+                try{CheckMotion(rig,TowerThemeId.Chinese,kind,kind==4,h,true);CheckAttack(rig,TowerThemeId.Chinese,kind,kind==4,h,true);}
                 catch(Exception ex){report.errors.Add("Legacy "+kind+": "+ex.Message);}
                 actor.gameObject.SetActive(false);Destroy(actor.gameObject);report.legacySpecies++;
                 yield return null;

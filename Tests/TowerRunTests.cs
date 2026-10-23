@@ -82,7 +82,7 @@ public static class TowerRunTests
             var myths = new HashSet<string>();
             for (int seed = 1; seed <= 60; seed++) {
                 var run = new TowerRun(seed);
-                Check(run.MaxFloor == 100 && run.IsRewardPending && run.IsRecruitOffer && run.Offers.Count == 3 && !run.IsFloorCleared, "opening recruit");
+                Check(run.MaxFloor == TowerRun.DefaultMaxFloor && run.IsRewardPending && run.IsRecruitOffer && run.Offers.Count == 3 && !run.IsFloorCleared, "opening recruit");
                 var ids = new HashSet<string>();
                 foreach (var o in run.Offers) { Check(o.Kind == RewardKind.Recruit && ids.Add(o.CompanionId), "distinct companions"); myths.Add(TowerRun.GetDefinition(o.CompanionId).MythId); }
                 Check(!run.ClearFloor() && run.ChooseOffer(run.Offers[1].Id) && run.Companions.Count == 1 && !run.IsRewardPending && !run.IsRecruitOffer, "opening recruit joins before floor one");
@@ -92,7 +92,7 @@ public static class TowerRunTests
         Test("floors thirty and sixty recruit only companions and no other card recruits", () => {
             for (int seed = 1; seed <= 20; seed++) {
                 var run = new TowerRun(seed); Check(run.ChooseOffer(run.Offers[0].Id), "opening recruit");
-                while (run.Floor < 100 || !run.IsComplete) {
+                while (run.Floor < TowerRun.DefaultMaxFloor || !run.IsComplete) {
                     ToReward(run);
                     bool recruitFloor = run.Floor == 30 || run.Floor == 60;
                     Check(run.IsRecruitOffer == recruitFloor, "recruit cadence on floor " + run.Floor);
@@ -101,7 +101,7 @@ public static class TowerRunTests
                     if (run.Floor == 60) Check(run.Companions.Count == 3, "three companions by sixty");
                     if (run.IsComplete) break;
                 }
-                Check(run.IsComplete && run.Companions.Count == 3 && run.ClearedFloors == 100, "full climb");
+                Check(run.IsComplete && run.Companions.Count == 3 && run.ClearedFloors == TowerRun.DefaultMaxFloor, "full climb");
             }
         });
         Test("a full party at a recruit floor receives ordinary cards instead", () => {
@@ -369,10 +369,10 @@ public static class TowerRunTests
             Check(run.ChooseOffer(first) && !run.ChooseOffer(first) && !run.ChooseOffer(other) && !run.Reroll(1), "single consumption");
             ToReward(run); Check(!run.ChooseOffer(first) && !run.ChooseOffer(other), "ids not reused across floors");
         });
-        Test("the hundredth floor completes only after its final choice", () => {
+        Test("the ninetieth floor completes only after its final choice", () => {
             var run = new TowerRun(67); Check(run.ChooseOffer(run.Offers[0].Id), "opening");
-            for (int reward = 1; reward <= 20; reward++) { ToReward(run); Check(!run.IsComplete && run.Floor == reward * 5, "pending choice on floor " + run.Floor); Check(run.ChooseOffer(run.Offers[0].Id), "selection"); if (reward < 20) Check(run.AdvanceFloor(), "advance"); }
-            Check(run.IsComplete && run.ClearedFloors == 100 && !run.AdvanceFloor() && !run.ClearFloor(), "completed run stops");
+            for (int reward = 1; reward <= 18; reward++) { ToReward(run); Check(!run.IsComplete && run.Floor == reward * 5, "pending choice on floor " + run.Floor); Check(run.ChooseOffer(run.Offers[0].Id), "selection"); if (reward < 18) Check(run.AdvanceFloor(), "advance"); }
+            Check(run.IsComplete && run.ClearedFloors == 90 && !run.AdvanceFloor() && !run.ClearFloor(), "completed run stops");
         });
         Test("fifth floors branch to elite, rest and shop floors which replace the next floor", () => {
             var run = new TowerRun(31, 100, false);

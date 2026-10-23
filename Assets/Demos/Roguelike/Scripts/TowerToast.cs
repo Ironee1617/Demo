@@ -27,7 +27,7 @@ namespace PrototypeLab.Roguelike
         {
             if (toasts.Count == 0) return;
             // Over full-screen menus the stack sits top centre; in play it hangs under the right HUD.
-            bool overlay = intro || menu || party || help || shopOpen || run.IsRewardPending || hero.hp <= 0 || run.IsComplete;
+            bool overlay = intro || menu || party || help || shopOpen || VillageBlocking || run.IsRewardPending || hero.hp <= 0 || run.IsComplete;
             float x = overlay ? 590 : 1150, y = overlay ? 14 : 176, width = overlay ? 420 : 386;
             for (int i = toasts.Count - 1; i >= 0; i--)
             {

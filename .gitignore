@@ -61,3 +61,7 @@ sysinfo.txt
 # Backdrop painter: keep its project file, ignore build output.
 !/Tools/TowerArt/BackdropPainter/BackdropPainter.csproj
 /Tools/TowerArt/BackdropPainter/bin/
+
+# Story painter: keep its project file, ignore build output.
+!/Tools/TowerArt/StoryPainter/StoryPainter.csproj
+/Tools/TowerArt/StoryPainter/bin/

@@ -288,7 +288,9 @@ namespace PrototypeLab.Roguelike
                 {
                     Require(captured && times.Count == 2 && bullets.Count == 4 && times[0] >= preparation + .83f && Mathf.Abs(times[1] - times[0] - .35f) < .025f, "Slam landing and delayed ground waves did not follow their preparation.");
                     Require(Mathf.Abs(beforeLandingHp - game.hero.hp - 14 * boss.damageScale) < .01f && boss.grounded && !boss.airborne, "A landed boss did not apply its scaled slam collision damage.");
-                    Require(Mathf.Abs(origins[0].y - (TowerWorld.Ground + .65f)) < .01f && Mathf.Abs(origins[2].y - (TowerWorld.Ground + 1.05f)) < .01f, "Slam wave heights did not change between bursts."); report.slamCollision = true;
+                    // Waves leave from the ground under the landed boss, which follows the generated hills.
+                    float landedGround = ((TowerWorld)typeof(TowerGame).GetField("world", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game)).GroundAt(boss.pos.x);
+                    Require(Mathf.Abs(boss.pos.y - landedGround) < .01f && Mathf.Abs(origins[0].y - (landedGround + .65f)) < .01f && Mathf.Abs(origins[2].y - (landedGround + 1.05f)) < .01f, "Slam wave heights did not change between bursts."); report.slamCollision = true;
                 }
                 RequireNoPreviewObjects();
                 report.patternChecks.Add(names[pattern] + ": preparation=" + preparation + ", releases=" + times.Count + ", projectiles=" + bullets.Count + ", no preparation overlays / locked aim / delay / gap PASS");

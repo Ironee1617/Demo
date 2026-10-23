@@ -14,6 +14,10 @@ namespace PrototypeLab.Roguelike
         private void OnGUI()
         {
             if(hero==null)return;
+            using(TowerProfiling.Hud.Auto())DrawGUI();
+        }
+        private void DrawGUI()
+        {
             if(captureDriver==null)captureDriver=GetComponent<TowerSmokeDriver>();
             bool captureHud=captureDriver!=null&&captureDriver.BeginHudCapture();
             if(textStyle==null)
@@ -28,12 +32,14 @@ namespace PrototypeLab.Roguelike
             if(intro){GUI.enabled=!help;DrawIntro();GUI.enabled=true;}
             else
             {
-                GUI.enabled=!menu&&!party&&!help&&!shopOpen&&!run.IsRewardPending&&hero.hp>0&&!run.IsComplete;
-                DrawHUD();GUI.enabled=!party&&!help;
+                GUI.enabled=!menu&&!party&&!help&&!shopOpen&&!VillageBlocking&&!run.IsRewardPending&&hero.hp>0&&!run.IsComplete;
+                if(village)DrawVillageHUD();else DrawHUD();GUI.enabled=!party&&!help&&!StoryOpen;
                 if(run.IsRewardPending)DrawRewards();else if(shopOpen)DrawShop();
-                GUI.enabled=!help;
-                if(party)DrawParty();else if(menu)DrawMenu();else if(hero.hp<=0)DrawEnding(false);else if(run.IsComplete)DrawEnding(true);
+                else if(villagePanel==VillagePanel.Gate)DrawGatePanel();else if(villagePanel==VillagePanel.Shrine)DrawShrinePanel();
+                GUI.enabled=!help&&!StoryOpen;
+                if(party)DrawParty();else if(menu)DrawMenu();else if(hero.hp<=0)DrawEnding(false);else if(run.IsComplete){if(run.IsCampaign)DrawChapterComplete();else DrawEnding(true);}
             }
+            GUI.enabled=!help;if(StoryOpen)DrawStory();
             GUI.enabled=true;if(help)DrawHelp();DrawToasts();GUI.matrix=oldMatrix;GUI.color=Color.white;
             if(captureHud)captureDriver.EndHudCapture();
         }
@@ -74,6 +80,7 @@ namespace PrototypeLab.Roguelike
                 Label(new Rect(p.x-w*.5f+1,p.y-14,w,35),n.text,22,new Color(0,0,0,c.a*.65f),TextAnchor.MiddleCenter,true);
                 Label(new Rect(p.x-w*.5f,p.y-16,w,35),n.text,22,c,TextAnchor.MiddleCenter,true);
             }
+            if(village){DrawVillageLabels();return;}
             if(!intro&&run.IsFloorCleared&&!run.IsRewardPending&&!run.IsComplete)
             {
                 var near=NearestGate();
@@ -107,12 +114,15 @@ namespace PrototypeLab.Roguelike
                 Round(new Rect(137,98,296*Mathf.Clamp01(PlayerShield/(PlayerMaxHealth*.65f)),4),TowerWorld.Teal,2);
                 Label(new Rect(324,122,120,22),"보호막 "+Mathf.CeilToInt(PlayerShield),13,TowerWorld.Teal,TextAnchor.MiddleRight);
             }
-            Label(new Rect(615,26,370,23),run.Theme.Name+(run.FloorType!=FloorType.Normal?"  ·  "+FloorTypeName(run.FloorType)+" 층":""),16,run.FloorType==FloorType.Normal?paper:TowerWorld.GateColor(run.FloorType),TextAnchor.MiddleCenter);
+            string place=run.IsCampaign?run.Chapter.Numeral+"  ·  "+run.Chapter.Title:run.Theme.Name;
+            Label(new Rect(565,26,470,23),place+(run.FloorType!=FloorType.Normal?"  ·  "+FloorTypeName(run.FloorType)+" 층":""),16,run.FloorType==FloorType.Normal?paper:TowerWorld.GateColor(run.FloorType),TextAnchor.MiddleCenter);
             Label(new Rect(675,50,142,52),run.Floor.ToString("00"),43,brass,TextAnchor.MiddleRight,true);
             Label(new Rect(827,72,90,25),"/ "+run.MaxFloor,18,muted);
             // Long climbs show the current five-floor block; the oath trial keeps its full track.
-            int first=run.MaxFloor<=25?1:(run.Floor-1)/TowerRun.RewardInterval*TowerRun.RewardInterval+1,shown=run.MaxFloor<=25?run.MaxFloor:TowerRun.RewardInterval;
-            float spacing=run.MaxFloor<=25?14:26;
+            // Chapters show their own ten floors; long free climbs the current five-floor block; the oath trial its full track.
+            int first=run.IsCampaign?run.Chapter.FirstFloor:run.MaxFloor<=25?1:(run.Floor-1)/TowerRun.RewardInterval*TowerRun.RewardInterval+1;
+            int shown=run.IsCampaign?TowerCampaign.FloorsPerChapter:run.MaxFloor<=25?run.MaxFloor:TowerRun.RewardInterval;
+            float spacing=run.IsCampaign?22:run.MaxFloor<=25?14:26;
             for(int i=0;i<shown;i++)
             {
                 int floor=first+i;
@@ -121,7 +131,7 @@ namespace PrototypeLab.Roguelike
             }
             if(!run.IsOathTrial)
             {
-                int nextRecruit=-1;foreach(int floor in TowerRun.RecruitFloors)if(floor>=run.Floor&&run.Companions.Count<TowerRun.MaxCompanions){nextRecruit=floor;break;}
+                int nextRecruit=-1;if(!run.IsCampaign)foreach(int floor in TowerRun.RecruitFloors)if(floor>=run.Floor&&run.Companions.Count<TowerRun.MaxCompanions){nextRecruit=floor;break;}
                 Label(new Rect(600,124,400,22),nextRecruit>0?"다음 동료 영입  "+nextRecruit+"층":"",13,muted,TextAnchor.MiddleCenter);
                 Label(new Rect(1300,108,236,22),"보유 "+progress.Points+" P",14,brass,TextAnchor.MiddleRight,true);
             }
@@ -131,7 +141,7 @@ namespace PrototypeLab.Roguelike
             var boss=enemies.Find(e=>e.isBoss&&e.hp>0);
             if(boss!=null)
             {
-                Label(new Rect(500,141,600,30),boss.monster==null?"왕관의 수호자":boss.monster.Name,20,paper,TextAnchor.MiddleCenter,true);
+                Label(new Rect(500,141,600,30),boss.title??(boss.monster==null?"왕관의 수호자":boss.monster.Name),20,IsFinalBoss(boss)?brass:paper,TextAnchor.MiddleCenter,true);
                 Diamond(new Vector2(486,189),9,brass);Diamond(new Vector2(1114,189),9,brass);
                 Meter(new Rect(504,179,592,19),boss.hp/boss.maxHp,crimson,0,true);
             }
@@ -260,7 +270,7 @@ namespace PrototypeLab.Roguelike
             Panel(new Rect(96,284,428,510),accent);Halo(new Rect(120,293,380,220),Alpha(accent,.25f));
             PortraitArt(new Rect(234,302,150,150),definition==null?0:definition.ArtIndex);
             Label(new Rect(123,453,374,42),selected.Name,30,paper,TextAnchor.MiddleCenter,true);
-            Label(new Rect(123,498,374,26),definition==null?"검의 서약자":definition.Title,16,accent,TextAnchor.MiddleCenter);
+            Label(new Rect(123,498,374,26),definition==null?"루멘의 유일신 · 검의 서약자":definition.Title,16,accent,TextAnchor.MiddleCenter);
             Fill(new Rect(124,541,372,1),Alpha(accent,.20f));
             StatCell(new Rect(126,562,170,68),"공격력",selected.Damage.ToString("0.#"));
             StatCell(new Rect(320,562,172,68),"공격 간격",selected.AttackInterval.ToString("0.00")+"초");
@@ -316,19 +326,23 @@ namespace PrototypeLab.Roguelike
         }
         private void DrawMenu()
         {
-            Fill(Screenful,new Color(.012f,.004f,.007f,.86f));Vignette(new Color(0,0,0,.8f));Grain(Screenful,.07f,true);Panel(new Rect(540,166,520,572),brass);
-            Label(new Rect(586,208,428,29),"PAUSED",13,brass,TextAnchor.MiddleCenter,true);
-            Label(new Rect(584,254,436,59),"숨을 고르는 중",35,new Color(.55f,.04f,.06f,.5f),TextAnchor.MiddleCenter,true);
-            Label(new Rect(582,251,436,59),"숨을 고르는 중",35,paper,TextAnchor.MiddleCenter,true);
-            if(Button(new Rect(600,350,400,56),"계속하기",brass,true,true))menu=false;
-            if(Button(new Rect(600,423,400,48),"조작과 규칙",silver))help=true;
-            if(Button(new Rect(600,487,400,48),"화면 흔들림  ·  "+(ScreenShakeEnabled?"켜짐":"꺼짐"),muted))ScreenShakeEnabled=!ScreenShakeEnabled;
-            if(Button(new Rect(600,551,400,48),"처음 화면",muted)){NewRun();intro=true;inspectedOwner="player";}
-            if(Button(new Rect(600,615,400,48),"데모 선택",muted))BackToHub();
-            Label(new Rect(600,684,400,27),run.Floor+"층  ·  "+CombatTime(elapsed),16,muted,TextAnchor.MiddleCenter);
+            bool expedition=run.IsCampaign&&!village;float top=expedition?136:166;
+            Fill(Screenful,new Color(.012f,.004f,.007f,.86f));Vignette(new Color(0,0,0,.8f));Grain(Screenful,.07f,true);Panel(new Rect(540,top,520,expedition?632:572),brass);
+            Label(new Rect(586,top+42,428,29),"PAUSED",13,brass,TextAnchor.MiddleCenter,true);
+            Label(new Rect(584,top+88,436,59),"숨을 고르는 중",35,new Color(.55f,.04f,.06f,.5f),TextAnchor.MiddleCenter,true);
+            Label(new Rect(582,top+85,436,59),"숨을 고르는 중",35,paper,TextAnchor.MiddleCenter,true);
+            float y=top+184;
+            if(Button(new Rect(600,y,400,56),"계속하기",brass,true,true))menu=false;y+=73;
+            if(Button(new Rect(600,y,400,48),"조작과 규칙",silver))help=true;y+=64;
+            if(Button(new Rect(600,y,400,48),"화면 흔들림  ·  "+(ScreenShakeEnabled?"켜짐":"꺼짐"),muted))ScreenShakeEnabled=!ScreenShakeEnabled;y+=64;
+            if(expedition){if(Button(new Rect(600,y,400,48),"원정 포기  ·  마을로",crimson)){EnterVillage();inspectedOwner="player";}y+=64;}
+            if(Button(new Rect(600,y,400,48),"처음 화면",muted)){if(village||run.IsCampaign)EnterVillage();else NewRun();intro=true;inspectedOwner="player";}y+=64;
+            if(Button(new Rect(600,y,400,48),"데모 선택",muted))BackToHub();y+=69;
+            Label(new Rect(600,y,400,27),village?TowerCampaign.Village:run.Floor+"층  ·  "+CombatTime(elapsed),16,muted,TextAnchor.MiddleCenter);
         }
         private void DrawEnding(bool won)
         {
+            if(run.IsCampaign&&!won){DrawExpeditionLost();return;}
             MenuBackdrop(won?(run.IsOathTrial?"서약을 완수했습니다":"탑의 정상에 도달했습니다"):"등반이 끝났습니다",won?"OATH FULFILLED":"JOURNEY ENDED");
             Color c=won?brass:silver;
             Halo(new Rect(450,135,700,520),Alpha(c,.20f));
@@ -341,7 +355,7 @@ namespace PrototypeLab.Roguelike
             Fill(new Rect(240,534,1120,1),Alpha(c,.18f));
             Label(new Rect(240,565,1120,64),"순간 회피  "+PerfectDodges+"     ·     반격 적중  "+CounterHits+"     ·     돌진 베기  "+DashSlashes+"     ·     마무리 일격  "+Finishers+"     ·     받은 피해  "+Mathf.CeilToInt(DamageTaken),18,muted,TextAnchor.MiddleCenter);
             if(Button(new Rect(555,689,490,60),run.IsOathTrial?"다른 서약으로 도전":"다시 등반하기",brass,true,true))
-            {bool trial=run.IsOathTrial;NewRun();intro=true;oathLobby=trial;inspectedOwner="player";}
+            {bool trial=run.IsOathTrial;EnterVillage();intro=true;oathLobby=trial;inspectedOwner="player";}
             if(Button(new Rect(660,771,280,44),"데모 선택",muted))BackToHub();
         }
         private void DrawHelp()
@@ -355,9 +369,9 @@ namespace PrototypeLab.Roguelike
             Panel(new Rect(772,198,712,574),brass);
             Label(new Rect(808,229,640,37),trial?"서약 연계":"회피와 반격",27,brass,TextAnchor.MiddleLeft,true);
             string rules=trial?"검격 적중 +1 · 순간 회피 +2\n기본 4충전 후 다음 검격 적중에 연계가 발동합니다. 헛스윙은 충전을 소모하지 않습니다.\n\n회피 시작 0.12초 안에 탄환을 통과하면 순간 회피입니다. 다음 검격의 반격 효과는 3초간 유지됩니다.\n\n여러 서약 변형은 함께 적용되며 충전은 다음 층에도 유지됩니다.\n\n5·10층 보스 · 10층 클리어로 종료\n신화 포인트는 적립하지 않습니다.":
-                "회피 시작 0.12초 안에 탄환을 통과하면 반격을 준비합니다. 3초 안에 맞힌 다음 검격은 피해가 50% 증가합니다.\n\n출발과 30·60층에서 모든 신화의 동료를 영입합니다. 같은 신화 2·3명이면 시너지가 발동합니다.\n\n5층마다 보스와 증강이 있고, 출구에서 엘리트·휴식·상점 층을 고를 수 있습니다. 층마다 1 P를 얻어 상점에서 씁니다.";
+                "회피 시작 0.12초 안에 탄환을 통과하면 반격을 준비합니다. 3초 안에 맞힌 다음 검격은 피해가 50% 증가합니다.\n\n탑은 열 층마다 한 신화를 가둔 장입니다. 마을의 탑 문에서 그 신화의 신 둘 중 한 명을 고르고, 되찾은 신을 더해 동료 셋까지 데려갑니다.\n\n5층마다 보스와 증강, 그 장의 마지막 층에는 각성한 보스가 있습니다. 장을 끝내면 성장을 간직한 채 마을로 돌아오고 다음 열 층이 열립니다. 원정에 실패하면 그 원정에서 얻은 성장은 사라집니다.";
             Label(new Rect(808,298,640,360),rules,19,muted);
-            Label(new Rect(808,675,640,65),"적을 모두 처치하면 생명력 18 회복\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회",18,paper);
+            Label(new Rect(808,675,640,65),trial?"적을 모두 처치하면 생명력 18 회복\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회":"5층 갈림길에서 휴식·상점·엘리트 문 · 층마다 1 P\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회",18,paper);
         }
     }
 }

@@ -12,45 +12,48 @@ namespace PrototypeLab.Roguelike
             var destination=new Rect(rect.center.x-width*.5f,rect.center.y-height*.5f,width,height);
             GUI.DrawTextureWithTexCoords(destination,texture,new Rect(cell.x/texture.width,cell.y/texture.height,cell.width/texture.width,cell.height/texture.height),true);
         }
-        // Title screen: the climb's structure on the left, the mythology synergy codex on the right.
+        // Title screen: the story so far on the left, the tower's nine chapters and their state on the right.
         private void DrawTitle()
         {
-            MenuBackdrop("서약의 탑","TOWERBOUND  ·  100 FLOORS");
+            MenuBackdrop("서약의 탑","TOWERBOUND  ·  신화를 잃은 신들의 탑  ·  90 FLOORS");
             Label(new Rect(1150,72,180,47),progress.Points+" P",28,brass,TextAnchor.MiddleRight,true);
             if(Button(new Rect(1364,76,172,44),"도움말",muted))help=true;
             Panel(new Rect(64,176,560,516),brass);
-            Label(new Rect(96,200,500,36),"등반 안내",24,paper,TextAnchor.MiddleLeft,true);
-            string[] heads={"100층","동료 영입","증강","갈림길","포인트"};
-            string[] lines={"5층마다 테마와 보스가 바뀝니다. 보스는 테마마다 고유 기술을 씁니다.",
-                "출발할 때, 그리고 30층과 60층에서 모든 신화의 동료 중 한 명을 고릅니다.",
-                "5층마다 증강 3장 중 1장을 고릅니다. 엘리트 층을 깨도 한 장 더 얻습니다.",
-                "5층마다 일반 출구 대신 휴식 · 상점 · 엘리트 문 3개 중 하나를 고릅니다.",
-                "층을 클리어할 때마다 1 P를 얻고, 상인에게 가서 한 번 거래할 때 씁니다."};
+            Label(new Rect(96,200,500,36),"이야기",24,paper,TextAnchor.MiddleLeft,true);
+            string[] heads={"행성 "+TowerCampaign.Planet,"악신 "+TowerCampaign.EvilGod,"신화를 잃은 신들","유일신의 서약"};
+            string[] lines={"당신은 행성 루멘의 단 하나뿐인 신입니다.",
+                "지구를 삼킨 악신이 루멘의 대지에 탑을 꽂고, 지구의 신화들을 층마다 가두었습니다.",
+                "부서진 지구를 건너온 신들이 자신의 신화를 되찾으려 당신과 함께 탑에 오릅니다.",
+                "열 층마다 신화 하나를 되찾고 마을로 돌아와, 마지막 장에서 악신을 쓰러뜨리십시오."};
             for(int i=0;i<heads.Length;i++)
             {
-                float y=256+i*84;Diamond(new Vector2(104,y+13),7,brass);
+                float y=256+i*104;Diamond(new Vector2(104,y+13),7,brass);
                 Label(new Rect(124,y,460,26),heads[i],18,brass,TextAnchor.MiddleLeft,true);
-                Label(new Rect(124,y+29,470,48),lines[i],15,muted);
+                Label(new Rect(124,y+30,470,66),lines[i],15,muted);
             }
             Panel(new Rect(656,176,880,516),brass);
-            Label(new Rect(690,196,520,36),"신화 시너지",24,paper,TextAnchor.MiddleLeft,true);
-            Label(new Rect(1130,200,380,30),"같은 신화 동료 2명 · 3명",15,muted,TextAnchor.MiddleRight);
-            for(int i=0;i<TowerMythCatalog.Synergies.Count;i++)
+            Label(new Rect(690,196,520,36),"탑의 아홉 장",24,paper,TextAnchor.MiddleLeft,true);
+            Label(new Rect(1130,200,380,30),RestoredLine(),15,brass,TextAnchor.MiddleRight);
+            for(int i=0;i<TowerCampaign.Chapters.Count;i++)
             {
-                var synergy=TowerMythCatalog.Synergies[i];var myth=TowerMythCatalog.Get(synergy.MythId);float y=244+i*44;
-                if(i%2==0)Round(new Rect(672,y-2,848,44),new Color(1,1,1,.025f),4);
-                Label(new Rect(690,y,150,20),myth.Name,15,paper,TextAnchor.MiddleLeft,true);
-                Label(new Rect(690,y+20,150,20),synergy.Name,13,brass);
-                Label(new Rect(850,y+1,660,20),"2명  "+synergy.Describe(2),13,muted);
-                Label(new Rect(850,y+20,660,20),"3명  "+synergy.Describe(3),13,muted);
+                var ch=TowerCampaign.Chapters[i];bool restored=campaign.IsRestored(ch),next=ch==campaign.NextChapter;float y=246+i*48;
+                if(i%2==0)Round(new Rect(672,y-4,848,46),new Color(1,1,1,.025f),4);
+                Label(new Rect(690,y,120,38),ch.Floors,14,muted,TextAnchor.MiddleLeft);
+                Label(new Rect(806,y,250,38),ch.Numeral+"  "+ch.Title,17,restored||next?paper:muted,TextAnchor.MiddleLeft,true);
+                Label(new Rect(1030,y,330,38),ch.Subtitle,14,muted,TextAnchor.MiddleLeft);
+                Label(new Rect(1360,y,140,38),restored?"되찾음":next?"다음 원정":"봉인됨",14,restored?brass:next?TowerWorld.Teal:Alpha(muted,.7f),TextAnchor.MiddleRight,true);
             }
             Fill(new Rect(64,708,1472,1),new Color(.5f,.56f,.63f,.15f));
-            if(Button(new Rect(1046,722,490,57),"등반 시작",brass,true,true))StartClimb();
-            Label(new Rect(64,733,940,32),"Enter로도 시작할 수 있습니다  ·  출발과 함께 첫 동료를 영입합니다",16,muted);
+            bool started=campaign.PrologueSeen||campaign.ClearedChapters>0;
+            if(Button(new Rect(1046,722,490,57),started?"이어하기":"모험 시작",brass,true,true))StartClimb();
+            var upcoming=campaign.NextChapter;
+            Label(new Rect(64,733,960,32),!started?"Enter로도 시작할 수 있습니다  ·  등불 마을의 수련장에서 조작을 익히고 탑으로 향합니다":
+                upcoming==null?"악신을 쓰러뜨렸습니다  ·  마을에서 되찾은 신들을 만날 수 있습니다":"다음 원정  ·  "+upcoming.Numeral+" "+upcoming.Title+"  "+upcoming.Floors,16,muted);
             Fill(new Rect(64,804,1472,1),new Color(.5f,.56f,.63f,.15f));
             Label(new Rect(64,829,480,29),"서약 연계  ·  세 천사와 함께하는 10층",18,paper,TextAnchor.MiddleLeft);
-            if(Button(new Rect(566,820,318,50),"서약 시험장",brass,true,true))oathLobby=true;
-            Label(new Rect(1000,831,536,28),"일반 등반 100층",16,muted,TextAnchor.MiddleRight);
+            if(Button(new Rect(566,820,318,50),"서약 시험장",brass,true,true)){oathLobby=true;confirmReset=false;}
+            if(started&&Button(new Rect(1218,820,318,50),confirmReset?"정말 처음부터 시작할까요?":"새로운 여정",confirmReset?crimson:muted))
+            {if(confirmReset){confirmReset=false;ResetCampaign();}else confirmReset=true;}
         }
     }
 }

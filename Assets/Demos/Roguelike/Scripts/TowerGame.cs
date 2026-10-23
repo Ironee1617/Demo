@@ -14,9 +14,13 @@ namespace PrototypeLab.Roguelike
             public float moveVelocity,followGroundY,followGroundX,dropTime,dropHeight;
             public int followSource=-2,followGoal=-2,followNext=-2; public bool followMoving,returningToFormation;
             public int facing=1,kind,difficultyFloor=1; public string id; public bool grounded,airborne,isBoss,isElite,isEnemy; public float slowTime,stunTime; public Vector2 strikePoint;
+            // Platform index the actor stands on (-1: the ground), the platform being dropped through, and the x at the previous step.
+            public int support=-1,dropSupport=-1; public float lastX=float.NaN;
             public float damageScale=1,moveScale=1,bulletSpeedScale=1,attackRateScale=1;
             public TowerMonsterDefinition monster;
             public TowerThemeId theme;
+            // Shown instead of the species name, e.g. an awakened chapter boss.
+            public string title;
         }
         private sealed class Shot { public GameObject root; public Vector2 pos,velocity; public float damage,life,area,slowDuration,hitRadius=.16f; public bool hostile,oathChain; public Color color; public HeroState owner; public SkillEffect effect; public int pierce=1; public readonly HashSet<Fighter> hit=new HashSet<Fighter>(); }
         internal sealed class Number { public Vector2 pos; public string text; public Color color; public float life; }
@@ -56,7 +60,7 @@ namespace PrototypeLab.Roguelike
         internal bool SmokeControlled;
         internal float MoveOverride;
         internal bool AttackOverride,JumpOverride,DashOverride,DropOverride;
-        internal bool Paused { get { return intro||menu||party||help||shopOpen||run.IsRewardPending||hero.hp<=0||run.IsComplete; } }
+        internal bool Paused { get { return intro||menu||party||help||shopOpen||VillageBlocking||run.IsRewardPending||hero.hp<=0||run.IsComplete; } }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Enter()
@@ -67,6 +71,8 @@ namespace PrototypeLab.Roguelike
         private void Awake()
         {
             Application.targetFrameRate=60;
+            // The HUD draws with absolute-rect GUI calls only (no GUILayout or GUI.Window), so the IMGUI layout pass is skipped.
+            useGUILayout=false;
             view=Camera.main;
             if(view==null){var c=new GameObject("Tower camera");c.tag="MainCamera";view=c.AddComponent<Camera>();c.AddComponent<AudioListener>();}
             view.orthographic=true;view.orthographicSize=5.8f;view.clearFlags=CameraClearFlags.SolidColor;view.backgroundColor=new Color(.035f,.065f,.105f);
@@ -76,6 +82,7 @@ namespace PrototypeLab.Roguelike
             music=TowerMusic.Create(transform);
             slashSound=Tone(220,.11f);hitSound=Tone(95,.10f);chimeSound=Tone(660,.28f);
             progress=TowerProgress.Load(PlayerPrefs.GetString(ProgressKey,""));
+            campaign=TowerCampaignSave.Load(PlayerPrefs.GetString(CampaignKey,""));
             var launchArgs=Environment.GetCommandLineArgs();
             bool visualFixture=Array.IndexOf(launchArgs,"-towerAnimationSmoke")>=0||Array.IndexOf(launchArgs,"-towerArtSmoke")>=0||Array.IndexOf(launchArgs,"-towerMonsterRigSmoke")>=0;
             if(visualFixture)
@@ -87,21 +94,37 @@ namespace PrototypeLab.Roguelike
             }
             else NewRun();
             var driver=gameObject.AddComponent<TowerSmokeDriver>();driver.Initialize(this);
+            // A real launch opens on the title over the village; fixtures keep driving their own runs.
+            if(!visualFixture&&!SuppressProgressPersistence&&!SmokeControlled){EnterVillage();intro=true;}
         }
         internal void NewRun(int? fixedSeed=null,string oathCompanionId=null)
         {
-            ResetEnemyCombat();
+            // Free climbs open with a recruit from every mythology; fixtures compose their own parties.
+            seed=fixedSeed??(Environment.TickCount&0x7fffffff);
+            StartRun(new TowerRun(seed,TowerRun.DefaultMaxFloor,!SmokeControlled,oathCompanionId));
+        }
+        /// <summary>Replaces every actor and starts <paramref name="next"/> on its first floor; seed must already be set.</summary>
+        private void StartRun(TowerRun next)
+        {
+            ResetActors();
+            run=next;
+            SpawnHero(new Vector2(-12,TowerWorld.Ground));
+            SpawnFloor();
+        }
+        private void ResetActors()
+        {
+            ResetEnemyCombat();ClearVillage();
             foreach(var e in enemies)if(e.root)Destroy(e.root);enemies.Clear();
             foreach(var a in allies)if(a.root)Destroy(a.root);allies.Clear();
             foreach(var s in shots)if(s.root)Destroy(s.root);shots.Clear();
             numbers.Clear();
             if(hero!=null&&hero.root)Destroy(hero.root);
-            // Real climbs open with a recruit from every mythology; fixtures compose their own parties.
-            seed=fixedSeed??(Environment.TickCount&0x7fffffff);run=new TowerRun(seed,TowerRun.DefaultMaxFloor,!SmokeControlled,oathCompanionId);
-            hero=Spawn("Player",0,false,new Vector2(-12,TowerWorld.Ground));hero.id="player";hero.hp=hero.maxHp=PlayerMaxHealth;ResetSkills();
+        }
+        private void SpawnHero(Vector2 at)
+        {
+            hero=Spawn("Player",0,false,at);hero.id="player";hero.hp=hero.maxHp=PlayerMaxHealth;ResetSkills();
             elapsed=0;kills=0;healClock=0;invulnerable=0;dashCooldown=0;slashCooldown=0;attackTimer=0;dashTime=0;pendingSlash=false;jumpBuffer=0;coyote=0;airJumps=MaxAirJumps;
             menu=party=help=oathLobby=shopOpen=false;dismissId="";notice="";toasts.Clear();FocusActive=false;cameraLead=1.6f;ResetPresentation();ResetAction();CreateHitCore();ResetCombatRewards();ClearOathEffects();
-            SpawnFloor();
         }
         private Fighter Spawn(string name,int index,bool monster,Vector2 pos)
         {
@@ -111,14 +134,17 @@ namespace PrototypeLab.Roguelike
         }
         private void SpawnFloor()
         {
+            using(TowerProfiling.SpawnFloor.Auto())SpawnFloorContents();
+        }
+        private void SpawnFloorContents()
+        {
             ClearOathEffects();
             ResetEnemyCombat();
             BeginFloorRecord();
-            world.SetTheme(run.Theme.Id,run.Floor,seed);
-            world.SetFloorFeature(run.FloorType,run.IsBranchFloor);
-            music.PlayTheme(run.Theme.Id);
+            using(TowerProfiling.SetTheme.Auto()){world.SetTheme(run.Theme.Id,run.Floor,seed);world.SetFloorFeature(run.FloorType,run.IsBranchFloor);}
+            using(TowerProfiling.Music.Auto())music.PlayTheme(run.Theme.Id);
             cameraCeiling=Mathf.Max(1.8f,world.HighestPlatform+4);
-            hero.pos=new Vector2(-12,TowerWorld.Ground);hero.velocityY=0;hero.dropTime=0;hero.facing=1;hero.grounded=true;
+            hero.pos=new Vector2(-12,TowerWorld.Ground);hero.velocityY=0;hero.dropTime=0;hero.facing=1;hero.grounded=true;hero.support=-1;hero.lastX=-12;
             hero.root.transform.position=hero.pos;previousHeroPosition=hero.pos;view.transform.position=new Vector3(-7,0,-10);appliedShake=Vector3.zero;
             foreach(var s in shots)Destroy(s.root);shots.Clear();ClearFloorSkillEffects();shopOpen=false;
             if(run.FloorType==FloorType.Rest||run.FloorType==FloorType.Shop)
@@ -135,23 +161,33 @@ namespace PrototypeLab.Roguelike
             {
                 int at=roster.FindIndex(kind,d=>d.Kind==kind);var saved=roster[kind];roster[kind]=roster[at];roster[at]=saved;
             }
+            using(TowerProfiling.Actors.Auto())SpawnEnemies(count,elite,bossFloor,roster);
+            using(TowerProfiling.Party.Auto()){SyncAllies();ResetAllyFormation();}
+            var boss=bossFloor?enemies.Find(e=>e.isBoss):null;
+            if(elite)Notice("엘리트 층  ·  클리어하면 증강",3);
+            else if(boss!=null&&IsFinalBoss(boss))Notice(boss.monster.Name+" 강림  ·  지구를 삼킨 자",4);
+            else Notice(boss!=null?(boss.title??boss.monster.Name)+" 출현  ·  "+SignatureName(run.Theme.Id):"",boss!=null?3:0);
+        }
+        private void SpawnEnemies(int count,bool elite,bool bossFloor,List<TowerMonsterDefinition> roster)
+        {
             float spacing=Mathf.Min(4.2f,(bossFloor?18f:25f)/Mathf.Max(1,count-1));
             for(int i=0;i<count;i++)
             {
                 var definition=roster[i%roster.Count];float x=-1+i*spacing;
-                var e=Spawn(definition.Name,definition.Kind,true,new Vector2(x,TowerWorld.Ground));
+                var e=Spawn(definition.Name,definition.Kind,true,new Vector2(x,world.GroundAt(x)));
                 e.monster=definition;e.id=definition.Id;e.theme=run.Theme.Id;
                 e.art.SetThemeMonster(e.theme,definition.Variant,false);
                 ConfigureEnemy(e,definition.Kind,i);if(elite)MakeElite(e);enemies.Add(e);
             }
             if(run.Floor>=2)
             {
+                // The flyer perches on the stacked shelf nearest the floor's tier height, preferring the room's middle.
                 float tier=2.4f+(run.Floor-2)%3*1.4f;
                 var perch=world.Ledges[0];float nearest=float.PositiveInfinity;
                 foreach(var ledge in world.Ledges)
                 {
-                    if(Mathf.Abs(ledge.y-tier)>.05f)continue;
-                    float distance=Mathf.Abs(ledge.x-12);
+                    if(ledge.y<2)continue;
+                    float distance=Mathf.Abs(ledge.y-tier)*4+Mathf.Abs(ledge.x-12)*.1f;
                     if(distance<nearest){perch=ledge;nearest=distance;}
                 }
                 var definition=run.Theme.Monsters[run.Theme.AirborneVariant];var flying=Spawn(definition.Name,3,true,new Vector2(perch.x,perch.y+.8f));
@@ -160,16 +196,19 @@ namespace PrototypeLab.Roguelike
             }
             if(bossFloor)
             {
-                var definition=run.Theme.Boss;var boss=Spawn(definition.Name,4,true,new Vector2(22,TowerWorld.Ground));
-                boss.monster=definition;boss.id=definition.Id;boss.theme=run.Theme.Id;boss.art.SetThemeMonster(boss.theme,0,true);
-                ConfigureBoss(boss,run.Floor);enemies.Add(boss);
+                // A chapter's last floor holds its climax: the evil god in the abyss, an awakened guardian elsewhere.
+                bool climax=run.IsCampaign&&run.Floor==run.MaxFloor,final=climax&&run.Theme.FinalBoss!=null;
+                var definition=final?run.Theme.FinalBoss:run.Theme.Boss;var boss=Spawn(definition.Name,4,true,new Vector2(22,world.GroundAt(22)));
+                boss.monster=definition;boss.id=definition.Id;boss.theme=run.Theme.Id;boss.art.SetThemeMonster(boss.theme,final?TowerThemeCatalog.FinalVariant:0,true);
+                ConfigureBoss(boss,run.Floor);
+                if(climax&&!final){boss.title=definition.Name+" · 각성";boss.hp=boss.maxHp*=AwakenedBossHealth;}
+                enemies.Add(boss);
             }
-            SyncAllies();ResetAllyFormation();
-            if(elite)Notice("엘리트 층  ·  클리어하면 증강",3);else Notice(bossFloor?run.Theme.Boss.Name+" 출현  ·  "+SignatureName(run.Theme.Id):"",bossFloor?3:0);
         }
         internal void StartClimb()
         {
             if(oathLobby){StartOathTrial(oathSelection);return;}
+            if(village||run.IsCampaign){BeginCampaign();return;}
             intro=false;Notice("",0);
         }
         internal void SaveProgress(){if(progress==null||SuppressProgressPersistence||SmokeControlled)return;PlayerPrefs.SetString(ProgressKey,progress.Save());PlayerPrefs.Save();}
@@ -184,10 +223,12 @@ namespace PrototypeLab.Roguelike
             if(noticeTime>0)noticeTime-=frame;
             if(!SmokeControlled)
             {
-                if(Input.GetKeyDown(KeyCode.Escape)){if(help)help=false;else if(intro){}else if(shopOpen)shopOpen=false;else if(party){party=false;dismissId="";}else if(!run.IsRewardPending)menu=!menu;}
-                if(Input.GetKeyDown(KeyCode.Tab)&&!intro&&hero.hp>0&&!run.IsComplete){party=!party;dismissId="";shopOpen=false;}
-                if(Input.GetKeyDown(KeyCode.Return)&&intro&&!help)StartClimb();
+                if(Input.GetKeyDown(KeyCode.Escape)){if(help)help=false;else if(StoryOpen)SkipStory();else if(villagePanel!=VillagePanel.None)villagePanel=VillagePanel.None;else if(intro){}else if(shopOpen)shopOpen=false;else if(party){party=false;dismissId="";}else if(!run.IsRewardPending)menu=!menu;}
+                if(Input.GetKeyDown(KeyCode.Tab)&&!intro&&!VillageBlocking&&hero.hp>0&&!run.IsComplete){party=!party;dismissId="";shopOpen=false;}
+                if(StoryOpen&&!help&&(Input.GetKeyDown(KeyCode.Return)||Input.GetKeyDown(KeyCode.Space)||Input.GetKeyDown(KeyCode.E)))AdvanceStory();
+                else if(Input.GetKeyDown(KeyCode.Return)&&intro&&!help)StartClimb();
             }
+            if(run.IsCampaign&&run.IsComplete&&!chapterRecorded)CompleteChapter();
             ConfigurePixelCamera();
             if(Paused){AnimateIdle(frame);TickDeaths(frame);return;}
             // A short hit stop slows the simulation; input, HUD and camera keep real time.
@@ -209,7 +250,7 @@ namespace PrototypeLab.Roguelike
             if(jump)jumpBuffer=.14f;else jumpBuffer-=dt;
             if(hero.grounded){coyote=.1f;airJumps=MaxAirJumps;}else coyote-=dt;
             if(move!=0&&dashTime<=0&&(attackTimer<=0||!pendingSlash)&&hero.castRemaining<=0)hero.facing=move>0?1:-1;
-            if(drop&&hero.grounded&&hero.pos.y>TowerWorld.Ground+.1f){jumpBuffer=0;coyote=0;}
+            if(drop&&hero.grounded&&hero.support>=0){jumpBuffer=0;coyote=0;}
             if(jumpBuffer>0&&coyote>0&&hero.dropTime<=0){hero.velocityY=10.7f;hero.grounded=false;jumpBuffer=0;coyote=0;jumpCut=false;Sound(slashSound,.28f);if(vfx!=null)vfx.Dust(hero.pos,0,.5f);}
             // Past the coyote window a press spends the air jump, which also turns a fall back upward.
             else if(jumpBuffer>0&&!hero.grounded&&airJumps>0&&hero.dropTime<=0){airJumps--;hero.velocityY=AirJumpVelocity;jumpBuffer=0;jumpCut=false;Sound(slashSound,.34f);if(vfx!=null){vfx.ImpactRing(hero.pos+Vector2.up*.1f,.5f,TowerWorld.Teal);vfx.Dust(hero.pos,0,.3f);}}
@@ -237,19 +278,24 @@ namespace PrototypeLab.Roguelike
             float actualHeroSpeed=dt>0?(hero.pos.x-previousHeroPosition.x)/dt:0;
             hero.art.SetLocomotion(hero.grounded,hero.velocityY,dashTime>0,Mathf.Abs(actualHeroSpeed),actualHeroSpeed);
             hero.art.SetPose(Mathf.Abs(actualHeroSpeed)>.08f,attackTimer>0,hero.hurt>0,hero.facing,dt);
-            foreach(var enemy in enemies)TickEnemy(enemy,dt);
+            using(TowerProfiling.Enemies.Auto())foreach(var enemy in enemies)TickEnemy(enemy,dt);
             if(hero.hp<=0){TickEffects(dt);return;}
-            TickAllies(dt);TickSkills(dt);TickOath(dt);TickShots(dt);TickEffects(dt);
+            using(TowerProfiling.Allies.Auto())TickAllies(dt);
+            using(TowerProfiling.Skills.Auto()){TickSkills(dt);TickOath(dt);}
+            using(TowerProfiling.Shots.Auto())TickShots(dt);
+            using(TowerProfiling.Effects.Auto())TickEffects(dt);
             if(hero.hp<=0)return;
-            if(enemies.Count==0&&!run.IsFloorCleared)
+            if(village)TickVillage(dt);
+            else if(enemies.Count==0&&!run.IsFloorCleared)
             {
                 run.ClearFloor();ClearOathEffects();foreach(var shot in shots)if(shot.root)Destroy(shot.root);shots.Clear();RecordFloorResult();int earned=SmokeControlled?0:progress.RecordFloorClear(run);if(earned>0)SaveProgress();CancelPendingSkills();hero.hp=Mathf.Min(PlayerMaxHealth,hero.hp+18);Sound(chimeSound,.8f);
                 if(run.FloorType==FloorType.Rest||run.FloorType==FloorType.Shop)OnSpecialFloorCleared();
                 else Notice(run.IsBranchFloor?"층 클리어  ·  원하는 출구를 고르세요":"층 클리어",2.5f);
             }
-            if(!SmokeControlled&&run.IsFloorCleared&&!run.IsRewardPending&&Input.GetKeyDown(KeyCode.E))
+            if(!SmokeControlled&&village&&Input.GetKeyDown(KeyCode.E))InteractVillage();
+            else if(!SmokeControlled&&run.IsFloorCleared&&!run.IsRewardPending&&Input.GetKeyDown(KeyCode.E))
             {if(NearMerchant)InteractMerchant();else{var gate=NearestGate();if(gate.HasValue)NextFloor(gate.Value);}}
-            world.Tick(dt,run.IsFloorCleared&&!run.IsRewardPending);
+            using(TowerProfiling.World.Auto())world.Tick(dt,village||run.IsFloorCleared&&!run.IsRewardPending);
             if(move!=0)cameraLead=Mathf.MoveTowards(cameraLead,move*1.6f,frame*4);
             float cameraX=Mathf.Clamp(hero.pos.x+cameraLead,-7.5f,21.5f);
             Vector3 destination=new Vector3(cameraX,Mathf.Clamp(hero.pos.y+1.5f,0,cameraCeiling),-10);
@@ -266,14 +312,13 @@ namespace PrototypeLab.Roguelike
         }
         private void StepGravity(Fighter f,float dt,bool drop=false)
         {
-            if(drop&&f.grounded&&f.pos.y>TowerWorld.Ground+.1f)
-            {f.dropTime=.22f;f.dropHeight=f.pos.y;f.grounded=false;f.velocityY=Mathf.Min(f.velocityY,-2.5f);}
+            // Standing on a platform (support >= 0) lets a drop input fall through it; the rolling ground never drops.
+            if(drop&&f.grounded&&f.support>=0)
+            {f.dropTime=.22f;f.dropHeight=f.pos.y;f.dropSupport=f.support;f.support=-1;f.grounded=false;f.velocityY=Mathf.Min(f.velocityY,-2.5f);}
             f.dropTime=Mathf.Max(0,f.dropTime-dt);
-            float old=f.pos.y;f.velocityY-=25*dt;float next=old+f.velocityY*dt;float ground=TowerWorld.Ground;
-            if(f.velocityY<=0)foreach(var p in world.Ledges)
-                if(!(f.dropTime>0&&Mathf.Abs(p.y-f.dropHeight)<.08f)&&Mathf.Abs(f.pos.x-p.x)<p.width*.5f+.18f&&old>=p.y-.02f&&next<=p.y)
-                    ground=Mathf.Max(ground,p.y);
-            f.grounded=next<=ground;if(f.grounded){next=ground;f.velocityY=0;}f.pos.y=next;
+            float xOld=float.IsNaN(f.lastX)?f.pos.x:f.lastX,y=f.pos.y;bool grounded=f.grounded;int support=f.support;
+            TowerPhysics.Step(world.CurrentLayout,xOld,f.pos.x,ref y,ref f.velocityY,ref grounded,ref support,dt,f.dropTime>0?f.dropSupport:-1);
+            f.pos.y=y;f.grounded=grounded;f.support=support;f.lastX=f.pos.x;
         }
 
         private void PlayerSlash()
@@ -290,6 +335,7 @@ namespace PrototypeLab.Roguelike
             float push=hero.facing*(heavy?.9f:.35f);
             Vector2 oathTarget=origin;float nearest=float.PositiveInfinity;
             for(int i=enemies.Count-1;i>=0;i--){var e=enemies[i];if(CanTarget(e,run.Player)&&(e.pos.x-hero.pos.x)*hero.facing>-.4f&&Mathf.Abs(e.pos.x-hero.pos.x)<reach&&Mathf.Abs((e.pos.y+.85f)-(hero.pos.y+.9f))<1.9f){float distance=(e.pos-hero.pos).sqrMagnitude;if(distance<nearest){nearest=distance;oathTarget=e.pos;}StrikeEnemy(e,damage,run.Player,push);connected=true;}}
+            if(village&&StrikeDummies(reach,damage,heavy))connected=true;
             if(connected)
             {
                 if(counter)ConsumeDodgeCounter();OnOathSwordHit(oathTarget);Sound(slashSound,.65f);
@@ -314,7 +360,7 @@ namespace PrototypeLab.Roguelike
             bool critical=criticalHit;criticalHit=false;
             if(!CanTarget(e,null))return;e.hp-=damage;e.hurt=.14f;e.pos.x=Mathf.Clamp(e.pos.x+push,TowerWorld.Left,TowerWorld.Right);
             FloatText(e.pos+Vector2.up*1.8f,Mathf.CeilToInt(damage)+(critical?"!":""),critical?new Color(1,.5f,.32f):TowerWorld.Gold);Burst(e.pos+Vector2.up,TowerWorld.Gold,4,.3f);Sound(hitSound,.35f);
-            if(e.hp<=0){kills++;if(vfx!=null)vfx.KillBurst(e.pos+Vector2.up*(e.isBoss?1.6f:.9f),e.isBoss?TowerWorld.Gold:TowerWorld.Teal);HitStop(e.isBoss?.12f:.05f);if(e.isBoss)Shake(.3f,.45f);enemies.Remove(e);RetireEnemy(e);}
+            if(e.hp<=0){kills++;if(vfx!=null)vfx.KillBurst(e.pos+Vector2.up*(e.isBoss?1.6f:.9f),e.isBoss?TowerWorld.Gold:TowerWorld.Teal);HitStop(e.isBoss?.12f:.05f);if(e.isBoss)Shake(.3f,.45f);if(IsFinalBoss(e)){Shake(.6f,1.1f);Toast(e.monster.Name+" 붕괴","지구를 삼킨 악신이 무너집니다",brass,4);}enemies.Remove(e);RetireEnemy(e);}
         }
         private void HurtHero(float damage)
         {
@@ -377,6 +423,6 @@ namespace PrototypeLab.Roguelike
             Vector2 offset=new Vector2((Screen.width-1600*scale)*.5f,(Screen.height-900*scale)*.5f);
             return HUDHit((new Vector2(Input.mousePosition.x,Screen.height-Input.mousePosition.y)-offset)/scale);
         }
-        internal void BackToHub(){if(Application.CanStreamedLevelBeLoaded("00_Hub"))SceneManager.LoadScene("00_Hub");else{intro=true;NewRun();}}
+        internal void BackToHub(){if(Application.CanStreamedLevelBeLoaded("00_Hub"))SceneManager.LoadScene("00_Hub");else{EnterVillage();intro=true;}}
     }
 }

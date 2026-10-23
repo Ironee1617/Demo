@@ -45,6 +45,12 @@ namespace PrototypeLab.Roguelike
             return list;
         }
 
+        /// <summary>Starts loading a theme's strips in the background (see TowerWorld.PrefetchThemeArt).</summary>
+        internal static void Prefetch(TowerThemeId theme, List<ResourceRequest> into)
+        {
+            foreach (var band in Bands(theme)) into.Add(Resources.LoadAsync<Texture2D>(Folder + band.file));
+        }
+
         /// <summary>Builds the theme's planes under <paramref name="parent"/>; false when no bake exists.</summary>
         public static bool Build(Transform parent, TowerThemeId theme)
         {

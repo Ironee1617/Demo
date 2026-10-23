@@ -41,6 +41,11 @@ namespace PrototypeLab.Roguelike.Editor
                     throw new InvalidOperationException("Missing original effect texture: " + effect);
             for (int monster = 0; monster < 5; monster++)
                 RequireSprite("Tower/Monsters/monster_" + monster);
+            // The story campaign's final boss and village props (Tools/TowerArt/StoryPainter).
+            foreach (string story in new[] { "nihilos", "shrine", "stele", "signpost", "dummy" })
+                if (Resources.Load<Texture2D>("Tower/Story/" + story) == null)
+                    throw new InvalidOperationException("Missing story campaign art at Resources/Tower/Story/" + story + " (" +
+                        AssetDatabase.GetMainAssetTypeAtPath("Assets/Demos/Roguelike/Resources/Tower/Story/" + story + ".png") + ").");
             if (Resources.Load<Shader>("Tower/Effects/TowerEffectAdditive") == null)
                 throw new InvalidOperationException("Missing additive light shader at Resources/Tower/Effects/TowerEffectAdditive.");
             RequireShader("Sprites/Default");

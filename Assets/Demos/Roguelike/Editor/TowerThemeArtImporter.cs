@@ -20,6 +20,13 @@ namespace PrototypeLab.Roguelike.Editor
                 importer.isReadable=false;importer.textureCompression=TextureImporterCompression.CompressedHQ;
                 importer.filterMode=FilterMode.Bilinear;importer.maxTextureSize=8192;
             }
+            // Lit terrain tiles are sampled through repeating UVs on sloped meshes: filtered, mipmapped and tiling.
+            else if(assetPath.Contains("/Terrain/"))
+            {
+                importer.isReadable=false;importer.textureCompression=TextureImporterCompression.CompressedHQ;
+                importer.filterMode=FilterMode.Bilinear;importer.mipmapEnabled=true;importer.mipmapFilter=TextureImporterMipFilter.KaiserFilter;
+                importer.wrapMode=TextureWrapMode.Repeat;importer.maxTextureSize=4096;
+            }
         }
     }
 }

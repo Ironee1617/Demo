@@ -326,13 +326,12 @@ namespace PrototypeLab.Roguelike
 
     public sealed class TowerRun
     {
-        public const int MaxCompanions = 3, OfferSlots = 3, DefaultMaxFloor = 100, RewardInterval = 5;
+        public const int MaxCompanions = 3, OfferSlots = 3, DefaultMaxFloor = 90, RewardInterval = 5;
         public const int AugmentPrice = 5, HealPrice = 2, VitalityPrice = 4;
         public const float RestHealFraction = .5f, ShopHealFraction = .35f, VitalityHealth = 15;
-        // The run opens with one recruit; these floors grant the second and third.
+        // A free climb opens with one recruit; these floors grant the second and third. Chapters recruit in the village.
         public static readonly IReadOnlyList<int> RecruitFloors = Array.AsReadOnly(new[] { 30, 60 });
         private readonly Random random;
-        private readonly Random themeRandom;
         private readonly List<CompanionState> companions = new List<CompanionState>();
         private readonly List<RewardOffer> offers = new List<RewardOffer>();
         private readonly List<ShopOffer> shop = new List<ShopOffer>();
@@ -345,7 +344,11 @@ namespace PrototypeLab.Roguelike
         public int ClearedFloors { get; private set; }
         public int MaxFloor { get; private set; }
         public FloorType FloorType { get; private set; }
-        public TowerThemeDefinition Theme { get; private set; }
+        // Every ten floors belong to one chapter's mythology, so the theme follows the floor.
+        public TowerThemeDefinition Theme { get { return TowerThemeCatalog.ForFloor(Floor); } }
+        /// <summary>The story chapter this expedition climbs; null for free climbs and the oath trial.</summary>
+        public TowerChapter Chapter { get; private set; }
+        public bool IsCampaign { get { return Chapter != null; } }
         public string RunId { get; private set; }
         public bool IsFloorCleared { get; private set; }
         public bool IsRewardPending { get; private set; }
@@ -365,15 +368,14 @@ namespace PrototypeLab.Roguelike
         public static readonly IReadOnlyList<CompanionDefinition> Definitions = TowerAugmentCatalog.Companions;
         public static readonly IReadOnlyList<AugmentDefinition> Augments = TowerAugmentCatalog.Augments;
         public TowerRun(int seed = 1, int maxFloor = DefaultMaxFloor, bool startingRecruit = true, string oathCompanionId = null)
-            : this(new Random(seed), maxFloor, new Random(unchecked(seed * 397 ^ 0x51ED270B)), startingRecruit, oathCompanionId) { }
+            : this(new Random(seed), maxFloor, startingRecruit, oathCompanionId) { }
         public TowerRun(Random random, int maxFloor = DefaultMaxFloor, bool startingRecruit = true)
-            : this(random, maxFloor, new Random(random == null ? 0 : random.Next()), startingRecruit, null) { }
-        private TowerRun(Random random, int maxFloor, Random themeRandom, bool startingRecruit, string oathCompanionId)
+            : this(random, maxFloor, startingRecruit, null) { }
+        private TowerRun(Random random, int maxFloor, bool startingRecruit, string oathCompanionId)
         {
             if (random == null) throw new ArgumentNullException("random");
             if (maxFloor < 1) throw new ArgumentOutOfRangeException("maxFloor");
             this.random = random; MaxFloor = maxFloor; Floor = 1; FloorType = FloorType.Normal;
-            this.themeRandom = themeRandom; Theme = TowerThemeCatalog.Roll(themeRandom);
             RunId = Guid.NewGuid().ToString("N");
             Player = new HeroState("player", "플레이어", 28, 160, 0, 6, .43f, 2.6f);
             Player.ExternalBonus = stat => SynergyBonus(Player, stat);
@@ -384,6 +386,24 @@ namespace PrototypeLab.Roguelike
                 AddCompanion(GetDefinition(oathCompanionId));
             }
             else if (startingRecruit) BeginReward(true);
+        }
+        /// <summary>
+        /// One chapter expedition: floors <see cref="TowerChapter.FirstFloor"/> to <see cref="TowerChapter.LastFloor"/>
+        /// with the party chosen in the village and the growth saved by earlier chapters.
+        /// </summary>
+        internal static TowerRun ForChapter(int seed, TowerChapter chapter, IList<string> party)
+        {
+            if (chapter == null) throw new ArgumentNullException("chapter");
+            if (party == null || party.Count > MaxCompanions) throw new ArgumentOutOfRangeException("party");
+            var run = new TowerRun(new Random(seed), chapter.LastFloor, false, null);
+            run.Chapter = chapter; run.Floor = chapter.FirstFloor;
+            foreach (string id in party)
+            {
+                var definition = GetDefinition(id);
+                if (definition == null || run.GetCompanion(id) != null) throw new ArgumentException("Unknown or repeated companion: " + id);
+                run.AddCompanion(definition);
+            }
+            return run;
         }
         public static CompanionDefinition GetDefinition(string id)
         { for (int i = 0; i < Definitions.Count; i++) if (Definitions[i].Id == id) return Definitions[i]; return null; }
@@ -412,7 +432,7 @@ namespace PrototypeLab.Roguelike
             if (IsOathTrial) { if (Floor < MaxFloor) BeginReward(false); }
             else if (FloorType == FloorType.Elite) BeginReward(false);
             else if (FloorType == FloorType.Normal && Floor % RewardInterval == 0)
-                BeginReward(IsRecruitFloor(Floor) && companions.Count < MaxCompanions);
+                BeginReward(!IsCampaign && IsRecruitFloor(Floor) && companions.Count < MaxCompanions);
             else if (FloorType == FloorType.Shop) OpenShop();
             return true;
         }
@@ -421,8 +441,6 @@ namespace PrototypeLab.Roguelike
             if (!IsFloorCleared || IsRewardPending || IsComplete) return false;
             if (next != FloorType.Normal && !IsBranchFloor) return false;
             Floor++; IsFloorCleared = false; FloorType = next; shop.Clear(); ShopTraded = false;
-            if ((Floor - 1) % TowerThemeCatalog.FloorsPerTheme == 0)
-                Theme = TowerThemeCatalog.Roll(themeRandom, Theme.Id);
             return true;
         }
         public bool CanReroll(int slot) { return IsRewardPending && slot >= 0 && slot < OfferSlots && !rerolled[slot]; }

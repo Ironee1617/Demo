@@ -81,16 +81,18 @@ namespace PrototypeLab.Roguelike
             game.SmokeControlled = true; game.SuppressProgressPersistence = true; game.intro = false; game.enabled = false;
             world = (TowerWorld)typeof(TowerGame).GetField("world", Hidden).GetValue(game);
             capture = game.GetComponent<TowerSmokeDriver>(); Require(capture != null, "Shared HUD capture host is missing."); capture.PrepareForSuite(game);
-            var hashes = new HashSet<ulong>(); var atlases = new HashSet<Texture>();
+            var hashes = new HashSet<ulong>(); var atlases = new HashSet<Texture>(); int species = 0, expectedRigs = 0;
             foreach (var theme in TowerThemeCatalog.All)
             {
                 foreach (var monster in theme.Monsters) CheckSprite(theme.Id, monster.Variant, false, hashes, atlases);
-                CheckSprite(theme.Id, 0, true, hashes, atlases);
-                SetFixture(theme, 10);
-                Require(world.CurrentTheme == theme.Id && world.CurrentFloor == 10, "Map did not follow the requested theme.");
+                CheckSprite(theme.Id, 0, true, hashes, atlases); species += theme.Monsters.Count + 1;
+                // Each chapter's mid-chapter boss floor (5, 15, ... 85).
+                int floor = ChapterFloor(theme, 5); expectedRigs += TowerDifficulty.RegularCount(floor) + 2 + 7;
+                SetFixture(theme, floor);
+                Require(world.CurrentTheme == theme.Id && world.CurrentFloor == floor, "Map did not follow the requested theme.");
                 Require(EnvironmentRoot != null && EnvironmentRoot.gameObject.activeInHierarchy && EnvironmentRoot.GetComponentsInChildren<SpriteRenderer>().Length > 10, "Theme map is empty or inactive.");
                 VerifyEnvironmentArt(theme);
-                VerifyActors(theme, 10);
+                VerifyActors(theme, floor);
                 // Run actual game frames with attacks held off, then arrange the inspection capture.
                 game.enabled = true; game.invulnerable = 1000; float beforeTick = game.elapsed;
                 for (int frame = 0; frame < 6; frame++) { yield return null; report.sampledFrames++; }
@@ -101,15 +103,16 @@ namespace PrototypeLab.Roguelike
                 yield return CaptureRoster(theme);
                 report.sampledThemes++;
             }
-            Require(hashes.Count == 49 && report.sampledSpecies == 49, "Every regular species and boss must have distinct nonempty pixels.");
+            // Hell and the abyss regrade borrowed creatures, so every species still has its own pixels.
+            Require(hashes.Count == species && report.sampledSpecies == species, "Every regular species and boss must have distinct nonempty pixels.");
             report.distinctPixelHashes = hashes.Count; report.distinctSprites = true;
-            Require(atlases.Count == 7, "Every theme must use its own bitmap art atlas.");
+            Require(atlases.Count == 7, "All seven painted creature boards must be in use.");
             report.bitmapAtlases = atlases.Count; report.bitmapCreaturesVerified = true;
-            report.riggedCreaturesVerified=report.inspectedCreatureRigs==(TowerDifficulty.RegularCount(10)+2+7)*TowerThemeCatalog.All.Count;
+            report.riggedCreaturesVerified=report.inspectedCreatureRigs==expectedRigs;
             Require(report.riggedCreaturesVerified,"Every production creature and roster entry must use its own visible weighted rig.");
             yield return CheckBoundary();
-            report.actualFrameTicks = report.sampledFrames == 42;
-            report.allThemesRendered = report.sampledThemes == 7 && report.screenshots.Count == 14;
+            report.actualFrameTicks = report.sampledFrames == 6 * TowerThemeCatalog.All.Count;
+            report.allThemesRendered = report.sampledThemes == TowerThemeCatalog.All.Count && report.screenshots.Count == 2 * TowerThemeCatalog.All.Count;
             report.bitmapBackgroundsVerified = report.platformEdgesPreserved = report.noPreparationOverlays = report.rosterGalleryRendered = report.galleryFramingVerified = true;
             report.isolatedPools = report.bossesTargetable = report.scaledStats = true;
             Finish(null);
@@ -119,6 +122,13 @@ namespace PrototypeLab.Roguelike
             foreach (var actor in game.enemies) if (actor.root) { actor.root.SetActive(false); Destroy(actor.root); }
             game.enemies.Clear();
         }
+        // A run's theme follows its floor, so a fixture visits a theme by moving to that chapter's floor.
+        private static int ChapterFloor(TowerThemeDefinition theme, int floorInChapter)
+        {
+            int index = 0;
+            for (int i = 0; i < TowerThemeCatalog.All.Count; i++) if (System.Object.ReferenceEquals(TowerThemeCatalog.All[i], theme)) index = i;
+            return index * TowerThemeCatalog.FloorsPerTheme + floorInChapter;
+        }
         private void SetFixture(TowerThemeDefinition theme, int floor)
         {
             game.enabled = false;
@@ -126,7 +136,7 @@ namespace PrototypeLab.Roguelike
             foreach (var actor in game.allies) if (actor.root) actor.root.SetActive(false);
             ClearActors(); game.NewRun(20031); game.StartClimb(); ClearActors();
             typeof(TowerRun).GetField("<Floor>k__BackingField", Hidden).SetValue(game.run, floor);
-            typeof(TowerRun).GetField("<Theme>k__BackingField", Hidden).SetValue(game.run, theme);
+            Require(game.run.Theme == theme, "Fixture floor " + floor + " is outside " + theme.Name + ".");
             var oldEnvironment = EnvironmentRoot; Call("SpawnFloor");
             Require(!oldEnvironment || !oldEnvironment.gameObject.activeSelf, "Old environment remained active after SetTheme.");
             game.intro = game.menu = game.party = game.help = false; game.MoveOverride = 0;
@@ -223,19 +233,58 @@ namespace PrototypeLab.Roguelike
             report.backdropPlanes += planes.Length;
             report.minimumBackdropPixelsPerUnit = report.backdropPlanes == planes.Length ? minimumPpu : Mathf.Min(report.minimumBackdropPixelsPerUnit, minimumPpu);
             var renderers = EnvironmentRoot.GetComponentsInChildren<SpriteRenderer>();
-            Require(world.Ledges.Length == world.CurrentPattern.Platforms.Count, "Art changes altered the platform pattern count.");
+            // Lit themes build the ground and slabs as meshes whose top vertices ride the collision profile.
+            var strips = EnvironmentRoot.GetComponentsInChildren<MeshFilter>();
+            MeshFilter groundStrip = null;
+            foreach (var strip in strips) if (strip.name == theme.Id + " ground tile") groundStrip = strip;
+            Require(world.Ledges.Length == world.CurrentLayout.Platforms.Count, "Art changes altered the platform count.");
             for (int i = 0; i < world.Ledges.Length; i++)
             {
-                var ledge = world.Ledges[i]; var expected = world.CurrentPattern.Platforms[i];
+                var ledge = world.Ledges[i]; var expected = world.CurrentLayout.Platforms[i];
                 Near(ledge.x, expected.X, "platform x"); Near(ledge.y, expected.Y, "platform y"); Near(ledge.width, expected.Width, "platform width");
+                // Each sloped slab is one strip (or composed sprite) whose top edge follows the collision profile exactly.
                 bool edge = false;
-                foreach (var renderer in renderers)
-                    if (renderer.name == theme.Id + " platform walkable surface" && Mathf.Abs(renderer.bounds.center.x - ledge.x) < .015f && Mathf.Abs(renderer.bounds.max.y - ledge.y) < .015f && Mathf.Abs(renderer.bounds.size.x - ledge.width) < .015f) edge = true;
-                Require(edge, "The visible landing edge no longer matches its collision plane: " + theme.Id + " / " + i);
+                if (groundStrip != null)
+                {
+                    foreach (var strip in strips)
+                        if (strip.name == theme.Id + " raised platform" && StripFollows(strip, ledge.Left, ledge.Right, TowerWorld.SlabAbove, ledge.HeightAt)) edge = true;
+                }
+                else
+                    foreach (var renderer in renderers)
+                        if (renderer.name == theme.Id + " raised platform" && renderer.bounds.min.x <= ledge.Left + .02f && renderer.bounds.max.x >= ledge.Right - .02f && renderer.bounds.min.x >= ledge.Left - .3f
+                            && Mathf.Abs(renderer.bounds.max.y - ledge.Top) < .03f) edge = true;
+                Require(edge, "The visible slab no longer matches its collision profile: " + theme.Id + " / " + i);
                 report.inspectedPlatformEdges++;
+            }
+            if (groundStrip != null)
+            {
+                var ground = world.CurrentLayout.Ground; var v = groundStrip.sharedMesh.vertices;
+                Require(v.Length >= 32 && StripFollows(groundStrip, groundStrip.transform.TransformPoint(v[0]).x, groundStrip.transform.TransformPoint(v[v.Length - 2]).x, TowerWorld.TopAbove, ground.HeightAt),
+                    "The lit ground band drifted from the terrain profile: " + theme.Id);
+                Require(groundStrip.transform.TransformPoint(v[0]).x <= -20 && groundStrip.transform.TransformPoint(v[v.Length - 2]).x >= 40, "The lit ground band does not span the floor: " + theme.Id);
+            }
+            else
+            {
+                int groundSlabs = 0;
+                foreach (var renderer in renderers) if (renderer.name == theme.Id + " ground tile") { groundSlabs++; float x = renderer.bounds.center.x; Require(Mathf.Abs(renderer.bounds.max.y - world.CurrentLayout.Ground.HeightAt(x)) < 1.7f, "A ground slab drifted from the terrain profile: " + theme.Id); }
+                Require(groundSlabs >= 16, "The rolling ground was not composed from the atlas: " + theme.Id);
             }
             foreach (var item in game.GetComponentsInChildren<Transform>(true))
                 Require(item.name != "Locked warning dash" && !item.name.EndsWith(" warning", StringComparison.OrdinalIgnoreCase) && !item.name.StartsWith("Enemy telegraph", StringComparison.OrdinalIgnoreCase), "Removed path or danger preview returned: " + item.name);
+        }
+        /// <summary>True when a strip spans left..right and every top vertex sits <paramref name="above"/> over the profile.</summary>
+        private static bool StripFollows(MeshFilter strip, float left, float right, float above, Func<float, float> heightAt)
+        {
+            var v = strip.sharedMesh != null ? strip.sharedMesh.vertices : null;
+            if (v == null || v.Length < 4) return false;
+            var first = strip.transform.TransformPoint(v[0]); var last = strip.transform.TransformPoint(v[v.Length - 2]);
+            if (Mathf.Abs(first.x - left) > .02f || Mathf.Abs(last.x - right) > .02f) return false;
+            for (int k = 0; k < v.Length; k += 2)
+            {
+                var p = strip.transform.TransformPoint(v[k]);
+                if (Mathf.Abs(p.y - above - heightAt(p.x)) > .01f) return false;
+            }
+            return true;
         }
         /// <summary>The opaque sky plane must fill the view at every corner of the camera's travel.</summary>
         private void VerifyBackdropCoverage(TowerThemeDefinition theme)
@@ -346,13 +395,14 @@ namespace PrototypeLab.Roguelike
         }
         private IEnumerator CheckBoundary()
         {
-            SetFixture(TowerThemeCatalog.Get(TowerThemeId.Lava), 5);
+            // Olympus ends on floor 10; floor 11 opens Asgard.
+            SetFixture(TowerThemeCatalog.Get(TowerThemeId.Olympus), 10);
             var oldTheme = game.run.Theme; var oldEnvironment = EnvironmentRoot; var retired = new List<GameObject>();
             foreach (var actor in game.enemies) retired.Add(actor.root);
             ClearActors(); Require(game.run.ClearFloor() && game.run.ChooseOffer(game.run.Offers[0].Id), "Boundary fixture could not clear and choose a reward.");
             game.NextFloor();
-            Require(game.run.Floor == 6 && game.run.Theme.Id != oldTheme.Id, "Actual next-floor flow did not exclude the previous theme.");
-            Require(world.CurrentTheme == game.run.Theme.Id && world.CurrentFloor == 6, "Next floor map did not follow its newly selected theme.");
+            Require(game.run.Floor == 11 && game.run.Theme.Id == TowerThemeId.Asgard && oldTheme.Id == TowerThemeId.Olympus, "Actual next-floor flow did not enter the next chapter's theme.");
+            Require(world.CurrentTheme == game.run.Theme.Id && world.CurrentFloor == 11, "Next floor map did not follow its new theme.");
             Require(!oldEnvironment || !oldEnvironment.gameObject.activeSelf, "Previous environment remained active at the boundary.");
             foreach (var root in retired) Require(!root || !root.activeSelf, "Previous theme actor remained active.");
             int airborne = 0;
@@ -365,7 +415,7 @@ namespace PrototypeLab.Roguelike
                     Require(System.Object.ReferenceEquals(actor.monster, game.run.Theme.Monsters[game.run.Theme.AirborneVariant]), "Unexpected airborne species after the boundary reward.");
                 }
             }
-            Require(airborne == 1 && game.enemies.Count == TowerDifficulty.RegularCount(6) + airborne, "The new theme did not spawn its flying monster independently of party composition.");
+            Require(airborne == 1 && game.enemies.Count == TowerDifficulty.RegularCount(11) + airborne, "The new theme did not spawn its flying monster independently of party composition.");
             yield return null;
             foreach (var root in retired) Require(!root, "Retired actor was not destroyed by the next frame.");
             Require(!oldEnvironment, "Retired environment was not destroyed by the next frame.");

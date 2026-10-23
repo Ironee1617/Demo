@@ -209,8 +209,9 @@ namespace PrototypeLab.Roguelike
             var ally = game.allies.Find(actor => actor.id == id);
             Place(ally, game.FormationAnchor(companion));
             float distance = companion.Definition.Role == CompanionRole.Vanguard ? 1.1f : 4;
+            var terrain = (TowerWorld)Member(game, "world");
             var target = (TowerGame.Fighter)Call("Spawn", "Companion validation target", airborne ? 3 : 0, true,
-                new Vector2(ally.pos.x + distance, TowerWorld.Ground));
+                new Vector2(ally.pos.x + distance, terrain.GroundAt(ally.pos.x + distance)));
             Call("ConfigureEnemy", target, airborne ? 3 : 0, 0);
             target.hp = target.maxHp = 100000; target.stunTime = target.cooldown = 999;
             game.enemies.Add(target); game.StartClimb(); game.enabled = true;
@@ -218,6 +219,23 @@ namespace PrototypeLab.Roguelike
         }
         private static void Place(TowerGame.Fighter actor, Vector2 position)
         { actor.pos = position; actor.velocityY = 0; actor.grounded = true; actor.root.transform.position = position; }
+        /// <summary>The flattest wide platform one ordinary jump above the rolling ground beneath it.</summary>
+        private static TowerWorld.Ledge LowLedge(TowerWorld world)
+        {
+            int best = -1; float bestTilt = float.MaxValue;
+            for (int i = 0; i < world.Ledges.Length; i++)
+            {
+                var ledge = world.Ledges[i]; float rise = ledge.Bottom - world.GroundAt(ledge.x);
+                if (rise < .65f || rise > 2 || ledge.width < 2.4f) continue;
+                float tilt = ledge.Top - ledge.Bottom;
+                if (tilt < bestTilt) { bestTilt = tilt; best = i; }
+            }
+            Require(best >= 0, "The generated layout has no wide low platform within one ordinary jump of the ground.");
+            return world.Ledges[best];
+        }
+        /// <summary>True when the position rests on the (possibly sloped) ledge surface.</summary>
+        private static bool OnLedge(TowerWorld.Ledge ledge, Vector2 pos)
+        { return ledge.Contains(pos.x, .2f) && Mathf.Abs(pos.y - ledge.HeightAt(pos.x)) < .08f; }
         private IEnumerator Until(Func<bool> predicate, float seconds, string failure)
         {
             float limit = Time.realtimeSinceStartup + seconds;
@@ -452,15 +470,15 @@ namespace PrototypeLab.Roguelike
             var target = Setup("michael"); var actor = game.allies.Find(ally => ally.id == "michael");
             Place(target, new Vector2(TowerWorld.Right, TowerWorld.Ground));
             var world = (TowerWorld)Member(game, "world");
-            var low = Array.Find(world.Ledges, ledge => ledge.y > TowerWorld.Ground + .65f && ledge.y < TowerWorld.Ground + 2 && ledge.width >= 2.4f);
-            Place(game.hero, new Vector2(low.x, TowerWorld.Ground)); Place(actor, game.hero.pos);
+            var low = LowLedge(world);
+            Place(game.hero, new Vector2(low.x, world.GroundAt(low.x))); Place(actor, game.hero.pos);
             actor.combatTarget = null; actor.returningToFormation = true;
             game.JumpOverride = true; yield return null; game.JumpOverride = false;
             yield return Until(() => !actor.grounded && actor.velocityY > 0, .5f, "The follower waited for the player to land before jumping.");
             Require(!game.hero.grounded && game.hero.velocityY > 0, "The follower did not jump during the player's ascent.");
-            yield return Until(() => game.hero.grounded && actor.grounded && Mathf.Abs(actor.pos.y - low.y) < .08f, 4, "The early follower jump missed the player's platform.");
+            yield return Until(() => game.hero.grounded && actor.grounded && OnLedge(low, actor.pos), 4, "The early follower jump missed the player's platform.");
             game.DropOverride = true; yield return null; game.DropOverride = false;
-            yield return Until(() => game.hero.grounded && actor.grounded && Mathf.Abs(actor.pos.y - TowerWorld.Ground) < .08f, 4, "The follower did not descend after the player dropped through a shared platform.");
+            yield return Until(() => game.hero.grounded && actor.grounded && Mathf.Abs(actor.pos.y - world.GroundAt(actor.pos.x)) < .08f, 4, "The follower did not descend after the player dropped through a shared platform.");
             current.detail = "The overlapping follower jumped during the player's ascent, landed on the same ledge, then followed a real drop-through input.";
         }
         private IEnumerator SharedPlatform()
@@ -468,7 +486,7 @@ namespace PrototypeLab.Roguelike
             var target = Setup("gabriel");
             Place(target, new Vector2(TowerWorld.Right, TowerWorld.Ground));
             var world = (TowerWorld)Member(game, "world");
-            var low = Array.Find(world.Ledges, ledge => ledge.y > TowerWorld.Ground + .65f && ledge.y < TowerWorld.Ground + 2 && ledge.width >= 2.4f);
+            var low = LowLedge(world);
             var roster = (IList)typeof(TowerRun).GetField("companions", Hidden).GetValue(game.run);
             roster.Add(new CompanionState(TowerRun.GetDefinition("uriel")));
             roster.Add(new CompanionState(TowerRun.GetDefinition("raphael"))); game.ReconcileLoadout();
@@ -479,8 +497,8 @@ namespace PrototypeLab.Roguelike
             foreach (var actor in game.allies)
             {
                 var slot = game.FormationAnchor(game.run.GetCompanion(actor.id));
-                Require(actor.grounded && Mathf.Abs(actor.pos.y - low.y) < .08f && Mathf.Abs(actor.pos.x - slot.x) < .2f, "A follower did not settle into its own slot on the shared platform.");
-                Require(Mathf.Abs(actor.pos.x - low.x) <= low.width * .5f, "A follower slot left the shared platform.");
+                Require(actor.grounded && OnLedge(low, actor.pos) && Mathf.Abs(actor.pos.x - slot.x) < .2f, "A follower did not settle into its own slot on the shared platform.");
+                Require(low.Contains(actor.pos.x), "A follower slot left the shared platform.");
                 spots.Add(actor.pos.x);
             }
             spots.Sort(); for (int i = 1; i < spots.Count; i++) Require(spots[i] - spots[i - 1] > .25f, "The player and followers still overlap on the shared platform.");
@@ -491,22 +509,39 @@ namespace PrototypeLab.Roguelike
             var target = Setup("gabriel"); var actor = game.allies.Find(ally => ally.id == "gabriel");
             Place(target, new Vector2(TowerWorld.Right, TowerWorld.Ground));
             var world = (TowerWorld)Member(game, "world");
-            var launch = Array.Find(world.Ledges, ledge => Mathf.Abs(ledge.x) < .1f && Mathf.Abs(ledge.y + 1.8f) < .08f);
-            var landing = Array.Find(world.Ledges, ledge => Mathf.Abs(ledge.x - 4) < .1f && Mathf.Abs(ledge.y + .4f) < .08f);
-            Require(launch.width > 0 && landing.width > 0, "The central-crown fixture is missing its gap jump supports.");
-            Place(game.hero, new Vector2(launch.x, launch.y)); Place(actor, game.hero.pos);
+            // A rightward gap jump between two generated platforms, planned by the shared jump model.
+            TowerJumpModel.Plan gap = null;
+            foreach (var plan in TowerJumpModel.Reachable(world.CurrentLayout, .04f))
+            {
+                if (plan.source < 0) continue;
+                var from = world.Ledges[plan.source]; var to = world.Ledges[plan.target];
+                if (to.Left > from.Right + .3f && to.Bottom > from.Top + .5f && plan.launch > from.x - .2f) { gap = plan; break; }
+            }
+            Require(gap != null, "The generated layout has no rightward gap jump between two platforms for the airborne attack fixture.");
+            var launch = world.Ledges[gap.source]; var landing = world.Ledges[gap.target];
+            Place(game.hero, new Vector2(gap.launch, launch.HeightAt(gap.launch))); Place(actor, game.hero.pos);
             actor.combatTarget = null; actor.returningToFormation = true;
             game.MoveOverride = 1; game.JumpOverride = true; yield return null; game.JumpOverride = false;
-            yield return Until(() => game.hero.pos.x >= landing.x - .5f, 3, "The moving player never reached the next platform.");
-            game.MoveOverride = 0;
-            yield return Until(() => !actor.grounded && actor.followNext >= 0, 3, "The follower did not launch across the platform gap.");
+            // On a wide generated gap the follower launches its own route jump before the player lands,
+            // so watch for that launch while the player is still crossing and stop the player once it arrives.
+            float launchLimit = game.elapsed + 3;
+            while (actor.grounded || actor.followNext < 0)
+            {
+                Require(game.elapsed < launchLimit && !game.Paused, "The follower did not launch across the platform gap.");
+                if (game.hero.pos.x >= landing.x - .5f) game.MoveOverride = 0;
+                yield return null;
+            }
             var incoming = ExtraTarget(actor.pos + Vector2.right * .5f);
+            // A ready attack starts while the follower is still crossing; a leftover cooldown could delay it until the crossing ends.
+            actor.cooldown = 0;
             yield return Until(() => actor.basicPending, 2, "The airborne follower did not attack an enemy entering range.");
             Require(!actor.grounded, "The gap fixture did not exercise attacking during flight.");
-            Require(actor.moveVelocity > .1f, "Starting the airborne attack erased the follower's horizontal momentum.");
+            Require(landing.Left + .3f - actor.pos.x > .12f, "The airborne attack started only after the follower had finished crossing the gap.");
+            Require(actor.moveVelocity > .1f, "Starting the airborne attack erased the follower's horizontal momentum: follower=" + actor.pos.ToString("F2") + ", velocity=" + actor.moveVelocity.ToString("F2") + ".");
+            yield return Until(() => game.hero.pos.x >= landing.x - .5f, 3, "The moving player never reached the next platform.");
+            game.MoveOverride = 0;
             yield return Until(() => actor.grounded, 3, "The attacking follower never landed.");
-            Require(Mathf.Abs(actor.pos.y - landing.y) < .08f && Mathf.Abs(actor.pos.x - landing.x) < landing.width * .5f,
-                "Starting an airborne attack cancelled horizontal steering and lost the landing platform.");
+            Require(OnLedge(landing, actor.pos), "Starting an airborne attack cancelled horizontal steering and lost the landing platform.");
             yield return Until(() => incoming.hp < incoming.maxHp, 3, "The airborne attack did not deal damage.");
             current.detail = "Real rightward movement and jump crossed a platform gap; acquiring and attacking a new enemy in flight preserved horizontal landing steering and dealt damage.";
         }
@@ -572,11 +607,9 @@ namespace PrototypeLab.Roguelike
             float settledX = actor.pos.x; yield return Simulate(.7f);
             Require(Mathf.Abs(actor.pos.x - settledX) < .025f && Mathf.Abs(actor.moveVelocity) < .02f, "A settled follower jittered or kept changing its movement speed.");
             var world = (TowerWorld)Member(game, "world");
-            int lowIndex = Array.FindIndex(world.Ledges, ledge => ledge.y > TowerWorld.Ground + .65f && ledge.y < TowerWorld.Ground + 2 && ledge.width >= 2.4f);
-            Require(lowIndex >= 0, "The selected layout has no directly reachable low platform for the jump fixture.");
-            var low = world.Ledges[lowIndex];
-            Place(game.hero, new Vector2(low.x, TowerWorld.Ground));
-            Place(actor, game.FormationAnchor(state)); actor.followGroundY = TowerWorld.Ground;
+            var low = LowLedge(world);
+            Place(game.hero, new Vector2(low.x, world.GroundAt(low.x)));
+            Place(actor, game.FormationAnchor(state)); actor.followGroundY = actor.pos.y; actor.followGroundX = actor.pos.x;
             Require(Mathf.Abs(game.hero.pos.x - low.x) < low.width * .5f - .2f && Mathf.Abs(actor.pos.x - low.x) < low.width * .5f - .2f, "The selected low platform does not contain both jump anchors.");
             int jumps = 0; bool grounded = actor.grounded;
             game.JumpOverride = true; yield return null; game.JumpOverride = false;
@@ -586,42 +619,43 @@ namespace PrototypeLab.Roguelike
                 if (grounded && !actor.grounded && actor.velocityY > 0) jumps++;
                 grounded = actor.grounded; yield return null;
             }
-            Require(jumps == 1 && game.hero.grounded && actor.grounded && Mathf.Abs(game.hero.pos.y - low.y) < .08f && Mathf.Abs(actor.pos.y - low.y) < .08f && Mathf.Abs(actor.pos.x - game.FormationAnchor(state).x) < .15f, "Following failed to jump once and settle on the selected low platform; jumps=" + jumps + ".");
-            current.detail = "Real player movement produced gradual acceleration/braking and a stable stop; one real player jump caused exactly one follower jump onto the selected low platform in " + world.CurrentPattern.Name + ".";
+            Require(jumps == 1 && game.hero.grounded && actor.grounded && OnLedge(low, game.hero.pos) && OnLedge(low, actor.pos) && Mathf.Abs(actor.pos.x - game.FormationAnchor(state).x) < .15f, "Following failed to jump once and settle on the selected low platform; jumps=" + jumps + ".");
+            current.detail = "Real player movement produced gradual acceleration/braking and a stable stop; one real player jump caused exactly one follower jump onto the selected low platform in " + world.CurrentLayout.Name + ".";
         }
         private IEnumerator HighPlatformRejoin()
         {
             var target = Setup("michael"); var actor = game.allies.Find(ally => ally.id == "michael");
             var state = game.run.GetCompanion("michael"); var world = (TowerWorld)Member(game, "world");
-            int highIndex = Array.FindIndex(world.Ledges, ledge => Mathf.Abs(ledge.y - world.HighestPlatform) < .08f);
+            int highIndex = Array.FindIndex(world.Ledges, ledge => Mathf.Abs(ledge.Top - world.HighestPlatform) < .01f);
             Require(highIndex >= 0, "The selected layout has no top-tier platform for the rejoin fixture.");
             var high = world.Ledges[highIndex];
             Place(target, new Vector2(high.x > 5 ? TowerWorld.Left + 1 : TowerWorld.Right, TowerWorld.Ground));
-            Place(game.hero, new Vector2(high.x, high.y)); Place(actor, new Vector2(high.x, TowerWorld.Ground));
-            actor.followGroundY = TowerWorld.Ground;
+            Place(game.hero, new Vector2(high.x, high.y)); Place(actor, new Vector2(high.x, world.GroundAt(high.x)));
+            actor.followGroundY = actor.pos.y; actor.followGroundX = actor.pos.x;
             actor.returningToFormation = true;
             bool visitedIntermediateLedge = false, grounded = actor.grounded; int jumps = 0;
             float until = game.elapsed + 24, limit = Time.realtimeSinceStartup + 60;
-            while (actor.returningToFormation || !actor.grounded || Mathf.Abs(actor.pos.y - high.y) > .08f || Mathf.Abs(actor.pos.x - game.FormationAnchor(state).x) > .6f)
+            while (actor.returningToFormation || !actor.grounded || Mathf.Abs(actor.pos.y - high.HeightAt(actor.pos.x)) > .08f || Mathf.Abs(actor.pos.x - game.FormationAnchor(state).x) > .6f)
             {
                 Require(game.elapsed < until && Time.realtimeSinceStartup < limit && !game.Paused, "The follower could not rejoin the selected top-tier platform through reachable ledges.");
                 Require(!actor.returningToFormation || actor.combatTarget == null, "An enemy interrupted the high-platform formation return.");
                 if (grounded && !actor.grounded && actor.velocityY > 0) jumps++;
                 grounded = actor.grounded;
                 if (actor.grounded) foreach (var ledge in world.Ledges)
-                    if (ledge.y > TowerWorld.Ground + .08f && ledge.y < high.y - .08f && Mathf.Abs(actor.pos.y - ledge.y) < .08f && Mathf.Abs(actor.pos.x - ledge.x) < ledge.width * .5f + .18f) visitedIntermediateLedge = true;
+                    if (ledge.Top < high.Bottom - .08f && OnLedge(ledge, actor.pos)) visitedIntermediateLedge = true;
                 Require(jumps <= 9, "The follower repeatedly jumped instead of taking a reachable route to the higher platform.");
                 yield return null;
             }
-            Require(visitedIntermediateLedge && jumps >= 6, "The follower reached the top-tier platform without jumping through the required intermediate supports.");
+            int needed = MinimumJumps(world, highIndex);
+            Require(visitedIntermediateLedge && jumps >= needed, "The follower reached the top-tier platform without jumping through the required intermediate supports: jumps=" + jumps + ", physical minimum=" + needed + ".");
             Require(game.hero.grounded && actor.grounded && !actor.returningToFormation, "The high-platform return completed before both actors were grounded.");
-            while (!actor.grounded || Mathf.Abs(actor.pos.y - high.y) > .08f || Mathf.Abs(actor.moveVelocity) > .02f || Mathf.Abs(actor.pos.x - game.FormationAnchor(state).x) > .15f)
+            while (!actor.grounded || Mathf.Abs(actor.pos.y - high.HeightAt(actor.pos.x)) > .08f || Mathf.Abs(actor.moveVelocity) > .02f || Mathf.Abs(actor.pos.x - game.FormationAnchor(state).x) > .15f)
             {
                 Require(game.elapsed < until && Time.realtimeSinceStartup < limit && !game.Paused, "The high-platform follower did not finish braking: position=" + actor.pos.ToString("F3") + ", anchor=" + game.FormationAnchor(state).ToString("F3") + ", velocity=" + actor.moveVelocity.ToString("F3") + ", grounded=" + actor.grounded + ".");
                 yield return null;
             }
             float settledX = actor.pos.x; yield return Simulate(.5f);
-            Require(actor.grounded && Mathf.Abs(actor.pos.y - high.y) < .08f && Mathf.Abs(actor.pos.x - settledX) < .025f && Mathf.Abs(actor.moveVelocity) < .02f && actor.combatTarget == null, "The follower did not remain settled on the top-tier platform: position=" + actor.pos.ToString("F3") + ", anchor=" + game.FormationAnchor(state).ToString("F3") + ", x movement=" + (actor.pos.x - settledX).ToString("F3") + ", velocity=" + actor.moveVelocity.ToString("F3") + ", grounded=" + actor.grounded + ".");
+            Require(actor.grounded && OnLedge(high, actor.pos) && Mathf.Abs(actor.pos.x - settledX) < .025f && Mathf.Abs(actor.moveVelocity) < .02f && actor.combatTarget == null, "The follower did not remain settled on the top-tier platform: position=" + actor.pos.ToString("F3") + ", anchor=" + game.FormationAnchor(state).ToString("F3") + ", x movement=" + (actor.pos.x - settledX).ToString("F3") + ", velocity=" + actor.moveVelocity.ToString("F3") + ", grounded=" + actor.grounded + ".");
             var roster = (IList)typeof(TowerRun).GetField("companions", Hidden).GetValue(game.run);
             roster.Clear();
             foreach (string id in new[] { "gabriel", "uriel", "raphael" }) roster.Add(new CompanionState(TowerRun.GetDefinition(id)));
@@ -630,12 +664,33 @@ namespace PrototypeLab.Roguelike
             foreach (var companion in game.run.Companions)
             {
                 var slot = game.FormationAnchor(companion); slots.Add(slot.x);
-                Require(Mathf.Abs(slot.y - high.y) < .08f && Mathf.Abs(slot.x - high.x) <= high.width * .5f, "A follower slot left the narrow top-tier platform.");
+                Require(Mathf.Abs(slot.y - high.HeightAt(slot.x)) < .08f && high.Contains(slot.x), "A follower slot left the narrow top-tier platform.");
             }
             slots.Sort(); for (int i = 1; i < slots.Count; i++) Require(slots[i] - slots[i - 1] > .2f, "Follower slots overlap on a narrow platform.");
-            current.detail = "Actual Update routed a ground-level follower through intermediate ledges to the top-tier platform in " + world.CurrentPattern.Name + " in " + jumps + " jumps, settled after braking, and fitted three separate follower slots on the player's platform.";
+            current.detail = "Actual Update routed a ground-level follower through intermediate ledges to the top-tier platform in " + world.CurrentLayout.Name + " in " + jumps + " jumps, settled after braking, and fitted three separate follower slots on the player's platform.";
         }
 
+        /// <summary>
+        /// Fewest jumps any honest route to <paramref name="target"/> needs on a generated layout: one jump rises at most
+        /// v²/2g, and walking adds no more height than the highest hill or the top of the platform being crossed.
+        /// </summary>
+        private static int MinimumJumps(TowerWorld world, int target)
+        {
+            float rise = TowerPhysics.JumpVelocity * TowerPhysics.JumpVelocity / (2 * TowerPhysics.Gravity) + .01f;
+            var depth = new int[world.Ledges.Length]; var queue = new Queue<int>();
+            for (int i = 0; i < depth.Length; i++)
+            {
+                depth[i] = world.Ledges[i].Bottom <= world.CurrentLayout.HighestGround + rise ? 1 : 0;
+                if (depth[i] > 0) queue.Enqueue(i);
+            }
+            while (queue.Count > 0)
+            {
+                int from = queue.Dequeue();
+                for (int to = 0; to < depth.Length; to++)
+                    if (depth[to] == 0 && world.Ledges[to].Bottom <= world.Ledges[from].Top + rise) { depth[to] = depth[from] + 1; queue.Enqueue(to); }
+            }
+            return depth[target];
+        }
         private static void Require(bool condition, string message)
         { if (!condition) throw new InvalidOperationException(message); }
         private static Exception Unwrap(Exception error)

@@ -14,6 +14,8 @@ public static class Preview
     public static void Render(ThemePainter theme, List<PaintedLayer> layers, string dir)
     {
         Directory.CreateDirectory(dir);
+        // Each plane on its own, for tracking down which layer an artefact lives in.
+        foreach (var l in layers) Png.Write(Path.Combine(dir, theme.Id + "-layer-" + l.Spec.Name + ".png"), l.Canvas.W, l.Canvas.H, l.Canvas.ToBytes());
         Shot(theme, layers, Path.Combine(dir, theme.Id + "-ground.png"), 1920, 1080, 5.625f, -1, 0);
         Shot(theme, layers, Path.Combine(dir, theme.Id + "-smoke.png"), 1600, 900, 7.5f, 1, .7f);
         Shot(theme, layers, Path.Combine(dir, theme.Id + "-high.png"), 1920, 1080, 5.625f, 17, 6.7f);

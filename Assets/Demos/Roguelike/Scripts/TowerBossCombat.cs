@@ -6,14 +6,15 @@ namespace PrototypeLab.Roguelike
     public sealed partial class TowerGame
     {
         // Every boss alternates the three shared techniques with its theme's signature technique.
-        private enum BossPattern { CrownVolley, TwinSpiral, LeapingSlam, MagmaRain, Rockfall, ThornSweep, FrostBreath, TidalWall, FeatherStorm, CurseRing }
+        private enum BossPattern { CrownVolley, TwinSpiral, LeapingSlam, MagmaRain, Rockfall, ThornSweep, FrostBreath, TidalWall, FeatherStorm, CurseRing,
+            HellfirePillars, AbyssGaze, WorldFall, DevouringMaw }
         private enum BossStage { Approach, Warning, Volley, Leaping, Recovery }
         private sealed class BossState
         {
             public BossPattern pattern;
             public BossStage stage;
             public int first, cycle, step, releases;
-            public bool enraged;
+            public bool enraged, final;
             public float clock, nextStep, jumpTime, lastRelease = -1;
             public Vector2 jumpFrom, jumpTo;
             public Transform shadow;
@@ -32,10 +33,10 @@ namespace PrototypeLab.Roguelike
             actor.attackRateScale = TowerDifficulty.AttackRateMultiplier(scaled);
             actor.hp = actor.maxHp = TowerDifficulty.BossHealth(run != null && run.IsOathTrial ? TowerDifficulty.TrialBossFloor(floor) : floor);
             ApplyMonsterStats(actor);
-            actor.root.transform.localScale = Vector3.one * 1.8f;
+            actor.root.transform.localScale = Vector3.one * (IsFinalBoss(actor) ? 2.5f : 1.8f);
             actor.windup = actor.attackPose = actor.hurt = actor.slowTime = actor.stunTime = actor.velocityY = 0;
             actor.cooldown = 1.5f / actor.attackRateScale; actor.grounded = true;
-            actor.pos.y = TowerWorld.Ground;
+            actor.pos.y = world.GroundAt(actor.pos.x);
             actor.facing = hero.pos.x >= actor.pos.x ? 1 : -1;
             var state = NewBossState(actor, floor);
             bossCombat.Add(actor, state);
@@ -47,38 +48,49 @@ namespace PrototypeLab.Roguelike
         {
             int first = Mathf.Max(0, floor / 5 - 1) % 3;
             return new BossState { first = first, pattern = (BossPattern)first, stage = BossStage.Approach,
-                shadow = actor.root.transform.Find("Shadow") };
+                shadow = actor.root.transform.Find("Shadow"), final = IsFinalBoss(actor) };
         }
+        internal static bool IsFinalBoss(Fighter actor) { return actor != null && actor.monster != null && actor.monster.Variant == TowerThemeCatalog.FinalVariant; }
+        // The evil god answers with its own techniques; enraged it uses nothing else.
+        private static readonly BossPattern[] FinalTechniques = { BossPattern.WorldFall, BossPattern.DevouringMaw, BossPattern.AbyssGaze };
 
         private static BossPattern Signature(TowerThemeId theme)
         {
             switch (theme)
             {
-                case TowerThemeId.Lava: return BossPattern.MagmaRain;
-                case TowerThemeId.Rock: return BossPattern.Rockfall;
-                case TowerThemeId.Jungle: return BossPattern.ThornSweep;
-                case TowerThemeId.Frozen: return BossPattern.FrostBreath;
-                case TowerThemeId.Water: return BossPattern.TidalWall;
-                case TowerThemeId.Cloud: return BossPattern.FeatherStorm;
+                case TowerThemeId.Chinese: return BossPattern.MagmaRain;
+                case TowerThemeId.Dangun: return BossPattern.Rockfall;
+                case TowerThemeId.Eden: return BossPattern.ThornSweep;
+                case TowerThemeId.Asgard: return BossPattern.FrostBreath;
+                case TowerThemeId.Veda: return BossPattern.TidalWall;
+                case TowerThemeId.Olympus: return BossPattern.FeatherStorm;
+                case TowerThemeId.Hell: return BossPattern.HellfirePillars;
+                case TowerThemeId.Abyss: return BossPattern.AbyssGaze;
                 default: return BossPattern.CurseRing;
             }
         }
-        internal static string SignatureName(TowerThemeId theme)
+        internal static string SignatureName(TowerThemeId theme) { return PatternName(Signature(theme)); }
+        private static string PatternName(BossPattern pattern)
         {
-            switch (Signature(theme))
+            switch (pattern)
             {
-                case BossPattern.MagmaRain: return "화산탄 비";
-                case BossPattern.Rockfall: return "낙석 붕괴";
-                case BossPattern.ThornSweep: return "가시 덩굴 파도";
-                case BossPattern.FrostBreath: return "서리 숨결";
-                case BossPattern.TidalWall: return "해일 장벽";
-                case BossPattern.FeatherStorm: return "깃털 폭풍";
-                default: return "저주의 고리";
+                case BossPattern.MagmaRain: return "축융의 화산탄 비";
+                case BossPattern.Rockfall: return "태백산 낙석";
+                case BossPattern.ThornSweep: return "선악과 가시 덩굴";
+                case BossPattern.FrostBreath: return "니드호그의 서리 숨결";
+                case BossPattern.TidalWall: return "강가의 해일 장벽";
+                case BossPattern.FeatherStorm: return "제우스의 깃털 폭풍";
+                case BossPattern.HellfirePillars: return "몰록의 불기둥";
+                case BossPattern.AbyssGaze: return "심연의 응시";
+                case BossPattern.WorldFall: return "멸망한 지구의 파편";
+                case BossPattern.DevouringMaw: return "모든 것을 삼키는 아가리";
+                default: return "파라오의 저주 고리";
             }
         }
         private static BossPattern NextBossPattern(Fighter actor, BossState state)
         {
             int cycle = state.cycle++;
+            if (state.final && (state.enraged || cycle % 2 == 1)) return FinalTechniques[(state.enraged ? cycle : cycle / 2) % FinalTechniques.Length];
             return cycle % 2 == 0 ? (BossPattern)((state.first + cycle / 2) % 3) : Signature(actor.theme);
         }
         private static bool IsSignature(BossPattern pattern) { return pattern >= BossPattern.MagmaRain; }
@@ -87,7 +99,8 @@ namespace PrototypeLab.Roguelike
             switch (pattern)
             {
                 case BossPattern.CrownVolley: case BossPattern.MagmaRain: case BossPattern.ThornSweep: case BossPattern.FrostBreath: return 0;
-                case BossPattern.LeapingSlam: case BossPattern.Rockfall: return 2;
+                case BossPattern.LeapingSlam: case BossPattern.Rockfall: case BossPattern.HellfirePillars: return 2;
+                case BossPattern.WorldFall: case BossPattern.DevouringMaw: return 0;
                 default: return 1;
             }
         }
@@ -97,7 +110,8 @@ namespace PrototypeLab.Roguelike
             {
                 case BossPattern.CrownVolley: case BossPattern.ThornSweep: return 1.2f;
                 case BossPattern.TwinSpiral: case BossPattern.Rockfall: case BossPattern.TidalWall: case BossPattern.CurseRing: return 1.3f;
-                case BossPattern.LeapingSlam: return 1.35f;
+                case BossPattern.LeapingSlam: case BossPattern.HellfirePillars: return 1.35f;
+                case BossPattern.AbyssGaze: case BossPattern.WorldFall: return 1.3f;
                 default: return 1.25f;
             }
         }
@@ -110,6 +124,8 @@ namespace PrototypeLab.Roguelike
                 case BossPattern.TwinSpiral: return 8 + extra * 2;
                 case BossPattern.ThornSweep: case BossPattern.FrostBreath: return 4 + extra * 2;
                 case BossPattern.TidalWall: return 2 + extra;
+                case BossPattern.WorldFall: return 4 + extra;
+                case BossPattern.DevouringMaw: return 4 + extra * 2;
                 default: return 3 + extra;
             }
         }
@@ -125,6 +141,10 @@ namespace PrototypeLab.Roguelike
                 case BossPattern.FrostBreath: return .3f;
                 case BossPattern.TidalWall: return state.enraged ? 1f : 1.1f;
                 case BossPattern.FeatherStorm: return .5f;
+                case BossPattern.HellfirePillars: return .7f;
+                case BossPattern.AbyssGaze: return .55f;
+                case BossPattern.WorldFall: return .5f;
+                case BossPattern.DevouringMaw: return state.enraged ? .55f : .65f;
                 default: return .45f;
             }
         }
@@ -172,7 +192,7 @@ namespace PrototypeLab.Roguelike
             {
                 // Second phase: faster recovery and one more wave for every technique.
                 state.enraged = true;
-                Notice((actor.monster == null ? "보스" : actor.monster.Name) + " 격노", 2.5f);
+                Notice((actor.title ?? (actor.monster == null ? "보스" : actor.monster.Name)) + " 격노" + (state.final ? "  ·  「루멘도 지구처럼 삼켜 주마」" : ""), state.final ? 3.5f : 2.5f);
                 if (vfx != null) vfx.ImpactRing(actor.pos + Vector2.up * 1.4f, 2.2f, crimson);
                 Shake(.22f, .4f);
             }
@@ -227,7 +247,7 @@ namespace PrototypeLab.Roguelike
 
             if (state.stage != BossStage.Leaping)
             {
-                actor.pos.y = TowerWorld.Ground; actor.velocityY = 0; actor.grounded = true;
+                actor.pos.y = world.GroundAt(actor.pos.x); actor.velocityY = 0; actor.grounded = true;
             }
             actor.pos.x = Mathf.Clamp(actor.pos.x, TowerWorld.Left + 1.6f, TowerWorld.Right - 1.6f);
             actor.root.transform.position = actor.pos;
@@ -254,7 +274,7 @@ namespace PrototypeLab.Roguelike
             actor.cooldown = (activeDuration + 1.6f / actor.attackRateScale) * (state.enraged ? BossEnragedCooldown : 1);
             actor.attackPose = motionDuration;
             actor.art.PlayBossAttack(motion, motionDuration);
-            if (IsSignature(state.pattern)) FloatText(actor.pos + Vector2.up * 3.6f, SignatureName(actor.theme), brass);
+            if (IsSignature(state.pattern)) FloatText(actor.pos + Vector2.up * (state.final ? 4.6f : 3.6f), PatternName(state.pattern), brass);
         }
 
         private void ReleaseBossVolley(Fighter actor, BossState state)
@@ -296,7 +316,7 @@ namespace PrototypeLab.Roguelike
 
         private void ReleaseSignature(Fighter actor, BossState state, Vector2 origin, Vector2 direction)
         {
-            Vector2 aim = actor.strikePoint; float ground = TowerWorld.Ground; int step = state.step;
+            Vector2 aim = actor.strikePoint; float ground = world.GroundAt(actor.pos.x); int step = state.step;
             Color color = new Color(1, .55f, .3f);
             switch (state.pattern)
             {
@@ -357,6 +377,57 @@ namespace PrototypeLab.Roguelike
                         BossBolt(actor, new Vector2(aim.x + k * 3f + step - drift * 6, 8.8f), fall, 0, 5.5f, 9, color, .18f);
                     break;
                 }
+                case BossPattern.HellfirePillars:
+                {
+                    // Fire bursts up through the floor in lanes around the locked aim; a two-lane gap moves every wave.
+                    int gap = (state.cycle * 3 + step * 4) % 8 + 1;
+                    for (int k = 0; k <= 9; k++)
+                    {
+                        if (k == gap || k == gap + 1) continue;
+                        float x = aim.x + (k - 4.5f) * 1.5f;
+                        BossBolt(actor, new Vector2(x, world.GroundAt(x) - 1.1f), Vector2.up, 0, 4.6f, 11, color, .22f);
+                    }
+                    if (vfx != null) vfx.Dust(actor.pos, 0, 1.2f);
+                    Shake(.1f, .18f);
+                    break;
+                }
+                case BossPattern.AbyssGaze:
+                {
+                    // The eye above weeps rings of blood with three gaps that turn every wave.
+                    Vector2 eye = actor.pos + Vector2.up * (state.final ? 5.2f : 3.4f);
+                    float rotation = step * 9f + state.cycle * 20f;
+                    for (int i = 0; i < 24; i++)
+                    {
+                        if (i % 8 < 2) continue;
+                        BossBolt(actor, eye, Vector2.right, i * 15f + rotation, 3.1f, 10, color, .19f);
+                    }
+                    break;
+                }
+                case BossPattern.WorldFall:
+                {
+                    // Burning shards of the devoured Earth fall in slanted rows with a wide and a narrow gap.
+                    int wide = (state.cycle * 5 + step * 3) % 10, narrow = (wide + 6) % 12;
+                    Vector2 fall = new Vector2(step % 2 == 0 ? .14f : -.14f, -1).normalized;
+                    for (int k = 0; k <= 11; k++)
+                    {
+                        if (k == wide || k == wide + 1 || k == narrow) continue;
+                        BossBolt(actor, new Vector2(aim.x + (k - 5.5f) * 1.5f, 9.2f + (k % 2) * .8f), fall, 0, 5.4f, 12, color, .26f);
+                    }
+                    Shake(.08f, .15f);
+                    break;
+                }
+                case BossPattern.DevouringMaw:
+                {
+                    // Jaws of shadow close in from both edges of the arena at ground or ledge height.
+                    float height = step % 2 == 0 ? .45f : 2.05f;
+                    foreach (int side in new[] { -1, 1 })
+                    {
+                        float x = Mathf.Clamp(actor.pos.x + side * 13f, TowerWorld.Left + .5f, TowerWorld.Right - .5f), floor = world.GroundAt(x);
+                        foreach (float lift in new[] { 0f, .34f })
+                            BossBolt(actor, new Vector2(x, floor + height + lift), Vector2.right * -side, 0, 5.6f, 11, color, .21f);
+                    }
+                    break;
+                }
                 default:
                 {
                     // An expanding ring with three gaps that turn ten degrees per wave.
@@ -375,7 +446,8 @@ namespace PrototypeLab.Roguelike
         {
             state.stage = BossStage.Leaping; state.jumpTime = 0;
             state.jumpFrom = actor.pos;
-            state.jumpTo = new Vector2(Mathf.Clamp(actor.strikePoint.x, TowerWorld.Left + 1.6f, TowerWorld.Right - 1.6f), TowerWorld.Ground);
+            float landingX = Mathf.Clamp(actor.strikePoint.x, TowerWorld.Left + 1.6f, TowerWorld.Right - 1.6f);
+            state.jumpTo = new Vector2(landingX, world.GroundAt(landingX));
             actor.grounded = false;
         }
 
@@ -415,14 +487,15 @@ namespace PrototypeLab.Roguelike
             actor.cooldown = Mathf.Max(.45f, actor.cooldown);
         }
 
-        private static void UpdateBossShadow(Fighter actor, BossState state)
+        private void UpdateBossShadow(Fighter actor, BossState state)
         {
             if (!state.shadow) return;
-            state.shadow.position = new Vector3(actor.pos.x, TowerWorld.Ground + .025f, 0);
+            float floorHeight = world.GroundAt(actor.pos.x);
+            state.shadow.position = new Vector3(actor.pos.x, floorHeight + .025f, 0);
             Vector3 parentScale = actor.root.transform.lossyScale;
             state.shadow.localScale = new Vector3(3.1f / Mathf.Max(.01f, Mathf.Abs(parentScale.x)), .2f / Mathf.Max(.01f, Mathf.Abs(parentScale.y)), 1);
             var renderer = state.shadow.GetComponent<SpriteRenderer>();
-            if (renderer) renderer.color = new Color(0, 0, 0, Mathf.Clamp(.34f - (actor.pos.y - TowerWorld.Ground) * .035f, .16f, .34f));
+            if (renderer) renderer.color = new Color(0, 0, 0, Mathf.Clamp(.34f - (actor.pos.y - floorHeight) * .035f, .16f, .34f));
         }
     }
 }

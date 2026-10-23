@@ -32,7 +32,8 @@ namespace PrototypeLab.Roguelike
             actor.windup = actor.attackPose = actor.slowTime = actor.stunTime = 0;
             actor.facing = hero.pos.x >= actor.pos.x ? 1 : -1;
             actor.velocityY = 0; actor.grounded = !actor.airborne;
-            if (actor.airborne && actor.pos.y <= TowerWorld.Ground) actor.pos.y = TowerWorld.Ground + 3.8f;
+            float floorHeight = world.GroundAt(actor.pos.x);
+            if (actor.airborne && actor.pos.y <= floorHeight) actor.pos.y = floorHeight + 3.8f;
             var state = CreateEnemyState(actor, ordinal);
             enemyCombat[actor] = state;
             if (actor.airborne) actor.pos.y = state.hoverHeight + Mathf.Sin(state.phase) * .4f;
@@ -236,11 +237,11 @@ namespace PrototypeLab.Roguelike
             StyleHostileLastShot(.16f);
         }
 
-        private static void UpdateEnemyShadow(Fighter actor, EnemyState state)
+        private void UpdateEnemyShadow(Fighter actor, EnemyState state)
         {
             if (!state.shadow) return;
-            float height = Mathf.Max(0, actor.pos.y - TowerWorld.Ground);
-            state.shadow.localPosition = new Vector3(0, TowerWorld.Ground - actor.pos.y + .025f, 0);
+            float floorHeight = world.GroundAt(actor.pos.x), height = Mathf.Max(0, actor.pos.y - floorHeight);
+            state.shadow.localPosition = new Vector3(0, floorHeight - actor.pos.y + .025f, 0);
             state.shadow.localScale = new Vector3(actor.airborne ? 1.05f : 1.2f, .13f, 1);
             var renderer = state.shadow.GetComponent<SpriteRenderer>();
             if (renderer) renderer.color = new Color(0, 0, 0, Mathf.Clamp(.34f - height * .035f, .15f, .34f));

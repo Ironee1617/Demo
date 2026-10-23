@@ -83,7 +83,9 @@ namespace PrototypeLab.Roguelike
 
         public void Build(Sprite source, TowerThemeId theme, int variant, bool isBoss, float worldHeight)
         {
-            int row = Mathf.Clamp((int)theme, 0, 6), column = isBoss ? 6 : Mathf.Clamp(variant, 0, 5);
+            var origin = TowerThemeMonsterArt.Source(theme, variant, isBoss);
+            if (origin.Final) { clock = 1.7f; Build(source, FinalBossAnatomy(), true, worldHeight); return; }
+            int row = origin.Row, column = origin.Column;
             var form = Forms[row, column];
             var profile = new Anatomy {
                 form = form, attack=Attacks[row,column], head = Heads[row, column],
@@ -108,6 +110,14 @@ namespace PrototypeLab.Roguelike
             if (row == 5 && column == 6) profile.wing = new Vector2(.66f,.64f);
             clock = (row * 7 + column) * .173f;
             Build(source, profile, isBoss, worldHeight);
+        }
+        // Measured on the StoryPainter canvas (400x480): the mask face, the waist under the ribcage, two clawed
+        // arms and a tentacled robe. Its lower body sways like the tentacle creatures and it lashes with them.
+        static Anatomy FinalBossAnatomy()
+        {
+            return new Anatomy { form = Form.Tentacle, attack = AttackStyle.TentacleLash,
+                head = new Vector2(.45f,.81f), headRadii = new Vector2(.11f,.11f), hip = new Vector2(.51f,.42f),
+                shoulder = new Vector2(.51f,.66f), wing = new Vector2(.54f,.83f), facesLeft = true };
         }
         public void BuildLegacy(Sprite source, int kind, float worldHeight)
         {

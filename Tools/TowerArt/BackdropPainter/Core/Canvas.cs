@@ -111,11 +111,44 @@ public sealed class Canvas
         for (int j = 0; j < rowCount; j++)
             for (int i = 0; i < W; i++)
             {
+                // Transparent texels keep their (bled) colour so bilinear filtering never pulls in black fringes.
                 var c = P[(rowStart + j) * W + i]; int o = (j * W + i) * 4;
-                if (c.A <= 0) { b[o] = b[o + 1] = b[o + 2] = b[o + 3] = 0; continue; }
                 b[o] = Q(c.R); b[o + 1] = Q(c.G); b[o + 2] = Q(c.B); b[o + 3] = Q(c.A);
             }
         return b;
+    }
+
+    /// <summary>
+    /// Spreads the colour of covered texels into neighbouring transparent ones (alpha stays 0), so filtered and
+    /// mipmapped sampling at silhouettes blends toward the edge colour instead of black.
+    /// </summary>
+    public void Bleed(int passes = 8)
+    {
+        var src = (Col[])P.Clone();
+        var known = new bool[P.Length];
+        for (int k = 0; k < P.Length; k++) known[k] = P[k].A > .004f;
+        for (int pass = 0; pass < passes; pass++)
+        {
+            var next = (Col[])src.Clone(); var nextKnown = (bool[])known.Clone(); bool changed = false;
+            for (int j = 0; j < H; j++)
+                for (int i = 0; i < W; i++)
+                {
+                    int k = j * W + i; if (known[k]) continue;
+                    float r = 0, g = 0, bl = 0; int n = 0;
+                    for (int dj = -1; dj <= 1; dj++)
+                        for (int di = -1; di <= 1; di++)
+                        {
+                            int jj = j + dj; if (jj < 0 || jj >= H) continue;
+                            int kk = jj * W + M.Mod(i + di, W); if (!known[kk]) continue;
+                            r += src[kk].R; g += src[kk].G; bl += src[kk].B; n++;
+                        }
+                    if (n == 0) continue;
+                    next[k] = new Col(r / n, g / n, bl / n, 0); nextKnown[k] = true; changed = true;
+                }
+            src = next; known = nextKnown;
+            if (!changed) break;
+        }
+        for (int k = 0; k < P.Length; k++) if (P[k].A <= .004f) P[k] = src[k].WithA(P[k].A);
     }
     static byte Q(float v) => (byte)Math.Clamp((int)MathF.Round(v * 255), 0, 255);
 

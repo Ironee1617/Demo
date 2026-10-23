@@ -16,7 +16,7 @@ namespace PrototypeLab.Roguelike
         {return role==CompanionRole.Vanguard?"전위":role==CompanionRole.Archer?"중위":"후위";}
         internal const float FollowSpacing=1.05f;
         internal Vector2 FormationAnchor(CompanionState state)
-        {return FollowSlot(hero.grounded?hero.pos:new Vector2(hero.pos.x,TowerWorld.Ground),CompanionIndex(state));}
+        {return FollowSlot(hero.grounded?hero.pos:new Vector2(hero.pos.x,world.GroundAt(hero.pos.x)),CompanionIndex(state));}
         private int CompanionIndex(CompanionState state)
         {if(state==null)return -1;for(int i=0;i<run.Companions.Count;i++)if(ReferenceEquals(run.Companions[i],state))return i;return -1;}
         internal static bool LeadsFormation(CompanionState state)
@@ -25,12 +25,13 @@ namespace PrototypeLab.Roguelike
         // vanguards ahead of the hero's facing, everyone else behind, each side in party order.
         // A narrow ledge shrinks the spacing, and a side without room spills past the other side's members;
         // a vanguard spills only into free room behind and otherwise holds the front edge.
+        // Every slot rests on the support's actual surface height at its own x, so sloped ledges keep followers on the slab.
         private Vector2 FollowSlot(Vector2 anchor,int index)
         {
             if(index<0)return anchor;
             float min=TowerWorld.Left+.6f,max=TowerWorld.Right-.6f;
             int support=AllySupport(anchor.y,anchor.x);
-            if(support>=0){var ledge=world.Ledges[support];min=ledge.x-ledge.width*.5f+.3f;max=ledge.x+ledge.width*.5f-.3f;}
+            if(support>=0){var ledge=world.Ledges[support];min=ledge.Left+.3f;max=ledge.Right-.3f;}
             float x0=Mathf.Clamp(anchor.x,min,max);int count=Mathf.Max(1,run.Companions.Count);
             float spacing=Mathf.Min(FollowSpacing,(max-min)/count);
             int ahead=spacing>0?Mathf.FloorToInt(((formationFacing>0?max-x0:x0-min)+.001f)/spacing):0;
@@ -41,33 +42,28 @@ namespace PrototypeLab.Roguelike
             int rear=Mathf.Min(run.Companions.Count-leaders,behind);
             float offset=leads?rank>=ahead&&rank-ahead<behind-rear?-(rear+rank-ahead+1)*spacing:(rank+1)*spacing
                 :rank<behind?-(rank+1)*spacing:(Mathf.Min(leaders,ahead)+rank-behind+1)*spacing;
-            return new Vector2(Mathf.Clamp(x0+formationFacing*offset,min,max),anchor.y);
+            float slotX=Mathf.Clamp(x0+formationFacing*offset,min,max);
+            return new Vector2(slotX,world.SurfaceHeight(support,slotX));
         }
         private Vector2 AllyLeaderDestination(float leaderSpeed)
         {
             if(hero.grounded)return hero.pos;
             // Predict the first support the leader will cross while descending.
             // Waiting for the leader to land loses a full jump on every step.
-            Vector2 position=hero.pos;float velocity=hero.velocityY;
+            Vector2 position=hero.pos;float velocity=hero.velocityY;bool grounded=false;int support=-1;
+            int ignore=hero.dropTime>0?hero.dropSupport:-1;
             for(int i=0;i<100;i++)
             {
-                float old=position.y;velocity-=25*.02f;
+                float xOld=position.x,y=position.y;
                 position.x=Mathf.Clamp(position.x+leaderSpeed*.02f,TowerWorld.Left+.6f,TowerWorld.Right-.6f);
-                position.y+=velocity*.02f;
-                float floor=TowerWorld.Ground;int support=-1;
-                if(velocity<=0)for(int j=0;j<world.Ledges.Length;j++)
-                {
-                    var ledge=world.Ledges[j];
-                    if(hero.dropTime>0&&Mathf.Abs(ledge.y-hero.dropHeight)<.08f)continue;
-                    if(Mathf.Abs(position.x-ledge.x)<ledge.width*.5f+.18f&&old>=ledge.y-.02f&&position.y<=ledge.y&&ledge.y>floor)
-                    {floor=ledge.y;support=j;}
-                }
-                if(position.y>floor)continue;
+                TowerPhysics.Step(world.CurrentLayout,xOld,position.x,ref y,ref velocity,ref grounded,ref support,.02f,ignore);
+                position.y=y;
+                if(!grounded)continue;
                 if(support>=0)
-                {var ledge=world.Ledges[support];position.x=Mathf.Clamp(position.x,ledge.x-ledge.width*.5f+.3f,ledge.x+ledge.width*.5f-.3f);}
-                return new Vector2(position.x,floor);
+                {var ledge=world.Ledges[support];position.x=Mathf.Clamp(position.x,ledge.Left+.3f,ledge.Right-.3f);position.y=ledge.HeightAt(position.x);}
+                return position;
             }
-            return new Vector2(position.x,TowerWorld.Ground);
+            return new Vector2(position.x,world.GroundAt(position.x));
         }
         private void ResetAllyFormation()
         {
@@ -76,30 +72,31 @@ namespace PrototypeLab.Roguelike
             {
                 actor.combatTarget=actor.basicTarget=null;actor.basicPending=false;actor.returningToFormation=actor.followMoving=false;
                 actor.moveVelocity=actor.velocityY=actor.attackPose=actor.castRemaining=0;actor.pos=FormationAnchor(run.GetCompanion(actor.id));
-                actor.followGroundY=actor.pos.y;actor.followGroundX=actor.pos.x;actor.followSource=actor.followGoal=actor.followNext=-2;actor.dropTime=0;actor.facing=formationFacing;actor.grounded=true;actor.root.transform.position=actor.pos;actor.art.InterruptAction();
+                actor.followGroundY=actor.pos.y;actor.followGroundX=actor.pos.x;actor.followSource=actor.followGoal=actor.followNext=-2;actor.dropTime=0;actor.facing=formationFacing;actor.grounded=true;
+                actor.support=world.SupportAt(actor.pos.x,actor.pos.y);actor.lastX=actor.pos.x;actor.root.transform.position=actor.pos;actor.art.InterruptAction();
             }
         }
         private bool ValidAllyTarget(Fighter target,CompanionState state)
         {return CanTarget(target,state)&&target.root&&enemies.Contains(target);}
-        private int AllySupport(float height,float x)
-        {
-            for(int i=0;i<world.Ledges.Length;i++)
-            {var p=world.Ledges[i];if(Mathf.Abs(p.y-height)<.08f&&Mathf.Abs(p.x-x)<p.width*.5f+.2f)return i;}
-            return -1;
-        }
+        /// <summary>Platform whose surface passes through (x, height); -1 for the ground or no support.</summary>
+        private int AllySupport(float height,float x){return world.SupportAt(x,height,.12f);}
         private bool ReachableAllySupport(int source,int destination,float maxSpeed)
         {
             if(destination<0)return true;
             var landing=world.Ledges[destination];
-            float rise=landing.y-(source<0?TowerWorld.Ground:world.Ledges[source].y);
-            if(rise>2.1f)return false;
-            float gap=0;
-            if(source>=0)
+            float launchY,gap=0;
+            if(source<0)launchY=world.GroundAt(Mathf.Clamp(landing.x,landing.Left-2,landing.Right+2));
+            else
             {
                 var launch=world.Ledges[source];
+                launchY=launch.HeightAt(Mathf.Clamp(landing.x,launch.Left,launch.Right));
                 gap=Mathf.Max(0,Mathf.Abs(landing.x-launch.x)-(landing.width+launch.width)*.5f+.5f);
             }
-            float flight=(10.7f+Mathf.Sqrt(10.7f*10.7f-50*rise))/25;
+            // The landing edge nearest the launch decides the rise a follower has to clear.
+            float landingY=landing.HeightAt(Mathf.Clamp(source<0?landing.x:world.Ledges[source].x,landing.Left,landing.Right));
+            float rise=landingY-launchY;
+            if(rise>2.1f)return false;
+            float flight=(10.7f+Mathf.Sqrt(Mathf.Max(0,10.7f*10.7f-50*rise)))/25;
             return gap<=maxSpeed*flight-maxSpeed*maxSpeed/60-.3f;
         }
         private int NextAllySupport(int source,int goal,float speed)
@@ -137,25 +134,25 @@ namespace PrototypeLab.Roguelike
             }
             else if(actor.followNext==-2)return new Vector2(anchor.x,actor.followGroundY);
             int next=actor.followNext;
-            if(next<0)return new Vector2(anchor.x,TowerWorld.Ground);
+            if(next<0)return new Vector2(anchor.x,world.GroundAt(anchor.x));
             var landing=world.Ledges[next];
-            float landingX=Mathf.Clamp(actor.pos.x,landing.x-landing.width*.5f+.25f,landing.x+landing.width*.5f-.25f),launchX=landingX;
-            if(source>=0){var launch=world.Ledges[source];launchX=Mathf.Clamp(landingX,launch.x-launch.width*.5f+.25f,launch.x+launch.width*.5f-.25f);}
-            if(actor.grounded&&Mathf.Abs(actor.pos.x-launchX)>.2f)return new Vector2(launchX,actor.followGroundY);
+            float landingX=Mathf.Clamp(actor.pos.x,landing.Left+.25f,landing.Right-.25f),launchX=landingX;
+            if(source>=0){var launch=world.Ledges[source];launchX=Mathf.Clamp(landingX,launch.Left+.25f,launch.Right-.25f);}
+            if(actor.grounded&&Mathf.Abs(actor.pos.x-launchX)>.2f)return new Vector2(launchX,world.SurfaceHeight(source,launchX));
             jump=actor.grounded;
-            return new Vector2(landingX,landing.y);
+            return new Vector2(landingX,landing.HeightAt(landingX));
         }
         private Vector2 AllyCombatAnchor(Fighter actor,Fighter target)
         {
             Vector2 aim=target.pos;EnemyState flight;
             if(target.airborne&&enemyCombat.TryGetValue(target,out flight))aim.y=flight.hoverHeight;
-            Vector2 best=new Vector2(aim.x,TowerWorld.Ground);
+            Vector2 best=new Vector2(aim.x,world.GroundAt(aim.x));
             float score=(best-aim).sqrMagnitude;
             foreach(var ledge in world.Ledges)
             {
                 if(ledge.y>aim.y+.35f)continue;
-                float x=Mathf.Clamp(aim.x,ledge.x-ledge.width*.5f+.3f,ledge.x+ledge.width*.5f-.3f);
-                var candidate=new Vector2(x,ledge.y);
+                float x=Mathf.Clamp(aim.x,ledge.Left+.3f,ledge.Right-.3f);
+                var candidate=new Vector2(x,ledge.HeightAt(x));
                 float next=(candidate-aim).sqrMagnitude+Mathf.Abs(x-actor.pos.x)*.02f;
                 if(next>=score)continue;
                 score=next;best=candidate;
@@ -229,7 +226,8 @@ namespace PrototypeLab.Roguelike
                 if(!actor.grounded&&actor.followNext>=0)
                 {
                     var landing=world.Ledges[actor.followNext];
-                    destination=new Vector2(Mathf.Clamp(actor.pos.x,landing.x-landing.width*.5f+.3f,landing.x+landing.width*.5f-.3f),landing.y);
+                    float landingX=Mathf.Clamp(actor.pos.x,landing.Left+.3f,landing.Right-.3f);
+                    destination=new Vector2(landingX,landing.HeightAt(landingX));
                     followingRoute=true;
                 }
                 float beforeX=actor.pos.x,dx=destination.x-actor.pos.x;
@@ -253,7 +251,7 @@ namespace PrototypeLab.Roguelike
                 if(actor.grounded&&!actionLocked&&!inRange)
                 {
                     bool jump=followingRoute||target==null?followJump:!inRange&&target.pos.y-actor.pos.y>.65f&&Mathf.Abs(dx)<5;
-                    if(jump)actor.velocityY=10.7f;
+                    if(jump){actor.velocityY=10.7f;actor.grounded=false;}
                 }
                 float actualSpeed=dt>0?(actor.pos.x-beforeX)/dt:0;bool moving=Mathf.Abs(actualSpeed)>.08f;
                 if(!actionLocked)actor.facing=target!=null?target.pos.x>=actor.pos.x?1:-1:moving?actualSpeed>0?1:-1:formationFacing;

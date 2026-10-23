@@ -91,6 +91,9 @@ namespace PrototypeLab.Roguelike
             foreach (string id in companions) list.Add(new CompanionState(TowerRun.GetDefinition(id)));
             game.ReconcileLoadout(); ClearEnemies(); ClearShots();
             Place(game.hero, new Vector2(0, TowerWorld.Ground)); game.hero.facing = 1;
+            // Enemies only attack while on screen. Frame the fixture around the player instead of the spawn view,
+            // so a small editor Game view cannot push fixture attackers past the camera edge.
+            game.view.transform.position = new Vector3(0, 0, -10);
             var sentinel = Spawn(25, TowerWorld.Ground); sentinel.stunTime = sentinel.cooldown = 999;
         }
         private void ClearEnemies()
@@ -178,14 +181,17 @@ namespace PrototypeLab.Roguelike
                 ClearEnemies();typeof(TowerRun).GetField("<Floor>k__BackingField",Hidden).SetValue(game.run,floor);Call("SpawnFloor");
                 var spawned=game.enemies.Find(enemy=>enemy.airborne);
                 Require(spawned!=null&&game.run.Companions.Count==0,"A solo party did not spawn a flying monster.");
-                Require(Mathf.Abs(spawned.pos.y-(2.4f+(floor-2)*1.4f+.8f))<=.41f,"The flyer is not hovering above its reachable upper tier.");
+                // The generated shelves decide the exact height: the flyer hovers .8 above one of the stacked shelves (y >= 2).
+                var shelves=(TowerWorld)typeof(TowerGame).GetField("world",Hidden).GetValue(game);bool perched=false;
+                foreach(var ledge in shelves.Ledges)if(ledge.y>=2&&Mathf.Abs(spawned.pos.x-ledge.x)<.01f&&Mathf.Abs(spawned.pos.y-(ledge.y+.8f))<=.41f)perched=true;
+                Require(perched,"The flyer is not hovering above a reachable upper shelf.");
             }
             report.soloFlyerSpawns=true;
             Setup("michael");ClearEnemies();game.enabled=false;
             var world=(TowerWorld)typeof(TowerGame).GetField("world",Hidden).GetValue(game);
             var perch=world.Ledges[world.Ledges.Length-1];
             flyer=Spawn(perch.x,perch.y+.8f,3);flyer.stunTime=999;
-            Place(game.hero,new Vector2(perch.x,TowerWorld.Ground));
+            Place(game.hero,new Vector2(perch.x,world.GroundAt(perch.x)));
             var melee=game.allies.Find(actor=>actor.id=="michael");Place(melee,game.hero.pos);melee.cooldown=0;
             hp=flyer.hp;Call("PlayerSlash");Require(flyer.hp==hp,"A sword hit a flyer far above its physical reach.");report.meleeHeightLimited=true;
             float highest=melee.pos.y;
