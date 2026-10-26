@@ -217,8 +217,11 @@ namespace PrototypeLab.Roguelike
                 Fill(new Rect(x+28,533,340,1),Alpha(c,.2f));
                 if(o.Kind==RewardKind.Recruit)
                 {
-                    // Recruit cards preview the mythology synergy this companion would complete.
-                    FitLabel(new Rect(x+28,546,340,72),ConciseDescription(o.Description),17,14,muted);
+                    // Recruit cards show the god's own passive, then the mythology synergy this companion would complete.
+                    var passive=d.Passive;
+                    Label(new Rect(x+28,488,340,24),d.Title,16,muted);
+                    Label(new Rect(x+28,541,340,22),"고유 패시브  ·  "+passive.Name,15,c,TextAnchor.MiddleLeft,true);
+                    FitLabel(new Rect(x+28,566,340,52),passive.Description,15,12,paper);
                     var synergy=TowerMythCatalog.GetSynergy(d.MythId);int after=run.MythCount(d.MythId)+1;
                     Round(new Rect(x+24,620,348,46),new Color(1,1,1,after>=2?.06f:.025f),5);
                     Label(new Rect(x+34,622,330,20),"「"+synergy.Name+"」  "+Mathf.Min(after,3)+" / 3"+(after>=2?"  ·  발동":""),14,after>=2?brass:muted,TextAnchor.MiddleLeft,true);
@@ -300,13 +303,18 @@ namespace PrototypeLab.Roguelike
         {
             PrepareScrollStyle();var previousSkin=GUI.skin;GUI.skin=uiSkin;
             float width=viewport.width-25;float height=OathDetailHeight(owner)+184+owner.Skills.Count*143+owner.Traits.Count*115;
-            var companion=run.GetCompanion(owner.Id);if(companion!=null)height+=196;
+            var companion=run.GetCompanion(owner.Id);if(companion!=null)height+=224;
             detailScroll=GUI.BeginScrollView(viewport,detailScroll,new Rect(0,0,width,Mathf.Max(viewport.height-2,height)),false,true);
             float y=DrawOathDetails(owner,3);
             if(companion!=null)
             {
-                Label(new Rect(12,y,width-24,28),companion.Definition.InnateTrait,20,accent,TextAnchor.MiddleLeft,true);
-                Label(new Rect(12,y+36,width-24,65),companion.Definition.InnateDescription,18,muted);y+=122;
+                // The passive with its live state, the legend it comes from, then the companion's base numbers.
+                var passive=companion.Definition.Passive;string status=run.Passives.Status(companion);
+                Label(new Rect(12,y,width-270,28),"고유 패시브  ·  "+passive.Name,20,accent,TextAnchor.MiddleLeft,true);
+                if(status!="")Label(new Rect(width-258,y+2,244,24),status,15,TowerWorld.Teal,TextAnchor.MiddleRight);
+                FitLabel(new Rect(12,y+34,width-24,48),passive.Description,18,15,paper);
+                Label(new Rect(12,y+86,width-24,24),passive.Lore,15,muted);
+                Label(new Rect(12,y+114,width-24,24),companion.Definition.InnateDescription,14,Alpha(muted,.8f));y+=150;
                 var myth=TowerMythCatalog.Get(companion.Definition.MythId);var synergy=TowerMythCatalog.GetSynergy(myth.Id);int members=run.MythCount(myth.Id);
                 Round(new Rect(3,y,width-6,62),new Color(.072f,.095f,.123f),5);
                 Label(new Rect(18,y+8,width-40,24),myth.Name+"  ·  「"+synergy.Name+"」  "+members+" / 3"+(members>=2?"  발동":""),17,members>=2?brass:paper,TextAnchor.MiddleLeft,true);

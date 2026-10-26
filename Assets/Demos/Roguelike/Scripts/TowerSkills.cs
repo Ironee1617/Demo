@@ -69,6 +69,7 @@ namespace PrototypeLab.Roguelike
         {Fighter best=null;foreach(var e in enemies){float d=Vector2.Distance(pos,e.pos);if(CanTarget(e,owner)&&d<range){range=d;best=e;}}return best;}
         private void TickSkills(float dt)
         {
+            TickPassives(dt);
             shieldTime=Mathf.Max(0,shieldTime-dt);if(shieldTime<=0)playerShield=0;
             regenerationClock+=dt;
             if(regenerationClock>=1){regenerationClock-=1;if(run.Player.Regeneration>0)HealPlayer(run.Player.Regeneration,false);}
@@ -132,9 +133,11 @@ namespace PrototypeLab.Roguelike
                 default:return TowerWorld.Gold;
             }
         }
-        private void CastSkill(HeroState owner,SkillState skill,Fighter source,Fighter target)
+        private void CastSkill(HeroState owner,SkillState skill,Fighter source,Fighter target){CastScaledSkill(owner,skill,source,target,1);}
+        // A scale below one is an echo of an earlier cast (Brahma's passive) and never echoes again.
+        private void CastScaledSkill(HeroState owner,SkillState skill,Fighter source,Fighter target,float scale)
         {
-            var d=skill.Definition;var color=SkillColor(d.Effect);float damage=owner.Damage*skill.Power;
+            var d=skill.Definition;var color=SkillColor(d.Effect);float damage=owner.Damage*skill.Power*scale;
             Vector2 origin=source.pos+Vector2.up*(source==hero?.95f:.78f),aim=target.pos+Vector2.up*.7f;
             source.attackPose=.4f;source.facing=target.pos.x>=source.pos.x?1:-1;
             if(source.castRemaining<=0&&vfx!=null)vfx.Cast(d.Effect,origin,Mathf.Min(1.3f,skill.Radius*.3f),color);
@@ -193,6 +196,7 @@ namespace PrototypeLab.Roguelike
                 case SkillEffect.Sentry:
                     AddArea(owner,source,d.Effect,source.pos+new Vector2(-source.facing*.8f,.15f),skill.Radius,skill.Duration,.85f,damage,color,skill.Count);break;
             }
+            OnPassiveSkillCast(owner,skill,source,target,scale);
         }
         private void LimitLastShotRange(float distance,float speed)
         {if(shots.Count>0)shots[shots.Count-1].life=distance/speed;}
@@ -231,15 +235,21 @@ namespace PrototypeLab.Roguelike
         private float StrikeEnemy(Fighter enemy,float damage,HeroState owner,float push)
         {
             if(!CanTarget(enemy,owner))return 0;
-            bool critical=owner!=null&&UnityEngine.Random.value<owner.CritChance;if(critical)damage*=1.75f;
+            damage*=PassiveDamageScale(enemy,owner);
+            bool critical=owner!=null&&(forcedCritical||PassiveSureshot(enemy,owner)||UnityEngine.Random.value<owner.CritChance);if(critical)damage*=run.Passives.CriticalMultiplier(owner);
             float dealt=Mathf.Min(enemy.hp,damage);criticalHit=critical;DamageEnemy(enemy,damage,push);
             if(owner!=null&&owner.LifeSteal>0)HealPlayer(dealt*owner.LifeSteal,false);
+            AfterPassiveStrike(enemy,owner);
             return dealt;
         }
         private void HealPlayer(float amount,bool show)
         {
-            if(amount<=0||hero.hp<=0||hero.hp>=PlayerMaxHealth)return;
-            float healed=Mathf.Min(PlayerMaxHealth-hero.hp,amount*run.Player.HealingMultiplier);hero.hp+=healed;
+            if(amount<=0||hero.hp<=0)return;
+            float restored=amount*run.Player.HealingMultiplier;
+            // Shown heals (pulses, drains, hearts) may spill into a shield; regeneration and life steal never do.
+            if(show)OverhealShield(restored-(PlayerMaxHealth-hero.hp));
+            if(hero.hp>=PlayerMaxHealth)return;
+            float healed=Mathf.Min(PlayerMaxHealth-hero.hp,restored);hero.hp+=healed;
             if(show){FloatText(hero.pos+Vector2.up*2,"+"+Mathf.CeilToInt(healed),TowerWorld.Teal);Burst(hero.pos+Vector2.up,TowerWorld.Teal,7,.5f);}
         }
         private float MitigatePlayerDamage(float raw)

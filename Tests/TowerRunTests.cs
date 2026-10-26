@@ -438,6 +438,7 @@ public static class TowerRunTests
         TowerMythTests.Register(Test);
         TowerOathTests.Register(Test);
         TowerLootTests.Register(Test);
+        TowerPassiveTests.Register(Test);
         Console.WriteLine(passed + " passed, " + failed + " failed"); return failed == 0 ? 0 : 1;
     }
 }

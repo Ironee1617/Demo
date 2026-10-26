@@ -261,6 +261,9 @@ namespace PrototypeLab.Roguelike
             var actor = game.allies.Find(ally => ally.id == id); float before = target.hp;
             Require(state.Skills.Count == 0 && !game.AttackOverride, "A basic attack fixture unexpectedly had learned skills or player attacks.");
             yield return Until(() => actor.basicPending, airborne?12:4, "No production basic attack began for " + id);
+            // A passive that scales a blow (Dangun's fellowship, Lugh's long arm, Jumong's sure first shot) is part of the current damage.
+            float expected = state.Damage * (float)Call("PassiveDamageScale", target, state) *
+                (game.run.Passives.Owns(state, PassiveKind.Sureshot) ? TowerPassiveCatalog.BaseCriticalMultiplier : 1);
             float started = game.elapsed; current.expectedReleaseDelay = actor.basicDelay;
             Require(target.hp == before && game.OwnerProjectiles(id) == 0, "Damage or a projectile appeared before the basic windup.");
             Require(actor.art.MotionName == "Attack", "The production basic attack did not play its attack motion.");
@@ -272,7 +275,7 @@ namespace PrototypeLab.Roguelike
             Require(current.projectileObserved == ranged, ranged ? "No real basic projectile appeared." : "A melee basic attack unexpectedly spawned a projectile.");
             yield return Until(() => target.hp < before, 3, "The actual basic attack never reduced target HP for " + id);
             current.hpLost = before - target.hp;
-            Require(Mathf.Abs(current.hpLost - state.Damage) < .05f, "The first basic hit did not apply exactly the companion's current damage.");
+            Require(Mathf.Abs(current.hpLost - expected) < .05f, "The first basic hit did not apply exactly the companion's current damage with its passive.");
             current.detail = ranged ? "Delayed production projectile appeared, travelled, and dealt one basic hit." : "Delayed production melee contact dealt one basic hit.";
             if ((!airborne && (id == "michael" || id == "gabriel" || id == "uriel" || id == "raphael")) || (airborne && id == "gabriel"))
                 yield return Capture((airborne ? "airborne-" : "basic-") + id);
@@ -434,8 +437,11 @@ namespace PrototypeLab.Roguelike
             var target = BoundaryTarget("gabriel"); var actor = game.allies.Find(ally => ally.id == "gabriel");
             yield return Until(() => actor.basicPending, 3, "Nearer-enemy fixture never acquired its first target.");
             var nearer = ExtraTarget(actor.pos - Vector2.right * .8f); float before = target.hp;
+            int splits = game.PassiveFireCount(PassiveKind.SplitShot); var gospel = TowerPassiveCatalog.For("gabriel");
             yield return ObserveLock(actor, target, actor.pos.x, 2.8f);
-            Require(target.hp < before && nearer.hp == nearer.maxHp, "A newly arrived nearer enemy stole subsequent basic attacks from the living target.");
+            // Gabriel's passive splits every third arrow toward other foes; only those lighter shards may reach the newcomer.
+            float shards = (game.PassiveFireCount(PassiveKind.SplitShot) - splits) * game.run.GetCompanion("gabriel").Damage * gospel.Value;
+            Require(target.hp < before && nearer.maxHp - nearer.hp <= shards + .05f, "A newly arrived nearer enemy stole subsequent basic attacks from the living target.");
             current.hpLost = before - target.hp;
             current.detail = "A new enemy on the opposite side stayed unharmed while subsequent real arrows continued damaging the original target.";
         }

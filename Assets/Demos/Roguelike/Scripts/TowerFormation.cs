@@ -263,7 +263,7 @@ namespace PrototypeLab.Roguelike
                     BeginAllyAttack(actor,state,target);
                 actor.art.SetLocomotion(actor.grounded,actor.velocityY,false,Mathf.Abs(actualSpeed),actualSpeed);
                 actor.art.SetPose(moving,actor.attackPose>0,false,actor.facing,dt);
-                if(healClock>=5&&state.HealAmount>0&&hero.hp<PlayerMaxHealth)HealPlayer(state.HealAmount,true);
+                if(healClock>=5&&state.HealAmount>0)CompanionHeal(state);
             }
             if(healClock>=5)healClock=0;
         }

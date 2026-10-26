@@ -75,7 +75,8 @@ namespace PrototypeLab.Roguelike
             {
                 float heal = power * .8f * owner.HealingMultiplier;
                 float overflow = Mathf.Max(0, heal * run.Player.HealingMultiplier - (PlayerMaxHealth - hero.hp));
-                HealPlayer(heal, true);
+                // The overflow augment spends this heal's spill itself, so Raphael's passive does not convert it again.
+                overflowClaimed = oath.Has(OathState.RaphaelOverflow); HealPlayer(heal, true); overflowClaimed = false;
                 float shield = power * 1.5f * owner.HealingMultiplier * run.Player.HealingMultiplier;
                 if (oath.Has(OathState.RaphaelOverflow)) shield += overflow * 2;
                 playerShield = Mathf.Min(PlayerMaxHealth * .65f, playerShield + shield);

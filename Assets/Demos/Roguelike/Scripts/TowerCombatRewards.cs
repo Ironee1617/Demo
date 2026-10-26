@@ -28,14 +28,16 @@ namespace PrototypeLab.Roguelike
         {
             FloorHits=0;floorStartedAt=elapsed;CounterRemaining=0;
             dodgeStartedAt=-10;dodgeCounterGranted=false;
+            ResetPassiveFloor();
         }
         private void BeginDodgeCounter()
-        {dodgeStartedAt=elapsed;dodgeCounterGranted=false;}
+        {dodgeStartedAt=elapsed;dodgeCounterGranted=false;OnPassiveDodge();}
         private bool TryPrimeDodgeCounter()
         {
-            if(hero.hp<=0||run.IsFloorCleared||dashTime<=0||invulnerable<=0||dodgeCounterGranted||elapsed-dodgeStartedAt>DodgeCounterWindow)return false;
+            if(hero.hp<=0||run.IsFloorCleared||dashTime<=0||invulnerable<=0||dodgeCounterGranted||elapsed-dodgeStartedAt>DodgeCounterWindow+PassiveDodgeWindow)return false;
             dodgeCounterGranted=true;CounterRemaining=DodgeCounterDuration;PerfectDodges++;
             if(run.Oath!=null)run.Oath.OnPerfectDodge();
+            OnPassivePerfectDodge();
             FloatText(hero.pos+Vector2.up*2.35f,"회피 반격 준비",TowerWorld.Teal);
             if(vfx!=null)vfx.Cast(SkillEffect.ShieldPulse,hero.pos+Vector2.up,.65f,TowerWorld.Teal);
             Sound(chimeSound,.35f);return true;
@@ -51,6 +53,7 @@ namespace PrototypeLab.Roguelike
             if(LastFloorFlawless){FlawlessFloors++;FlawlessStreak++;BestFlawlessStreak=Mathf.Max(BestFlawlessStreak,FlawlessStreak);}
             else FlawlessStreak=0;
             CounterRemaining=0;
+            OnPassiveFloorCleared();
         }
         private static string CombatTime(float seconds)
         {int total=Mathf.FloorToInt(seconds);return (total/60).ToString()+":"+(total%60).ToString("00");}

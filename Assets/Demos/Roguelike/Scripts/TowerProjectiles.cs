@@ -59,6 +59,7 @@ namespace PrototypeLab.Roguelike
             {
                 var enemy=contact.enemy;if(!CanTarget(enemy,shot.owner))continue;
                 Vector2 impact=Vector2.Lerp(previous,shot.pos,contact.fraction);
+                forcedCritical=shot.forceCrit;
                 if(shot.area>0)
                 {
                     Vector2 center=enemy.pos;float radiusSquared=shot.area*shot.area;
@@ -70,6 +71,8 @@ namespace PrototypeLab.Roguelike
                     Burst(impact,shot.color,14,shot.area);
                 }
                 else StrikeEnemy(enemy,shot.damage,shot.owner,Mathf.Sign(shot.velocity.x)*.1f);
+                forcedCritical=false;
+                if(shot.basic)AfterShotHit(shot,enemy);
                 ChainOathShot(shot,enemy);
                 enemy.slowTime=Mathf.Max(enemy.slowTime,shot.slowDuration);shot.hit.Add(enemy);shot.pierce--;
                 if(shot.pierce<=0){shot.pos=impact;consumed=true;break;}

@@ -99,7 +99,7 @@ namespace PrototypeLab.Roguelike
                 }
         }
 
-        private void HurtByTrap(float damage){TrapHits++;HurtHero(damage);}
+        private void HurtByTrap(float damage){TrapHits++;HurtHero(damage*PassiveTrapScale);}
         private bool HeroExposed{get{return hero.hp>0&&invulnerable<=0;}}
 
         // Standing on the strip hurts and throws the hero up off it.

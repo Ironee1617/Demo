@@ -9,6 +9,7 @@ $sources = @(
     'Assets/Demos/Roguelike/Scripts/TowerRun.cs',
     'Assets/Demos/Roguelike/Scripts/TowerOath.cs',
     'Assets/Demos/Roguelike/Scripts/TowerAugmentCatalog.cs',
+    'Assets/Demos/Roguelike/Scripts/TowerPassiveCatalog.cs',
     'Assets/Demos/Roguelike/Scripts/TowerMythCatalog.cs',
     'Assets/Demos/Roguelike/Scripts/TowerProgress.cs',
     'Assets/Demos/Roguelike/Scripts/TowerDifficulty.cs',

@@ -22,7 +22,7 @@ namespace PrototypeLab.Roguelike
             // Shown instead of the species name, e.g. an awakened chapter boss.
             public string title;
         }
-        private sealed class Shot { public GameObject root; public Vector2 pos,velocity; public float damage,life,area,slowDuration,hitRadius=.16f; public bool hostile,oathChain; public Color color; public HeroState owner; public SkillEffect effect; public int pierce=1; public readonly HashSet<Fighter> hit=new HashSet<Fighter>(); }
+        private sealed class Shot { public GameObject root; public Vector2 pos,velocity; public float damage,life,area,slowDuration,hitRadius=.16f; public bool hostile,oathChain,basic,empowered,forceCrit; public Color color; public HeroState owner; public SkillEffect effect; public int pierce=1; public readonly HashSet<Fighter> hit=new HashSet<Fighter>(); }
         internal sealed class Number { public Vector2 pos; public string text; public Color color; public float life; }
         internal TowerRun run;
         internal TowerProgress progress;
@@ -336,11 +336,14 @@ namespace PrototypeLab.Roguelike
             // The player is the only party member with a hostile hit receiver.
             // Companions remain offensive actors without damage, stagger or knockback.
             if(invulnerable>0||hero.hp<=0)return;
+            if(PassiveWardsHit())return;
             FloorHits++;CounterRemaining=0;
-            damage=MitigatePlayerDamage(damage);if(damage<=0)return;
+            damage=MitigatePlayerDamage(damage*PassiveDamageTakenScale);if(damage<=0)return;
             DamageTaken+=Mathf.Min(hero.hp,damage);
             hero.hp=Mathf.Max(0,hero.hp-damage);hero.hurt=.25f;invulnerable=.65f;HitStop(.05f);Shake(.16f,.22f);
-            FloatText(hero.pos+Vector2.up*2,"−"+Mathf.RoundToInt(damage),new Color(1,.4f,.35f));Sound(hitSound,.8f);if(hero.hp<=0){ClearOathEffects();hero.art.PlayDeath(.65f);}
+            FloatText(hero.pos+Vector2.up*2,"−"+Mathf.RoundToInt(damage),new Color(1,.4f,.35f));Sound(hitSound,.8f);
+            if(hero.hp<=0)PassiveRebirth();
+            if(hero.hp<=0){ClearOathEffects();hero.art.PlayDeath(.65f);}else OnPassiveHurt();
         }
         internal void SyncAllies()
         {

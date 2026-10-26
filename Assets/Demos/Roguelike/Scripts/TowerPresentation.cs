@@ -54,8 +54,8 @@ namespace PrototypeLab.Roguelike
             if(!ValidAllyTarget(target,state)||Vector2.Distance(actor.pos,target.pos)>state.Range+.55f||(state.Definition.Role==CompanionRole.Vanguard&&Mathf.Abs(target.pos.y-actor.pos.y)>3.5f))return;
             Color color;ColorUtility.TryParseHtmlString("#"+state.Definition.TintHex,out color);
             if(state.Definition.Role==CompanionRole.Vanguard)
-            {SlashArc(actor.pos+new Vector2(actor.facing,.8f),actor.facing,color);if((target.pos.x-actor.pos.x)*actor.facing>-.4f)StrikeEnemy(target,state.Damage,state,actor.facing*.22f);}
-            else Fire(actor.pos+Vector2.up*.78f,target.pos+Vector2.up*.7f,11,state.Damage,false,color,0,state);
+            {SlashArc(actor.pos+new Vector2(actor.facing,.8f),actor.facing,color);if((target.pos.x-actor.pos.x)*actor.facing>-.4f)AllyStrike(actor,state,target);}
+            else{Fire(actor.pos+Vector2.up*.78f,target.pos+Vector2.up*.7f,11,state.Damage,false,color,0,state);TagAllyShot(actor,state,target,color);}
         }
         private void StartEnemyMotion(Fighter actor,float windup)
         {

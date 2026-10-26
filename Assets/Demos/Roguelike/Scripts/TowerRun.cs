@@ -34,6 +34,7 @@ namespace PrototypeLab.Roguelike
         public float Range { get; private set; }
         public float HealAmount { get; private set; }
         public string TintHex { get; private set; }
+        public CompanionPassive Passive { get { return TowerPassiveCatalog.For(Id); } }
         internal CompanionDefinition(string id, string name, string title, string description,
             RewardTier tier, CompanionRole role, int artIndex, float damage, float interval,
             float range, float healing, string tint, string mythId = "eden", string innateTrait = "", string innateDescription = "")
@@ -370,6 +371,8 @@ namespace PrototypeLab.Roguelike
         // The last floor of each five-floor block opens extra exits to elite, rest and shop floors.
         public bool IsBranchFloor { get { return !IsOathTrial && Floor % RewardInterval == 0 && Floor < MaxFloor; } }
         public HeroState Player { get; private set; }
+        /// <summary>The party's passives: counters, stacks and clocks that last the whole climb.</summary>
+        public TowerPassiveState Passives { get; private set; }
         public OathState Oath { get; private set; }
         public bool IsOathTrial { get { return Oath != null; } }
         public IReadOnlyList<CompanionState> Companions { get { return companionView; } }
@@ -388,7 +391,8 @@ namespace PrototypeLab.Roguelike
             this.random = random; MaxFloor = maxFloor; Floor = 1; FloorType = FloorType.Normal; CompanionLimit = MaxCompanions;
             RunId = Guid.NewGuid().ToString("N");
             Player = new HeroState("player", "플레이어", 28, 160, 0, 6, .43f, 2.6f);
-            Player.ExternalBonus = stat => SynergyBonus(Player, stat);
+            Passives = new TowerPassiveState(this);
+            Player.ExternalBonus = stat => SynergyBonus(Player, stat) + Passives.StatBonus(Player, stat);
             companionView = companions.AsReadOnly(); offerView = offers.AsReadOnly(); shopView = shop.AsReadOnly();
             if (oathCompanionId != null)
             {
@@ -551,7 +555,7 @@ namespace PrototypeLab.Roguelike
         private void AddCompanion(CompanionDefinition definition)
         {
             var companion = new CompanionState(definition);
-            companion.ExternalBonus = stat => SynergyBonus(companion, stat);
+            companion.ExternalBonus = stat => SynergyBonus(companion, stat) + Passives.StatBonus(companion, stat);
             companions.Add(companion);
             if (joined != null) joined(companion);
         }
