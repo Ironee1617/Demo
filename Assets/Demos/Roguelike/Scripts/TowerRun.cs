@@ -13,6 +13,8 @@ namespace PrototypeLab.Roguelike
     public enum SkillEffect { Fireball, IceNova, ChainLightning, Meteor, ArcaneVolley, Shockwave, BladeStorm, DashStrike, MultiShot, PierceShot, RainArrows, PoisonCloud, HealPulse, ShieldPulse, LifeDrain, Sentry }
     public enum FloorType { Normal, Elite, Rest, Shop }
     public enum ShopItem { Augment, Heal, Vitality }
+    // Ordinary floors deal stat cards, every fifth floor skill cards; elite, shop and oath cards keep both kinds.
+    public enum RewardDraft { Mixed, Stats, Skills }
 
     public sealed class CompanionDefinition
     {
@@ -144,6 +146,8 @@ namespace PrototypeLab.Roguelike
 
     public class HeroState
     {
+        // Stat cards arrive every floor, so extra projectiles stop at three to keep volleys readable.
+        public const int MaxProjectileBonus = 3;
         private readonly float baseDamage, baseHealth, baseArmor, baseMoveSpeed, baseInterval, baseRange;
         private float vitality;
         // Run-level bonuses that do not come from cards, such as mythology synergies.
@@ -208,7 +212,7 @@ namespace PrototypeLab.Roguelike
                 case HeroStat.SkillPower:
                 case HeroStat.Area:
                 case HeroStat.Healing: return 1 + bonus;
-                case HeroStat.Projectiles: return (int)bonus;
+                case HeroStat.Projectiles: return Math.Min(MaxProjectileBonus, (int)bonus);
                 default: return bonus;
             }
         }
@@ -327,6 +331,7 @@ namespace PrototypeLab.Roguelike
 
     public sealed class TowerRun
     {
+        // Every cleared floor deals cards; each RewardInterval-th floor deals skills instead of stats and branches.
         public const int MaxCompanions = 3, OfferSlots = 3, DefaultMaxFloor = 90, RewardInterval = 5;
         // Gold prices; a floor's breakable caches scatter about fifteen gold.
         public const int AugmentPrice = 50, HealPrice = 20, VitalityPrice = 40;
@@ -359,11 +364,30 @@ namespace PrototypeLab.Roguelike
         public bool IsFloorCleared { get; private set; }
         public bool IsRewardPending { get; private set; }
         public bool IsRecruitOffer { get; private set; }
+        /// <summary>Which augments the pending card set deals: stats, skills or both.</summary>
+        public RewardDraft Draft { get; private set; }
         /// <summary>Most companions this climb may hold: three, or the slots a campaign chapter drafts.</summary>
         public int CompanionLimit { get; private set; }
         /// <summary>Gods who could still be recruited: the chapter's pool in a campaign draft, else every mythology.</summary>
         public int OpenRecruits
         { get { int open = 0; foreach (var definition in Definitions) if (InPool(definition) && GetCompanion(definition.Id) == null) open++; return open; } }
+        /// <summary>Skills a fifth floor could still deal: every skill of the party below level three.</summary>
+        public int OpenSkills
+        {
+            get
+            {
+                int open = 0;
+                foreach (var definition in Augments)
+                {
+                    if (definition.Kind != RewardKind.Skill) continue;
+                    var owner = GetHero(definition.OwnerId);
+                    if (owner == null) continue;
+                    var skill = owner.GetSkill(definition.Id);
+                    if (skill == null || skill.Level < 3) open++;
+                }
+                return open;
+            }
+        }
         public int ShopPurchases { get; private set; }
         // The merchant trades once per shop floor; after one purchase the stall closes.
         public bool ShopTraded { get; private set; }
@@ -465,8 +489,14 @@ namespace PrototypeLab.Roguelike
             IsFloorCleared = true; ClearedFloors++;
             if (IsOathTrial) { if (Floor < MaxFloor) BeginReward(false); }
             else if (FloorType == FloorType.Elite) BeginReward(false);
-            else if (FloorType == FloorType.Normal && Floor % RewardInterval == 0)
-                BeginReward(!IsCampaign && IsRecruitFloor(Floor) && companions.Count < MaxCompanions);
+            else if (FloorType == FloorType.Normal)
+            {
+                bool skills = Floor % RewardInterval == 0;
+                if (skills && !IsCampaign && IsRecruitFloor(Floor) && companions.Count < MaxCompanions) BeginReward(true);
+                else if (!skills) BeginReward(false, RewardDraft.Stats);
+                // Fifth floors deal skills alone; once every owned skill is at level three they deal nothing.
+                else if (OpenSkills > 0) BeginReward(false, RewardDraft.Skills);
+            }
             else if (FloorType == FloorType.Shop) OpenShop();
             return true;
         }
@@ -477,9 +507,12 @@ namespace PrototypeLab.Roguelike
             Floor++; IsFloorCleared = false; FloorType = next; shop.Clear(); ShopTraded = false;
             return true;
         }
-        // A small draft pool may have no god left to deal in place of a card.
+        // A small draft pool may have no god or skill left to deal in place of a card.
         public bool CanReroll(int slot)
-        { return IsRewardPending && slot >= 0 && slot < offers.Count && !rerolled[slot] && (!IsRecruitOffer || OpenRecruits > offers.Count); }
+        {
+            return IsRewardPending && slot >= 0 && slot < offers.Count && !rerolled[slot] &&
+                (IsRecruitOffer ? OpenRecruits > offers.Count : Draft != RewardDraft.Skills || OpenSkills > offers.Count);
+        }
         public bool Reroll(int slot)
         {
             if (!CanReroll(slot)) return false;
@@ -515,7 +548,12 @@ namespace PrototypeLab.Roguelike
             var companion = GetCompanion(id);
             if (companion == null || (Oath != null && Oath.CompanionId == id)) return false;
             companions.Remove(companion);
-            if (IsRewardPending) GenerateOffers();
+            if (IsRewardPending)
+            {
+                GenerateOffers();
+                // A skill floor whose last learnable skills left with the companion has nothing to deal.
+                if (offers.Count == 0) { IsRewardPending = false; IsRecruitOffer = false; }
+            }
             return true;
         }
         public ShopOffer GetShopOffer(ShopItem item) { return shop.Find(o => o.Item == item); }
@@ -538,13 +576,13 @@ namespace PrototypeLab.Roguelike
         private void OpenShop()
         {
             shop.Clear();
-            shop.Add(new ShopOffer(ShopItem.Augment, "증강 한 번 더", "증강 카드 3장 중 1장을 고릅니다.", AugmentPrice));
+            shop.Add(new ShopOffer(ShopItem.Augment, "증강 한 번 더", "능력치·스킬 증강 카드 3장 중 1장을 고릅니다.", AugmentPrice));
             shop.Add(new ShopOffer(ShopItem.Heal, "회복의 물약", "최대 생명력의 " + AugmentDefinition.Number(ShopHealFraction * 100) + "%를 회복합니다.", HealPrice));
             shop.Add(new ShopOffer(ShopItem.Vitality, "생명의 정수", "이번 등반 동안 최대 생명력 +" + AugmentDefinition.Number(VitalityHealth) + "\n늘어난 만큼 회복합니다.", VitalityPrice));
         }
-        private void BeginReward(bool recruit)
+        private void BeginReward(bool recruit, RewardDraft draft = RewardDraft.Mixed)
         {
-            IsRewardPending = true; IsRecruitOffer = recruit;
+            IsRewardPending = true; IsRecruitOffer = recruit; Draft = recruit ? RewardDraft.Mixed : draft;
             Array.Clear(rerolled, 0, rerolled.Length); GenerateOffers();
         }
         private bool CanRecruit(CompanionDefinition definition)
@@ -581,11 +619,11 @@ namespace PrototypeLab.Roguelike
         }
         private static RewardTier RollTier(double roll)
         { return roll < .4 ? RewardTier.Silver : roll < .8 ? RewardTier.Gold : RewardTier.Diamond; }
-        // A draft from fewer than three gods shows only as many cards as there are gods.
+        // A draft from fewer than three gods or learnable skills shows only as many cards as there are.
         private void GenerateOffers()
         {
             offers.Clear();
-            int count = IsRecruitOffer ? Math.Min(OfferSlots, OpenRecruits) : OfferSlots;
+            int count = IsRecruitOffer ? Math.Min(OfferSlots, OpenRecruits) : Draft == RewardDraft.Skills ? Math.Min(OfferSlots, OpenSkills) : OfferSlots;
             for (int slot = 0; slot < count; slot++) offers.Add(CreateOffer(slot, null));
         }
         private sealed class Candidate
@@ -629,25 +667,34 @@ namespace PrototypeLab.Roguelike
                     return new RewardOffer(nextOfferId++, slot, available[random.Next(available.Count)], Oath.CompanionId);
             }
             RewardTier tier = RollTier(random.NextDouble());
+            Predicate<string> dealt = id => id == previousAugment || offers.Exists(o => o.Slot != slot && o.AugmentId == id);
             var candidates = new List<Candidate>();
             // Regular cards no longer recruit; only the oath trial keeps its angels in the mixed pool.
             if (IsOathTrial && companions.Count < MaxCompanions)
                 foreach (var definition in Definitions)
-                    if (definition.Tier == tier && GetCompanion(definition.Id) == null && OathState.Supports(definition.Id))
+                    if (definition.Tier == tier && GetCompanion(definition.Id) == null && OathState.Supports(definition.Id) && !dealt("recruit:" + definition.Id))
                         candidates.Add(new Candidate { Recruit = definition });
+            var open = new List<AugmentDefinition>();
             foreach (var definition in Augments)
             {
-                if (definition.Tier != tier) continue;
                 var owner = GetHero(definition.OwnerId);
-                if (owner == null) continue;
+                if (owner == null || dealt(definition.Id)) continue;
                 var skill = owner.GetSkill(definition.Id);
                 if (definition.Kind == RewardKind.Skill && skill != null && skill.Level >= 3) continue;
-                candidates.Add(new Candidate { Augment = definition });
+                open.Add(definition);
             }
-            candidates.RemoveAll(c => c.Id == previousAugment || offers.Exists(o => o.Slot != slot && o.AugmentId == c.Id));
-            // Prefer useful growth; extreme custom-length runs can exhaust a tier's distinct useful identities.
-            var useful = candidates.FindAll(c => c.Recruit != null || c.Augment.Kind == RewardKind.Skill || GetHero(c.Augment.OwnerId).CanImproveTrait(c.Augment));
-            if (useful.Count > 0) candidates = useful;
+            // Prefer useful growth; extreme custom-length runs can exhaust every distinct useful identity.
+            var useful = open.FindAll(a => a.Kind == RewardKind.Skill || GetHero(a.OwnerId).CanImproveTrait(a));
+            if (useful.Count > 0) open = useful;
+            // A floor draft keeps its kind before its rarity: a kind exhausted at the rolled tier borrows another tier.
+            // Fifth floors never deal stats; a stat floor deals skills only once no stat is left at any tier.
+            RewardKind kind = Draft == RewardDraft.Skills ? RewardKind.Skill : RewardKind.Trait;
+            Predicate<AugmentDefinition> ofKind = a => Draft == RewardDraft.Mixed || a.Kind == kind;
+            var dealable = open.FindAll(a => a.Tier == tier && ofKind(a));
+            if (dealable.Count == 0) dealable = open.FindAll(ofKind);
+            if (dealable.Count == 0 && Draft != RewardDraft.Skills) dealable = open.FindAll(a => a.Tier == tier);
+            if (dealable.Count == 0 && Draft != RewardDraft.Skills) dealable = open;
+            foreach (var definition in dealable) candidates.Add(new Candidate { Augment = definition });
             int total = 0; foreach (var candidate in candidates) total += candidate.Weight;
             int pick = random.Next(total);
             Candidate selected = candidates[0];

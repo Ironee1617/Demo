@@ -220,6 +220,8 @@ namespace PrototypeLab.Roguelike
             game.enemies.Clear();
             Require(game.RemainingEnemies == 0, "Monsters were still queued on a fixture floor.");
             yield return Until(() => game.run.IsFloorCleared, 2, "The floor did not clear without monsters.");
+            // Every floor's card screen pauses the floor; the coins fly in once a card is taken.
+            if (game.run.IsRewardPending) game.SelectOffer(game.run.Offers[0].Id);
             yield return Until(() => CoinsIn(game.pickups) == 0, 6, "Coins did not fly to the hero after the clear.");
             report.coinsFlyAfterClear = game.progress.Gold == gold + value; report.coins += value;
             Require(report.coinsFlyAfterClear, "Coins that flew in after the clear did not pay their value.");

@@ -187,7 +187,7 @@ public static class TowerCampaignTests
         test("a lost expedition keeps the saved state and a retry keeps its companions", () => {
             var save = new TowerCampaignSave();
             var failed = save.BeginChapter(5); Draft(failed);
-            Require(failed.ClearFloor() && failed.AdvanceFloor() && failed.ClearFloor(), "climb a little");
+            Require(failed.ClearFloor() && failed.ChooseOffer(failed.Offers[0].Id) && failed.AdvanceFloor() && failed.ClearFloor(), "climb a little");
             Require(save.ClearedChapters == 0 && save.SavedUpgrades("player") == 0, "nothing recorded on defeat");
             var retry = save.BeginChapter(6, Ids(failed));
             Require(retry.Floor == 1 && !retry.IsRewardPending && Ids(retry)[0] == Ids(failed)[0], "the same companion, no new draft");

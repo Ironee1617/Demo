@@ -165,7 +165,7 @@ namespace PrototypeLab.Roguelike
             using(TowerProfiling.Actors.Auto())SpawnEnemies(count,elite,bossFloor,roster);
             using(TowerProfiling.Party.Auto()){SyncAllies();ResetAllyFormation();}
             var boss=bossFloor?enemies.Find(e=>e.isBoss):null;
-            if(elite)Notice("엘리트 층  ·  클리어하면 증강",3);
+            if(elite)Notice("엘리트 층  ·  클리어하면 능력치·스킬 증강",3);
             else if(boss!=null&&IsFinalBoss(boss))Notice(boss.monster.Name+" 강림  ·  지구를 삼킨 자",4);
             else Notice(boss!=null?(boss.title??boss.monster.Name)+" 출현  ·  "+SignatureName(run.Theme.Id):"",boss!=null?3:0);
         }
@@ -367,7 +367,7 @@ namespace PrototypeLab.Roguelike
                 Toast(c.Name+" 합류",RoleName(c.Definition.Role)+"  ·  "+myth.Name+"  "+members+" / 3",TierColor(c.Definition.Tier),3.2f);
                 if(members>=2)Toast("신화 시너지 「"+synergy.Name+"」 "+(members>=3?"2단계":"발동"),synergy.Describe(members),brass,4.2f);
             }
-            else Toast(offer==null?"증강 획득":offer.Title.Replace(" 습득","").Replace(" 강화",""),offer==null?"":offer.Kind==RewardKind.Skill?(offer.IsUpgrade?"스킬 Lv."+offer.NextLevel+" 강화":"스킬 습득"):offer.Kind==RewardKind.Oath?"서약 변형":"특성 강화",offer==null?brass:TierColor(offer.Tier));
+            else Toast(offer==null?"증강 획득":offer.Title.Replace(" 습득","").Replace(" 강화",""),offer==null?"":offer.Kind==RewardKind.Skill?(offer.IsUpgrade?"스킬 Lv."+offer.NextLevel+" 강화":"스킬 습득"):offer.Kind==RewardKind.Oath?"서약 변형":"능력치 강화",offer==null?brass:TierColor(offer.Tier));
         }
         private RewardOffer FindOffer(long id){foreach(var offer in run.Offers)if(offer.Id==id)return offer;return null;}
         internal void Dismiss(string id)

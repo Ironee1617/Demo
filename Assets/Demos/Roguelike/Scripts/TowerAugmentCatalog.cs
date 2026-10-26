@@ -186,21 +186,22 @@ namespace PrototypeLab.Roguelike
             PlayerSkill(result, "meteor", "낙성", RewardTier.Diamond, SkillEffect.Meteor, 12, 3, 4, 1, 0);
             PlayerSkill(result, "dash", "섬광 돌진", RewardTier.Diamond, SkillEffect.DashStrike, 9, 2.3f, 4.5f, 1, 0);
 
-            PlayerTrait(result, "might", "힘의 인장", RewardTier.Silver, HeroStat.Damage, .16f);
-            PlayerTrait(result, "vitality", "생명의 그릇", RewardTier.Silver, HeroStat.MaxHealth, .15f);
-            PlayerTrait(result, "armor", "강철 피부", RewardTier.Silver, HeroStat.Armor, 8);
-            PlayerTrait(result, "swiftness", "가벼운 발걸음", RewardTier.Silver, HeroStat.MoveSpeed, .12f);
-            PlayerTrait(result, "frenzy", "전투의 박자", RewardTier.Silver, HeroStat.AttackSpeed, .16f);
-            PlayerTrait(result, "reach", "긴 칼날", RewardTier.Gold, HeroStat.Range, .2f);
-            PlayerTrait(result, "precision", "치명적 직감", RewardTier.Gold, HeroStat.CritChance, .12f);
-            PlayerTrait(result, "vampire", "붉은 갈증", RewardTier.Gold, HeroStat.LifeSteal, .06f);
-            PlayerTrait(result, "focus", "명상의 호흡", RewardTier.Gold, HeroStat.Cooldown, .1f);
-            PlayerTrait(result, "arcana", "마력의 샘", RewardTier.Gold, HeroStat.SkillPower, .25f);
+            // Stat cards arrive on every floor, so each one is a modest step that stacks over the climb.
+            PlayerTrait(result, "might", "힘의 인장", RewardTier.Silver, HeroStat.Damage, .08f);
+            PlayerTrait(result, "vitality", "생명의 그릇", RewardTier.Silver, HeroStat.MaxHealth, .08f);
+            PlayerTrait(result, "armor", "강철 피부", RewardTier.Silver, HeroStat.Armor, 4);
+            PlayerTrait(result, "swiftness", "가벼운 발걸음", RewardTier.Silver, HeroStat.MoveSpeed, .06f);
+            PlayerTrait(result, "frenzy", "전투의 박자", RewardTier.Silver, HeroStat.AttackSpeed, .08f);
+            PlayerTrait(result, "reach", "긴 칼날", RewardTier.Gold, HeroStat.Range, .1f);
+            PlayerTrait(result, "precision", "치명적 직감", RewardTier.Gold, HeroStat.CritChance, .06f);
+            PlayerTrait(result, "vampire", "붉은 갈증", RewardTier.Gold, HeroStat.LifeSteal, .03f);
+            PlayerTrait(result, "focus", "명상의 호흡", RewardTier.Gold, HeroStat.Cooldown, .05f);
+            PlayerTrait(result, "arcana", "마력의 샘", RewardTier.Gold, HeroStat.SkillPower, .12f);
             PlayerTrait(result, "echo", "메아리 탄환", RewardTier.Diamond, HeroStat.Projectiles, 1);
-            PlayerTrait(result, "renewal", "불멸의 숨결", RewardTier.Diamond, HeroStat.Regeneration, 2);
-            PlayerTrait(result, "evasion", "찰나의 회피", RewardTier.Diamond, HeroStat.DodgeCooldown, .15f);
-            PlayerTrait(result, "expansion", "광역 공명", RewardTier.Diamond, HeroStat.Area, .25f);
-            PlayerTrait(result, "grace", "빛의 축복", RewardTier.Diamond, HeroStat.Healing, .3f);
+            PlayerTrait(result, "renewal", "불멸의 숨결", RewardTier.Diamond, HeroStat.Regeneration, 1);
+            PlayerTrait(result, "evasion", "찰나의 회피", RewardTier.Diamond, HeroStat.DodgeCooldown, .08f);
+            PlayerTrait(result, "expansion", "광역 공명", RewardTier.Diamond, HeroStat.Area, .12f);
+            PlayerTrait(result, "grace", "빛의 축복", RewardTier.Diamond, HeroStat.Healing, .15f);
             return result.AsReadOnly();
         }
 
@@ -231,7 +232,7 @@ namespace PrototypeLab.Roguelike
             string[] titles = names.Split('|');
             for (int i = 0; i < stats.Length; i++)
             {
-                float value = stats[i] == HeroStat.Cooldown ? .1f : i == 2 ? .3f : .18f;
+                float value = stats[i] == HeroStat.Cooldown ? .05f : i == 2 ? .15f : .09f;
                 result.Add(new AugmentDefinition(owner + ".trait" + (i + 1), owner, titles[i], (RewardTier)i, stats[i], value));
             }
         }

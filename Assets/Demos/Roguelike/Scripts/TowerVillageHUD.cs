@@ -103,7 +103,7 @@ namespace PrototypeLab.Roguelike
             Label(new Rect(96,526,410,24),next.LastFloor+"층  ·  "+(theme.FinalBoss!=null?theme.FinalBoss.Name:theme.Boss.Name+" · 각성"),16,theme.FinalBoss!=null?brass:paper,TextAnchor.MiddleLeft,theme.FinalBoss!=null);
             Fill(new Rect(96,566,406,1),Alpha(brass,.18f));
             Label(new Rect(96,580,410,24),RestoredLine(),15,muted);
-            FitLabel(new Rect(96,610,410,130),"5층마다 보스와 증강 · 5층을 넘으면 휴식·상점·엘리트 문을 고릅니다.\n원정에 실패하면 그 원정에서 얻은 성장은 사라지고, 마지막 층을 넘기면 성장을 간직한 채 마을로 돌아옵니다.",14,12,muted);
+            FitLabel(new Rect(96,610,410,130),"층마다 능력치 증강 · 5층마다 보스와 스킬 증강 · 5층을 넘으면 휴식·상점·엘리트 문을 고릅니다.\n원정에 실패하면 그 원정에서 얻은 성장은 사라지고, 마지막 층을 넘기면 성장을 간직한 채 마을로 돌아옵니다.",14,12,muted);
 
             // Companions are drafted like augments on departure: random cards from the pool, one pick per open slot.
             int slots=campaign.CompanionSlots;var pool=campaign.CompanionPool;

@@ -51,7 +51,7 @@ namespace PrototypeLab.Roguelike
         private Color TierColor(RewardTier tier){return tier==RewardTier.Silver?silver:tier==RewardTier.Gold?gold:new Color(.5f,.82f,.86f);}
         private string TierName(RewardTier tier){return tier==RewardTier.Silver?"실버":tier==RewardTier.Gold?"골드":"다이아";}
         private string RoleName(CompanionRole role){return role==CompanionRole.Vanguard?"전사":role==CompanionRole.Archer?"궁수":role==CompanionRole.Mage?"마법사":"치유사";}
-        private string CategoryName(RewardOffer offer){return offer.Kind==RewardKind.Oath?"서약 변형":offer.Kind==RewardKind.Recruit?"동료":offer.Kind==RewardKind.Trait?"특성":offer.IsUpgrade?"스킬 강화":"스킬";}
+        private string CategoryName(RewardOffer offer){return offer.Kind==RewardKind.Oath?"서약 변형":offer.Kind==RewardKind.Recruit?"동료":offer.Kind==RewardKind.Trait?"능력치":offer.IsUpgrade?"스킬 강화":"스킬";}
         internal void OpenParty(string owner){party=true;menu=false;dismissId="";inspectedOwner=owner;detailScroll=Vector2.zero;}
         private Vector2 WorldGui(Vector2 p){var s=view.WorldToScreenPoint(p);return new Vector2((s.x-uiOffset.x)/uiScale,(Screen.height-s.y-uiOffset.y)/uiScale);}
         private void DrawWorldLabels()
@@ -132,7 +132,11 @@ namespace PrototypeLab.Roguelike
             if(!run.IsOathTrial)
             {
                 int nextRecruit=-1;if(!run.IsCampaign)foreach(int floor in TowerRun.RecruitFloors)if(floor>=run.Floor&&run.Companions.Count<TowerRun.MaxCompanions){nextRecruit=floor;break;}
-                Label(new Rect(600,124,400,22),nextRecruit>0?"다음 동료 영입  "+nextRecruit+"층":"",13,muted,TextAnchor.MiddleCenter);
+                // The next fifth floor deals skill cards unless a free climb's recruit takes its place.
+                int nextSkill=((run.Floor-(run.IsFloorCleared?0:1))/TowerRun.RewardInterval+1)*TowerRun.RewardInterval;
+                string skillText=nextSkill<=run.MaxFloor&&nextSkill!=nextRecruit?"다음 스킬 증강  "+nextSkill+"층":"";
+                string recruitText=nextRecruit>0?"다음 동료 영입  "+nextRecruit+"층":"";
+                Label(new Rect(500,124,600,22),skillText+(skillText!=""&&recruitText!=""?"   ·   ":"")+recruitText,13,muted,TextAnchor.MiddleCenter);
             }
             if(LootActive)DrawGold(new Rect(1300,108,236,22),15,brass);
             if(Button(new Rect(1280,28,132,42),"동료",silver))OpenParty("player");Keycap(new Rect(1375,39,28,20),"Tab");
@@ -194,10 +198,13 @@ namespace PrototypeLab.Roguelike
             // A chapter opens with its companion draft: one card set per slot, from the gods the chapter has opened.
             bool recruit=run.IsRecruitOffer,opening=recruit&&!run.IsFloorCleared,draft=recruit&&run.IsCampaign;
             string pick=draft?"COMPANION "+(run.Companions.Count+1)+" / "+run.CompanionLimit:"RECRUIT";
-            MenuBackdrop(draft?"함께 오를 동료를 고르세요":recruit?"동료를 영입하세요":"힘을 선택하세요",opening?(draft?"EXPEDITION START  /  ":"CLIMB START  /  ")+pick:"FLOOR "+run.Floor.ToString("00")+(recruit?"  /  RECRUIT":"  /  REWARD"));
+            // Ordinary floors deal stat cards and every fifth floor skill cards; elite, shop and oath cards mix both.
+            bool stats=!recruit&&run.Draft==RewardDraft.Stats,skills=!recruit&&run.Draft==RewardDraft.Skills;
+            string heading=draft?"함께 오를 동료를 고르세요":recruit?"동료를 영입하세요":stats?"능력치를 강화하세요":skills?"새 스킬을 고르세요":"힘을 선택하세요";
+            MenuBackdrop(heading,opening?(draft?"EXPEDITION START  /  ":"CLIMB START  /  ")+pick:"FLOOR "+run.Floor.ToString("00")+(recruit?"  /  RECRUIT":stats?"  /  STAT AUGMENT":skills?"  /  SKILL AUGMENT":"  /  REWARD"));
             if(!opening&&run.IsFloorCleared)Label(new Rect(1130,83,400,36),CombatTime(LastFloorSeconds)+(LastFloorFlawless?"  ·  무피격":""),18,LastFloorFlawless?TowerWorld.Teal:muted,TextAnchor.MiddleRight);
-            // A draft from a small pool can show fewer cards and have no spare god to reroll into.
-            bool spare=!recruit||run.OpenRecruits>run.Offers.Count;
+            // A draft from a small pool can show fewer cards and have no spare god or skill to reroll into.
+            bool spare=recruit?run.OpenRecruits>run.Offers.Count:!skills||run.OpenSkills>run.Offers.Count;
             for(int i=0;i<run.Offers.Count;i++)
             {
                 var o=run.Offers[i];var d=TowerRun.GetDefinition(o.OwnerId);Color c=TierColor(o.Tier);float x=800-(run.Offers.Count*432-36)*.5f+i*432;
@@ -233,7 +240,9 @@ namespace PrototypeLab.Roguelike
             }
             bool oathOffer=false;foreach(var offer in run.Offers)if(offer.Kind==RewardKind.Oath)oathOffer=true;
             string note=draft?"남은 후보 "+run.OpenRecruits+"명 가운데 무작위로 나옵니다  ·  같은 신화 2명이면 시너지가 발동합니다.":
-                recruit?"모든 신화의 동료가 후보입니다. 같은 신화를 모으면 시너지가 발동합니다.":"하나의 보상만 선택할 수 있습니다.";
+                recruit?"모든 신화의 동료가 후보입니다. 같은 신화를 모으면 시너지가 발동합니다.":
+                stats?"층마다 능력치 증강, "+TowerRun.RewardInterval+"층마다 스킬 증강을 고릅니다. 같은 능력치는 누적됩니다.":
+                skills?"스킬을 새로 배우거나 한 단계 강화합니다 (최대 Lv.3).":"하나의 보상만 선택할 수 있습니다.";
             Label(new Rect(170,827,1000,29),oathOffer?"서약 변형은 함께 적용됩니다.":note,16,muted);
             if(Button(new Rect(1226,818,240,44),"능력 확인",silver))OpenParty("player");
         }
@@ -330,8 +339,8 @@ namespace PrototypeLab.Roguelike
                 Label(new Rect(width-224,y+13,202,25),remaining>0?remaining.ToString("0.0")+"초":"준비",15,remaining>0?muted:TowerWorld.Teal,TextAnchor.MiddleRight);
                 FitLabel(new Rect(18,y+49,width-40,78),skill.Description,17,16,muted);y+=143;
             }
-            y+=14;Label(new Rect(12,y,width-24,30),"특성  "+owner.Traits.Count,21,paper,TextAnchor.MiddleLeft,true);y+=44;
-            if(owner.Traits.Count==0)Label(new Rect(12,y,width-24,35),"습득한 특성 없음",17,muted);
+            y+=14;Label(new Rect(12,y,width-24,30),"능력치  "+owner.Traits.Count,21,paper,TextAnchor.MiddleLeft,true);y+=44;
+            if(owner.Traits.Count==0)Label(new Rect(12,y,width-24,35),"강화한 능력치 없음",17,muted);
             foreach(var trait in owner.Traits)
             {
                 Round(new Rect(3,y,width-6,103),new Color(.072f,.095f,.123f),5);
@@ -385,7 +394,7 @@ namespace PrototypeLab.Roguelike
             Panel(new Rect(772,198,712,574),brass);
             Label(new Rect(808,229,640,37),trial?"서약 연계":"회피와 반격",27,brass,TextAnchor.MiddleLeft,true);
             string rules=trial?"검격 적중 +1 · 순간 회피 +2\n기본 4충전 후 다음 검격 적중에 연계가 발동합니다. 헛스윙은 충전을 소모하지 않습니다.\n\n회피 시작 0.12초 안에 탄환을 통과하면 순간 회피입니다. 다음 검격의 반격 효과는 3초간 유지됩니다.\n\n여러 서약 변형은 함께 적용되며 충전은 다음 층에도 유지됩니다.\n\n5·10층 보스 · 10층 클리어로 종료\n부서지는 항아리와 상자, 골드는 나오지 않습니다.":
-                "회피 시작 0.12초 안에 탄환을 통과하면 반격을 준비합니다. 3초 안에 맞힌 다음 검격은 피해가 50% 증가합니다.\n\n탑은 열 층마다 한 신화를 가둔 장입니다. 원정을 떠나면 되찾은 신화와 그 장 신화의 신들 가운데 무작위 셋이 동료 증강으로 나오고 한 명을 고릅니다. 30층을 넘으면 둘, 60층을 넘으면 셋을 고릅니다.\n\n5층마다 보스와 증강, 그 장의 마지막 층에는 각성한 보스가 있습니다. 장을 끝내면 성장을 간직한 채 마을로 돌아오고 다음 열 층이 열립니다. 원정에 실패하면 그 원정에서 얻은 성장은 사라집니다.";
+                "회피 시작 0.12초 안에 탄환을 통과하면 반격을 준비합니다. 3초 안에 맞힌 다음 검격은 피해가 50% 증가합니다.\n\n탑은 열 층마다 한 신화를 가둔 장입니다. 원정을 떠나면 되찾은 신화와 그 장 신화의 신들 가운데 무작위 셋이 동료 증강으로 나오고 한 명을 고릅니다. 30층을 넘으면 둘, 60층을 넘으면 셋을 고릅니다.\n\n층마다 능력치 증강, 5층마다 보스와 스킬 증강이 나오고 그 장의 마지막 층에는 각성한 보스가 있습니다. 장을 끝내면 성장을 간직한 채 마을로 돌아오고 다음 열 층이 열립니다. 원정에 실패하면 그 원정에서 얻은 성장은 사라집니다.";
             Label(new Rect(808,298,640,360),rules,19,muted);
             Label(new Rect(808,675,640,65),trial?"적을 모두 처치하면 생명력 18 회복\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회":"5층 갈림길에서 휴식·상점·엘리트 문 · 항아리·상자에서 하트와 골드\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회",18,paper);
         }

@@ -10,7 +10,7 @@ public static class TowerThemeTests
     { try { body(); passed++; Console.WriteLine("PASS " + name); } catch (Exception ex) { failed++; Console.Error.WriteLine("FAIL " + name + ": " + ex.Message); } }
     private static void ClearAndChoose(TowerRun run)
     {
-        Require(run.ClearFloor() && run.IsRewardPending == (run.Floor % TowerRun.RewardInterval == 0), "clear floor and show rewards on fifth floors");
+        Require(run.ClearFloor() && run.IsRewardPending && (run.IsRecruitOffer || run.Draft == (run.Floor % TowerRun.RewardInterval == 0 ? RewardDraft.Skills : RewardDraft.Stats)), "clear floor and show its stat, fifth-floor skill or recruit cards");
         Require(!run.IsRewardPending || run.ChooseOffer(run.Offers[0].Id), "choose a real eligible reward");
     }
     private static void ValidMonster(TowerMonsterDefinition monster, HashSet<string> ids, HashSet<string> names)

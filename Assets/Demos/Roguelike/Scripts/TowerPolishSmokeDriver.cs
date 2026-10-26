@@ -205,7 +205,9 @@ namespace PrototypeLab.Roguelike
             Require(report.actualDamageTaken > 0 && Near(game.DamageTaken, report.actualDamageTaken) && game.FloorHits == 1, "Health damage accounting was not the actual mitigated damage.");
             ClearViaUpdate();
             Require(!game.LastFloorFlawless && game.FlawlessFloors == 2 && game.FlawlessStreak == 0, "A hurt floor was recorded as flawless."); report.hurtFloorBreaksFlawless = true;
-            Require(game.run.IsComplete, "The four-floor fixture did not complete on its final clear.");
+            // The summit still deals its stat cards; the climb completes once one is taken.
+            game.SelectOffer(game.run.Offers[0].Id);
+            Require(game.run.IsComplete, "The four-floor fixture did not complete after its final card.");
             yield return Capture("ending-record", "등반 기록 검증 · 무피격 층과 최고 연속 기록");
             report.clearRecordedOnce = true;
             report.checks.Add("Four real Update-driven clears: two clean floors build streak 2; shield contact and health damage each break flawless status. Rewards/NextFloor preserve totals and reset floor-local state; repeated updates never recount a clear.");
@@ -217,8 +219,8 @@ namespace PrototypeLab.Roguelike
             Call("Fire", center + Vector2.left * 2, center, .1f, 12f, true, Color.red, 0f, null, 1, 0f);
             Require(Shots.Count == 1, "Floor-clear fixture did not retain its in-flight hostile projectile.");
             Call("Update");
-            // Cards arrive on every fifth floor; this four-floor fixture clears without them.
-            Require(game.run.IsFloorCleared && game.run.IsRewardPending == (game.run.Floor % TowerRun.RewardInterval == 0) && game.CounterRemaining == 0, "Floor clear did not follow the reward cadence and clear the counter.");
+            // Every floor deals stat cards and every fifth floor skill cards; this four-floor fixture sees only stats.
+            Require(game.run.IsFloorCleared && game.run.IsRewardPending && game.run.Draft == (game.run.Floor % TowerRun.RewardInterval == 0 ? RewardDraft.Skills : RewardDraft.Stats) && game.CounterRemaining == 0, "Floor clear did not follow the reward cadence and clear the counter.");
             Require(Shots.Count == 0, "Floor clear left an in-flight hostile projectile frozen beneath the reward screen."); report.clearRemovesProjectiles = true;
             int floors = game.FlawlessFloors, streak = game.FlawlessStreak, cleared = game.run.ClearedFloors; float seconds = game.LastFloorSeconds;
             for (int i = 0; i < 4; i++) Call("Update");

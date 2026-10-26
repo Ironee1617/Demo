@@ -18,7 +18,7 @@ namespace PrototypeLab.Roguelike
             public string finishedUtc;
             public bool success, movementVerified, jumpVerified, dashVerified, playerAttackVerified;
             public bool realCombatFirstFloorCleared, rerollSingleUseVerified, rerollOtherSlotsPreserved;
-            public bool openingRecruitCompanionOnly, mageRecruited, recruitFloorsCompanionOnly, augmentCardsWithoutRecruit, cardsOnlyOnFifthAndEliteFloors, sameMythSynergyActive;
+            public bool openingRecruitCompanionOnly, mageRecruited, recruitFloorsCompanionOnly, augmentCardsWithoutRecruit, cardsOnEveryBattleFloor, sameMythSynergyActive;
             public bool branchGuardVerified, branchDoorsVerified, eliteBranchVerified, restBranchVerified, shopBranchVerified, merchantNeedsApproach, shopTradesOnce;
             public bool fireballLockedBeforeSelection, playerSkillProjectile, companionSkillProjectile, companionSkillRepeatsAfterCooldown;
             public bool fiveHeroStatsAffectRuntime, dismissedSkillsAndEffectsCleared, rehiredCompanionStartsFresh, allSkillEffectsVerified, deathNoResurrection, completed;
@@ -48,9 +48,9 @@ namespace PrototypeLab.Roguelike
         private bool capturePending, captureInProgress;
         private string capturePath, lastCapturePath;
         private RenderTexture captureTarget, previousRenderTarget;
-        // Deterministic scenario seed, verified against the catalog: Uriel is in the opening recruit, every goal card
-        // appears by floor 35, another Eden angel joins on floor 30 and Uriel can be rehired on floor 60.
-        private const int SmokeSeed = 83;
+        // Deterministic scenario seed, verified against the catalog and the floor card cadence: Uriel is in the opening
+        // recruit, every goal card appears by floor 10, another Eden angel joins on floor 30 and Uriel can be rehired on floor 60.
+        private const int SmokeSeed = 40;
         private const float SmokeSeconds = 240;
         // Uriel joins from the opening recruit; the rest are augment cards. Goals[FirstStatGoal..] are the five hero stats.
         private static readonly string[] Goals = { "uriel.skill1", "player.fireball", "player.might", "player.vitality", "player.armor", "player.swiftness", "player.frenzy" };
@@ -373,16 +373,16 @@ namespace PrototypeLab.Roguelike
                 yield return ClearByFixture();
             }
             // The plan reaches past the summit for longer climbs; only doors below the last floor were offered.
-            int elites = 0, shops = 0; foreach (var exit in Branches) { if (exit.Key >= game.run.MaxFloor) continue; if (exit.Value == FloorType.Elite) elites++; if (exit.Value == FloorType.Shop) shops++; }
+            int rests = 0, shops = 0; foreach (var exit in Branches) { if (exit.Key >= game.run.MaxFloor) continue; if (exit.Value == FloorType.Rest) rests++; if (exit.Value == FloorType.Shop) shops++; }
             report.shopBranchVerified = shopVisits == shops && shops == ShopPlan.Length && report.shopPurchases.Count == ShopPlan.Length;
-            // Every clear was checked against the card rule as it happened; the totals confirm none were skipped.
-            report.cardsOnlyOnFifthAndEliteFloors = cardClears == game.run.MaxFloor / TowerRun.RewardInterval + elites &&
+            // Every clear was checked against the card rule as it happened; the totals confirm every battle floor dealt cards.
+            report.cardsOnEveryBattleFloor = cardClears == game.run.MaxFloor - rests - shops &&
                 report.rewardSelections == 1 + cardClears + report.shopAugments;
             report.augmentCardsWithoutRecruit = report.augmentSelections > 0;
             report.recruitFloorsCompanionOnly = String.Join(",", report.recruitFloors.ToArray()) == "start,30,60";
             report.fiveHeroStatsAffectRuntime = report.heroStatChanges.Count == 5;
             report.completed = game.run.IsComplete && game.run.Floor == game.run.MaxFloor && game.run.ClearedFloors == game.run.MaxFloor;
-            Require(report.openingRecruitCompanionOnly && report.mageRecruited && report.recruitFloorsCompanionOnly && report.augmentCardsWithoutRecruit && report.cardsOnlyOnFifthAndEliteFloors &&
+            Require(report.openingRecruitCompanionOnly && report.mageRecruited && report.recruitFloorsCompanionOnly && report.augmentCardsWithoutRecruit && report.cardsOnEveryBattleFloor &&
                 report.branchGuardVerified && report.branchDoorsVerified && report.eliteBranchVerified && report.restBranchVerified &&
                 report.shopBranchVerified && report.merchantNeedsApproach && report.shopTradesOnce && report.sameMythSynergyActive &&
                 report.fireballLockedBeforeSelection && report.playerSkillProjectile && report.companionSkillProjectile && report.companionSkillRepeatsAfterCooldown &&
@@ -559,14 +559,16 @@ namespace PrototypeLab.Roguelike
             return text.ToString();
         }
 
-        // Cards follow only fifth and elite floors; the 30th and 60th offer companions while the party has room.
+        // Every battle floor deals cards: stats on ordinary floors, skills on fifth floors and both on elite floors.
+        // The 30th and 60th offer companions instead while the party has room.
         private void VerifyCardRule()
         {
             int floor = game.run.Floor; var type = game.run.FloorType;
-            bool card = type == FloorType.Elite || type == FloorType.Normal && floor % TowerRun.RewardInterval == 0;
-            bool recruit = card && type == FloorType.Normal && TowerRun.IsRecruitFloor(floor) && game.run.Companions.Count < TowerRun.MaxCompanions;
-            Require(game.run.IsRewardPending == card && game.run.IsRecruitOffer == recruit, "Floor " + floor + " (" + type + ") broke the card rule.");
-            if (card) { cardClears++; report.cardFloors.Add(floor + (type == FloorType.Elite ? "E" : recruit ? "R" : "")); }
+            bool card = type == FloorType.Elite || type == FloorType.Normal, skills = type == FloorType.Normal && floor % TowerRun.RewardInterval == 0;
+            bool recruit = skills && TowerRun.IsRecruitFloor(floor) && game.run.Companions.Count < TowerRun.MaxCompanions;
+            var draft = recruit || type == FloorType.Elite ? RewardDraft.Mixed : skills ? RewardDraft.Skills : RewardDraft.Stats;
+            Require(game.run.IsRewardPending == card && game.run.IsRecruitOffer == recruit && (!card || game.run.Draft == draft), "Floor " + floor + " (" + type + ") broke the card rule.");
+            if (card) { cardClears++; report.cardFloors.Add(floor + (type == FloorType.Elite ? "E" : recruit ? "R" : skills ? "S" : "")); }
         }
 
         private IEnumerator ClearByFixture()

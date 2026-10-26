@@ -66,8 +66,8 @@ public static class TowerOathTests
         test("normal runs keep oath variants out of their reward and progress rules", () => {
             var run = new TowerRun(42, 5, false);
             Check(run.Oath == null && run.Companions.Count == 0 && !run.IsOathTrial, "no free ally in normal mode");
-            for (int floor = 1; floor <= 5; floor++) { Check(run.ClearFloor(), "clear"); if (floor < 5) Check(!run.IsRewardPending && run.AdvanceFloor(), "plain floor"); }
-            Check(run.IsRewardPending && !run.IsComplete, "final fifth floor still offers its card");
+            for (int floor = 1; floor <= 5; floor++) { Check(run.ClearFloor() && run.IsRewardPending, "clear"); if (floor < 5) Check(run.Draft == RewardDraft.Stats && run.ChooseOffer(run.Offers[0].Id) && run.AdvanceFloor(), "plain floor stat card"); }
+            Check(run.IsRewardPending && run.Draft == RewardDraft.Skills && !run.IsComplete, "final fifth floor still offers its skill card");
             foreach (var offer in run.Offers) Check(offer.Kind != RewardKind.Oath, "oath trial isolated");
             Check(TowerLoot.HasCaches(run), "normal runs place breakable caches");
         });
