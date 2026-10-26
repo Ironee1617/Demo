@@ -113,7 +113,7 @@ namespace PrototypeLab.Roguelike
         }
         private void ResetActors()
         {
-            ResetEnemyCombat();ClearVillage();
+            ResetEnemyCombat();ClearVillage();ResetLoot();
             foreach(var e in enemies)if(e.root)Destroy(e.root);enemies.Clear();
             foreach(var a in allies)if(a.root)Destroy(a.root);allies.Clear();
             foreach(var s in shots)if(s.root)Destroy(s.root);shots.Clear();
@@ -142,6 +142,7 @@ namespace PrototypeLab.Roguelike
             ResetEnemyCombat();
             BeginFloorRecord();
             using(TowerProfiling.SetTheme.Auto()){world.SetTheme(run.Theme.Id,run.Floor,seed);world.SetFloorFeature(run.FloorType,run.IsBranchFloor);}
+            using(TowerProfiling.Loot.Auto()){BankLooseCoins();FlushGold();SpawnCaches();}
             using(TowerProfiling.Music.Auto())music.PlayTheme(run.Theme.Id);
             cameraCeiling=Mathf.Max(1.8f,world.HighestPlatform+4);BuildTraps();
             hero.pos=new Vector2(-12,TowerWorld.Ground);hero.velocityY=0;hero.dropTime=0;hero.facing=1;hero.grounded=true;hero.support=-1;hero.lastX=-12;
@@ -174,7 +175,7 @@ namespace PrototypeLab.Roguelike
             if(village||run.IsCampaign){BeginCampaign();return;}
             intro=false;Notice("",0);
         }
-        internal void SaveProgress(){if(progress==null||SuppressProgressPersistence||SmokeControlled)return;PlayerPrefs.SetString(ProgressKey,progress.Save());PlayerPrefs.Save();}
+        internal void SaveProgress(){if(progress==null||SuppressProgressPersistence||SmokeControlled)return;goldUnsaved=false;PlayerPrefs.SetString(ProgressKey,progress.Save());PlayerPrefs.Save();}
         private void OnApplicationPause(bool paused){if(paused)SaveProgress();}
         private void OnApplicationQuit(){SaveProgress();}
         private void OnDestroy()
@@ -247,11 +248,12 @@ namespace PrototypeLab.Roguelike
             using(TowerProfiling.Skills.Auto()){TickSkills(dt);TickOath(dt);}
             using(TowerProfiling.Shots.Auto())TickShots(dt);
             using(TowerProfiling.Effects.Auto())TickEffects(dt);
+            using(TowerProfiling.Loot.Auto())TickLoot(dt);
             if(hero.hp<=0)return;
             if(village)TickVillage(dt);
             else if(RemainingEnemies==0&&!run.IsFloorCleared)
             {
-                run.ClearFloor();ClearOathEffects();foreach(var shot in shots)if(shot.root)Destroy(shot.root);shots.Clear();RecordFloorResult();int earned=SmokeControlled?0:progress.RecordFloorClear(run);if(earned>0)SaveProgress();CancelPendingSkills();hero.hp=Mathf.Min(PlayerMaxHealth,hero.hp+18);Sound(chimeSound,.8f);
+                run.ClearFloor();ClearOathEffects();foreach(var shot in shots)if(shot.root)Destroy(shot.root);shots.Clear();RecordFloorResult();FlushGold();CancelPendingSkills();hero.hp=Mathf.Min(PlayerMaxHealth,hero.hp+18);Sound(chimeSound,.8f);
                 if(run.FloorType==FloorType.Rest||run.FloorType==FloorType.Shop)OnSpecialFloorCleared();
                 else Notice(run.IsBranchFloor?"층 클리어  ·  원하는 출구를 고르세요":"층 클리어",2.5f);
             }
@@ -300,6 +302,7 @@ namespace PrototypeLab.Roguelike
             for(int i=enemies.Count-1;i>=0;i--){var e=enemies[i];if(CanTarget(e,run.Player)&&(e.pos.x-hero.pos.x)*hero.facing>-.4f&&Mathf.Abs(e.pos.x-hero.pos.x)<reach&&Mathf.Abs((e.pos.y+.85f)-(hero.pos.y+.9f))<1.9f){float distance=(e.pos-hero.pos).sqrMagnitude;if(distance<nearest){nearest=distance;oathTarget=e.pos;}StrikeEnemy(e,damage,run.Player,push);connected=true;}}
             if(StrikeTraps(reach,heavy))connected=true;
             if(village&&StrikeDummies(reach,damage,heavy))connected=true;
+            bool smashed=StrikeCaches(reach,heavy);
             if(connected)
             {
                 if(counter)ConsumeDodgeCounter();OnOathSwordHit(oathTarget);Sound(slashSound,.65f);
@@ -307,6 +310,8 @@ namespace PrototypeLab.Roguelike
                 HitStop(heavy?.075f:.035f);Shake(heavy?.11f:.04f,heavy?.16f:.08f);
                 if(heavy)FloatText(hero.pos+Vector2.up*2.6f,dashSlash?"돌진 베기":"마무리 일격",TowerWorld.Gold);
             }
+            // Breaking a cache gives its own small jolt but never spends the dodge counter or charges the oath.
+            else if(smashed){Sound(slashSound,.5f);HitStop(heavy?.05f:.03f);}
         }
 
         private void Fire(Vector2 from,Vector2 to,float speed,float damage,bool hostile,Color color,float area=0,HeroState owner=null,int pierce=1,float slowDuration=0)

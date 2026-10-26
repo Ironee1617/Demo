@@ -29,12 +29,12 @@ public static class TowerOathTests
         test("trial offers cover every modifier and end immediately at floor ten across seeds", () => {
             foreach (string id in new[] { "michael", "gabriel", "raphael" })
                 for (int seed = 0; seed < 60; seed++) {
-                    var run = new TowerRun(seed, oathCompanionId:id); var progress = new TowerProgress();
+                    var run = new TowerRun(seed, oathCompanionId:id);
                     Check(run.IsOathTrial && run.MaxFloor == 10 && run.Companions.Count == 1 && run.GetCompanion(id) != null, "starter oath");
                     Check(!run.DismissCompanion(id), "bound companion retained");
                     for (int floor = 1; floor <= 10; floor++) {
                         Check(run.ClearFloor() && !run.ClearFloor(), "one clear per floor");
-                        Check(progress.RecordFloorClear(run) == 0 && progress.Points == 0, "trial never farms permanent points");
+                        Check(!TowerLoot.HasCaches(run), "trial never places caches, so it never farms gold");
                         if (floor == 10) {
                             Check(run.IsComplete && !run.IsRewardPending && run.Offers.Count == 0 && !run.Reroll(0) && !run.AdvanceFloor(), "ten finishes without reward");
                             break;
@@ -69,7 +69,7 @@ public static class TowerOathTests
             for (int floor = 1; floor <= 5; floor++) { Check(run.ClearFloor(), "clear"); if (floor < 5) Check(!run.IsRewardPending && run.AdvanceFloor(), "plain floor"); }
             Check(run.IsRewardPending && !run.IsComplete, "final fifth floor still offers its card");
             foreach (var offer in run.Offers) Check(offer.Kind != RewardKind.Oath, "oath trial isolated");
-            Check(new TowerProgress().RecordFloorClear(run) == 5, "normal points");
+            Check(TowerLoot.HasCaches(run), "normal runs place breakable caches");
         });
     }
 }

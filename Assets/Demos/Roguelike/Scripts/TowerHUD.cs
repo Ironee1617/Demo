@@ -133,8 +133,8 @@ namespace PrototypeLab.Roguelike
             {
                 int nextRecruit=-1;if(!run.IsCampaign)foreach(int floor in TowerRun.RecruitFloors)if(floor>=run.Floor&&run.Companions.Count<TowerRun.MaxCompanions){nextRecruit=floor;break;}
                 Label(new Rect(600,124,400,22),nextRecruit>0?"다음 동료 영입  "+nextRecruit+"층":"",13,muted,TextAnchor.MiddleCenter);
-                Label(new Rect(1300,108,236,22),"보유 "+progress.Points+" P",14,brass,TextAnchor.MiddleRight,true);
             }
+            if(LootActive)DrawGold(new Rect(1300,108,236,22),15,brass);
             if(Button(new Rect(1280,28,132,42),"동료",silver))OpenParty("player");Keycap(new Rect(1375,39,28,20),"Tab");
             if(Button(new Rect(1424,28,112,42),"메뉴",muted))menu=!menu;Keycap(new Rect(1499,39,28,20),"Esc");
             Label(new Rect(1300,84,236,24),run.IsFloorCleared?"층 클리어":"남은 적  "+RemainingEnemies,15,run.IsFloorCleared?brass:muted,TextAnchor.MiddleRight);
@@ -237,26 +237,26 @@ namespace PrototypeLab.Roguelike
         private void DrawShop()
         {
             MenuBackdrop("떠도는 상인","FLOOR "+run.Floor.ToString("00")+"  /  SHOP");
-            Label(new Rect(1130,83,400,36),"보유 "+progress.Points+" P",24,gold,TextAnchor.MiddleRight,true);
+            DrawGold(new Rect(1130,83,400,36),24,gold);
             for(int i=0;i<run.ShopOffers.Count;i++)
             {
                 var o=run.ShopOffers[i];float x=170+i*432;
                 Color c=o.Item==ShopItem.Augment?silver:o.Item==ShopItem.Heal?TowerWorld.Teal:gold;
                 Rect card=new Rect(x,202,396,470);Panel(card,c);Light(new Rect(x+2,204,392,190),Alpha(c,.08f));
                 Label(new Rect(x+28,226,254,23),o.Item==ShopItem.Augment?"증강":o.Item==ShopItem.Heal?"회복":"강화",15,c,TextAnchor.MiddleLeft,true);
-                Label(new Rect(x+230,226,137,23),o.Price+" P",15,gold,TextAnchor.MiddleRight,true);
+                Label(new Rect(x+230,226,137,23),o.Price+" G",15,gold,TextAnchor.MiddleRight,true);
                 Halo(new Rect(x+88,250,220,190),Alpha(c,.26f));Diamond(new Vector2(x+198,345),56,Alpha(c,.8f));Diamond(new Vector2(x+198,345),30,new Color(.05f,.02f,.03f,.75f));Diamond(new Vector2(x+198,345),12,Alpha(c,.9f));
                 Label(new Rect(x+28,452,340,40),o.Name,27,paper,TextAnchor.MiddleLeft,true);
                 Fill(new Rect(x+28,500,340,1),Alpha(c,.2f));
                 FitLabel(new Rect(x+28,514,340,80),o.Description,17,14,muted);
                 bool heal=o.Item==ShopItem.Heal,full=heal&&hero.hp>=PlayerMaxHealth-.5f;
-                bool can=run.CanBuy(o.Item,progress.Points)&&!full;
-                string text=full?"생명력이 가득함":progress.Points<o.Price?o.Price+" P  ·  포인트 부족":o.Price+" P  구매";
+                bool can=run.CanBuy(o.Item,progress.Gold)&&!full;
+                string text=full?"생명력이 가득함":progress.Gold<o.Price?o.Price+" G  ·  골드 부족":o.Price+" G  구매";
                 if(Button(new Rect(x+26,608,344,46),text,c,can,true)){BuyShopItem(o.Item);return;}
             }
             Label(new Rect(170,700,700,30),"생명력  "+Mathf.CeilToInt(hero.hp)+" / "+Mathf.CeilToInt(PlayerMaxHealth),18,paper);
             Label(new Rect(170,734,900,28),"상인은 한 번만 거래합니다. 무엇을 사든 거래가 끝나면 노점이 닫힙니다.",15,brass);
-            Label(new Rect(170,762,900,28),"포인트는 층을 클리어할 때마다 1 P씩 쌓이며 등반이 끝나도 남습니다.",14,muted);
+            Label(new Rect(170,762,900,28),"골드는 층마다 놓인 항아리와 상자를 부숴 모으며 등반이 끝나도 남습니다.",14,muted);
             if(Button(new Rect(1226,818,240,44),"떠나기  [Esc]",silver))shopOpen=false;
         }
         private void DrawParty()
@@ -358,7 +358,7 @@ namespace PrototypeLab.Roguelike
             Label(new Rect(600,318,400,32),"/ "+run.MaxFloor+"층",22,muted,TextAnchor.MiddleCenter);
             float x=240;
             StatCell(new Rect(x,420,240,75),"처치",kills.ToString());StatCell(new Rect(x+290,420,240,75),"등반 시간",CombatTime(elapsed));
-            StatCell(new Rect(x+580,420,240,75),run.IsOathTrial?"서약 연계":"획득 포인트",run.IsOathTrial?run.Oath.Activations+"회":"+"+run.ClearedFloors+" P");
+            StatCell(new Rect(x+580,420,240,75),run.IsOathTrial?"서약 연계":"모은 골드",run.IsOathTrial?run.Oath.Activations+"회":"+"+GoldCollected+" G");
             StatCell(new Rect(x+870,420,240,75),"무피격 클리어",FlawlessFloors+"층");
             Fill(new Rect(240,534,1120,1),Alpha(c,.18f));
             Label(new Rect(240,565,1120,64),"순간 회피  "+PerfectDodges+"     ·     반격 적중  "+CounterHits+"     ·     돌진 베기  "+DashSlashes+"     ·     마무리 일격  "+Finishers+"     ·     받은 피해  "+Mathf.CeilToInt(DamageTaken),18,muted,TextAnchor.MiddleCenter);
@@ -371,15 +371,15 @@ namespace PrototypeLab.Roguelike
             MenuBackdrop("조작과 규칙","FIELD GUIDE");
             if(Button(new Rect(1320,76,216,48),"닫기",brass))help=false;
             string[] keys={"A / D","Space","J","Shift","Shift → J","Ctrl","S / ↓","E","Esc","Tab"};
-            string[] actions={"이동","점프 · 공중에서 한 번 더 · 짧게 누르면 낮게","검 공격 · 3타째 마무리 일격","무적 회피 · 공중에서도 높이 유지","돌진 베기 · 회피 중이나 직후 공격","정밀 이동","발판 아래로","가까운 문으로 이동 · 상인과 거래","메뉴 · 상점 나가기","동료와 능력"};
+            string[] actions={"이동","점프 · 공중에서 한 번 더 · 짧게 누르면 낮게","검 공격 · 3타째 마무리 일격 · 항아리·상자 부수기","무적 회피 · 공중에서도 높이 유지","돌진 베기 · 회피 중이나 직후 공격","정밀 이동","발판 아래로","가까운 문으로 이동 · 상인과 거래","메뉴 · 상점 나가기","동료와 능력"};
             for(int i=0;i<keys.Length;i++){float y=196+i*58;Keycap(new Rect(96,y,120,36),keys[i]);Label(new Rect(234,y,520,36),actions[i],18,paper,TextAnchor.MiddleLeft);}
             bool trial=run.IsOathTrial||oathLobby;
             Panel(new Rect(772,198,712,574),brass);
             Label(new Rect(808,229,640,37),trial?"서약 연계":"회피와 반격",27,brass,TextAnchor.MiddleLeft,true);
-            string rules=trial?"검격 적중 +1 · 순간 회피 +2\n기본 4충전 후 다음 검격 적중에 연계가 발동합니다. 헛스윙은 충전을 소모하지 않습니다.\n\n회피 시작 0.12초 안에 탄환을 통과하면 순간 회피입니다. 다음 검격의 반격 효과는 3초간 유지됩니다.\n\n여러 서약 변형은 함께 적용되며 충전은 다음 층에도 유지됩니다.\n\n5·10층 보스 · 10층 클리어로 종료\n신화 포인트는 적립하지 않습니다.":
+            string rules=trial?"검격 적중 +1 · 순간 회피 +2\n기본 4충전 후 다음 검격 적중에 연계가 발동합니다. 헛스윙은 충전을 소모하지 않습니다.\n\n회피 시작 0.12초 안에 탄환을 통과하면 순간 회피입니다. 다음 검격의 반격 효과는 3초간 유지됩니다.\n\n여러 서약 변형은 함께 적용되며 충전은 다음 층에도 유지됩니다.\n\n5·10층 보스 · 10층 클리어로 종료\n부서지는 항아리와 상자, 골드는 나오지 않습니다.":
                 "회피 시작 0.12초 안에 탄환을 통과하면 반격을 준비합니다. 3초 안에 맞힌 다음 검격은 피해가 50% 증가합니다.\n\n탑은 열 층마다 한 신화를 가둔 장입니다. 원정을 떠나면 되찾은 신화와 그 장 신화의 신들 가운데 무작위 셋이 동료 증강으로 나오고 한 명을 고릅니다. 30층을 넘으면 둘, 60층을 넘으면 셋을 고릅니다.\n\n5층마다 보스와 증강, 그 장의 마지막 층에는 각성한 보스가 있습니다. 장을 끝내면 성장을 간직한 채 마을로 돌아오고 다음 열 층이 열립니다. 원정에 실패하면 그 원정에서 얻은 성장은 사라집니다.";
             Label(new Rect(808,298,640,360),rules,19,muted);
-            Label(new Rect(808,675,640,65),trial?"적을 모두 처치하면 생명력 18 회복\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회":"5층 갈림길에서 휴식·상점·엘리트 문 · 층마다 1 P\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회",18,paper);
+            Label(new Rect(808,675,640,65),trial?"적을 모두 처치하면 생명력 18 회복\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회":"5층 갈림길에서 휴식·상점·엘리트 문 · 항아리·상자에서 하트와 골드\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회",18,paper);
         }
     }
 }

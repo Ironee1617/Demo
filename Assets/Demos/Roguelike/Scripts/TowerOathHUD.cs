@@ -31,7 +31,7 @@ namespace PrototypeLab.Roguelike
             Fill(new Rect(64,760,1472,1),new Color(.5f,.56f,.63f,.15f));
             if(Button(new Rect(64,791,236,53),"돌아가기",muted))oathLobby=false;
             if(Button(new Rect(1240,21,296,34),"조작과 규칙",muted))help=true;
-            Label(new Rect(342,796,650,42),"5·10층 보스  ·  신화 포인트 미적립",16,muted,TextAnchor.MiddleLeft);
+            Label(new Rect(342,796,650,42),"5·10층 보스  ·  항아리·상자와 골드 없음",16,muted,TextAnchor.MiddleLeft);
             if(Button(new Rect(1080,786,456,64),TowerRun.GetDefinition(oathSelection).Name+"과 출발",brass,true,true))StartOathTrial(oathSelection);
         }
         private void DrawOathGauge()

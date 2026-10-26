@@ -389,27 +389,28 @@ public static class TowerRunTests
             var trial = new TowerRun(31, oathCompanionId:"michael"); for (int floor = 1; floor <= 5; floor++) { trial.ClearFloor(); trial.ChooseOffer(trial.Offers[0].Id); if (floor < 5) trial.AdvanceFloor(); }
             Check(!trial.IsBranchFloor && !trial.AdvanceFloor(FloorType.Elite), "oath trial keeps one exit");
         });
-        Test("shop floors trade once for a card, healing or vitality paid with floor points", () => {
+        Test("shop floors trade once for a card, healing or vitality paid with gold", () => {
             var run = new TowerRun(77, 100, false);
             for (int floor = 1; floor <= 5; floor++) { run.ClearFloor(); if (run.IsRewardPending) run.ChooseOffer(run.Offers[0].Id); if (floor < 5) run.AdvanceFloor(); }
             Check(run.AdvanceFloor(FloorType.Shop) && run.FloorType == FloorType.Shop && run.ShopOffers.Count == 0, "stall opens only after the clear");
-            var wallet = TowerProgress.Load("2|20|");
-            Check(!run.CanBuy(ShopItem.Heal, 99) && !run.Buy(ShopItem.Heal, wallet), "cannot buy before the floor clears");
+            var wallet = TowerProgress.Load("3|200");
+            Check(!run.CanBuy(ShopItem.Heal, 999) && !run.Buy(ShopItem.Heal, wallet), "cannot buy before the floor clears");
             Check(run.ClearFloor() && !run.IsRewardPending && run.ShopOffers.Count == 3 && !run.ShopTraded, "shop clears into three wares");
-            Check(!run.CanBuy(ShopItem.Augment, TowerRun.AugmentPrice - 1), "points must cover the price");
-            Check(run.Buy(ShopItem.Augment, wallet) && wallet.Points == 20 - TowerRun.AugmentPrice && run.IsRewardPending && !run.IsRecruitOffer && run.Offers.Count == 3, "bought card opens a reward");
+            Check(!run.CanBuy(ShopItem.Augment, TowerRun.AugmentPrice - 1) && !run.Buy(ShopItem.Augment, TowerProgress.Load("3|" + (TowerRun.AugmentPrice - 1))), "gold must cover the price");
+            Check(run.GetShopOffer(ShopItem.Heal).Price == TowerRun.HealPrice && TowerRun.HealPrice < TowerRun.VitalityPrice && TowerRun.VitalityPrice < TowerRun.AugmentPrice, "healing is the cheapest ware and a card the dearest");
+            Check(run.Buy(ShopItem.Augment, wallet) && wallet.Gold == 200 - TowerRun.AugmentPrice && run.IsRewardPending && !run.IsRecruitOffer && run.Offers.Count == 3, "bought card opens a reward");
             Check(run.ShopTraded && run.ShopPurchases == 1, "one trade recorded");
             Check(run.ChooseOffer(run.Offers[0].Id), "take the bought card");
             foreach (var item in new[] { ShopItem.Augment, ShopItem.Heal, ShopItem.Vitality })
-                Check(!run.CanBuy(item, 999) && !run.Buy(item, wallet), "the merchant trades only once per floor");
-            Check(wallet.Points == 20 - TowerRun.AugmentPrice, "refused trades spend nothing");
+                Check(!run.CanBuy(item, 9999) && !run.Buy(item, wallet), "the merchant trades only once per floor");
+            Check(wallet.Gold == 200 - TowerRun.AugmentPrice, "refused trades spend nothing");
             Check(run.AdvanceFloor() && run.ShopOffers.Count == 0 && !run.ShopTraded, "stall closes on leaving");
             var vitality = new TowerRun(78, 100, false);
             for (int floor = 1; floor <= 5; floor++) { vitality.ClearFloor(); if (vitality.IsRewardPending) vitality.ChooseOffer(vitality.Offers[0].Id); if (floor < 5) vitality.AdvanceFloor(); }
             Check(vitality.AdvanceFloor(FloorType.Shop) && vitality.ClearFloor(), "second shop");
-            float health = vitality.Player.MaxHealth; int before = wallet.Points;
-            Check(vitality.Buy(ShopItem.Vitality, wallet) && wallet.Points == before - TowerRun.VitalityPrice && Math.Abs(vitality.Player.MaxHealth - health - TowerRun.VitalityHealth) < .001f, "vitality raises max health");
-            Check(!vitality.Buy(ShopItem.Heal, wallet) && wallet.Points == before - TowerRun.VitalityPrice, "a heal after vitality is refused");
+            float health = vitality.Player.MaxHealth; int before = wallet.Gold;
+            Check(vitality.Buy(ShopItem.Vitality, wallet) && wallet.Gold == before - TowerRun.VitalityPrice && Math.Abs(vitality.Player.MaxHealth - health - TowerRun.VitalityHealth) < .001f, "vitality raises max health");
+            Check(!vitality.Buy(ShopItem.Heal, wallet) && wallet.Gold == before - TowerRun.VitalityPrice, "a heal after vitality is refused");
         });
         Test("two or three companions of one mythology unlock its synergy for the right heroes", () => {
             var run = new TowerRun(3, 100, false);
@@ -436,6 +437,7 @@ public static class TowerRunTests
         });
         TowerMythTests.Register(Test);
         TowerOathTests.Register(Test);
+        TowerLootTests.Register(Test);
         Console.WriteLine(passed + " passed, " + failed + " failed"); return failed == 0 ? 0 : 1;
     }
 }

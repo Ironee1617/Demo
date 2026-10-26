@@ -26,7 +26,7 @@ namespace PrototypeLab.Roguelike
             public int seed, actualCombatKills, fixtureClearedFloors, smokeHealthRefills, finalFloor, clearedFloors;
             public float smokeHealthRestored, companionCooldown, observedCompanionCastInterval, restHealed;
             public float expectedAttackContactDelay, observedAttackContactDelay, expectedCastReleaseDelay, observedCastReleaseDelay;
-            public int rewardSelections, recruitSelections, augmentSelections, shopAugments, pointsCredited, pointsSpent, allSkillEffectsCount;
+            public int rewardSelections, recruitSelections, augmentSelections, shopAugments, goldCredited, goldSpent, allSkillEffectsCount;
             public List<string> recruitFloors = new List<string>();
             public List<string> cardFloors = new List<string>();
             public List<string> branchChoices = new List<string>();
@@ -329,7 +329,7 @@ namespace PrototypeLab.Roguelike
             Require(Path.IsPathRooted(capturePrefix) && Path.IsPathRooted(reportPath), "Smoke output paths must be absolute.");
             Directory.CreateDirectory(Path.GetDirectoryName(capturePrefix));
             Directory.CreateDirectory(Path.GetDirectoryName(reportPath));
-            // A blank wallet holds this climb's floor points; the saved account is never read or written.
+            // A blank wallet holds this climb's gold; the saved account is never read or written.
             game.progress = new TowerProgress();
             // The opening recruit only exists outside SmokeControlled, so the run starts with normal rules.
             game.SmokeControlled = false; game.NewRun(SmokeSeed); game.SmokeControlled = true;
@@ -372,7 +372,8 @@ namespace PrototypeLab.Roguelike
                 }
                 yield return ClearByFixture();
             }
-            int elites = 0, shops = 0; foreach (var exit in Branches.Values) { if (exit == FloorType.Elite) elites++; if (exit == FloorType.Shop) shops++; }
+            // The plan reaches past the summit for longer climbs; only doors below the last floor were offered.
+            int elites = 0, shops = 0; foreach (var exit in Branches) { if (exit.Key >= game.run.MaxFloor) continue; if (exit.Value == FloorType.Elite) elites++; if (exit.Value == FloorType.Shop) shops++; }
             report.shopBranchVerified = shopVisits == shops && shops == ShopPlan.Length && report.shopPurchases.Count == ShopPlan.Length;
             // Every clear was checked against the card rule as it happened; the totals confirm none were skipped.
             report.cardsOnlyOnFifthAndEliteFloors = cardClears == game.run.MaxFloor / TowerRun.RewardInterval + elites &&
@@ -636,10 +637,10 @@ namespace PrototypeLab.Roguelike
             Require(shopVisits < ShopPlan.Length, "The fixture has no purchase planned for another shop floor.");
             ShopItem item = ShopPlan[shopVisits++];
             Require(game.run.ShopOffers.Count == 3 && !game.shopOpen && !game.run.ShopTraded, "The shop floor did not stock its three items.");
-            // SmokeControlled clears earn nothing, so credit this run's cleared floors the way a normal clear does.
-            int before = game.progress.Points, credited = game.progress.RecordFloorClear(game.run);
-            report.pointsCredited += credited;
-            Require(credited > 0 && game.progress.Points == before + credited && report.pointsCredited == game.run.ClearedFloors, "The shop wallet did not receive this run's floor points.");
+            // Scripted climbs place no caches, so fund this purchase the way a few floors of broken caches would.
+            int before = game.progress.Gold, price = game.run.GetShopOffer(item).Price, credited = game.progress.AddGold(price);
+            report.goldCredited += credited;
+            Require(credited == price && game.progress.Gold == before + price, "The shop wallet did not receive the fixture's gold.");
             // The stall stays shut until the hero walks up to the merchant.
             report.merchantNeedsApproach = !game.NearMerchant && !game.InteractMerchant() && !game.shopOpen;
             Require(report.merchantNeedsApproach, "The merchant traded from across the floor.");
@@ -671,20 +672,20 @@ namespace PrototypeLab.Roguelike
                 Require(game.hero.hp >= hpBefore + game.PlayerMaxHealth * TowerRun.ShopHealFraction - .5f, "The heal potion did not restore health.");
                 allowHealthRefill = true;
             }
-            // One trade per shop floor: the stall stays shut and a second purchase is refused without spending points.
-            int points = game.progress.Points;
+            // One trade per shop floor: the stall stays shut and a second purchase is refused without spending gold.
+            int gold = game.progress.Gold;
             ShopItem other = item == ShopItem.Augment ? ShopItem.Vitality : ShopItem.Augment;
-            report.shopTradesOnce = !game.InteractMerchant() && !game.shopOpen && !game.BuyShopItem(other) && game.progress.Points == points && !game.run.CanBuy(other, Int32.MaxValue);
+            report.shopTradesOnce = !game.InteractMerchant() && !game.shopOpen && !game.BuyShopItem(other) && game.progress.Gold == gold && !game.run.CanBuy(other, Int32.MaxValue);
             Require(report.shopTradesOnce, "The merchant traded twice on one shop floor.");
         }
 
         // Buys through the production shop path and confirms the price left the wallet.
         private bool Buy(ShopItem item)
         {
-            int points = game.progress.Points, price = game.run.GetShopOffer(item).Price;
+            int gold = game.progress.Gold, price = game.run.GetShopOffer(item).Price;
             if (!game.BuyShopItem(item)) return false;
-            report.pointsSpent += price; report.shopPurchases.Add(game.run.Floor + ":" + item + " " + price + "P");
-            return game.progress.Points == points - price;
+            report.goldSpent += price; report.shopPurchases.Add(game.run.Floor + ":" + item + " " + price + "G");
+            return game.progress.Gold == gold - price;
         }
 
         private void StandAt(float x)

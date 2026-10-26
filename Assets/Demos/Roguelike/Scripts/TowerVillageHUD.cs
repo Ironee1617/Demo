@@ -25,7 +25,7 @@ namespace PrototypeLab.Roguelike
             Label(new Rect(500,24,600,44),TowerCampaign.Village,30,paper,TextAnchor.MiddleCenter,true);
             var next=campaign.NextChapter;
             Label(new Rect(400,70,800,24),next==null?"악신이 쓰러진 행성 "+TowerCampaign.Planet:"다음 원정  ·  "+next.Numeral+" "+next.Title+"  ·  "+next.Floors,15,next==null?brass:muted,TextAnchor.MiddleCenter);
-            Label(new Rect(1150,84,262,24),"보유 "+progress.Points+" P",15,brass,TextAnchor.MiddleRight,true);
+            DrawGold(new Rect(1150,84,262,24),15,brass);
             if(Button(new Rect(1424,28,112,42),"메뉴",muted))menu=!menu;Keycap(new Rect(1499,39,28,20),"Esc");
             if(noticeTime>0&&!menu&&!party&&!help&&!VillageBlocking)
             {
@@ -92,7 +92,7 @@ namespace PrototypeLab.Roguelike
             }
             var theme=TowerThemeCatalog.Get(next.Theme);
             MenuBackdrop(next.Numeral+"  ·  "+next.Title,"TOWER GATE  /  "+next.Floors);
-            Label(new Rect(1130,83,400,36),"보유 "+progress.Points+" P",22,gold,TextAnchor.MiddleRight,true);
+            DrawGold(new Rect(1130,83,400,36),22,gold);
             Panel(new Rect(64,176,470,580),brass);
             Label(new Rect(96,198,410,36),next.Subtitle,27,paper,TextAnchor.MiddleLeft,true);
             Label(new Rect(96,238,410,24),next.Floors+"  ·  "+theme.Name,15,brass);
@@ -187,7 +187,7 @@ namespace PrototypeLab.Roguelike
         {
             float x=240;
             StatCell(new Rect(x,y,240,75),"처치",kills.ToString());StatCell(new Rect(x+290,y,240,75),"원정 시간",CombatTime(elapsed));
-            StatCell(new Rect(x+580,y,240,75),"획득 포인트","+"+run.ClearedFloors+" P");StatCell(new Rect(x+870,y,240,75),"무피격 클리어",FlawlessFloors+"층");
+            StatCell(new Rect(x+580,y,240,75),"모은 골드","+"+GoldCollected+" G");StatCell(new Rect(x+870,y,240,75),"무피격 클리어",FlawlessFloors+"층");
         }
         private void DrawChapterComplete()
         {
@@ -237,7 +237,7 @@ namespace PrototypeLab.Roguelike
             Label(new Rect(600,318,400,32),"/ "+ch.LastFloor+"층",22,muted,TextAnchor.MiddleCenter);
             DrawExpeditionStats(420);
             Fill(new Rect(240,534,1120,1),Alpha(silver,.18f));
-            Label(new Rect(240,560,1120,60),"이번 원정에서 얻은 증강은 사라졌습니다. 포인트는 남아 있습니다.\n같은 동료와 곧바로 다시 오르거나, 마을로 돌아가 다음 출발 때 동료를 새로 뽑을 수 있습니다.",17,muted,TextAnchor.MiddleCenter);
+            Label(new Rect(240,560,1120,60),"이번 원정에서 얻은 증강은 사라졌습니다. 모은 골드는 남아 있습니다.\n같은 동료와 곧바로 다시 오르거나, 마을로 돌아가 다음 출발 때 동료를 새로 뽑을 수 있습니다.",17,muted,TextAnchor.MiddleCenter);
             if(Button(new Rect(555,689,490,60),"같은 동료와 다시 도전",brass,true,true))RetryExpedition();
             if(Button(new Rect(660,771,280,44),"마을로 돌아가기",muted))EnterVillage();
         }

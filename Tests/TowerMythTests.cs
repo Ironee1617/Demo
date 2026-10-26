@@ -5,20 +5,6 @@ using PrototypeLab.Roguelike;
 public static class TowerMythTests
 {
     private static void Check(bool value, string message) { if (!value) throw new Exception(message); }
-    // Clears exactly one more floor, taking any card set that floor offers.
-    private static void ClearNext(TowerRun run)
-    {
-        if (run.IsRewardPending) Check(run.ChooseOffer(run.Offers[0].Id), "finish pending card");
-        if (run.IsFloorCleared) Check(run.AdvanceFloor(), "advance to earn next floor");
-        Check(run.ClearFloor(), "clear floor fixture");
-    }
-    private static void Earn(TowerProgress progress, TowerRun run, int floors)
-    {
-        for (int i = 0; i < floors; i++) {
-            ClearNext(run);
-            Check(progress.RecordFloorClear(run) == 1, "one point for every newly cleared floor");
-        }
-    }
 
     public static void Register(Action<string, Action> test)
     {
@@ -45,41 +31,27 @@ public static class TowerMythTests
             Check(TowerMythCatalog.Synergies.Count == 10 && TowerMythCatalog.GetSynergy("missing") == null, "one synergy per mythology");
             Check(TowerMythCatalog.Get("missing") == null && TowerMythCatalog.Get(null) == null, "unknown lookup is safe");
         });
-        test("floor points are awarded once per cleared floor and survive saving", () => {
-            var progress = new TowerProgress(); var run = new TowerRun(37, 20, false);
-            Check(progress.RecordFloorClear(null) == 0 && progress.RecordFloorClear(run) == 0 && progress.Points == 0, "uncleared floors earn nothing");
-            ClearNext(run);
-            Check(progress.RecordFloorClear(run) == 1 && progress.Points == 1 && progress.RecordFloorClear(run) == 0, "clear awards exactly once");
+        test("gold adds up from pickups, is spent exactly, saturates and survives saving", () => {
+            var progress = new TowerProgress();
+            Check(progress.Gold == 0 && progress.AddGold(0) == 0 && progress.AddGold(-4) == 0 && progress.Gold == 0, "nothing or a negative amount adds nothing");
+            Check(progress.AddGold(7) == 7 && progress.AddGold(5) == 5 && progress.Gold == 12, "pickups add up");
+            Check(!progress.TrySpend(-1) && !progress.TrySpend(13) && progress.Gold == 12, "invalid spending leaves the balance");
+            Check(progress.TrySpend(5) && progress.Gold == 7, "exact spending");
             progress = TowerProgress.Load(progress.Save());
-            Check(progress.Points == 1 && progress.RecordFloorClear(run) == 0, "persisted receipt prevents duplicate award");
-            Earn(progress, run, 6); Check(progress.Points == 7, "later floors, including card floors, still earn points");
-            var newRun = new TowerRun(37, 20, false);
-            Check(newRun.RunId != run.RunId && progress.RecordFloorClear(newRun) == 0, "same seed starts independent account receipt");
-            Earn(progress, newRun, 2); Check(progress.Points == 9 && progress.RecordFloorClear(run) == 0, "new run earns without replaying old run");
-            progress = TowerProgress.Load(progress.Save());
-            Check(progress.Points == 9 && progress.RecordFloorClear(newRun) == 0 && progress.RecordFloorClear(run) == 0, "multiple run receipts survive saving");
+            Check(progress.Gold == 7 && progress.Save() == "3|7", "the balance persists");
+            Check(progress.TrySpend(7) && progress.Gold == 0 && !progress.TrySpend(1), "a wallet never goes negative");
+            var full = TowerProgress.Load("3|" + (Int32.MaxValue - 2));
+            Check(full.AddGold(10) == 2 && full.Gold == Int32.MaxValue, "the wallet saturates instead of overflowing");
         });
-        test("batched floor reconciliation awards every unrecorded floor exactly once including final floor", () => {
-            var progress = new TowerProgress(); var run = new TowerRun(91, 5, false);
-            for (int i = 0; i < 5; i++) ClearNext(run);
-            Check(run.ChooseOffer(run.Offers[0].Id) && run.IsComplete && progress.RecordFloorClear(run) == 5 && progress.Points == 5, "completed run credits all missed clears");
-            Check(progress.RecordFloorClear(run) == 0 && !run.ClearFloor() && progress.Points == 5, "completion cannot mint another clear");
-        });
-        test("points are spent exactly and never go negative", () => {
-            var progress = new TowerProgress(); var run = new TowerRun(61, 100, false); Earn(progress, run, 12);
-            Check(progress.Points == 12 && !progress.TrySpend(-1) && !progress.TrySpend(13) && progress.Points == 12, "invalid spending leaves points");
-            Check(progress.TrySpend(5) && progress.Points == 7 && progress.TrySpend(7) && progress.Points == 0 && !progress.TrySpend(1), "exact spending");
-            progress = TowerProgress.Load(progress.Save());
-            Check(progress.Points == 0 && progress.RecordFloorClear(run) == 0, "spent balance and receipts persist");
-        });
-        test("malformed saves recover an empty account and legacy saves keep points and receipts", () => {
-            foreach (string saved in new[] { null, "", "garbage", "3|99|", "2|-5|", "2|oops|", "1|7|eden|eden" })
-                Check(TowerProgress.Load(saved).Points == 0, "invalid saves recover an empty account");
-            var run = new TowerRun(12, 10, false); var progress = new TowerProgress(); Earn(progress, run, 3);
-            string receipt = run.RunId + ":3";
-            var legacy = TowerProgress.Load("1|7|olympus|eden,olympus|" + receipt);
-            Check(legacy.Points == 7 && legacy.RecordFloorClear(run) == 0, "mythology purchase saves keep their points and receipts");
-            Check(TowerProgress.Load(legacy.Save()).Points == 7 && legacy.Save().StartsWith("2|7|"), "legacy saves upgrade to the points format");
+        test("malformed saves recover an empty wallet and floor-point saves convert to gold", () => {
+            foreach (string saved in new[] { null, "", "garbage", "3|", "3|-5", "3|oops", "3|5|x", "4|9", "2|-5|", "2|oops|", "1|7|eden|eden" })
+                Check(TowerProgress.Load(saved).Gold == 0, "invalid saves recover an empty wallet: " + saved);
+            var run = new TowerRun(12, 10, false);
+            var points = TowerProgress.Load("2|7|" + run.RunId + ":3");
+            Check(points.Gold == 7 * TowerProgress.LegacyPointGold && points.Save() == "3|70", "floor points keep their buying power as gold");
+            var mythology = TowerProgress.Load("1|3|olympus|eden,olympus|" + run.RunId + ":3");
+            Check(mythology.Gold == 3 * TowerProgress.LegacyPointGold, "mythology purchase saves convert their points too");
+            Check(TowerProgress.Load("2|" + Int32.MaxValue + "|").Gold == Int32.MaxValue, "conversion saturates");
         });
     }
 }

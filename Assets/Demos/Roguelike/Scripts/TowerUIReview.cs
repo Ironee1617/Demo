@@ -91,7 +91,7 @@ namespace PrototypeLab.Roguelike
             game.hero.pos=new Vector2(TowerWorld.GateX(FloorType.Shop),TowerWorld.Ground);game.hero.root.transform.position=game.hero.pos;game.noticeTime=0;
             game.view.transform.position=new Vector3(19,0,-10);
             yield return Capture("branch-exits");
-            game.progress=TowerProgress.Load("2|30|");game.NextFloor(FloorType.Shop);Call("Update");game.noticeTime=0;
+            game.progress=TowerProgress.Load("3|300");game.NextFloor(FloorType.Shop);Call("Update");game.noticeTime=0;
             game.hero.pos=TowerWorld.FeaturePosition+Vector2.left*1.2f;game.hero.root.transform.position=game.hero.pos;game.view.transform.position=new Vector3(3,0,-10);
             yield return Capture("shop-floor");
             // The game's Update is paused during review, so toasts are aged by hand to their resting state.

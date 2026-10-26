@@ -7,14 +7,14 @@ using UnityEngine;
 
 namespace PrototypeLab.Roguelike
 {
-    // Explicit validation of the production myth screen, articulated atlas artwork and floor-point path.
+    // Explicit validation of the production myth screen, articulated atlas artwork, floor caches and gold shop path.
     public sealed class TowerMythSmokeDriver : MonoBehaviour
     {
         [Serializable] private sealed class MythReport
         {
             public string mode = "towerMythSmoke", finishedUtc;
-            public bool success, openingRecruit, allMythsOffered, floorPoints, pointReceipts, shopPurchase, savedDataUntouched;
-            public int atlases, companions, portraits, stateFrames, visibleStateFrames, gameplayClears;
+            public bool success, openingRecruit, allMythsOffered, floorCaches, goldReceipts, shopPurchase, savedDataUntouched;
+            public int atlases, companions, portraits, stateFrames, visibleStateFrames, gameplayClears, cachedFloors;
             public List<string> checks = new List<string>(), screenshots = new List<string>(), errors = new List<string>();
         }
         private const string ProgressKey = "Tower.MythProgress.v1";
@@ -82,26 +82,32 @@ namespace PrototypeLab.Roguelike
             Require(report.allMythsOffered, "Opening recruits did not span the mythologies.");
             game.SelectOffer(game.run.Offers[0].Id); Require(game.run.Companions.Count == 1 && !game.run.IsRewardPending, "The opening recruit did not join.");
             for (int i = 0; i < 2; i++) { ClearByGameplay(); if (i == 0) NextFloor(); }
-            var creditedRun = game.run;
+            // Gold only comes out of caches; the balance survives a save round trip.
+            game.progress.AddGold(37);
             game.progress = TowerProgress.Load(game.progress.Save());
-            report.pointReceipts = game.progress.Points == 2 && game.progress.RecordFloorClear(creditedRun) == 0;
-            Require(report.pointReceipts, "Reloading account state awarded the same run again.");
+            report.goldReceipts = game.progress.Gold == 37;
+            Require(report.goldReceipts, "Reloading the account did not keep its gold.");
             game.NewRun(15); game.intro = false; game.SelectOffer(game.run.Offers[0].Id);
             for (int i = 0; i < 3; i++) { ClearByGameplay(); if (i < 2) NextFloor(); }
-            report.floorPoints = game.progress.Points == 5 && report.gameplayClears == 5;
-            Require(report.floorPoints, "Five actual floor-clear updates did not award exactly five points.");
-            yield return Capture("five-floor-points");
-            // A shop floor spends the same points: it clears on its first update and opens the stall.
+            report.floorCaches = game.progress.Gold == 37 && report.gameplayClears == 5 && report.cachedFloors == 5;
+            Require(report.floorCaches, "Five production floors did not each place caches, or a clear paid gold by itself.");
+            yield return Capture("five-floor-caches");
+            // A shop floor clears on its first update and sells for gold.
             game.NewRun(16); game.intro = false; game.SelectOffer(game.run.Offers[0].Id);
+            // Respawning the floor in place keeps the first floor's monsters, which a real stairway never carries over.
+            foreach (var enemy in game.enemies) if (enemy.root) Destroy(enemy.root);
+            game.enemies.Clear(); game.DropPendingSpawns();
             typeof(TowerRun).GetProperty("FloorType").SetValue(game.run, FloorType.Shop); Call("SpawnFloor");
             Require(game.enemies.Count == 0, "A shop floor spawned monsters."); Call("Update");
-            Require(game.run.IsFloorCleared && !game.shopOpen && game.progress.Points == 6, "The shop floor did not clear with its point or opened by itself.");
+            Require(game.run.IsFloorCleared && !game.shopOpen && game.progress.Gold == 37, "The shop floor did not clear, paid gold by itself or opened by itself.");
             Require(!game.InteractMerchant() && !game.shopOpen, "The stall opened from across the floor.");
             game.hero.pos = TowerWorld.FeaturePosition; game.hero.root.transform.position = game.hero.pos;
             Require(game.InteractMerchant() && game.shopOpen, "Walking up to the merchant did not open the stall.");
             yield return Capture("shop");
-            game.hero.hp = game.hero.maxHp * .4f; int points = game.progress.Points;
-            Require(game.BuyShopItem(ShopItem.Heal) && game.progress.Points == points - TowerRun.HealPrice && game.hero.hp > game.hero.maxHp * .4f && !game.shopOpen, "A shop heal did not spend points, heal and close the stall.");
+            game.hero.hp = game.hero.maxHp * .4f; int gold = game.progress.Gold; float wounded = game.hero.hp;
+            bool bought = game.BuyShopItem(ShopItem.Heal);
+            Require(bought && game.progress.Gold == gold - TowerRun.HealPrice && game.hero.hp > wounded && !game.shopOpen,
+                "A shop heal did not spend gold, heal and close the stall: bought=" + bought + " gold " + gold + "->" + game.progress.Gold + " hp " + wounded + "->" + game.hero.hp + "/" + game.PlayerMaxHealth + " open=" + game.shopOpen + " traded=" + game.run.ShopTraded + " cleared=" + game.run.IsFloorCleared + " type=" + game.run.FloorType);
             Require(!game.InteractMerchant() && !game.shopOpen && game.run.ShopTraded && game.ToastCount > 0, "The merchant traded twice or did not explain why.");
             report.shopPurchase = true;
             report.savedDataUntouched = PlayerPrefs.GetString(ProgressKey, "") == originalSaved;
@@ -110,19 +116,22 @@ namespace PrototypeLab.Roguelike
         }
         private void ClearByGameplay()
         {
-            Require(!game.SmokeControlled && game.SuppressProgressPersistence && !game.run.IsFloorCleared, "Point fixture must use normal reward logic with disk persistence suppressed.");
+            Require(!game.SmokeControlled && game.SuppressProgressPersistence && !game.run.IsFloorCleared, "Floor fixture must use normal reward logic with disk persistence suppressed.");
             game.intro = game.menu = game.party = game.help = false;
             Call("ResetEnemyCombat");
             Require(game.enemies.Count > 0, "Production floor spawned no enemies.");
+            Require(game.caches.Count >= TowerLoot.MinCaches && game.caches.Count <= TowerLoot.MaxCaches, "A production floor did not place its breakable caches."); report.cachedFloors++;
             for (int i = game.enemies.Count - 1; i > 0; i--) { if (game.enemies[i].root) Destroy(game.enemies[i].root); game.enemies.RemoveAt(i); }
+            // Long floors queue the packs further ahead; the fixture's last enemy stands for the whole floor.
+            game.DropPendingSpawns();
             var target = game.enemies[0]; target.hp = 1; target.airborne = false; target.stunTime = target.cooldown = 999;
             game.hero.facing = 1; target.pos = game.hero.pos + Vector2.right; target.root.transform.position = target.pos;
-            int before = game.progress.Points;
+            int before = game.progress.Gold;
             Call("PlayerSlash"); Require(game.enemies.Count == 0, "Actual player slash did not kill the fixture's final enemy.");
             Call("Update");
-            Require(game.run.IsFloorCleared && game.progress.Points == before + 1, "Production clear path failed to award one point.");
-            Call("Update"); Call("Update"); Require(game.progress.Points == before + 1, "A cleared floor awarded duplicate points.");
-            Require(PlayerPrefs.GetString(ProgressKey, "") == originalSaved, "Point clear wrote test progression to PlayerPrefs.");
+            Require(game.run.IsFloorCleared && game.progress.Gold == before, "The production clear path paid gold without a cache.");
+            Call("Update"); Call("Update"); Require(game.progress.Gold == before, "A cleared floor paid gold by itself.");
+            Require(PlayerPrefs.GetString(ProgressKey, "") == originalSaved, "A floor clear wrote test progression to PlayerPrefs.");
             report.gameplayClears++;
         }
         private void NextFloor()

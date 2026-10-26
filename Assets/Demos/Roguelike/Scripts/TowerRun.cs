@@ -327,7 +327,8 @@ namespace PrototypeLab.Roguelike
     public sealed class TowerRun
     {
         public const int MaxCompanions = 3, OfferSlots = 3, DefaultMaxFloor = 90, RewardInterval = 5;
-        public const int AugmentPrice = 5, HealPrice = 2, VitalityPrice = 4;
+        // Gold prices; a floor's breakable caches scatter about fifteen gold.
+        public const int AugmentPrice = 50, HealPrice = 20, VitalityPrice = 40;
         public const float RestHealFraction = .5f, ShopHealFraction = .35f, VitalityHealth = 15;
         // A free climb opens with one recruit; these floors grant the second and third. A chapter past them
         // drafts that many companions before its first fight instead.
@@ -514,15 +515,15 @@ namespace PrototypeLab.Roguelike
             return true;
         }
         public ShopOffer GetShopOffer(ShopItem item) { return shop.Find(o => o.Item == item); }
-        public bool CanBuy(ShopItem item, int points)
+        public bool CanBuy(ShopItem item, int gold)
         {
             var offer = GetShopOffer(item);
-            return FloorType == FloorType.Shop && IsFloorCleared && !IsRewardPending && !ShopTraded && offer != null && points >= offer.Price;
+            return FloorType == FloorType.Shop && IsFloorCleared && !IsRewardPending && !ShopTraded && offer != null && gold >= offer.Price;
         }
-        // Prices are paid with the floor points that previously unlocked mythologies.
+        // Prices are paid with the gold picked up from breakable caches.
         public bool Buy(ShopItem item, TowerProgress wallet)
         {
-            if (wallet == null || !CanBuy(item, wallet.Points)) return false;
+            if (wallet == null || !CanBuy(item, wallet.Gold)) return false;
             var offer = GetShopOffer(item);
             if (!wallet.TrySpend(offer.Price)) return false;
             ShopTraded = true; ShopPurchases++;

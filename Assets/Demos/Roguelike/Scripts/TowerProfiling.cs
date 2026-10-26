@@ -24,10 +24,11 @@ namespace PrototypeLab.Roguelike
         internal static readonly ProfilerMarker SetTheme = new ProfilerMarker("Tower.SetTheme");
         internal static readonly ProfilerMarker Actors = new ProfilerMarker("Tower.Actors");
         internal static readonly ProfilerMarker Party = new ProfilerMarker("Tower.Party");
+        internal static readonly ProfilerMarker Loot = new ProfilerMarker("Tower.Loot");
         internal static readonly string[] Names =
         {
             "Tower.Enemies", "Tower.Allies", "Tower.Skills", "Tower.Shots", "Tower.Effects", "Tower.World", "Tower.HUD",
-            "Tower.SpawnFloor", "Tower.SetTheme", "Tower.Generate", "Tower.Terrain", "Tower.Backdrop", "Tower.Gate", "Tower.Music", "Tower.Actors", "Tower.Party"
+            "Tower.SpawnFloor", "Tower.SetTheme", "Tower.Generate", "Tower.Terrain", "Tower.Backdrop", "Tower.Gate", "Tower.Music", "Tower.Actors", "Tower.Party", "Tower.Loot"
         };
     }
 }

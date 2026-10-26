@@ -16,7 +16,7 @@ namespace PrototypeLab.Roguelike
         private void DrawTitle()
         {
             MenuBackdrop("서약의 탑","TOWERBOUND  ·  신화를 잃은 신들의 탑  ·  90 FLOORS");
-            Label(new Rect(1150,72,180,47),progress.Points+" P",28,brass,TextAnchor.MiddleRight,true);
+            DrawGold(new Rect(1050,72,280,47),28,brass,"");
             if(Button(new Rect(1364,76,172,44),"도움말",muted))help=true;
             Panel(new Rect(64,176,560,516),brass);
             Label(new Rect(96,200,500,36),"이야기",24,paper,TextAnchor.MiddleLeft,true);

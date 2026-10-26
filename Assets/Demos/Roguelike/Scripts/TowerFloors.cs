@@ -22,7 +22,7 @@ namespace PrototypeLab.Roguelike
         internal static string FloorTypeSummary(FloorType type)
         {
             return type==FloorType.Elite?"강한 적 · 클리어 시 증강":type==FloorType.Rest?"생명력 "+Mathf.RoundToInt(TowerRun.RestHealFraction*100)+"% 회복":
-                type==FloorType.Shop?"포인트로 증강·회복 구매":"다음 층";
+                type==FloorType.Shop?"골드로 증강·회복 구매":"다음 층";
         }
         private void MakeElite(Fighter actor)
         {
@@ -57,7 +57,7 @@ namespace PrototypeLab.Roguelike
             var offer=run.GetShopOffer(item);
             if(run.ShopTraded){Toast("거래 종료","이 상점에서는 이미 거래했습니다.",muted);return false;}
             if(item==ShopItem.Heal&&hero.hp>=PlayerMaxHealth-.5f){Toast("구매할 수 없음","생명력이 이미 가득합니다.",muted);return false;}
-            if(offer!=null&&progress.Points<offer.Price){Toast("포인트 부족",offer.Price+" P가 필요합니다. 보유 "+progress.Points+" P",crimson);return false;}
+            if(offer!=null&&progress.Gold<offer.Price){Toast("골드 부족",offer.Price+" G가 필요합니다. 보유 "+progress.Gold+" G",crimson);return false;}
             if(!run.Buy(item,progress))return false;
             SaveProgress();Sound(chimeSound,.6f);shopOpen=false;
             if(item==ShopItem.Heal)
@@ -65,14 +65,14 @@ namespace PrototypeLab.Roguelike
                 float healed=Mathf.Min(PlayerMaxHealth-hero.hp,PlayerMaxHealth*TowerRun.ShopHealFraction);hero.hp+=healed;
                 FloatText(hero.pos+Vector2.up*2,"+"+Mathf.CeilToInt(healed),TowerWorld.Teal);
                 if(vfx!=null)vfx.Cast(SkillEffect.HealPulse,hero.pos+Vector2.up,1.8f,TowerWorld.Teal);
-                Toast("구매 완료  ·  "+offer.Name,"생명력 "+Mathf.CeilToInt(healed)+" 회복  ·  남은 "+progress.Points+" P",TowerWorld.Teal);
+                Toast("구매 완료  ·  "+offer.Name,"생명력 "+Mathf.CeilToInt(healed)+" 회복  ·  남은 "+progress.Gold+" G",TowerWorld.Teal);
             }
             else if(item==ShopItem.Vitality)
             {
                 ReconcileLoadout();if(vfx!=null)vfx.Cast(SkillEffect.ShieldPulse,hero.pos+Vector2.up,1.8f,TowerWorld.Gold);
-                Toast("구매 완료  ·  "+offer.Name,"최대 생명력 +"+Mathf.RoundToInt(TowerRun.VitalityHealth)+"  ·  남은 "+progress.Points+" P",gold);
+                Toast("구매 완료  ·  "+offer.Name,"최대 생명력 +"+Mathf.RoundToInt(TowerRun.VitalityHealth)+"  ·  남은 "+progress.Gold+" G",gold);
             }
-            else Toast("구매 완료  ·  "+offer.Name,"증강 카드를 고르세요  ·  남은 "+progress.Points+" P",silver);
+            else Toast("구매 완료  ·  "+offer.Name,"증강 카드를 고르세요  ·  남은 "+progress.Gold+" G",silver);
             return true;
         }
     }
