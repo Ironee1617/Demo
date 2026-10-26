@@ -666,6 +666,78 @@ namespace PrototypeLab.Roguelike
             Emitter(stone, Emit.Embers, 60, .35f, new Color(1, .55f, .15f)); Emitter(heat, Emit.Smoke, 18, .4f, new Color(.3f, .22f, .2f, .5f));
         }
 
+        // ---------------------------------------------------------------- floor traps
+
+        /// <summary>One tongue of a floor vent's flame column; the game calls it every few frames while the vent erupts.</summary>
+        public void VentFlame(Vector2 basePos, float height)
+        {
+            EnsureTextures();
+            var tongue = Flame(basePos + new Vector2(Range(-.2f, .2f), .15f), Range(.75f, 1.05f), new Vector2(Range(-.25f, .25f), height * Range(2.6f, 3.2f)), Range(.32f, .42f), 126);
+            tongue.drag = .4f; tongue.endScale = 1.35f;
+            var core = Flame(basePos + new Vector2(Range(-.1f, .1f), .1f), Range(.45f, .6f), new Vector2(0, height * Range(1.8f, 2.2f)), Range(.22f, .3f), 127);
+            core.color = new Color(1, .97f, .8f, .95f); core.drag = .4f;
+            if (Chance(.6f)) Spark(basePos + new Vector2(Range(-.25f, .25f), Range(.3f, height)), new Vector2(Range(-1.2f, 1.2f), Range(3, 6.5f)), Chance(.3f) ? Warm : FireLight, Range(.12f, .22f), Range(.3f, .5f), -1, 1.5f).flicker = .3f;
+            if (Chance(.3f)) { var puff = Puff(basePos + new Vector2(Range(-.2f, .2f), height * Range(.75f, 1)), Range(.45f, .75f), Soot, new Vector2(Range(-.4f, .4f), Range(1, 1.8f)), Range(.6f, .9f), 112); puff.gravity = -.4f; }
+        }
+
+        /// <summary>Embers and smoke spilling from a vent that is about to erupt.</summary>
+        public void VentWarning(Vector2 basePos)
+        {
+            EnsureTextures();
+            Spark(basePos + new Vector2(Range(-.35f, .35f), .05f), new Vector2(Range(-.6f, .6f), Range(1.4f, 3.2f)), FireLight, Range(.1f, .18f), Range(.25f, .45f), 1, 1.5f).flicker = .4f;
+            if (Chance(.3f)) Puff(basePos + new Vector2(Range(-.3f, .3f), .1f), Range(.25f, .4f), Soot, new Vector2(Range(-.2f, .2f), Range(.4f, .9f)), Range(.45f, .65f), 112);
+        }
+
+        /// <summary>Grit trickling down ahead of a falling rock.</summary>
+        public void RockTrickle(Vector2 pos)
+        {
+            EnsureTextures();
+            var grit = Spawn("Falling grit", rock[random.Next(rock.Length)], pos + new Vector2(Range(-.45f, .45f), 0), Range(.05f, .11f), Color.white, .8f, false, 119);
+            grit.velocity = new Vector2(Range(-.2f, .2f), -Range(1.5f, 3.5f)); grit.gravity = 14; grit.spin = Range(-400, 400); grit.fadePower = .3f;
+        }
+
+        /// <summary>A falling rock bursting on the ground.</summary>
+        public void RockImpact(Vector2 pos, Color dust)
+        {
+            EnsureTextures();
+            for (int i = 0; i < 9; i++)
+            {
+                var chip = Spawn("Rock chip", rock[i % rock.Length], pos + new Vector2(Range(-.3f, .3f), .15f), Range(.12f, .28f), Color.white, Range(.6f, .95f), false, 128);
+                chip.velocity = new Vector2(Range(-4.5f, 4.5f), Range(2.5f, 6.5f)); chip.gravity = 16; chip.spin = Range(-600, 600); chip.fadePower = .5f;
+            }
+            for (int i = 0; i < 6; i++)
+            {
+                var puff = Puff(pos + new Vector2(Range(-.45f, .45f), .15f), Range(.5f, .85f), new Color(dust.r, dust.g, dust.b, .5f), new Vector2(Range(-2.4f, 2.4f), Range(.3f, 1.2f)), Range(.5f, .8f), 118);
+                puff.gravity = -.3f; puff.endScale = 2.2f;
+            }
+            GroundWave(pos + Vector2.up * .05f, 2.4f, new Color(1, .95f, .85f, .5f), .3f);
+        }
+
+        /// <summary>A launch pad firing the hero upward.</summary>
+        public void PadLaunch(Vector2 pos, Color tint)
+        {
+            EnsureTextures();
+            var column = Spawn("Launch column", streak, pos + Vector2.up * 1.2f, 2.6f, Alpha(tint, .7f), .28f, true, 129); column.angle = 90; column.scale.y *= .45f; column.startScale = .4f; column.endScale = 1.1f; column.ease = 3; column.fadePower = 1.5f;
+            GroundWave(pos + Vector2.up * .2f, 2, Alpha(tint, .85f), .3f);
+            Flash(pos + Vector2.up * .3f, 1.4f, Alpha(Color.Lerp(tint, Color.white, .5f), .8f), .14f);
+            for (int i = 0; i < 8; i++) Spark(pos + new Vector2(Range(-.4f, .4f), .25f), new Vector2(Range(-1.5f, 1.5f), Range(4, 8)), i % 2 == 0 ? Color.white : tint, Range(.15f, .28f), Range(.25f, .4f), 6, 2);
+            Dust(pos, 0, .6f);
+        }
+
+        /// <summary>A stone totem shattering.</summary>
+        public void TotemBreak(Vector2 pos, Color dust, Color gem)
+        {
+            EnsureTextures();
+            Flash(pos + Vector2.up * .9f, 2.2f, Alpha(gem, .85f), .18f);
+            Sparkles(pos + Vector2.up * 1.1f, 10, .3f, gem);
+            for (int i = 0; i < 12; i++)
+            {
+                var chip = Spawn("Totem chip", rock[i % rock.Length], pos + new Vector2(Range(-.3f, .3f), Range(.3f, 1.4f)), Range(.12f, .3f), Color.white, Range(.7f, 1.1f), false, 128);
+                chip.velocity = new Vector2(Range(-4, 4), Range(1.5f, 6)); chip.gravity = 15; chip.spin = Range(-500, 500); chip.fadePower = .5f;
+            }
+            for (int i = 0; i < 5; i++) { var puff = Puff(pos + new Vector2(Range(-.3f, .3f), Range(.3f, 1.2f)), Range(.5f, .9f), new Color(dust.r, dust.g, dust.b, .45f), new Vector2(Range(-1.5f, 1.5f), Range(.3f, 1.2f)), Range(.6f, .9f), 118); puff.endScale = 2; }
+        }
+
         public void Afterimage(Transform actor, float seconds = .25f)
         {
             if (!actor) return;

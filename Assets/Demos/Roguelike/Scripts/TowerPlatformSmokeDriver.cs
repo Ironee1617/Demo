@@ -177,7 +177,8 @@ namespace PrototypeLab.Roguelike
         private IEnumerator WalkHills()
         {
             Place(TowerWorld.Left + .8f, world.GroundAt(TowerWorld.Left + .8f), -1);
-            float until = game.elapsed + 12, climbed = 0, previousY = game.hero.pos.y;
+            // Walking pace with room for the hills, over however long the floor runs.
+            float until = game.elapsed + (TowerWorld.Right - TowerWorld.Left) / game.PlayerMoveSpeed * 1.4f + 2, climbed = 0, previousY = game.hero.pos.y;
             game.MoveOverride = 1;
             while (game.hero.pos.x < TowerWorld.Right - 1)
             {

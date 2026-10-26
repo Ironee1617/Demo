@@ -143,7 +143,7 @@ namespace PrototypeLab.Roguelike
             BeginFloorRecord();
             using(TowerProfiling.SetTheme.Auto()){world.SetTheme(run.Theme.Id,run.Floor,seed);world.SetFloorFeature(run.FloorType,run.IsBranchFloor);}
             using(TowerProfiling.Music.Auto())music.PlayTheme(run.Theme.Id);
-            cameraCeiling=Mathf.Max(1.8f,world.HighestPlatform+4);
+            cameraCeiling=Mathf.Max(1.8f,world.HighestPlatform+4);BuildTraps();
             hero.pos=new Vector2(-12,TowerWorld.Ground);hero.velocityY=0;hero.dropTime=0;hero.facing=1;hero.grounded=true;hero.support=-1;hero.lastX=-12;
             hero.root.transform.position=hero.pos;previousHeroPosition=hero.pos;view.transform.position=new Vector3(-7,0,-10);appliedShake=Vector3.zero;
             foreach(var s in shots)Destroy(s.root);shots.Clear();ClearFloorSkillEffects();shopOpen=false;
@@ -167,43 +167,6 @@ namespace PrototypeLab.Roguelike
             if(elite)Notice("엘리트 층  ·  클리어하면 증강",3);
             else if(boss!=null&&IsFinalBoss(boss))Notice(boss.monster.Name+" 강림  ·  지구를 삼킨 자",4);
             else Notice(boss!=null?(boss.title??boss.monster.Name)+" 출현  ·  "+SignatureName(run.Theme.Id):"",boss!=null?3:0);
-        }
-        private void SpawnEnemies(int count,bool elite,bool bossFloor,List<TowerMonsterDefinition> roster)
-        {
-            float spacing=Mathf.Min(4.2f,(bossFloor?18f:25f)/Mathf.Max(1,count-1));
-            for(int i=0;i<count;i++)
-            {
-                var definition=roster[i%roster.Count];float x=-1+i*spacing;
-                var e=Spawn(definition.Name,definition.Kind,true,new Vector2(x,world.GroundAt(x)));
-                e.monster=definition;e.id=definition.Id;e.theme=run.Theme.Id;
-                e.art.SetThemeMonster(e.theme,definition.Variant,false);
-                ConfigureEnemy(e,definition.Kind,i);if(elite)MakeElite(e);enemies.Add(e);
-            }
-            if(run.Floor>=2)
-            {
-                // The flyer perches on the stacked shelf nearest the floor's tier height, preferring the room's middle.
-                float tier=2.4f+(run.Floor-2)%3*1.4f;
-                var perch=world.Ledges[0];float nearest=float.PositiveInfinity;
-                foreach(var ledge in world.Ledges)
-                {
-                    if(ledge.y<2)continue;
-                    float distance=Mathf.Abs(ledge.y-tier)*4+Mathf.Abs(ledge.x-12)*.1f;
-                    if(distance<nearest){perch=ledge;nearest=distance;}
-                }
-                var definition=run.Theme.Monsters[run.Theme.AirborneVariant];var flying=Spawn(definition.Name,3,true,new Vector2(perch.x,perch.y+.8f));
-                flying.monster=definition;flying.id=definition.Id;flying.theme=run.Theme.Id;flying.art.SetThemeMonster(flying.theme,definition.Variant,false);
-                ConfigureEnemy(flying,3,count);if(elite)MakeElite(flying);enemies.Add(flying);
-            }
-            if(bossFloor)
-            {
-                // A chapter's last floor holds its climax: the evil god in the abyss, an awakened guardian elsewhere.
-                bool climax=run.IsCampaign&&run.Floor==run.MaxFloor,final=climax&&run.Theme.FinalBoss!=null;
-                var definition=final?run.Theme.FinalBoss:run.Theme.Boss;var boss=Spawn(definition.Name,4,true,new Vector2(22,world.GroundAt(22)));
-                boss.monster=definition;boss.id=definition.Id;boss.theme=run.Theme.Id;boss.art.SetThemeMonster(boss.theme,final?TowerThemeCatalog.FinalVariant:0,true);
-                ConfigureBoss(boss,run.Floor);
-                if(climax&&!final){boss.title=definition.Name+" · 각성";boss.hp=boss.maxHp*=AwakenedBossHealth;}
-                enemies.Add(boss);
-            }
         }
         internal void StartClimb()
         {
@@ -271,14 +234,14 @@ namespace PrototypeLab.Roguelike
 
             bool wasAirborne=!hero.grounded;float fallSpeed=hero.velocityY;
             StepGravity(hero,dt,drop);hero.root.transform.position=hero.pos;
-            LandingFeedback(wasAirborne,fallSpeed);
+            LandingFeedback(wasAirborne,fallSpeed);TickTraps(dt);
             if(attack&&slashCooldown<=0&&hero.castRemaining<=0&&(dashTime<=0||attackPressed&&dashTime<=.12f))StartPlayerAttack();
             TickPlayerAttack(dt);
             hero.hurt=Mathf.Max(0,hero.hurt-dt);
             float actualHeroSpeed=dt>0?(hero.pos.x-previousHeroPosition.x)/dt:0;
             hero.art.SetLocomotion(hero.grounded,hero.velocityY,dashTime>0,Mathf.Abs(actualHeroSpeed),actualHeroSpeed);
             hero.art.SetPose(Mathf.Abs(actualHeroSpeed)>.08f,attackTimer>0,hero.hurt>0,hero.facing,dt);
-            using(TowerProfiling.Enemies.Auto())foreach(var enemy in enemies)TickEnemy(enemy,dt);
+            using(TowerProfiling.Enemies.Auto()){TickSpawnQueue();foreach(var enemy in enemies)TickEnemy(enemy,dt);}
             if(hero.hp<=0){TickEffects(dt);return;}
             using(TowerProfiling.Allies.Auto())TickAllies(dt);
             using(TowerProfiling.Skills.Auto()){TickSkills(dt);TickOath(dt);}
@@ -286,7 +249,7 @@ namespace PrototypeLab.Roguelike
             using(TowerProfiling.Effects.Auto())TickEffects(dt);
             if(hero.hp<=0)return;
             if(village)TickVillage(dt);
-            else if(enemies.Count==0&&!run.IsFloorCleared)
+            else if(RemainingEnemies==0&&!run.IsFloorCleared)
             {
                 run.ClearFloor();ClearOathEffects();foreach(var shot in shots)if(shot.root)Destroy(shot.root);shots.Clear();RecordFloorResult();int earned=SmokeControlled?0:progress.RecordFloorClear(run);if(earned>0)SaveProgress();CancelPendingSkills();hero.hp=Mathf.Min(PlayerMaxHealth,hero.hp+18);Sound(chimeSound,.8f);
                 if(run.FloorType==FloorType.Rest||run.FloorType==FloorType.Shop)OnSpecialFloorCleared();
@@ -297,7 +260,7 @@ namespace PrototypeLab.Roguelike
             {if(NearMerchant)InteractMerchant();else{var gate=NearestGate();if(gate.HasValue)NextFloor(gate.Value);}}
             using(TowerProfiling.World.Auto())world.Tick(dt,village||run.IsFloorCleared&&!run.IsRewardPending);
             if(move!=0)cameraLead=Mathf.MoveTowards(cameraLead,move*1.6f,frame*4);
-            float cameraX=Mathf.Clamp(hero.pos.x+cameraLead,-7.5f,21.5f);
+            float cameraX=Mathf.Clamp(hero.pos.x+cameraLead,-7.5f,TowerWorld.Right-7.5f);
             Vector3 destination=new Vector3(cameraX,Mathf.Clamp(hero.pos.y+1.5f,0,cameraCeiling),-10);
             Vector3 settled=Vector3.Lerp(view.transform.position-appliedShake,destination,1-Mathf.Exp(-frame*5));
             appliedShake=NextShake(frame);
@@ -335,6 +298,7 @@ namespace PrototypeLab.Roguelike
             float push=hero.facing*(heavy?.9f:.35f);
             Vector2 oathTarget=origin;float nearest=float.PositiveInfinity;
             for(int i=enemies.Count-1;i>=0;i--){var e=enemies[i];if(CanTarget(e,run.Player)&&(e.pos.x-hero.pos.x)*hero.facing>-.4f&&Mathf.Abs(e.pos.x-hero.pos.x)<reach&&Mathf.Abs((e.pos.y+.85f)-(hero.pos.y+.9f))<1.9f){float distance=(e.pos-hero.pos).sqrMagnitude;if(distance<nearest){nearest=distance;oathTarget=e.pos;}StrikeEnemy(e,damage,run.Player,push);connected=true;}}
+            if(StrikeTraps(reach,heavy))connected=true;
             if(village&&StrikeDummies(reach,damage,heavy))connected=true;
             if(connected)
             {

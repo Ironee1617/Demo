@@ -11,7 +11,7 @@ namespace PrototypeLab.Roguelike
         private readonly List<Vector3> flickerScales=new List<Vector3>();
         // Fifth floors replace the plain exit with three doors; the elite door takes the exit's place.
         public static readonly FloorType[] BranchGates={FloorType.Rest,FloorType.Shop,FloorType.Elite};
-        public static float GateX(FloorType type){return type==FloorType.Rest?17f:type==FloorType.Shop?21.5f:ExitX;}
+        public static float GateX(FloorType type){return type==FloorType.Rest?ExitX-9:type==FloorType.Shop?ExitX-4.5f:ExitX;}
         public static Color GateColor(FloorType type)
         {return type==FloorType.Elite?new Color(.93f,.36f,.33f):type==FloorType.Shop?new Color(.96f,.78f,.36f):type==FloorType.Rest?new Color(.45f,.9f,.55f):Teal;}
         public static readonly Vector2 FeaturePosition=new Vector2(5,Ground);

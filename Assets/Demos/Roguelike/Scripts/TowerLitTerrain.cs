@@ -75,7 +75,7 @@ namespace PrototypeLab.Roguelike
             // Body: world-aligned tiles from just under the surface band down to the bedrock line.
             float bottom=openBelow?Ground-1.6f:Ground-6f;
             var body=new StripBuilder();
-            for(float x=-26;x<=42+.001f;x+=StripStep)
+            for(float x=DrawLeft;x<=DrawRight+.001f;x+=StripStep)
             {
                 float h=GroundAt(x),top=h-TopBelow+BodyOverlap;
                 byte fade=openBelow?(byte)0:(byte)255;
@@ -85,7 +85,7 @@ namespace PrototypeLab.Roguelike
             StripObject(theme+" ground body",body,set.body,-21);
             // Surface band: sheared along the hill profile so its walkable edge sits exactly on the collision line.
             var band=new StripBuilder();
-            for(float x=-26;x<=42+.001f;x+=StripStep)
+            for(float x=DrawLeft;x<=DrawRight+.001f;x+=StripStep)
             {
                 float h=GroundAt(x),u=x/TopTile;
                 band.Column(new Vector3(x,h+TopAbove,0),new Vector2(u,1),new Color32(255,255,255,255),new Vector3(x,h-TopBelow,0),new Vector2(u,0),new Color32(255,255,255,255));
@@ -121,10 +121,10 @@ namespace PrototypeLab.Roguelike
             var set=litChecked&&litTheme==theme?litSet:null;
             if(set==null||set.props==null)return false;
             int cells=Mathf.Max(1,set.props.width/set.props.height);float ppu=set.props.height/PropCell;
-            for(int i=0;i<19;i++)
+            for(int i=0;-23+i*3.7f<DrawRight+2;i++)
             {
                 float x=-23+i*3.7f+Range(-.5f,.5f);
-                if(Mathf.Abs(x-ExitX)<1.8f||Mathf.Abs(x+12)<1.2f)continue;
+                if(Mathf.Abs(x-ExitX)<1.8f||Mathf.Abs(x+12)<1.2f||OnHazard(x))continue;
                 string key="lit prop "+theme+(i%cells);Sprite sprite;
                 if(!themeSprites.TryGetValue(key,out sprite)||sprite==null||sprite.texture!=set.props)
                 {

@@ -125,7 +125,7 @@ namespace PrototypeLab.Roguelike
                     }
                 }
                 Require(regular == TowerDifficulty.RegularCount(floor) && regular >= previousRegular, "Actual regular floor counts decreased or did not match difficulty.");
-                Require(flyers==(floor>=2?1:0), "Flying monster count depended on the party or floor cadence.");
+                Require(flyers==TowerDifficulty.FlyerCount(floor), "Flying monster count depended on the party or floor cadence.");
                 Require(bosses == (floor % 5 == 0 ? 1 : 0), "Boss cadence did not match multiples of five: " + floor);
                 report.sampledFloors++; report.sampledBosses += bosses; report.floorSamples.Add(floor + ": regular=" + regular + ", flying="+flyers+", boss=" + bosses + ", total=" + game.enemies.Count);
                 previousRegular = regular; yield return null;

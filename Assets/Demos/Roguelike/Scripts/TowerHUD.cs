@@ -137,7 +137,8 @@ namespace PrototypeLab.Roguelike
             }
             if(Button(new Rect(1280,28,132,42),"동료",silver))OpenParty("player");Keycap(new Rect(1375,39,28,20),"Tab");
             if(Button(new Rect(1424,28,112,42),"메뉴",muted))menu=!menu;Keycap(new Rect(1499,39,28,20),"Esc");
-            Label(new Rect(1300,84,236,24),run.IsFloorCleared?"층 클리어":"남은 적  "+enemies.Count,15,run.IsFloorCleared?brass:muted,TextAnchor.MiddleRight);
+            Label(new Rect(1300,84,236,24),run.IsFloorCleared?"층 클리어":"남은 적  "+RemainingEnemies,15,run.IsFloorCleared?brass:muted,TextAnchor.MiddleRight);
+            if(!village&&TowerWorld.Right>TowerTerrainGenerator.CompactExitX+TowerTerrainGenerator.ExitMargin)DrawFloorTrack(new Rect(1300,138,236,6));
             var boss=enemies.Find(e=>e.isBoss&&e.hp>0);
             if(boss!=null)
             {

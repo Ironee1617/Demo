@@ -14,13 +14,13 @@ namespace PrototypeLab.Roguelike
             public BossPattern pattern;
             public BossStage stage;
             public int first, cycle, step, releases;
-            public bool enraged, final;
+            public bool enraged, final, engaged;
             public float clock, nextStep, jumpTime, lastRelease = -1;
             public Vector2 jumpFrom, jumpTo;
             public Transform shadow;
         }
         private readonly Dictionary<Fighter, BossState> bossCombat = new Dictionary<Fighter, BossState>();
-        internal const float BossEnrageThreshold = .5f, BossEnragedCooldown = .75f;
+        internal const float BossEnrageThreshold = .5f, BossEnragedCooldown = .75f, BossWakeRange = 17;
 
         private void ConfigureBoss(Fighter actor, int floor)
         {
@@ -239,8 +239,10 @@ namespace PrototypeLab.Roguelike
             {
                 float dx = hero.pos.x - actor.pos.x;
                 actor.facing = dx >= 0 ? 1 : -1;
+                // On the long floor the boss holds its stretch by the exit until the hero arrives or strikes it.
+                if (!state.engaged && (Mathf.Abs(dx) < BossWakeRange || actor.hp < actor.maxHp)) state.engaged = true;
                 float speed = 1.25f * actor.moveScale * (actor.slowTime > 0 ? .5f : 1) * (state.enraged ? 1.2f : 1);
-                if (Mathf.Abs(dx) > 6.6f)
+                if (state.engaged && Mathf.Abs(dx) > 6.6f)
                 { actor.pos.x += Mathf.Sign(dx) * speed * dt; moving = true; }
                 if (actor.cooldown <= 0 && EnemyCanFire(actor)) BeginBossPattern(actor, state);
             }

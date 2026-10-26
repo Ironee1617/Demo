@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('All', 'Themes', 'Platforms', 'Companions', 'Movement', 'Combat', 'Boss', 'Polish', 'Oath', 'Climb', 'Perf', 'Gallery')][string]$Suite = 'All',
+    [ValidateSet('All', 'Themes', 'Platforms', 'Companions', 'Movement', 'Combat', 'Boss', 'Polish', 'Oath', 'Climb', 'Perf', 'Gallery', 'Hazard')][string]$Suite = 'All',
     [string]$UnityCli,
     [int]$TimeoutSeconds = 900
 )

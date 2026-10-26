@@ -25,8 +25,10 @@ namespace PrototypeLab.Roguelike
         private void BuildTheme(TowerThemeId theme)
         {
             var look=Look(theme);accent=look.accent;
-            Box("Theme sky",new Vector2(6,3),new Vector2(110,38),look.sky,-100);
-            for(int i=0;i<8;i++)Box("Pixel horizon band",new Vector2(6,-3+i*1.35f),new Vector2(100,1.38f),Color.Lerp(look.horizon,look.sky,i/8f),-98);
+            // Solid backing spans the whole chamber, however long the floor runs.
+            float middle=(DrawLeft+DrawRight)*.5f,span=DrawRight-DrawLeft+32;
+            Box("Theme sky",new Vector2(middle,3),new Vector2(span+10,38),look.sky,-100);
+            for(int i=0;i<8;i++)Box("Pixel horizon band",new Vector2(middle,-3+i*1.35f),new Vector2(span,1.38f),Color.Lerp(look.horizon,look.sky,i/8f),-98);
             using(TowerProfiling.Backdrop.Auto())BuildAuthoredBackdrop(theme);
             using(TowerProfiling.Terrain.Auto())BuildTerrain(theme,look);
             BuildForeground(theme);
@@ -85,11 +87,11 @@ namespace PrototypeLab.Roguelike
         private void BuildTerrain(TowerThemeId theme,ThemeLook look)
         {
             bool openBelow=theme==TowerThemeId.Olympus;
-            if(!openBelow)Box("Bedrock",new Vector2(6,-8.5f),new Vector2(100,7.2f),Color.Lerp(look.stone,Color.black,.6f),-25);
+            if(!openBelow)Box("Bedrock",new Vector2((DrawLeft+DrawRight)*.5f,-8.5f),new Vector2(DrawRight-DrawLeft+32,7.2f),Color.Lerp(look.stone,Color.black,.6f),-25);
             if(BuildLitTerrain(theme,openBelow))return;
             if(!EnsureAtlasPixels()||!AtlasHasTheme(theme)){BuildPlainTerrain(theme,look);return;}
             Color32 line=look.edge;line.a=128;
-            for(float x0=-26;x0<42;x0+=4)BuildGroundChunk(theme,x0,4,openBelow,line);
+            for(float x0=DrawLeft;x0<DrawRight;x0+=4)BuildGroundChunk(theme,x0,4,openBelow,line);
             foreach(var ledge in Ledges)BuildPlatformSlab(theme,ledge,line);
         }
         private void BuildGroundChunk(TowerThemeId theme,float x0,float width,bool openBelow,Color32 line)
@@ -160,7 +162,7 @@ namespace PrototypeLab.Roguelike
         /// <summary>Flat-colour stand-in used only when the baked atlas is missing.</summary>
         private void BuildPlainTerrain(TowerThemeId theme,ThemeLook look)
         {
-            for(float x=-26;x<42;x+=.5f)
+            for(float x=DrawLeft;x<DrawRight;x+=.5f)
             {
                 float h=GroundAt(x+.25f);
                 Box(theme+" ground tile",new Vector2(x+.25f,h-1.25f),new Vector2(.5f,2.5f),look.stone,-20);
@@ -188,10 +190,10 @@ namespace PrototypeLab.Roguelike
         {
             if(BuildLitProps(theme)||!AtlasHasTheme(theme))return;
             // Small props rest on the hills themselves, below knee height, leaving every landing surface readable.
-            for(int i=0;i<19;i++)
+            for(int i=0;-23+i*3.7f<DrawRight+2;i++)
             {
                 float x=-23+i*3.7f+Range(-.5f,.5f);
-                if(Mathf.Abs(x-ExitX)<1.8f)continue;
+                if(Mathf.Abs(x-ExitX)<1.8f||OnHazard(x))continue;
                 float size=Range(.65f,.95f);
                 var prop=Box(theme+" foreground detail",new Vector2(x,GroundAt(x)),Vector2.one*size,Color.white,-32,ForegroundSprite(theme,i%3));
                 if(i%2==1)prop.transform.localScale=new Vector3(-size,size,1);
@@ -305,9 +307,11 @@ namespace PrototypeLab.Roguelike
         {
             // Each mythology has its own drifting particles: snow, petals, lamp sparks, dust, mist, cloud wisps.
             int count=activeTheme==TowerThemeId.Asgard?38:activeTheme==TowerThemeId.Olympus?8:activeTheme==TowerThemeId.Eden||activeTheme==TowerThemeId.Chinese?26:20;
+            // The same density as the compact chamber, spread over the floor's whole length.
+            count=Mathf.RoundToInt(count*(DrawRight-DrawLeft-1)/67f);
             for(int i=0;i<count;i++)
             {
-                Vector2 pos=new Vector2(Range(-25,42),Range(-2.5f,weatherCeiling));
+                Vector2 pos=new Vector2(Range(DrawLeft+1,DrawRight),Range(-2.5f,weatherCeiling));
                 Color color=accent;float size=Range(.03125f,.07f),speed=Range(.06f,.2f);
                 switch(activeTheme)
                 {

@@ -29,7 +29,8 @@ public static class TowerDifficultyTests
         {
             int next = TowerDifficulty.RegularCount(floor), all = next + (TowerDifficulty.IsBossFloor(floor) ? 1 : 0);
             Require(next >= regular, "Normal enemy count decreased at floor " + floor);
-            Require(next == 4 + (floor - 1) / 12, "Unexpected normal count at floor " + floor);
+            Require(next == 6 + (floor - 1) / 12, "Unexpected normal count at floor " + floor);
+            Require(TowerDifficulty.FlyerCount(floor) >= (floor >= 2 ? 1 : 0) && TowerDifficulty.FlyerCount(floor) <= 3, "Unexpected flyer count at floor " + floor);
             Require(all == next + (floor % 5 == 0 ? 1 : 0), "Unexpected total count at floor " + floor);
             regular = next;
         }
@@ -54,7 +55,7 @@ public static class TowerDifficultyTests
         foreach (float value in Stats(1)) Near(value, 1);
         var final = Stats(100); float[] expected = { 2.584f, 1.792f, 1.198f, 1.1188f, 1.198f };
         for (int i = 0; i < final.Length; i++) Near(final[i], expected[i]);
-        Require(TowerDifficulty.RegularCount(1) == 4 && TowerDifficulty.RegularCount(100) == 12, "Incorrect count endpoints.");
+        Require(TowerDifficulty.RegularCount(1) == 6 && TowerDifficulty.RegularCount(100) == 14, "Incorrect count endpoints.");
     }
     private static void BossHealth()
     {
@@ -72,7 +73,7 @@ public static class TowerDifficultyTests
         for (int floor = 1; floor <= 100; floor++) Require(TowerDifficulty.EliteCount(floor) >= 3 && TowerDifficulty.EliteCount(floor) <= TowerDifficulty.RegularCount(floor), "Elite floors trade numbers for strength.");
         Require(TowerDifficulty.EliteHealth > 1 && TowerDifficulty.EliteDamage > 1, "Elites are stronger.");
         Require(TowerDifficulty.TrialFloor(1) == 1 && TowerDifficulty.TrialFloor(10) == 37, "Trial floors sample the long curve.");
-        Require(TowerDifficulty.RegularCount(TowerDifficulty.TrialFloor(10)) == 7, "Trial floor ten keeps its former seven enemies.");
+        Require(TowerDifficulty.RegularCount(TowerDifficulty.TrialFloor(10)) == 9, "Trial floor ten fields nine enemies along its long floor.");
         Near(TowerDifficulty.BossHealth(TowerDifficulty.TrialBossFloor(5)), 420); Near(TowerDifficulty.BossHealth(TowerDifficulty.TrialBossFloor(10)), 579.6f);
     }
 }

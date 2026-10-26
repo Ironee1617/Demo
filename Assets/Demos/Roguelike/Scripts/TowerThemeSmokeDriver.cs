@@ -87,7 +87,7 @@ namespace PrototypeLab.Roguelike
                 foreach (var monster in theme.Monsters) CheckSprite(theme.Id, monster.Variant, false, hashes, atlases);
                 CheckSprite(theme.Id, 0, true, hashes, atlases); species += theme.Monsters.Count + 1;
                 // Each chapter's mid-chapter boss floor (5, 15, ... 85).
-                int floor = ChapterFloor(theme, 5); expectedRigs += TowerDifficulty.RegularCount(floor) + 2 + 7;
+                int floor = ChapterFloor(theme, 5); expectedRigs += TowerDifficulty.RegularCount(floor) + TowerDifficulty.FlyerCount(floor) + 1 + 7;
                 SetFixture(theme, floor);
                 Require(world.CurrentTheme == theme.Id && world.CurrentFloor == floor, "Map did not follow the requested theme.");
                 Require(EnvironmentRoot != null && EnvironmentRoot.gameObject.activeInHierarchy && EnvironmentRoot.GetComponentsInChildren<SpriteRenderer>().Length > 10, "Theme map is empty or inactive.");
@@ -171,8 +171,9 @@ namespace PrototypeLab.Roguelike
             }
             // The 100-floor curve spawns fewer regulars early on; each grounded one is still a distinct species.
             int expectedSpecies = Math.Min(6, TowerDifficulty.RegularCount(floor));
-            Require(regular == TowerDifficulty.RegularCount(floor) && grounded.Count == expectedSpecies && bosses == 1 && flyers==1,
-                "Floor " + floor + " expected " + expectedSpecies + " distinct grounded species, one flyer and one boss; got regular=" + regular + ", species=" + grounded.Count + ", flyers=" + flyers + ", bosses=" + bosses + ".");
+            int expectedFlyers = TowerDifficulty.FlyerCount(floor);
+            Require(regular == TowerDifficulty.RegularCount(floor) && grounded.Count == expectedSpecies && bosses == 1 && flyers == expectedFlyers,
+                "Floor " + floor + " expected " + expectedSpecies + " distinct grounded species, " + expectedFlyers + " flyers and one boss; got regular=" + regular + ", species=" + grounded.Count + ", flyers=" + flyers + ", bosses=" + bosses + ".");
             report.samples.Add(theme.Id + ": floor=" + floor + ", regular=" + regular + ", variants=" + variants.Count + ", bosses=" + bosses);
         }
         private Renderer VerifyCreatureRig(TowerActorArt art,Sprite expected)
@@ -415,7 +416,8 @@ namespace PrototypeLab.Roguelike
                     Require(System.Object.ReferenceEquals(actor.monster, game.run.Theme.Monsters[game.run.Theme.AirborneVariant]), "Unexpected airborne species after the boundary reward.");
                 }
             }
-            Require(airborne == 1 && game.enemies.Count == TowerDifficulty.RegularCount(11) + airborne, "The new theme did not spawn its flying monster independently of party composition.");
+            int flyers = TowerDifficulty.FlyerCount(11);
+            Require(airborne == flyers && game.enemies.Count == TowerDifficulty.RegularCount(11) + flyers, "The new theme did not spawn its flying monsters independently of party composition.");
             yield return null;
             foreach (var root in retired) Require(!root, "Retired actor was not destroyed by the next frame.");
             Require(!oldEnvironment, "Retired environment was not destroyed by the next frame.");

@@ -75,8 +75,10 @@ namespace PrototypeLab.Roguelike
                 }
                 var sprite = Sprite(band, texture);
                 float width = band.width / band.ppu, height = band.height / band.ppu;
-                // Three copies cover the camera's whole travel at every plane's drift factor.
-                for (int k = -1; k <= 1; k++)
+                // Copies cover the camera's whole travel at every plane's drift factor; a long floor needs more of the
+                // slow near planes than the compact chamber's three.
+                int last = LastCopy(band);
+                for (int k = -1; k <= last; k++)
                 {
                     var copy = new GameObject(theme + " " + band.file + " tile " + (k + 1));
                     copy.transform.SetParent(plane.transform, false);
@@ -94,6 +96,15 @@ namespace PrototypeLab.Roguelike
             return true;
         }
 
+        /// <summary>Index of the right-most copy a plane needs to stay covered up to the camera's right limit.</summary>
+        static int LastCopy(Band band)
+        {
+            const float HalfView = 14;
+            float cameraRight = TowerWorld.Right - 7.5f;
+            float visible = cameraRight * (1 - band.factor) + Reference.x * band.factor + HalfView;
+            return Mathf.Max(1, Mathf.CeilToInt(visible / band.period) - 1);
+        }
+
         static void Fill(Transform plane, string name, Band band, float y0, float y1, Color color)
         {
             if (solid == null)
@@ -105,7 +116,7 @@ namespace PrototypeLab.Roguelike
             var go = new GameObject(name);
             go.transform.SetParent(plane, false);
             go.transform.localPosition = new Vector3(-band.period, y0, 0);
-            go.transform.localScale = new Vector3(band.period * 3, y1 - y0, 1);
+            go.transform.localScale = new Vector3(band.period * (LastCopy(band) + 2), y1 - y0, 1);
             var renderer = go.AddComponent<SpriteRenderer>();
             renderer.sprite = solid; renderer.color = color; renderer.sortingOrder = band.order;
         }

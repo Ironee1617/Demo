@@ -46,9 +46,10 @@ public static class TowerPlatformTests
                 {
                     var layout = TowerTerrainGenerator.Generate(seed, floor); floors++;
                     Require(layout != null && !String.IsNullOrWhiteSpace(layout.Name) && layout.Floor == floor, "layout identity");
-                    Require(layout.Platforms.Count >= 11 && layout.Platforms.Count <= 24, "platform count " + layout.Platforms.Count + " in " + layout.Name);
+                    Require(layout.Platforms.Count >= 22 && layout.Platforms.Count <= 48, "platform count " + layout.Platforms.Count + " in " + layout.Name);
+                    Require(layout.ExitX == TowerTerrainGenerator.ExitX && layout.Right == TowerTerrainGenerator.ExitX + TowerTerrainGenerator.ExitMargin, "long floor extent in " + layout.Name);
                     var ground = layout.Ground;
-                    Require(ground.MinHeight >= Ground - .0001f && ground.MaxHeight <= Ground + TowerTerrainGenerator.MaxHill + .0001f, "ground height range in " + layout.Name);
+                    Require(ground.MinHeight >= Ground - TowerTerrainGenerator.MaxDip - .0001f && ground.MaxHeight <= Ground + TowerTerrainGenerator.MaxHill + .0001f, "ground height range in " + layout.Name);
                     for (int i = 1; i < ground.NodeCount; i++)
                     {
                         float slope = Math.Abs(ground.NodeY(i) - ground.NodeY(i - 1)) / (ground.NodeX(i) - ground.NodeX(i - 1));
@@ -67,7 +68,7 @@ public static class TowerPlatformTests
                         var s = p.Surface;
                         Require(Finite(s.Left) && Finite(s.Right) && Finite(s.MinHeight) && Finite(s.MaxHeight), "finite geometry");
                         Require(s.Width >= 2.4f && s.Width <= 5, "landing width " + s.Width + " in " + layout.Name);
-                        Require(s.Left >= -15.4f && s.Right <= 25, "world bounds and exit lane in " + layout.Name);
+                        Require(s.Left >= TowerTerrainGenerator.PlatformLeft && s.Right <= TowerTerrainGenerator.PlatformRight, "world bounds and exit lane in " + layout.Name);
                         Require(Math.Abs(s.CenterX + 12) > s.Width * .5f + .55f, "spawn headroom in " + layout.Name);
                         Require(s.MaxHeight - s.MinHeight <= .55f, "platform relief in " + layout.Name);
                         for (int i = 1; i < s.NodeCount; i++)
@@ -110,7 +111,7 @@ public static class TowerPlatformTests
                     foreach (float speed in new[] { 6f, 19f })
                         foreach (float dt in new[] { .04f, 1f / 60 })
                         {
-                            Walk(layout, -1, -15.4f, 28.4f, speed, dt, "ground walk at " + speed);
+                            Walk(layout, -1, TowerJumpModel.HeroMinX, TowerJumpModel.HeroMaxX(layout), speed, dt, "ground walk at " + speed);
                             for (int i = 0; i < layout.Platforms.Count; i++)
                             {
                                 var s = layout.Platforms[i].Surface;
@@ -154,6 +155,58 @@ public static class TowerPlatformTests
             }
             Require(layout.SupportAt(TowerTerrainGenerator.SpawnX, Ground) == -1 && Math.Abs(layout.SurfaceHeight(-1, TowerTerrainGenerator.SpawnX) - Ground) < .0001f, "ground support");
             Require(layout.HighestPlatform > 4 && layout.HighestGround >= Ground, "summary heights");
+        });
+        Test("traps keep clear of lanes and each other and sit on fitting ground", () => {
+            var kinds = new Dictionary<TowerHazardKind, int>(); int floors = 0, traps = 0, pads = 0;
+            for (int seed = -4; seed < 16; seed++)
+                for (int floor = 1; floor <= 30; floor++)
+                {
+                    var layout = TowerTerrainGenerator.Generate(seed, floor); floors++;
+                    float right = (TowerTerrainGenerator.IsBranchFloor(floor) ? TowerTerrainGenerator.ExitX - 10.7f : TowerTerrainGenerator.ExitX) - TowerTerrainGenerator.HazardExitClear;
+                    int floorTraps = 0; TowerHazard? previous = null;
+                    foreach (var h in layout.Hazards)
+                    {
+                        string where = h.Kind + " at x=" + h.X + " seed " + seed + " floor " + floor;
+                        kinds[h.Kind] = kinds.ContainsKey(h.Kind) ? kinds[h.Kind] + 1 : 1;
+                        if (h.Kind == TowerHazardKind.JumpPad) pads++; else floorTraps++;
+                        Require(h.Left >= TowerTerrainGenerator.HazardLeft - .0001f && h.Right <= right + .0001f, "trap outside the trap lane: " + where);
+                        if (TowerTerrainGenerator.IsFeatureFloor(floor)) Require(h.Right <= TowerTerrainGenerator.FeatureX - TowerTerrainGenerator.FeatureClear || h.Left >= TowerTerrainGenerator.FeatureX + TowerTerrainGenerator.FeatureClear, "trap on the feature spot: " + where);
+                        if (previous.HasValue) Require(h.Left - previous.Value.Right >= TowerTerrainGenerator.HazardGap - .0001f, "traps crowd each other: " + where);
+                        previous = h;
+                        float lo = float.PositiveInfinity, hi = float.NegativeInfinity;
+                        for (float x = h.Left; x <= h.Right + .0001f; x += .125f) { lo = Math.Min(lo, layout.GroundAt(x)); hi = Math.Max(hi, layout.GroundAt(x)); }
+                        switch (h.Kind)
+                        {
+                            case TowerHazardKind.Spikes:
+                                Require(h.Support == -1 && h.Width >= TowerTerrainGenerator.SpikeMinWidth - .0001f && h.Width <= TowerTerrainGenerator.SpikeMaxWidth + .0001f, "spike strip size: " + where);
+                                Require(hi - lo <= .3f || layout.GroundAt(h.X) < Ground - .5f, "spikes on a steep stretch: " + where);
+                                break;
+                            case TowerHazardKind.FlameVent: Require(h.Support == -1 && hi - lo <= .08f + .0001f, "vent off level ground: " + where); break;
+                            case TowerHazardKind.Rockfall:
+                                Require(h.Support == -1 && floor >= 2, "rockfall placement: " + where);
+                                foreach (var p in layout.Platforms) Require(p.Surface.Right <= h.Left - .3f || p.Surface.Left >= h.Right + .3f, "rock would fall through a platform: " + where);
+                                break;
+                            case TowerHazardKind.BoltTotem:
+                                Require(floor >= 3 && h.Support >= 0 && h.Support < layout.Platforms.Count, "totem support: " + where);
+                                var s = layout.Platforms[h.Support].Surface; var tier = layout.Platforms[h.Support].Tier;
+                                Require((tier == 2 || tier == 3) && h.Left >= s.Left && h.Right <= s.Right, "totem on its platform: " + where);
+                                break;
+                            case TowerHazardKind.JumpPad:
+                                bool shelf = false; foreach (var p in layout.Platforms) if (p.Tier == 4 && Math.Abs(p.Surface.CenterX - h.X) < 1.9f) shelf = true;
+                                Require(h.Support == -1 && hi - lo <= .12f + .0001f && shelf, "launch pad under a shelf tower: " + where);
+                                break;
+                        }
+                    }
+                    Require(floorTraps >= 2 && floorTraps <= TowerTerrainGenerator.HazardCount(floor), "trap budget " + floorTraps + " on seed " + seed + " floor " + floor);
+                    traps += floorTraps;
+                    var again = TowerTerrainGenerator.Generate(seed, floor).Hazards;
+                    Require(again.Count == layout.Hazards.Count, "repeatable traps");
+                    for (int i = 0; i < again.Count; i++) Require(again[i].Kind == layout.Hazards[i].Kind && again[i].X == layout.Hazards[i].X, "repeatable traps");
+                }
+            foreach (TowerHazardKind kind in Enum.GetValues(typeof(TowerHazardKind))) Require(kinds.ContainsKey(kind), "no " + kind + " anywhere");
+            Console.WriteLine("  " + floors + " floors; average " + (traps / (float)floors).ToString("F2", CultureInfo.InvariantCulture) + " traps and " + (pads / (float)floors).ToString("F2", CultureInfo.InvariantCulture) + " launch pads");
+            var compact = new TowerFloorLayout(1, "compact", 1, new TowerSurface(new[] { -40f, 100f }, new[] { Ground, Ground }), new List<TowerPlatform>());
+            Require(compact.ExitX == TowerTerrainGenerator.CompactExitX && compact.Right == 29 && compact.Hazards.Count == 0, "hand-built chambers keep the compact extent");
         });
         Console.WriteLine("TOWER_PLATFORM_TESTS " + passed + " passed, " + failed + " failed");
         return failed == 0 ? 0 : 1;

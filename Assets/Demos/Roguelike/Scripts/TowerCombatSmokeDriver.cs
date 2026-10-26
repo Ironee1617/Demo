@@ -89,7 +89,7 @@ namespace PrototypeLab.Roguelike
             game.NewRun(74); game.StartClimb(); game.MoveOverride = 0; game.FocusOverride = false; game.AttackOverride = game.JumpOverride = game.DashOverride = false;
             var list = (IList)typeof(TowerRun).GetField("companions", Hidden).GetValue(game.run);
             foreach (string id in companions) list.Add(new CompanionState(TowerRun.GetDefinition(id)));
-            game.ReconcileLoadout(); ClearEnemies(); ClearShots();
+            game.ReconcileLoadout(); ClearEnemies(); ClearShots(); LevelFloor();
             Place(game.hero, new Vector2(0, TowerWorld.Ground)); game.hero.facing = 1;
             // Enemies only attack while on screen. Frame the fixture around the player instead of the spawn view,
             // so a small editor Game view cannot push fixture attackers past the camera edge.
@@ -100,6 +100,16 @@ namespace PrototypeLab.Roguelike
         { foreach (var enemy in game.enemies) if (enemy.root) { enemy.root.SetActive(false); Destroy(enemy.root); } game.enemies.Clear(); }
         private void ClearShots()
         { foreach (object shot in Shots) { var root = Field<GameObject>(shot, "root"); if (root) Destroy(root); } Shots.Clear(); }
+        /// <summary>
+        /// Combat fixtures fire along fixed heights above the base ground, so they play on a level copy of the floor:
+        /// same platforms and length, without the long floor's hills and pits under the line of fire.
+        /// </summary>
+        private void LevelFloor()
+        {
+            var world = (TowerWorld)typeof(TowerGame).GetField("world", Hidden).GetValue(game); var layout = world.CurrentLayout;
+            var ground = new TowerSurface(new[] { TowerTerrainGenerator.TerrainLeft, TowerTerrainGenerator.TerrainRight }, new[] { TowerWorld.Ground, TowerWorld.Ground });
+            world.SetTheme(game.run.Theme.Id, game.run.Floor, game.seed, new TowerFloorLayout(layout.Id, layout.Archetype, layout.Floor, ground, new List<TowerPlatform>(layout.Platforms), layout.ExitX));
+        }
         private TowerGame.Fighter Spawn(float x, float y, int kind = 0)
         {
             var enemy = (TowerGame.Fighter)Call("Spawn", "Combat fixture", kind, true, new Vector2(x, y));

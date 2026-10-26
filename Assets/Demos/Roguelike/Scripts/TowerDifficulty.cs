@@ -9,8 +9,11 @@ namespace PrototypeLab.Roguelike
         public const int MaxFloor = 100;
         public const float EliteHealth = 2.2f, EliteDamage = 1.25f, EliteScale = 1.22f;
         private static int Floor(int floor){return Math.Max(1,Math.Min(MaxFloor,floor));}
-        public static int RegularCount(int floor){return 4+(Floor(floor)-1)/12;}
-        public static int EliteCount(int floor){return Math.Max(3,RegularCount(floor)-1);}
+        // A floor runs about four screens, so its ground monsters come in packs along the way.
+        public static int RegularCount(int floor){return 6+(Floor(floor)-1)/12;}
+        public static int EliteCount(int floor){return Math.Max(5,RegularCount(floor)-2);}
+        /// <summary>Flyers perched on the high shelves: none on the first floor, then one, two, three as the climb goes on.</summary>
+        public static int FlyerCount(int floor){int f=Floor(floor);return f<2?0:f<20?1:f<50?2:3;}
         public static bool IsBossFloor(int floor){return Floor(floor)%5==0;}
         public static float HealthMultiplier(int floor){return 1+.016f*(Floor(floor)-1);}
         public static float DamageMultiplier(int floor){return 1+.008f*(Floor(floor)-1);}

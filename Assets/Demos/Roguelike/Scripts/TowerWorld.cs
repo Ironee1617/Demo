@@ -20,7 +20,13 @@ namespace PrototypeLab.Roguelike
         public Ledge[] Ledges { get; private set; } = new Ledge[0];
         public float HighestPlatform { get; private set; }
         /// <summary>Base ground level: the spawn and exit lanes always sit here; hills rise above it.</summary>
-        public const float Ground=-3f,Left=-16f,Right=29f,ExitX=26f;
+        public const float Ground=-3f,Left=-16f;
+        /// <summary>The current chamber's right wall and ascent gate: long on generated floors, compact in the village.</summary>
+        public static float Right{get;private set;}=TowerTerrainGenerator.ExitX+TowerTerrainGenerator.ExitMargin;
+        public static float ExitX{get;private set;}=TowerTerrainGenerator.ExitX;
+        /// <summary>Terrain, weather and props run this far past the walls so the camera never sees their ends.</summary>
+        private static float DrawLeft{get{return Left-10;}}
+        private static float DrawRight{get{return Right+13;}}
         private readonly Transform root;
         private Transform environment,portal;
         private SpriteRenderer gateOpening;
@@ -56,10 +62,12 @@ namespace PrototypeLab.Roguelike
             motes.Clear();pulses.Clear();clock=0;activeTheme=theme;CurrentFloor=floor;
             if(layout!=null)CurrentLayout=layout;
             else using(TowerProfiling.Generate.Auto())CurrentLayout=TowerTerrainGenerator.Generate(runSeed,floor);
+            Right=CurrentLayout.Right;ExitX=CurrentLayout.ExitX;
             // The next floor is verified on a worker thread while this one is played.
             TowerTerrainGenerator.Prefetch(runSeed,floor+1);
             // The next floor's theme is fixed by its chapter; a new theme's textures load in the background meanwhile.
             PrefetchThemeArt(theme,TowerThemeCatalog.ForFloor(floor+1).Id);
+            TowerHazardArt.Prefetch(TowerThemeCatalog.ForFloor(floor+1).Id);
             Ledges=new Ledge[CurrentLayout.Platforms.Count];
             for(int i=0;i<Ledges.Length;i++)Ledges[i]=new Ledge(CurrentLayout.Platforms[i].Surface);
             HighestPlatform=CurrentLayout.HighestPlatform;
@@ -67,6 +75,13 @@ namespace PrototypeLab.Roguelike
             decorationRandom=new System.Random(unchecked(runSeed*397^floor*7411^(int)theme*57803));
             environment=new GameObject(theme+" environment · floor "+floor).transform;environment.SetParent(root,false);
             BuildTheme(theme);using(TowerProfiling.Gate.Auto())BuildGate();BuildWeather();
+        }
+        /// <summary>True when a ground trap or launch pad stands within a prop's reach of x.</summary>
+        private bool OnHazard(float x)
+        {
+            if(CurrentLayout==null)return false;
+            foreach(var h in CurrentLayout.Hazards)if(h.Support<0&&x>h.Left-.9f&&x<h.Right+.9f)return true;
+            return false;
         }
         /// <summary>Height of the rolling ground at x.</summary>
         public float GroundAt(float x){return CurrentLayout!=null?CurrentLayout.GroundAt(x):Ground;}
@@ -82,7 +97,7 @@ namespace PrototypeLab.Roguelike
                 Vector2 p=mote.origin;float travel=clock*mote.speed;
                 if(FallingWeather(activeTheme)){p.x+=Mathf.Sin(clock*.5f+mote.phase)*.4f;p.y=weatherCeiling-Mathf.Repeat(weatherCeiling-p.y+travel,weatherCeiling+3);}
                 else if(activeTheme==TowerThemeId.Veda||activeTheme==TowerThemeId.Village){p.x+=Mathf.Sin(clock*1.4f+mote.phase)*.22f;p.y+=Mathf.Sin(clock*2+mote.phase)*.035f;}
-                else if(DriftingWeather(activeTheme)){p.x=-25+Mathf.Repeat(p.x+25+travel,67);p.y+=Mathf.Sin(clock*.4f+mote.phase)*.08f;}
+                else if(DriftingWeather(activeTheme)){p.x=DrawLeft+1+Mathf.Repeat(p.x-DrawLeft-1+travel,DrawRight-DrawLeft-1);p.y+=Mathf.Sin(clock*.4f+mote.phase)*.08f;}
                 else {p.x+=Mathf.Sin(clock*.7f+mote.phase)*.18f;p.y=-2.6f+Mathf.Repeat(p.y+2.6f+travel,weatherCeiling+2.6f);}
                 mote.transform.localPosition=new Vector3(Mathf.Round(p.x*32)/32,Mathf.Round(p.y*32)/32,0);
             }

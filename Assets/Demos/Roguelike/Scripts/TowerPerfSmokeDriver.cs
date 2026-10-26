@@ -126,7 +126,8 @@ namespace PrototypeLab.Roguelike
             for (int frame = 0; frame < 180 && game == null; frame++) { game = FindFirstObjectByType<TowerGame>(); if (game == null) yield return null; }
             Require(game != null, "The roguelike game did not load.");
             game.progress = new TowerProgress();
-            game.SmokeControlled = false; game.NewRun(Seed); game.SmokeControlled = true; game.SuppressProgressPersistence = true;
+            // Monster packs stream in as in play, so floor entries and walks are measured at their real cost.
+            game.SmokeControlled = false; game.NewRun(Seed); game.SmokeControlled = true; game.SuppressProgressPersistence = true; game.StreamOverride = true;
             game.StartClimb();
             if (game.run.IsRewardPending) game.SelectOffer(game.run.Offers[0].Id);
             // A full party is the heaviest per-frame load a real climb reaches.
@@ -146,7 +147,7 @@ namespace PrototypeLab.Roguelike
             {
                 yield return Fight();
                 foreach (var enemy in game.enemies) if (enemy.root) Destroy(enemy.root);
-                game.enemies.Clear();
+                game.enemies.Clear(); game.DropPendingSpawns();
                 float limit = Time.realtimeSinceStartup + 3;
                 while (!game.run.IsFloorCleared) { Require(Time.realtimeSinceStartup < limit, "The emptied floor did not clear."); yield return null; }
                 while (game.run.IsRewardPending) { game.SelectOffer(game.run.Offers[0].Id); yield return null; }
@@ -164,12 +165,13 @@ namespace PrototypeLab.Roguelike
             combat = true; float until = game.elapsed + CombatSeconds, nextJump = game.elapsed + .6f, nextDash = game.elapsed + 1.7f;
             float limit = Time.realtimeSinceStartup + 30;
             game.AttackOverride = true;
-            while (game.elapsed < until && Time.realtimeSinceStartup < limit && game.enemies.Count > 0)
+            while (game.elapsed < until && Time.realtimeSinceStartup < limit && game.RemainingEnemies > 0)
             {
                 game.invulnerable = 1000; game.hero.hp = game.PlayerMaxHealth;
                 TowerGame.Fighter nearest = null; float best = float.MaxValue;
                 foreach (var enemy in game.enemies) { float d = Vector2.Distance(enemy.pos, game.hero.pos); if (d < best) { best = d; nearest = enemy; } }
-                float dx = nearest != null ? nearest.pos.x - game.hero.pos.x : 0;
+                // With no monster in reach the hero walks on toward the packs still ahead.
+                float dx = nearest != null ? nearest.pos.x - game.hero.pos.x : 2;
                 game.MoveOverride = Mathf.Abs(dx) > 1.2f ? Mathf.Sign(dx) : 0;
                 game.JumpOverride = game.elapsed >= nextJump; if (game.JumpOverride) nextJump = game.elapsed + 1.1f;
                 game.DashOverride = game.elapsed >= nextDash; if (game.DashOverride) nextDash = game.elapsed + 2.6f;

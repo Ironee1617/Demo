@@ -445,7 +445,8 @@ namespace PrototypeLab.Roguelike
             var state = game.run.GetCompanion("michael");
             yield return Until(() => actor.basicPending, 3, "Rejoin fixture never locked its first target.");
             game.MoveOverride = -1; yield return ObserveLock(actor, target, actor.pos.x, 3); game.MoveOverride = 0;
-            var other = ExtraTarget(new Vector2(16, TowerWorld.Ground));
+            // Thirteen units in from the boundary target, as on the compact chamber, whatever the floor's length.
+            var other = ExtraTarget(new Vector2(TowerWorld.Right - 13, TowerWorld.Ground));
             target.hp = 1; actor.cooldown = 0;
             yield return Until(() => target.hp <= 0 && !game.enemies.Contains(target), 3, "A real companion hit did not kill and remove the locked target.");
             Require(actor.returningToFormation && actor.combatTarget == null, "Target death did not enter formation return before acquiring another live enemy.");
@@ -509,14 +510,21 @@ namespace PrototypeLab.Roguelike
             var target = Setup("gabriel"); var actor = game.allies.Find(ally => ally.id == "gabriel");
             Place(target, new Vector2(TowerWorld.Right, TowerWorld.Ground));
             var world = (TowerWorld)Member(game, "world");
-            // A rightward gap jump between two generated platforms, planned by the shared jump model.
-            TowerJumpModel.Plan gap = null;
-            foreach (var plan in TowerJumpModel.Reachable(world.CurrentLayout, .04f))
-            {
-                if (plan.source < 0) continue;
-                var from = world.Ledges[plan.source]; var to = world.Ledges[plan.target];
-                if (to.Left > from.Right + .3f && to.Bottom > from.Top + .5f && plan.launch > from.x - .2f) { gap = plan; break; }
-            }
+            // A rightward gap jump between two generated platforms, planned by the shared jump model. The long floor's
+            // breadth-first routes reach most platforms straight from the ground, so every platform pair is tried.
+            // A launch from the source's right half is preferred; the jump model reports the left-most robust launch,
+            // so a plan from further back is used when no shorter one exists.
+            TowerJumpModel.Plan gap = null, fallback = null;
+            for (int source = 0; source < world.Ledges.Length && gap == null; source++)
+                for (int target2 = 0; target2 < world.Ledges.Length && gap == null; target2++)
+                {
+                    var from = world.Ledges[source]; var to = world.Ledges[target2];
+                    if (source == target2 || !(to.Left > from.Right + .3f && to.Bottom > from.Top + .5f)) continue;
+                    var plan = TowerJumpModel.Find(world.CurrentLayout, source, target2, .04f);
+                    if (plan == null) continue;
+                    if (plan.launch > from.x - .2f) gap = plan; else if (fallback == null) fallback = plan;
+                }
+            if (gap == null) gap = fallback;
             Require(gap != null, "The generated layout has no rightward gap jump between two platforms for the airborne attack fixture.");
             var launch = world.Ledges[gap.source]; var landing = world.Ledges[gap.target];
             Place(game.hero, new Vector2(gap.launch, launch.HeightAt(gap.launch))); Place(actor, game.hero.pos);

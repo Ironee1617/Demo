@@ -28,7 +28,8 @@ namespace PrototypeLab.Roguelike
             actor.attackRateScale = TowerDifficulty.AttackRateMultiplier(scaled);
             actor.hp = actor.maxHp = (kind == 3 ? 52 : kind == 2 ? 80 : kind == 1 ? 48 : 60) * TowerDifficulty.HealthMultiplier(scaled);
             ApplyMonsterStats(actor);
-            actor.cooldown = (.9f + ordinal * .27f) / actor.attackRateScale;
+            // Members of one pack open fire a beat apart; packs further down the floor start fresh.
+            actor.cooldown = (.9f + ordinal % 4 * .27f) / actor.attackRateScale;
             actor.windup = actor.attackPose = actor.slowTime = actor.stunTime = 0;
             actor.facing = hero.pos.x >= actor.pos.x ? 1 : -1;
             actor.velocityY = 0; actor.grounded = !actor.airborne;
@@ -66,10 +67,13 @@ namespace PrototypeLab.Roguelike
                 pattern = actor.kind == 0 ? EnemyPattern.MeleeSlam : actor.kind == 2 ? EnemyPattern.RadialGap : (EnemyPattern)(1 + ordinal % 3) };
         }
 
+        /// <summary>Clears every threat of the previous floor: combat state, monsters still waiting to spawn and traps.</summary>
         private void ResetEnemyCombat()
         {
             enemyCombat.Clear();
             ResetBossCombat();
+            pendingSpawns.Clear();
+            ClearTraps();
         }
 
         private void RemoveEnemyCombat(Fighter actor)

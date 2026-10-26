@@ -410,7 +410,8 @@ namespace PrototypeLab.Roguelike
             game.DashOverride = true; yield return null; game.DashOverride = false;
             report.dashVerified = game.dashCooldown > .5f || game.dashTime > 0;
             Require(report.dashVerified, "Dash did not start.");
-            int expectedKills = game.enemies.Count; bool captured = false;
+            // The long first floor streams its later packs in as the hero advances; they count toward the clear too.
+            int expectedKills = game.RemainingEnemies; bool captured = false;
             game.AttackOverride = true; float limit = Time.realtimeSinceStartup + 65;
             while (!game.run.IsFloorCleared)
             {
@@ -429,6 +430,7 @@ namespace PrototypeLab.Roguelike
                     bool turn = Mathf.Abs(dx) > .15f && Mathf.Sign(dx) != game.hero.facing;
                     game.MoveOverride = game.hero.grounded && game.hero.pos.y - nearest.pos.y > 1.75f ? 1 : Mathf.Abs(dx) > 1.25f || turn ? Mathf.Sign(dx) : 0;
                 }
+                else if (game.PendingEnemies > 0) game.MoveOverride = 1;
                 if (!captured && report.playerAttackVerified && game.enemies.Count > 0) { captured = true; yield return Capture("combat"); }
                 HoldAllies();
                 yield return null;
@@ -436,7 +438,7 @@ namespace PrototypeLab.Roguelike
             game.MoveOverride = 0; game.AttackOverride = false;
             foreach (var ally in game.allies) ally.cooldown = 0;
             report.actualCombatKills = game.kills;
-            report.realCombatFirstFloorCleared = game.run.Floor == 1 && game.kills == expectedKills && game.enemies.Count == 0;
+            report.realCombatFirstFloorCleared = game.run.Floor == 1 && game.kills == expectedKills && game.RemainingEnemies == 0;
             Require(report.realCombatFirstFloorCleared && report.playerAttackVerified && captured, "The first encounter was not cleared by actual attacks.");
         }
 
