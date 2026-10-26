@@ -1,19 +1,14 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace PrototypeLab.Roguelike
 {
-    // Screens of the story campaign: the village HUD and its world labels, the tower gate where an expedition
-    // is formed, the shrine of restored myths, story pages, and the outcome of each expedition.
+    // Screens of the story campaign: the village HUD and its world labels, the tower gate that previews an
+    // expedition's companion draft, the shrine of restored myths, story pages, and the outcome of each expedition.
     public sealed partial class TowerGame
     {
         private const int MythChapters=8;
         private bool confirmReset;
-        /// <summary>Korean "with" particle: 와 after a vowel, 과 after a final consonant.</summary>
-        private static string With(string name)
-        {
-            char last=name[name.Length-1];
-            return name+(last>='가'&&last<='힣'&&(last-'가')%28!=0?"과":"와");
-        }
         private string RestoredLine()
         {return campaign.IsComplete?"모든 신화를 되찾고 악신을 쓰러뜨렸습니다":"되찾은 신화  "+Mathf.Min(campaign.ClearedChapters,MythChapters)+" / "+MythChapters;}
 
@@ -77,9 +72,9 @@ namespace PrototypeLab.Roguelike
             WorldTag(new Vector2(TowerWorld.ExitX,TowerWorld.Ground+4.1f),"서약의 탑",next==null?"고요해진 탑":next.Numeral+" "+next.Title+"  ·  "+next.Floors,brass,spot==VillageSpot.Gate);
             foreach(var v in villagers)
             {
-                // The crowd of restored gods only names the one in reach; the two candidates are always named.
+                // The crowd of restored gods only names the one in reach; the next chapter's two gods are always named.
                 var d=TowerRun.GetDefinition(v.id);bool candidate=IsCandidate(v.id);if(!candidate&&npc!=v)continue;
-                WorldTag(v.pos+Vector2.up*2.15f,d.Name,candidate?"함께 오를 신 후보":"되찾은 신",candidate?TowerWorld.Teal:TierColor(d.Tier),npc==v);
+                WorldTag(v.pos+Vector2.up*2.15f,d.Name,candidate?"새 동료 후보":"되찾은 신",candidate?TowerWorld.Teal:TierColor(d.Tier),npc==v);
             }
         }
 
@@ -110,45 +105,34 @@ namespace PrototypeLab.Roguelike
             Label(new Rect(96,580,410,24),RestoredLine(),15,muted);
             FitLabel(new Rect(96,610,410,130),"5층마다 보스와 증강 · 5층을 넘으면 휴식·상점·엘리트 문을 고릅니다.\n원정에 실패하면 그 원정에서 얻은 성장은 사라지고, 마지막 층을 넘기면 성장을 간직한 채 마을로 돌아옵니다.",14,12,muted);
 
-            bool choosing=next.Candidates.Count>0;
-            if(choosing)
+            // Companions are drafted like augments on departure: random cards from the pool, one pick per open slot.
+            int slots=campaign.CompanionSlots;var pool=campaign.CompanionPool;
+            Label(new Rect(566,176,970,30),"동료 증강  ·  출발하면 후보 가운데 무작위 "+Mathf.Min(TowerRun.OfferSlots,pool.Count)+"명이 나오고, 그중 한 명을 고릅니다",20,paper,TextAnchor.MiddleLeft,true);
+            for(int i=0;i<TowerRun.MaxCompanions;i++)
             {
-                Label(new Rect(566,176,970,30),"함께 오를 신  ·  둘 중 한 명만 고를 수 있습니다",20,paper,TextAnchor.MiddleLeft,true);
-                for(int i=0;i<next.Candidates.Count;i++)
-                {
-                    string id=next.Candidates[i];var d=TowerRun.GetDefinition(id);var myth=TowerMythCatalog.Get(d.MythId);
-                    Color c=TierColor(d.Tier);bool selected=expeditionChoice==id;float x=566+i*490;Rect card=new Rect(x,214,470,300);
-                    if(Button(card,"",c)){expeditionChoice=id;expeditionParty.Remove(id);Sound(chimeSound,.25f);}
-                    SelectionFrame(card,c,selected);
-                    Halo(new Rect(x+8,222,196,196),Alpha(c,selected?.42f:.2f));PortraitArt(new Rect(x+24,238,164,164),d.ArtIndex);
-                    Label(new Rect(x+206,232,250,38),d.Name,29,paper,TextAnchor.MiddleLeft,true);
-                    Label(new Rect(x+206,272,250,22),d.Title+"  ·  "+RoleName(d.Role),15,c);
-                    Label(new Rect(x+206,296,250,22),myth.Name+"  ·  "+TierName(d.Tier),13,muted);
-                    FitLabel(new Rect(x+206,326,248,96),"「"+next.Line(id)+"」",16,13,paper);
-                    Fill(new Rect(x+24,428,422,1),Alpha(c,.2f));
-                    FitLabel(new Rect(x+24,438,422,66),d.InnateTrait+"  ·  "+d.InnateDescription,14,11,muted);
-                }
+                bool open=i<slots;Rect r=new Rect(566+i*328,218,314,92);
+                Round(r,rim,5);Round(Inset(r,1),ink,4);if(open){Light(new Rect(r.x+2,r.y+2,r.width-4,44),Alpha(brass,.12f));Border(r,Alpha(brass,.55f));}
+                Diamond(new Vector2(r.x+30,r.y+46),open?9:6,open?brass:Alpha(muted,.6f));
+                Label(new Rect(r.x+52,r.y+14,250,28),(i+1)+"번째 동료",19,open?paper:muted,TextAnchor.MiddleLeft,true);
+                Label(new Rect(r.x+52,r.y+48,250,24),open?"출발할 때 동료 증강으로 고릅니다":TowerRun.RecruitFloors[i-1]+"층을 클리어하면 열립니다",14,open?brass:Alpha(muted,.8f));
             }
-            else Label(new Rect(566,176,970,30),"마지막 원정  ·  되찾은 신 가운데 셋을 데려갈 수 있습니다",20,paper,TextAnchor.MiddleLeft,true);
-            float ry=choosing?532:220;var roster=campaign.Roster;
-            Label(new Rect(566,ry,970,28),"동행할 동료  "+expeditionParty.Count+" / "+ExpeditionCapacity,19,paper,TextAnchor.MiddleLeft,true);
-            if(roster.Count==0)Label(new Rect(566,ry+40,970,50),"아직 되찾은 신이 없습니다. 이번 원정을 끝내면 함께 오른 신이 영원한 동료로 남습니다.",15,muted);
-            for(int i=0;i<roster.Count;i++)
+            Label(new Rect(566,334,500,28),"동료 후보  "+pool.Count+"명",19,paper,TextAnchor.MiddleLeft,true);
+            Label(new Rect(1036,334,500,28),"되찾은 신화와 이번 장 신화의 신들",14,muted,TextAnchor.MiddleRight);
+            for(int i=0;i<pool.Count;i++)
             {
-                string id=roster[i];var d=TowerRun.GetDefinition(id);Color c=TierColor(d.Tier);bool on=expeditionParty.Contains(id);
-                float x=566+i*118;Rect card=new Rect(x,ry+36,110,156);
-                if(Button(card,"",c)){ToggleExpeditionMember(id);Sound(chimeSound,.2f);}
-                SelectionFrame(card,c,on);
-                PortraitArt(new Rect(x+15,ry+46,80,80),d.ArtIndex);
-                Label(new Rect(x+4,ry+130,102,24),d.Name,14,paper,TextAnchor.MiddleCenter,true);
-                Label(new Rect(x+4,ry+156,102,22),on?"동행":"마을에 남음",12,on?brass:muted,TextAnchor.MiddleCenter);
+                // The next chapter's own gods are new to the pool; the others show the growth they bring back.
+                string id=pool[i];var d=TowerRun.GetDefinition(id);bool fresh=IsCandidate(id);int saved=campaign.SavedUpgrades(id);
+                float x=566+i%8*121,y=372+i/8*190;Rect card=new Rect(x,y,113,180);
+                Round(card,rim,5);Round(Inset(card,1),ink,4);if(fresh)Border(card,Alpha(TowerWorld.Teal,.7f));
+                PortraitArt(new Rect(x+16,y+10,80,80),d.ArtIndex);
+                Label(new Rect(x+4,y+96,105,24),d.Name,15,paper,TextAnchor.MiddleCenter,true);
+                Label(new Rect(x+4,y+121,105,20),TowerMythCatalog.Get(d.MythId).Name,12,muted,TextAnchor.MiddleCenter);
+                Label(new Rect(x+4,y+146,105,22),fresh?"새 동료 후보":saved>0?"성장 Lv. "+(1+saved):RoleName(d.Role),12,fresh?TowerWorld.Teal:saved>0?brass:muted,TextAnchor.MiddleCenter);
             }
             Fill(new Rect(64,772,1472,1),new Color(.5f,.56f,.63f,.15f));
             if(Button(new Rect(64,791,236,53),"돌아가기  [Esc]",muted))villagePanel=VillagePanel.None;
-            string chosenName=expeditionChoice!=null&&choosing?TowerRun.GetDefinition(expeditionChoice).Name:null;
-            string depart=!choosing?"최후의 원정 출발":chosenName==null?"함께 오를 신을 고르세요":With(chosenName)+" 출발";
-            Label(new Rect(326,791,730,53),"동료 "+ExpeditionMembers().Count+"명과 "+next.FirstFloor+"층부터 오릅니다",16,muted,TextAnchor.MiddleLeft);
-            if(Button(new Rect(1080,786,456,64),depart,brass,CanDepart,true))StartExpedition();
+            Label(new Rect(326,791,730,53),"동료 "+slots+"명을 고른 뒤 "+next.FirstFloor+"층부터 오릅니다",16,muted,TextAnchor.MiddleLeft);
+            if(Button(new Rect(1080,786,456,64),next.IsFinal?"최후의 원정 출발":"원정 출발",brass,true,true))StartExpedition();
         }
 
         private void DrawShrinePanel()
@@ -164,12 +148,16 @@ namespace PrototypeLab.Roguelike
                 Label(new Rect(r.x+22,r.y+44,320,22),ch.Subtitle+"  ·  "+ch.Floors,13,muted);
                 Label(new Rect(r.xMax-150,r.y+14,128,28),restored?"되찾음":next?"다음 원정":"봉인됨",15,c,TextAnchor.MiddleRight,true);
                 Fill(new Rect(r.x+22,r.y+72,r.width-44,1),Alpha(c,.2f));
-                string joined=null;foreach(string id in ch.Candidates)foreach(string member in campaign.Roster)if(member==id)joined=id;
-                if(restored&&joined!=null)
+                if(restored&&ch.Candidates.Count>0)
                 {
-                    var d=TowerRun.GetDefinition(joined);Portrait(new Rect(r.x+22,r.y+84,78,78),d.ArtIndex,brass);
-                    Label(new Rect(r.x+116,r.y+90,330,26),d.Name,19,paper,TextAnchor.MiddleLeft,true);
-                    Label(new Rect(r.x+116,r.y+118,330,22),d.Title+"  ·  영원한 동료",14,brass);
+                    // Both gods of a restored myth stay in the companion draft for every later expedition.
+                    for(int k=0;k<ch.Candidates.Count;k++)
+                    {
+                        var d=TowerRun.GetDefinition(ch.Candidates[k]);float x=r.x+22+k*220;
+                        Portrait(new Rect(x,r.y+86,70,70),d.ArtIndex,brass);
+                        Label(new Rect(x+80,r.y+94,136,26),d.Name,18,paper,TextAnchor.MiddleLeft,true);
+                        Label(new Rect(x+80,r.y+122,136,22),"동료 후보",13,brass);
+                    }
                 }
                 else if(restored)FitLabel(new Rect(r.x+22,r.y+84,r.width-44,86),ch.RestoredBody,15,12,paper);
                 else if(next)FitLabel(new Rect(r.x+22,r.y+84,r.width-44,86),ch.Intro,14,11,muted);
@@ -207,23 +195,29 @@ namespace PrototypeLab.Roguelike
             MenuBackdrop(ch.RestoredTitle,ch.Numeral+"  /  "+(ch.IsFinal?"THE EVIL GOD FALLS":"MYTH RESTORED"));
             Halo(new Rect(450,135,700,520),Alpha(brass,.2f));
             FitLabel(new Rect(260,176,1080,64),ch.RestoredBody,22,17,paper,TextAnchor.MiddleCenter);
-            float y=260;
-            if(departedChoice!=null)
+            float y=260;var next=campaign.NextChapter;
+            if(next!=null&&next.Candidates.Count>0)
             {
-                var d=TowerRun.GetDefinition(departedChoice);
-                Portrait(new Rect(735,y,130,130),d.ArtIndex,brass);
-                Label(new Rect(0,y+140,1600,30),"영원한 동료  ·  "+d.Name+"  ("+d.Title+")",20,brass,TextAnchor.MiddleCenter,true);y+=186;
+                // The next chapter's two gods join the companion draft.
+                var names=new List<string>();float left=800-(next.Candidates.Count*150-20)*.5f;
+                for(int i=0;i<next.Candidates.Count;i++)
+                {
+                    var d=TowerRun.GetDefinition(next.Candidates[i]);names.Add(d.Name);
+                    Portrait(new Rect(left+i*150,y,130,130),d.ArtIndex,TowerWorld.Teal);
+                }
+                Label(new Rect(0,y+140,1600,30),"새 동료 후보  ·  "+string.Join("  ·  ",names.ToArray()),20,TowerWorld.Teal,TextAnchor.MiddleCenter,true);y+=186;
             }
             else y+=40;
-            var next=campaign.NextChapter;
+            // Clearing floors 30 and 60 opens another companion slot for the next expedition.
+            bool wider=next!=null&&TowerCampaign.CompanionSlots(next)>TowerCampaign.CompanionSlots(ch);
             Label(new Rect(0,y,1600,28),next!=null?"다음 원정이 열렸습니다  ·  "+next.Numeral+" "+next.Title+"  "+next.Floors:"모든 신화를 되찾고 악신을 쓰러뜨렸습니다",18,paper,TextAnchor.MiddleCenter);
-            Label(new Rect(0,y+30,1600,24),"이번 원정의 성장은 마을에 간직됩니다",14,muted,TextAnchor.MiddleCenter);
+            Label(new Rect(0,y+30,1600,24),wider?"이제 동료 "+TowerCampaign.CompanionSlots(next)+"명을 골라 함께 오릅니다  ·  이번 원정의 성장은 마을에 간직됩니다":"이번 원정의 성장은 마을에 간직됩니다",14,wider?brass:muted,TextAnchor.MiddleCenter,wider);
             Fill(new Rect(240,y+70,1120,1),Alpha(brass,.18f));
             DrawExpeditionStats(y+90);
             if(ch.IsFinal)
             {
-                // The finale gathers every god who restored a myth on the way up.
-                var roster=campaign.Roster;float width=roster.Count*84-14,x=800-width*.5f;
+                // The finale gathers every god whose myth was restored on the way up.
+                var roster=TowerCampaign.CompanionPool(ch);float width=roster.Count*84-14,x=800-width*.5f;
                 Label(new Rect(0,y+196,1600,26),"함께 탑을 오른 신들",16,brass,TextAnchor.MiddleCenter,true);
                 for(int i=0;i<roster.Count;i++)
                 {
@@ -243,7 +237,7 @@ namespace PrototypeLab.Roguelike
             Label(new Rect(600,318,400,32),"/ "+ch.LastFloor+"층",22,muted,TextAnchor.MiddleCenter);
             DrawExpeditionStats(420);
             Fill(new Rect(240,534,1120,1),Alpha(silver,.18f));
-            Label(new Rect(240,560,1120,60),"이번 원정에서 얻은 증강은 사라졌습니다. 포인트는 남아 있습니다.\n같은 동료와 곧바로 다시 오르거나 마을로 돌아가 동료를 바꿀 수 있습니다.",17,muted,TextAnchor.MiddleCenter);
+            Label(new Rect(240,560,1120,60),"이번 원정에서 얻은 증강은 사라졌습니다. 포인트는 남아 있습니다.\n같은 동료와 곧바로 다시 오르거나, 마을로 돌아가 다음 출발 때 동료를 새로 뽑을 수 있습니다.",17,muted,TextAnchor.MiddleCenter);
             if(Button(new Rect(555,689,490,60),"같은 동료와 다시 도전",brass,true,true))RetryExpedition();
             if(Button(new Rect(660,771,280,44),"마을로 돌아가기",muted))EnterVillage();
         }

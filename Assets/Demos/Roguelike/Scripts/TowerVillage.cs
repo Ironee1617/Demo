@@ -14,10 +14,6 @@ namespace PrototypeLab.Roguelike
         internal bool village;
         internal enum VillagePanel { None, Gate, Shrine }
         internal VillagePanel villagePanel;
-        // The chapter god picked at the gate and the restored gods brought along with them.
-        internal string expeditionChoice;
-        internal readonly List<string> expeditionParty=new List<string>();
-        private string departedChoice;
         private bool chapterRecorded;
         private IReadOnlyList<TowerStoryPage> storyPages;private int storyPage;private string storyEyebrow;private Action storyDone;
         internal bool StoryOpen{get{return storyPages!=null;}}
@@ -28,7 +24,8 @@ namespace PrototypeLab.Roguelike
         internal const float VillageSpawnX=-13,SteleX=-14.6f,ShrineX=11.2f;
         internal static readonly float[] DummyXs={4.6f,7.2f};
         private static readonly float[] CandidateXs={20.1f,22.5f};
-        // Five places in the plaza by the shrine, then the clearing under the tutorial ledges.
+        // Five places in the plaza by the shrine, then the clearing under the tutorial ledges; the gods of the
+        // most recently restored myths take them first.
         private static readonly float[] RosterXs={13.4f,14.65f,15.9f,17.15f,18.4f,-.9f,.5f,1.9f};
         // Neighbouring signs alternate their label height so the labels never overlap.
         private struct Sign { public float x,y,lift;public string keys,text; }
@@ -65,7 +62,7 @@ namespace PrototypeLab.Roguelike
         {
             seed=Environment.TickCount&0x7fffffff;
             ResetActors();
-            village=true;chapterRecorded=false;departedChoice=null;
+            village=true;chapterRecorded=false;
             run=campaign.Preview(seed,new string[0]);
             SpawnHero(new Vector2(VillageSpawnX,TowerWorld.Ground));
             BeginFloorRecord();
@@ -117,9 +114,10 @@ namespace PrototypeLab.Roguelike
                 dummies.Add(new Dummy{root=root,body=body!=null?body.transform:root,pos=new Vector2(x,TowerWorld.Ground)});
             }
             villagers.Clear();
-            // Restored gods wait in the plaza; the next chapter's two gods stand at the tower gate.
-            var roster=campaign.Roster;
-            for(int i=0;i<roster.Count&&i<RosterXs.Length;i++)SpawnVillager(roster[i],RosterXs[i],i%2==0?1:-1);
+            // Gods of restored myths wait in the plaza; the next chapter's two gods stand at the tower gate.
+            var restored=new List<string>();
+            for(int c=campaign.ClearedChapters-1;c>=0;c--)restored.AddRange(TowerCampaign.Chapters[c].Candidates);
+            for(int i=0;i<restored.Count&&i<RosterXs.Length;i++)SpawnVillager(restored[i],RosterXs[i],i%2==0?1:-1);
             var next=campaign.NextChapter;
             if(next!=null)for(int i=0;i<next.Candidates.Count;i++)SpawnVillager(next.Candidates[i],CandidateXs[i],-1);
         }
@@ -210,7 +208,7 @@ namespace PrototypeLab.Roguelike
                 case VillageSpot.Stele: return "이야기 비석  ·  루멘의 이야기를 다시 읽기";
                 case VillageSpot.Shrine: return "신화의 제단  ·  되찾은 신화 보기";
                 case VillageSpot.Gate: return campaign.IsComplete?"서약의 탑  ·  악신은 쓰러졌습니다":"서약의 탑  ·  원정 준비";
-                case VillageSpot.Villager: return TowerRun.GetDefinition(npc.id).Name+"  ·  "+(IsCandidate(npc.id)?"함께 오를 신 고르기":"대화하기");
+                case VillageSpot.Villager: return TowerRun.GetDefinition(npc.id).Name+"  ·  대화하기";
                 default: return null;
             }
         }
@@ -221,66 +219,40 @@ namespace PrototypeLab.Roguelike
             Fighter npc;var spot=NearestSpot(out npc);
             if(spot==VillageSpot.Stele)ShowStory(TowerCampaign.Prologue,"PROLOGUE",null);
             else if(spot==VillageSpot.Shrine){villagePanel=VillagePanel.Shrine;Sound(chimeSound,.3f);}
-            else if(spot==VillageSpot.Gate)OpenGate(null);
+            else if(spot==VillageSpot.Gate)OpenGate();
             else if(spot==VillageSpot.Villager)
             {
-                if(IsCandidate(npc.id)){OpenGate(npc.id);return;}
                 var definition=TowerRun.GetDefinition(npc.id);
                 foreach(var chapter in TowerCampaign.Chapters)
                     if(chapter.Line(npc.id)!="")Toast(definition.Name+"  ·  "+definition.Title,"「"+chapter.Line(npc.id)+"」",TierColor(definition.Tier),4);
             }
         }
-        internal void OpenGate(string preferred)
-        {
-            villagePanel=VillagePanel.Gate;Sound(chimeSound,.3f);
-            var next=campaign.NextChapter;if(next==null)return;
-            if(preferred!=null)expeditionChoice=preferred;
-            else if(expeditionChoice!=null&&!IsCandidate(expeditionChoice))expeditionChoice=null;
-            // Default party: whoever came last time and is still free, then the most recently restored gods.
-            expeditionParty.Clear();
-            foreach(string id in campaign.LastParty)if(id!=expeditionChoice&&expeditionParty.Count<ExpeditionCapacity)expeditionParty.Add(id);
-            for(int i=campaign.Roster.Count-1;i>=0&&expeditionParty.Count<ExpeditionCapacity;i--)if(!expeditionParty.Contains(campaign.Roster[i]))expeditionParty.Add(campaign.Roster[i]);
-        }
-        /// <summary>Restored gods who can come besides the chapter's own god.</summary>
-        internal int ExpeditionCapacity{get{var next=campaign.NextChapter;return TowerRun.MaxCompanions-(next!=null&&next.Candidates.Count>0?1:0);}}
-        internal List<string> ExpeditionMembers()
-        {
-            var members=new List<string>();var next=campaign.NextChapter;
-            if(next!=null&&next.Candidates.Count>0&&expeditionChoice!=null)members.Add(expeditionChoice);
-            foreach(string id in expeditionParty)if(members.Count<TowerRun.MaxCompanions&&!members.Contains(id))members.Add(id);
-            return members;
-        }
-        internal bool CanDepart{get{var next=campaign.NextChapter;return next!=null&&campaign.CanDepart(next,next.Candidates.Count>0?expeditionChoice:null,ExpeditionMembers());}}
-        internal void ToggleExpeditionMember(string id)
-        {
-            if(expeditionParty.Remove(id))return;
-            if(expeditionParty.Count<ExpeditionCapacity)expeditionParty.Add(id);
-            else Toast("동행 정원 초과","원정에는 동료 "+TowerRun.MaxCompanions+"명까지 함께합니다",muted);
-        }
+        /// <summary>The gate shows the next chapter, its companion slots and the gods its draft deals from.</summary>
+        internal void OpenGate(){villagePanel=VillagePanel.Gate;Sound(chimeSound,.3f);}
 
-        /// <summary>Leaves the village with the chosen party for the next chapter.</summary>
-        internal bool StartExpedition()
+        /// <summary>
+        /// Leaves the village for the next chapter. After its intro page the expedition opens with companion
+        /// cards drawn like augments, one set per slot; <paramref name="kept"/> skips the slots it already fills.
+        /// </summary>
+        internal bool StartExpedition(IList<string> kept=null)
         {
-            var chapter=campaign.NextChapter;if(chapter==null||!CanDepart)return false;
-            string chosen=chapter.Candidates.Count>0?expeditionChoice:null;var members=ExpeditionMembers();
+            var chapter=campaign.NextChapter;if(chapter==null||!campaign.CanDepart(kept))return false;
             seed=Environment.TickCount&0x7fffffff;
-            StartRun(campaign.BeginChapter(seed,chosen,members));
-            departedChoice=chosen;chapterRecorded=false;SaveCampaign();
+            StartRun(campaign.BeginChapter(seed,kept));
+            chapterRecorded=false;
             ShowStory(new[]{new TowerStoryPage(chapter.Title+"  ·  "+chapter.Subtitle,chapter.Intro)},chapter.Numeral+"  /  "+chapter.Floors,null);
             return true;
         }
-        /// <summary>After a defeat: the same chapter again with the same companions.</summary>
+        /// <summary>After a defeat: the same chapter again with the same companions, without a new draft.</summary>
         internal void RetryExpedition()
         {
-            var members=new List<string>();foreach(var c in run.Companions)members.Add(c.Id);
-            expeditionChoice=departedChoice;expeditionParty.Clear();
-            foreach(string id in members)if(id!=departedChoice)expeditionParty.Add(id);
-            if(!StartExpedition())EnterVillage();
+            var kept=new List<string>();foreach(var c in run.Companions)kept.Add(c.Id);
+            if(!StartExpedition(kept))EnterVillage();
         }
         private void CompleteChapter()
         {
             chapterRecorded=true;
-            if(campaign.RecordChapterClear(run,departedChoice))SaveCampaign();
+            if(campaign.RecordChapterClear(run))SaveCampaign();
             Sound(chimeSound,1);
         }
         /// <summary>Leaves a finished chapter: the epilogue follows the evil god's fall, otherwise straight home.</summary>

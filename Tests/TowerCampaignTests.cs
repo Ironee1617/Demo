@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using PrototypeLab.Roguelike;
 
-// Story campaign rules: chapters, village companion choices, expedition growth and saves.
+// Story campaign rules: chapters, the companion draft that opens each expedition, expedition growth and saves.
 public static class TowerCampaignTests
 {
     private static void Require(bool value, string message) { if (!value) throw new Exception(message); }
@@ -19,18 +19,44 @@ public static class TowerCampaignTests
             Require(run.AdvanceFloor(), "advance from " + run.Floor);
         }
     }
-    private static List<string> Party(TowerCampaignSave save, string chosen)
+    // Takes every companion card set the expedition opens with, checking each against the chapter's pool.
+    private static int Draft(TowerRun run, Func<IReadOnlyList<RewardOffer>, RewardOffer> pick = null)
     {
-        var party = new List<string>();
-        if (chosen != null) party.Add(chosen);
-        for (int i = save.Roster.Count - 1; i >= 0 && party.Count < TowerRun.MaxCompanions; i--) party.Add(save.Roster[i]);
-        return party;
+        var pool = new List<string>(TowerCampaign.CompanionPool(run.Chapter)); int sets = 0;
+        while (run.IsRewardPending)
+        {
+            Require(run.IsRecruitOffer && !run.IsFloorCleared, "an expedition opens with companion cards only");
+            Require(run.Offers.Count == Math.Min(TowerRun.OfferSlots, run.OpenRecruits), "up to three of the remaining gods are dealt");
+            var dealt = new HashSet<string>();
+            foreach (var offer in run.Offers)
+            {
+                Require(offer.Kind == RewardKind.Recruit && pool.Contains(offer.CompanionId), "card " + offer.CompanionId + " comes from the chapter's pool");
+                Require(run.GetCompanion(offer.CompanionId) == null && dealt.Add(offer.CompanionId), "no god is dealt twice or after joining");
+            }
+            var chosen = pick == null ? run.Offers[0] : pick(run.Offers);
+            Require(run.ChooseOffer(chosen.Id), "draft pick " + chosen.CompanionId);
+            sets++;
+        }
+        return sets;
     }
+    private static List<string> Ids(TowerRun run)
+    { var ids = new List<string>(); foreach (var companion in run.Companions) ids.Add(companion.Id); return ids; }
     private static int Levels(TowerRun run)
     {
         int total = run.Player.Level;
         foreach (var companion in run.Companions) total += companion.Level;
         return total;
+    }
+    // Plays chapters with first-card picks so later chapters can be tested.
+    private static TowerCampaignSave Progress(int chapters)
+    {
+        var save = new TowerCampaignSave();
+        for (int c = 0; c < chapters; c++)
+        {
+            var run = save.BeginChapter(300 + c); Draft(run); Climb(run);
+            Require(save.RecordChapterClear(run), "record chapter " + c);
+        }
+        return save;
     }
 
     public static void Run(Action<string, Action> test)
@@ -45,7 +71,7 @@ public static class TowerCampaignTests
                 Require(TowerThemeCatalog.ForFloor(chapter.FirstFloor).Id == chapter.Theme && TowerThemeCatalog.ForFloor(chapter.LastFloor).Id == chapter.Theme, "chapter theme " + i);
                 Require(Object.ReferenceEquals(TowerCampaign.ForFloor(chapter.FirstFloor), chapter) && Object.ReferenceEquals(TowerCampaign.ForFloor(chapter.LastFloor), chapter), "floor lookup " + i);
                 Require(!String.IsNullOrEmpty(chapter.Intro) && !String.IsNullOrEmpty(chapter.RestoredTitle) && !String.IsNullOrEmpty(chapter.RestoredBody), "chapter story text " + i);
-                if (chapter.IsFinal) { Require(chapter.Candidates.Count == 0 && chapter.MythId == null && chapter.Theme == TowerThemeId.Abyss, "the final ascent brings restored gods only"); continue; }
+                if (chapter.IsFinal) { Require(chapter.Candidates.Count == 0 && chapter.MythId == null && chapter.Theme == TowerThemeId.Abyss, "the final ascent adds no new gods"); continue; }
                 Require(chapter.Candidates.Count == 2 && TowerMythCatalog.Get(chapter.MythId) != null, "two candidates of a real myth in chapter " + i);
                 foreach (string id in chapter.Candidates)
                 {
@@ -58,84 +84,140 @@ public static class TowerCampaignTests
             Require(TowerCampaign.Chapters[7].Theme == TowerThemeId.Hell && TowerCampaign.Chapters[7].MythId == "solomon", "Solomon's demons in hell");
             Require(TowerCampaign.Prologue.Count >= 3 && TowerCampaign.Epilogue.Count >= 2, "prologue and epilogue pages");
         });
-        test("a new campaign opens only the first chapter and checks every expedition party", () => {
-            var save = new TowerCampaignSave(); var first = TowerCampaign.Chapters[0];
-            Require(save.ClearedChapters == 0 && Object.ReferenceEquals(save.NextChapter, first) && save.UnlockedFloor == 10 && save.Roster.Count == 0 && !save.IsComplete, "fresh state");
-            Require(save.CanDepart(first, "zeus", new[] { "zeus" }) && save.CanDepart(first, "poseidon", new[] { "poseidon" }), "either Olympian may join");
-            Require(!save.CanDepart(first, null, new string[0]), "a chapter god must be chosen");
-            Require(!save.CanDepart(first, "athena", new[] { "athena" }), "only the two offered gods may be chosen");
-            Require(!save.CanDepart(first, "zeus", new[] { "zeus", "poseidon" }), "only one of the two gods may join");
-            Require(!save.CanDepart(first, "zeus", new string[0]), "the chosen god must come along");
-            Require(!save.CanDepart(TowerCampaign.Chapters[1], "odin", new[] { "odin" }), "later chapters stay locked");
-            bool rejected = false; try { save.BeginChapter(1, "athena", new[] { "athena" }); } catch (InvalidOperationException) { rejected = true; }
-            Require(rejected, "invalid parties cannot depart");
+        test("each chapter drafts from every myth so far and opens a companion slot past floors 30 and 60", () => {
+            int[] slots = { 1, 1, 1, 2, 2, 2, 3, 3, 3 };
+            for (int i = 0; i < TowerCampaign.Chapters.Count; i++)
+            {
+                var chapter = TowerCampaign.Chapters[i]; var pool = TowerCampaign.CompanionPool(chapter);
+                Require(pool.Count == 2 * Math.Min(i + 1, 8), "pool size before chapter " + i + ": " + pool.Count);
+                for (int c = 0; c <= i; c++) foreach (string id in TowerCampaign.Chapters[c].Candidates) Require(new List<string>(pool).Contains(id), id + " drafted before chapter " + i);
+                Require(TowerCampaign.CompanionSlots(chapter) == slots[i], "companion slots before chapter " + i);
+            }
+            var olympus = TowerCampaign.CompanionPool(TowerCampaign.Chapters[0]);
+            Require(olympus[0] == "zeus" && olympus[1] == "poseidon", "the first draft is the two Olympians");
+            var asgard = TowerCampaign.CompanionPool(TowerCampaign.Chapters[1]);
+            Require(asgard.Count == 4 && asgard[2] == "odin" && asgard[3] == "thor", "restoring Olympus adds Asgard's two gods");
         });
-        test("each restored myth returns the hero to the village, opens ten more floors and keeps the party's growth", () => {
+        test("the first expedition opens with both Olympians and one pick", () => {
+            var save = new TowerCampaignSave(); var first = TowerCampaign.Chapters[0];
+            Require(save.ClearedChapters == 0 && Object.ReferenceEquals(save.NextChapter, first) && save.UnlockedFloor == 10 && !save.IsComplete, "fresh state");
+            Require(save.CompanionSlots == 1 && save.CompanionPool.Count == 2, "one of the two Olympians");
+            Require(save.CanDepart(null) && save.CanDepart(new string[0]) && save.CanDepart(new[] { "zeus" }), "departures draft or keep pool gods");
+            Require(!save.CanDepart(new[] { "athena" }) && !save.CanDepart(new[] { "odin" }), "only pool gods may come");
+            Require(!save.CanDepart(new[] { "zeus", "poseidon" }) && !save.CanDepart(new[] { "zeus", "zeus" }) && !save.CanDepart(new string[] { null }), "no more than the open slots, each god once");
+            bool rejected = false; try { save.BeginChapter(1, new[] { "athena" }); } catch (InvalidOperationException) { rejected = true; }
+            Require(rejected, "invalid parties cannot depart");
+            var run = save.BeginChapter(2);
+            Require(run.IsCampaign && run.Floor == 1 && run.Companions.Count == 0 && run.CompanionLimit == 1, "the expedition starts without companions");
+            Require(run.IsRewardPending && run.IsRecruitOffer && run.Offers.Count == 2 && !run.CanReroll(0) && !run.Reroll(1), "two cards and no spare god to reroll into");
+            Require(!run.ClearFloor() && !run.AdvanceFloor(), "the draft comes before the first fight");
+            var ids = new HashSet<string> { run.Offers[0].CompanionId, run.Offers[1].CompanionId };
+            Require(ids.Contains("zeus") && ids.Contains("poseidon"), "both Olympians are dealt");
+            Require(Draft(run, offers => offers[0].CompanionId == "poseidon" ? offers[0] : offers[1]) == 1, "a single draft");
+            Require(run.Companions.Count == 1 && run.GetCompanion("poseidon") != null && !run.IsRewardPending && run.ClearFloor(), "Poseidon joins and the fight begins");
+        });
+        test("drafts deal three random gods from the pool and rerolls bring in the spare ones", () => {
+            var save = Progress(1);
+            Require(save.CompanionSlots == 1 && save.CompanionPool.Count == 4, "Olympus and Asgard after the first chapter");
+            var seen = new HashSet<string>();
+            for (int seed = 0; seed < 60; seed++)
+            {
+                var run = save.BeginChapter(seed);
+                Require(run.Offers.Count == 3 && run.OpenRecruits == 4, "three of four");
+                foreach (var offer in run.Offers) seen.Add(offer.CompanionId);
+                var before = new HashSet<string>(); foreach (var offer in run.Offers) before.Add(offer.CompanionId);
+                long kept = run.Offers[1].Id; string replaced = run.Offers[0].CompanionId;
+                Require(run.CanReroll(0) && run.Reroll(0) && !run.CanReroll(0), "one reroll per card");
+                Require(!before.Contains(run.Offers[0].CompanionId) && run.Offers[1].Id == kept, "a reroll deals the spare god and keeps the others");
+                Require(run.Offers[0].CompanionId != replaced, "the rerolled god leaves the slot");
+                Require(Draft(run) == 1 && run.Companions.Count == 1, "one companion before floor 30");
+            }
+            Require(seen.SetEquals(new[] { "zeus", "poseidon", "odin", "thor" }), "every pool god appears and nobody else: " + String.Join(",", new List<string>(seen).ToArray()));
+        });
+        test("past floor 30 the draft repeats for a second companion and past floor 60 for a third", () => {
+            var save = Progress(3);
+            Require(save.CompanionSlots == 2 && save.CompanionPool.Count == 8, "chapter four drafts two of eight");
+            var run = save.BeginChapter(77);
+            Require(run.Floor == 31 && run.CompanionLimit == 2 && run.Offers.Count == 3, "first draft");
+            string first = run.Offers[2].CompanionId;
+            Require(run.ChooseOffer(run.Offers[2].Id) && run.IsRewardPending && run.IsRecruitOffer && run.OpenRecruits == 7, "the second draft follows at once");
+            foreach (var offer in run.Offers) Require(offer.CompanionId != first, "the first pick is not dealt again");
+            Require(Draft(run) == 1 && run.Companions.Count == 2 && !run.IsRewardPending, "two companions");
+            Require(run.ClearFloor() && !run.IsRecruitOffer, "the fight begins once both companions joined");
+            save = Progress(6);
+            Require(save.CompanionSlots == 3 && save.CompanionPool.Count == 14, "chapter seven drafts three of fourteen");
+            run = save.BeginChapter(78);
+            Require(Draft(run) == 3 && run.Companions.Count == 3 && run.Floor == 61, "three companions past floor 60");
+            save = Progress(8);
+            Require(save.NextChapter.IsFinal && save.CompanionSlots == 3 && save.CompanionPool.Count == 16, "the final ascent drafts from all sixteen gods");
+            run = save.BeginChapter(79);
+            Require(Draft(run) == 3 && run.Companions.Count == 3 && run.Floor == 81, "three companions face the evil god");
+        });
+        test("each restored myth returns the hero to the village, opens ten more floors and keeps the growth of everyone who came", () => {
             var save = new TowerCampaignSave();
             for (int c = 0; c < TowerCampaign.Chapters.Count; c++)
             {
                 var chapter = save.NextChapter; Require(chapter.Index == c && save.UnlockedFloor == chapter.LastFloor, "unlocked through chapter " + c);
-                string chosen = chapter.Candidates.Count > 0 ? chapter.Candidates[c % 2] : null;
-                var party = Party(save, chosen);
-                Require(party.Count == Math.Min(TowerRun.MaxCompanions, c + (chosen == null ? 0 : 1)), "party size before chapter " + c);
-                var run = save.BeginChapter(1000 + c, chosen, party);
+                var run = save.BeginChapter(1000 + c);
                 Require(run.IsCampaign && Object.ReferenceEquals(run.Chapter, chapter) && run.Floor == chapter.FirstFloor && run.MaxFloor == chapter.LastFloor, "expedition floors " + c);
-                Require(run.Theme.Id == chapter.Theme && !run.IsRewardPending && run.Companions.Count == party.Count, "expedition opens on the chapter theme with its party");
-                Require(!save.RecordChapterClear(run, chosen), "an unfinished expedition is not recorded");
+                Require(run.Theme.Id == chapter.Theme && run.Player.Level == 1 + save.SavedUpgrades("player"), "expedition opens on the chapter theme with the saved hero");
+                // Picking the most grown god shows that every draft pick brings back their own saved upgrades.
+                Require(Draft(run, offers => { var best = offers[0]; foreach (var o in offers) if (save.SavedUpgrades(o.CompanionId) > save.SavedUpgrades(best.CompanionId)) best = o; return best; }) == save.CompanionSlots, "one draft per slot in chapter " + c);
+                foreach (var companion in run.Companions) Require(companion.Level == 1 + save.SavedUpgrades(companion.Id), companion.Id + " replays their saved growth");
+                Require(run.Companions.Count == save.CompanionSlots, "party size in chapter " + c);
+                Require(!save.RecordChapterClear(run), "an unfinished expedition is not recorded");
                 int replayed = Levels(run);
                 Climb(run);
                 Require(run.IsComplete && run.Floor == chapter.LastFloor && run.ClearedFloors == 10, "chapter climbed " + c);
                 int grown = Levels(run);
                 Require(grown >= replayed + 2, "two fifth-floor rewards per chapter");
-                Require(save.RecordChapterClear(run, chosen) && save.ClearedChapters == c + 1, "chapter recorded " + c);
-                Require(!save.RecordChapterClear(run, chosen), "a chapter is recorded once");
-                if (chosen != null) Require(new List<string>(save.Roster).Contains(chosen) && save.Roster.Count == c + 1, "the chosen god joins for good");
+                Require(save.RecordChapterClear(run) && save.ClearedChapters == c + 1, "chapter recorded " + c);
+                Require(!save.RecordChapterClear(run), "a chapter is recorded once");
                 Require(save.IsRestored(chapter), "chapter restored");
                 if (!save.IsComplete)
                 {
                     // Coming home and leaving again rebuilds the same heroes from the save.
-                    var preview = save.Preview(7, run.Chapter.Candidates.Count > 0 ? new List<string>(party) : party);
+                    var preview = save.Preview(7, Ids(run));
                     Require(Levels(preview) == grown, "village preview keeps every upgrade (" + Levels(preview) + " vs " + grown + ")");
                 }
             }
-            Require(save.IsComplete && save.NextChapter == null && save.UnlockedFloor == 90 && save.Roster.Count == 8, "the evil god falls after nine chapters");
+            Require(save.IsComplete && save.NextChapter == null && save.UnlockedFloor == 90 && save.CompanionSlots == 0 && save.CompanionPool.Count == 0, "the evil god falls after nine chapters");
+            Require(!save.CanDepart(null), "nothing left to climb");
         });
-        test("a lost expedition keeps the saved state and allows the other god to be chosen", () => {
+        test("a lost expedition keeps the saved state and a retry keeps its companions", () => {
             var save = new TowerCampaignSave();
-            var failed = save.BeginChapter(5, "zeus", new[] { "zeus" });
+            var failed = save.BeginChapter(5); Draft(failed);
             Require(failed.ClearFloor() && failed.AdvanceFloor() && failed.ClearFloor(), "climb a little");
-            Require(save.ClearedChapters == 0 && save.Roster.Count == 0, "nothing recorded on defeat");
-            var retry = save.BeginChapter(6, "poseidon", new[] { "poseidon" });
-            Require(retry.Floor == 1 && retry.GetCompanion("poseidon") != null && retry.GetCompanion("zeus") == null, "retry with the other Olympian");
+            Require(save.ClearedChapters == 0 && save.SavedUpgrades("player") == 0, "nothing recorded on defeat");
+            var retry = save.BeginChapter(6, Ids(failed));
+            Require(retry.Floor == 1 && !retry.IsRewardPending && Ids(retry)[0] == Ids(failed)[0], "the same companion, no new draft");
             Climb(retry);
-            Require(!save.RecordChapterClear(retry, "zeus"), "only the god who came can be recorded");
-            Require(save.RecordChapterClear(retry, "poseidon") && save.Roster.Count == 1 && save.Roster[0] == "poseidon", "poseidon joins");
-            Require(!save.CanDepart(save.NextChapter, "odin", new[] { "odin", "zeus" }), "the unchosen Olympian never joins");
-            Require(save.CanDepart(save.NextChapter, "thor", new[] { "thor", "poseidon" }), "restored gods may follow");
+            Require(save.RecordChapterClear(retry) && save.ClearedChapters == 1, "the retry restores Olympus");
+            save = Progress(3);
+            var partial = save.BeginChapter(9, new[] { "zeus" });
+            Require(partial.GetCompanion("zeus") != null && partial.IsRewardPending && partial.IsRecruitOffer, "a kept party short of the slots drafts the rest");
+            foreach (var offer in partial.Offers) Require(offer.CompanionId != "zeus", "kept gods are not dealt");
+            Require(Draft(partial) == 1 && partial.Companions.Count == 2, "the open slot fills");
+            Require(!save.CanDepart(new[] { "zeus", "odin", "thor" }) && !save.CanDepart(new[] { "ra" }), "kept parties respect the slots and the pool");
         });
-        test("saves round-trip and ignore damaged or impossible entries", () => {
-            var save = new TowerCampaignSave { PrologueSeen = true, TutorialDone = true };
-            for (int c = 0; c < 3; c++)
-            {
-                var chapter = save.NextChapter; string chosen = chapter.Candidates[1];
-                var run = save.BeginChapter(40 + c, chosen, Party(save, chosen)); Climb(run);
-                Require(save.RecordChapterClear(run, chosen), "record " + c);
-            }
+        test("saves round-trip, carry old saves forward and ignore damaged or impossible entries", () => {
+            var save = Progress(3); save.PrologueSeen = true; save.TutorialDone = true;
             string text = save.Save(); var loaded = TowerCampaignSave.Load(text);
-            Require(loaded.Save() == text, "round trip " + text);
-            Require(loaded.ClearedChapters == 3 && loaded.PrologueSeen && loaded.TutorialDone && !loaded.EndingSeen && loaded.Roster.Count == 3 && loaded.LastParty.Count == 3, "fields restored");
-            var a = save.Preview(1, save.LastParty); var b = loaded.Preview(1, loaded.LastParty);
+            Require(text.StartsWith("c2;") && loaded.Save() == text, "round trip " + text);
+            Require(loaded.ClearedChapters == 3 && loaded.PrologueSeen && loaded.TutorialDone && !loaded.EndingSeen && loaded.CompanionSlots == 2, "fields restored");
+            var everyone = TowerCampaign.CompanionPool(TowerCampaign.Chapters[2]);
+            var a = save.Preview(1, everyone); var b = loaded.Preview(1, everyone);
             Require(Levels(a) == Levels(b) && Math.Abs(a.Player.MaxHealth - b.Player.MaxHealth) < .001f && Math.Abs(a.Player.Damage - b.Player.Damage) < .001f, "growth restored");
-            foreach (string bad in new[] { null, "", "x", "c1;9", "c2;1;0;zeus;;0;", "c1;one;0;;;0;", "c1;1;0;;;NaN;" })
+            foreach (string bad in new[] { null, "", "x", "c2;9", "c2;1;0;0", "c2;one;0;0;", "c2;1;0;NaN;", "c3;1;0;0;", "c1;1;0;;;0" })
             {
                 var broken = TowerCampaignSave.Load(bad);
-                Require(broken.ClearedChapters == 0 && broken.Roster.Count == 0 && broken.Vitality == 0, "damaged save ignored: " + bad);
+                Require(broken.ClearedChapters == 0 && broken.Vitality == 0 && !broken.PrologueSeen, "damaged save ignored: " + bad);
             }
-            var forged = TowerCampaignSave.Load("c1;1;0;zeus,thor,athena;thor,zeus;-5;zeus.skill1=2,unknown=3,player.fireball=0");
-            Require(forged.ClearedChapters == 1 && forged.Roster.Count == 1 && forged.Roster[0] == "zeus", "only restored chapter gods are kept");
-            Require(forged.LastParty.Count == 1 && forged.LastParty[0] == "zeus" && forged.Vitality == 0, "party limited to the roster, vitality clamped");
-            Require(forged.GrowthLevel("zeus.skill1") == 2 && forged.GrowthLevel("unknown") == 0 && forged.GrowthLevel("player.fireball") == 0, "unknown and empty upgrades dropped");
-            var overflow = TowerCampaignSave.Load("c1;99;7;;;0;");
+            var legacy = TowerCampaignSave.Load("c1;1;3;zeus,thor,athena;thor,zeus;-5;zeus.skill1=2,unknown=3,player.fireball=0");
+            Require(legacy.ClearedChapters == 1 && legacy.PrologueSeen && legacy.TutorialDone && legacy.Vitality == 0, "a c1 save keeps its chapters and flags, vitality clamped");
+            Require(legacy.GrowthLevel("zeus.skill1") == 2 && legacy.GrowthLevel("unknown") == 0 && legacy.GrowthLevel("player.fireball") == 0, "unknown and empty upgrades dropped");
+            Require(legacy.CompanionPool.Count == 4 && legacy.Save().StartsWith("c2;1;3;"), "old gods and parties give way to the draft");
+            var overflow = TowerCampaignSave.Load("c2;99;7;0;");
             Require(overflow.IsComplete && overflow.ClearedChapters == 9 && overflow.EndingSeen, "chapter count clamps");
         });
     }

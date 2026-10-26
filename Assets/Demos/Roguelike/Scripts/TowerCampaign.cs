@@ -22,9 +22,9 @@ namespace PrototypeLab.Roguelike
         public TowerThemeId Theme { get; private set; }
         public string Title { get; private set; }
         public string Subtitle { get; private set; }
-        /// <summary>Companion mythology whose gods are offered before this chapter; null for the final ascent.</summary>
+        /// <summary>Companion mythology whose gods join the companion pool with this chapter; null for the final ascent.</summary>
         public string MythId { get; private set; }
-        /// <summary>The two gods of the mythology; exactly one of them may join for this chapter.</summary>
+        /// <summary>The two gods of the mythology; from this chapter on both may be drafted as companions.</summary>
         public IReadOnlyList<string> Candidates { get; private set; }
         public string Intro { get; private set; }
         public string RestoredTitle { get; private set; }
@@ -63,7 +63,7 @@ namespace PrototypeLab.Roguelike
             new TowerChapter(0, TowerThemeId.Olympus, "올림포스", "번개가 잠든 산", "olympus", new[] { "zeus", "poseidon" },
                 new[] { "내 번개는 아직 식지 않았네. 그대의 적을 하늘에서 내리치겠네.", "삼지창을 되찾게 해 주게. 파도가 그대의 방패가 되리라." },
                 "올림포스의 신전은 악신의 안개에 잠겼습니다. 신들의 왕좌를 되찾고 잠든 번개를 다시 깨우십시오.",
-                "올림포스의 신화를 되찾았습니다", "번개가 다시 하늘을 가릅니다. 함께 오른 신이 당신의 영원한 동료가 되었습니다."),
+                "올림포스의 신화를 되찾았습니다", "번개가 다시 하늘을 가릅니다. 신들의 왕좌가 옛 빛을 되찾았습니다."),
             new TowerChapter(1, TowerThemeId.Asgard, "아스가르드", "서리에 묶인 세계수", "asgard", new[] { "odin", "thor" },
                 new[] { "눈 하나를 바쳐 얻은 지혜로 길을 비추겠소.", "묠니르만 있으면 된다! 거인이든 악신이든 부숴 주지." },
                 "세계수 이그드라실의 가지가 서리에 묶였습니다. 뿌리를 갉는 니드호그를 쓰러뜨리고 발할라의 노래를 되찾으십시오.",
@@ -119,18 +119,39 @@ namespace PrototypeLab.Roguelike
             if (floor < 1) throw new ArgumentOutOfRangeException("floor");
             return Chapters[Math.Min(Chapters.Count - 1, (floor - 1) / FloorsPerChapter)];
         }
+
+        /// <summary>
+        /// Gods drafted as companions before a chapter: both gods of every myth up to and including the chapter's
+        /// own, in chapter order. Olympus alone opens with two, and each restored myth adds the next two.
+        /// </summary>
+        public static IReadOnlyList<string> CompanionPool(TowerChapter chapter)
+        {
+            if (chapter == null) throw new ArgumentNullException("chapter");
+            var pool = new List<string>();
+            for (int c = 0; c <= chapter.Index; c++) pool.AddRange(Chapters[c].Candidates);
+            return pool.AsReadOnly();
+        }
+
+        /// <summary>Companions drafted before a chapter: one, a second past floor 30 and a third past floor 60.</summary>
+        public static int CompanionSlots(TowerChapter chapter)
+        {
+            if (chapter == null) throw new ArgumentNullException("chapter");
+            int slots = 1;
+            foreach (int floor in TowerRun.RecruitFloors) if (chapter.FirstFloor > floor) slots++;
+            return Math.Min(TowerRun.MaxCompanions, slots);
+        }
     }
 
     /// <summary>
-    /// Persistent campaign progress: restored chapters, the gods who joined, and the growth every hero keeps
-    /// between chapters. An expedition starts from this state; dying discards that expedition's gains, while
-    /// clearing its last floor records them. Save() can be stored directly in PlayerPrefs.
+    /// Persistent campaign progress: restored chapters and the growth every hero keeps between chapters. An
+    /// expedition starts from this state and drafts its companions from the gods its chapter has opened; dying
+    /// discards that expedition's gains, while clearing its last floor records them. Save() can be stored
+    /// directly in PlayerPrefs.
     /// </summary>
     public sealed class TowerCampaignSave
     {
-        private const string Version = "c1";
-        private readonly List<string> roster = new List<string>();
-        private readonly List<string> party = new List<string>();
+        private const string Version = "c2", LegacyVersion = "c1";
+        private static readonly IReadOnlyList<string> NoGods = Array.AsReadOnly(new string[0]);
         // Augment id -> level (skill level or trait stack); each augment names its owner.
         private readonly Dictionary<string, int> growth = new Dictionary<string, int>();
         public int ClearedChapters { get; private set; }
@@ -138,85 +159,86 @@ namespace PrototypeLab.Roguelike
         public bool TutorialDone { get; set; }
         public bool EndingSeen { get; set; }
         public float Vitality { get; private set; }
-        /// <summary>Gods who joined permanently, in the order their myths were restored.</summary>
-        public IReadOnlyList<string> Roster { get { return roster.AsReadOnly(); } }
-        /// <summary>The companions brought on the most recent expedition, used as the next default party.</summary>
-        public IReadOnlyList<string> LastParty { get { return party.AsReadOnly(); } }
         public bool IsComplete { get { return ClearedChapters >= TowerCampaign.Chapters.Count; } }
         public TowerChapter NextChapter { get { return IsComplete ? null : TowerCampaign.Chapters[ClearedChapters]; } }
         /// <summary>The highest floor the hero may climb to now.</summary>
         public int UnlockedFloor { get { return Math.Min(TowerCampaign.TotalFloors, (ClearedChapters + 1) * TowerCampaign.FloorsPerChapter); } }
+        /// <summary>Gods the next expedition drafts from: both gods of every restored myth and of the next chapter's.</summary>
+        public IReadOnlyList<string> CompanionPool { get { return NextChapter == null ? NoGods : TowerCampaign.CompanionPool(NextChapter); } }
+        /// <summary>How many companions the next expedition drafts.</summary>
+        public int CompanionSlots { get { return NextChapter == null ? 0 : TowerCampaign.CompanionSlots(NextChapter); } }
         public bool IsRestored(TowerChapter chapter) { return chapter != null && chapter.Index < ClearedChapters; }
         public int GrowthLevel(string augmentId) { int level; return growth.TryGetValue(augmentId, out level) ? level : 0; }
+        /// <summary>Saved upgrades a hero brings along whenever they join an expedition.</summary>
+        public int SavedUpgrades(string heroId)
+        {
+            int total = 0;
+            foreach (var entry in growth) { var augment = TowerRun.GetAugment(entry.Key); if (augment != null && augment.OwnerId == heroId) total += entry.Value; }
+            return total;
+        }
 
         /// <summary>
-        /// Checks an expedition party: the chosen god must be one of the chapter's candidates, the others must
-        /// have joined earlier, and no more than three companions may come.
+        /// Checks companions kept from a lost attempt: gods of the companion pool only, each once, and no more
+        /// than the next chapter drafts. Null or empty means every slot is drafted.
         /// </summary>
-        public bool CanDepart(TowerChapter chapter, string chosen, IList<string> companions)
+        public bool CanDepart(IList<string> party)
         {
-            if (chapter == null || chapter != NextChapter || companions == null || companions.Count > TowerRun.MaxCompanions) return false;
-            bool needsChoice = chapter.Candidates.Count > 0;
-            if (needsChoice && (chosen == null || !Contains(chapter.Candidates, chosen) || !companions.Contains(chosen))) return false;
-            if (!needsChoice && chosen != null) return false;
-            var seen = new HashSet<string>();
-            foreach (string id in companions)
-            {
-                if (id == null || !seen.Add(id) || TowerRun.GetDefinition(id) == null) return false;
-                if (id != chosen && !roster.Contains(id)) return false;
-            }
+            if (NextChapter == null) return false;
+            if (party == null) return true;
+            if (party.Count > CompanionSlots) return false;
+            var pool = CompanionPool; var seen = new HashSet<string>();
+            foreach (string id in party) if (id == null || !seen.Add(id) || !Contains(pool, id)) return false;
             return true;
         }
 
-        /// <summary>Builds the expedition run and replays every saved upgrade for the heroes who come along.</summary>
-        public TowerRun BeginChapter(int seed, string chosen, IList<string> companions)
+        /// <summary>
+        /// Builds the next expedition and replays every saved upgrade. Companions in <paramref name="party"/>
+        /// (a retry after a defeat) come straight along; the remaining slots open as recruit cards drawn from
+        /// the companion pool before the first fight, and each god replays their own growth on joining.
+        /// </summary>
+        public TowerRun BeginChapter(int seed, IList<string> party = null)
         {
-            var chapter = NextChapter;
-            if (!CanDepart(chapter, chosen, companions)) throw new InvalidOperationException("Invalid expedition party.");
-            var run = TowerRun.ForChapter(seed, chapter, companions);
-            if (Vitality > 0) run.Player.AddVitality(Vitality);
-            foreach (var entry in growth)
-            {
-                var augment = TowerRun.GetAugment(entry.Key);
-                var hero = augment == null ? null : run.GetHero(augment.OwnerId);
-                if (hero == null) continue;
-                for (int level = 0; level < entry.Value; level++) if (!hero.Apply(augment)) break;
-            }
-            party.Clear(); party.AddRange(companions);
+            if (!CanDepart(party)) throw new InvalidOperationException("Invalid expedition party.");
+            var run = TowerRun.ForChapter(seed, NextChapter, new string[0]);
+            Replay(run.Player);
+            run.DraftCompanions(party ?? new string[0], CompanionPool, CompanionSlots, Replay);
             return run;
         }
 
-        /// <summary>A party-only preview of the next expedition, shown in the village before departure.</summary>
+        /// <summary>A preview of the next expedition, shown in the village before departure.</summary>
         public TowerRun Preview(int seed, IEnumerable<string> companions)
         {
             var chapter = NextChapter ?? TowerCampaign.Chapters[TowerCampaign.Chapters.Count - 1];
             var valid = new List<string>();
-            foreach (string id in companions ?? new string[0])
+            foreach (string id in companions ?? NoGods)
                 if (valid.Count < TowerRun.MaxCompanions && !valid.Contains(id) && TowerRun.GetDefinition(id) != null) valid.Add(id);
             var run = TowerRun.ForChapter(seed, chapter, valid);
-            if (Vitality > 0) run.Player.AddVitality(Vitality);
-            foreach (var entry in growth)
-            {
-                var augment = TowerRun.GetAugment(entry.Key);
-                var hero = augment == null ? null : run.GetHero(augment.OwnerId);
-                if (hero == null) continue;
-                for (int level = 0; level < entry.Value; level++) if (!hero.Apply(augment)) break;
-            }
+            Replay(run.Player);
+            foreach (var companion in run.Companions) Replay(companion);
             return run;
         }
 
+        private void Replay(HeroState hero)
+        {
+            if (hero.Id == "player" && Vitality > 0) hero.AddVitality(Vitality);
+            foreach (var entry in growth)
+            {
+                var augment = TowerRun.GetAugment(entry.Key);
+                if (augment == null || augment.OwnerId != hero.Id) continue;
+                for (int level = 0; level < entry.Value; level++) if (!hero.Apply(augment)) break;
+            }
+        }
+
         /// <summary>
-        /// Records a finished chapter: the chosen god joins for good and every hero who came keeps the upgrades
-        /// gathered on the way. Returns false unless the run is the completed next chapter.
+        /// Records a finished chapter: every hero who came keeps the upgrades gathered on the way and the next
+        /// ten floors open. Returns false unless the run is the completed next chapter.
         /// </summary>
-        public bool RecordChapterClear(TowerRun run, string chosen)
+        public bool RecordChapterClear(TowerRun run)
         {
             if (run == null || run.Chapter == null || run.Chapter != NextChapter || !run.IsComplete) return false;
-            if (run.Chapter.Candidates.Count > 0 && (chosen == null || run.GetCompanion(chosen) == null || !Contains(run.Chapter.Candidates, chosen))) return false;
             Capture(run.Player);
             foreach (var companion in run.Companions) Capture(companion);
             Vitality = Math.Max(Vitality, run.Player.BonusHealth);
-            if (chosen != null && !roster.Contains(chosen)) roster.Add(chosen);
             ClearedChapters++;
             return true;
         }
@@ -237,8 +259,7 @@ namespace PrototypeLab.Roguelike
             upgrades.Sort(StringComparer.Ordinal);
             int flags = (PrologueSeen ? 1 : 0) | (TutorialDone ? 2 : 0) | (EndingSeen ? 4 : 0);
             return String.Join(";", new[] { Version, ClearedChapters.ToString(CultureInfo.InvariantCulture), flags.ToString(CultureInfo.InvariantCulture),
-                String.Join(",", roster.ToArray()), String.Join(",", party.ToArray()), Vitality.ToString("R", CultureInfo.InvariantCulture),
-                String.Join(",", upgrades.ToArray()) });
+                Vitality.ToString("R", CultureInfo.InvariantCulture), String.Join(",", upgrades.ToArray()) });
         }
 
         public static TowerCampaignSave Load(string saved)
@@ -246,21 +267,17 @@ namespace PrototypeLab.Roguelike
             var save = new TowerCampaignSave();
             if (String.IsNullOrEmpty(saved)) return save;
             string[] fields = saved.Split(';'); int cleared, flags; float vitality;
-            if (fields.Length != 7 || fields[0] != Version) return save;
+            // c1 also kept the gods who joined for good and the last party; companions are drafted per expedition now.
+            if (fields.Length == 7 && fields[0] == LegacyVersion) fields = new[] { Version, fields[1], fields[2], fields[5], fields[6] };
+            if (fields.Length != 5 || fields[0] != Version) return save;
             if (!Int32.TryParse(fields[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out cleared) ||
                 !Int32.TryParse(fields[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out flags) ||
-                !Single.TryParse(fields[5], NumberStyles.Float, CultureInfo.InvariantCulture, out vitality) ||
+                !Single.TryParse(fields[3], NumberStyles.Float, CultureInfo.InvariantCulture, out vitality) ||
                 Single.IsNaN(vitality) || Single.IsInfinity(vitality)) return save;
             save.ClearedChapters = Math.Max(0, Math.Min(TowerCampaign.Chapters.Count, cleared));
             save.PrologueSeen = (flags & 1) != 0; save.TutorialDone = (flags & 2) != 0; save.EndingSeen = (flags & 4) != 0;
             save.Vitality = Math.Max(0, vitality);
-            // Only gods whose chapter is restored can be in the roster.
-            foreach (string id in fields[3].Split(','))
-                for (int c = 0; c < save.ClearedChapters; c++)
-                    if (Contains(TowerCampaign.Chapters[c].Candidates, id) && !save.roster.Contains(id)) save.roster.Add(id);
-            foreach (string id in fields[4].Split(','))
-                if (save.roster.Contains(id) && save.party.Count < TowerRun.MaxCompanions) save.party.Add(id);
-            foreach (string entry in fields[6].Split(','))
+            foreach (string entry in fields[4].Split(','))
             {
                 string[] pair = entry.Split('='); int level;
                 if (pair.Length != 2 || TowerRun.GetAugment(pair[0]) == null || !Int32.TryParse(pair[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out level) || level < 1) continue;

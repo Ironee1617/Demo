@@ -329,10 +329,14 @@ namespace PrototypeLab.Roguelike
         public const int MaxCompanions = 3, OfferSlots = 3, DefaultMaxFloor = 90, RewardInterval = 5;
         public const int AugmentPrice = 5, HealPrice = 2, VitalityPrice = 4;
         public const float RestHealFraction = .5f, ShopHealFraction = .35f, VitalityHealth = 15;
-        // A free climb opens with one recruit; these floors grant the second and third. Chapters recruit in the village.
+        // A free climb opens with one recruit; these floors grant the second and third. A chapter past them
+        // drafts that many companions before its first fight instead.
         public static readonly IReadOnlyList<int> RecruitFloors = Array.AsReadOnly(new[] { 30, 60 });
         private readonly Random random;
         private readonly List<CompanionState> companions = new List<CompanionState>();
+        // A campaign draft recruits only the chapter's companion pool; null opens every mythology.
+        private List<string> recruitPool;
+        private Action<CompanionState> joined;
         private readonly List<RewardOffer> offers = new List<RewardOffer>();
         private readonly List<ShopOffer> shop = new List<ShopOffer>();
         private readonly bool[] rerolled = new bool[OfferSlots];
@@ -353,6 +357,11 @@ namespace PrototypeLab.Roguelike
         public bool IsFloorCleared { get; private set; }
         public bool IsRewardPending { get; private set; }
         public bool IsRecruitOffer { get; private set; }
+        /// <summary>Most companions this climb may hold: three, or the slots a campaign chapter drafts.</summary>
+        public int CompanionLimit { get; private set; }
+        /// <summary>Gods who could still be recruited: the chapter's pool in a campaign draft, else every mythology.</summary>
+        public int OpenRecruits
+        { get { int open = 0; foreach (var definition in Definitions) if (InPool(definition) && GetCompanion(definition.Id) == null) open++; return open; } }
         public int ShopPurchases { get; private set; }
         // The merchant trades once per shop floor; after one purchase the stall closes.
         public bool ShopTraded { get; private set; }
@@ -375,7 +384,7 @@ namespace PrototypeLab.Roguelike
         {
             if (random == null) throw new ArgumentNullException("random");
             if (maxFloor < 1) throw new ArgumentOutOfRangeException("maxFloor");
-            this.random = random; MaxFloor = maxFloor; Floor = 1; FloorType = FloorType.Normal;
+            this.random = random; MaxFloor = maxFloor; Floor = 1; FloorType = FloorType.Normal; CompanionLimit = MaxCompanions;
             RunId = Guid.NewGuid().ToString("N");
             Player = new HeroState("player", "플레이어", 28, 160, 0, 6, .43f, 2.6f);
             Player.ExternalBonus = stat => SynergyBonus(Player, stat);
@@ -389,7 +398,7 @@ namespace PrototypeLab.Roguelike
         }
         /// <summary>
         /// One chapter expedition: floors <see cref="TowerChapter.FirstFloor"/> to <see cref="TowerChapter.LastFloor"/>
-        /// with the party chosen in the village and the growth saved by earlier chapters.
+        /// with <paramref name="party"/> already along; <see cref="DraftCompanions"/> opens the campaign's draft.
         /// </summary>
         internal static TowerRun ForChapter(int seed, TowerChapter chapter, IList<string> party)
         {
@@ -397,13 +406,33 @@ namespace PrototypeLab.Roguelike
             if (party == null || party.Count > MaxCompanions) throw new ArgumentOutOfRangeException("party");
             var run = new TowerRun(new Random(seed), chapter.LastFloor, false, null);
             run.Chapter = chapter; run.Floor = chapter.FirstFloor;
+            foreach (string id in party) run.Join(id);
+            return run;
+        }
+        /// <summary>
+        /// The campaign's opening draft: <paramref name="party"/> joins at once, then recruit cards drawn from
+        /// <paramref name="pool"/> alone follow one another until <paramref name="slots"/> companions have joined.
+        /// <paramref name="joined"/> sees every companion as it joins, before the next card set is dealt.
+        /// </summary>
+        internal void DraftCompanions(IList<string> party, IEnumerable<string> pool, int slots, Action<CompanionState> joined)
+        {
+            if (party == null || pool == null) throw new ArgumentNullException(party == null ? "party" : "pool");
+            if (slots < companions.Count + party.Count || slots > MaxCompanions) throw new ArgumentOutOfRangeException("slots");
+            recruitPool = new List<string>(pool); CompanionLimit = slots; this.joined = joined;
             foreach (string id in party)
             {
-                var definition = GetDefinition(id);
-                if (definition == null || run.GetCompanion(id) != null) throw new ArgumentException("Unknown or repeated companion: " + id);
-                run.AddCompanion(definition);
+                if (!recruitPool.Contains(id)) throw new ArgumentException("Companion outside the pool: " + id);
+                Join(id);
             }
-            return run;
+            if (DraftOpen) BeginReward(true);
+        }
+        private bool DraftOpen { get { return recruitPool != null && companions.Count < CompanionLimit && OpenRecruits > 0; } }
+        private bool InPool(CompanionDefinition definition) { return recruitPool == null || recruitPool.Contains(definition.Id); }
+        private void Join(string id)
+        {
+            var definition = GetDefinition(id);
+            if (definition == null || GetCompanion(id) != null) throw new ArgumentException("Unknown or repeated companion: " + id);
+            AddCompanion(definition);
         }
         public static CompanionDefinition GetDefinition(string id)
         { for (int i = 0; i < Definitions.Count; i++) if (Definitions[i].Id == id) return Definitions[i]; return null; }
@@ -443,7 +472,9 @@ namespace PrototypeLab.Roguelike
             Floor++; IsFloorCleared = false; FloorType = next; shop.Clear(); ShopTraded = false;
             return true;
         }
-        public bool CanReroll(int slot) { return IsRewardPending && slot >= 0 && slot < OfferSlots && !rerolled[slot]; }
+        // A small draft pool may have no god left to deal in place of a card.
+        public bool CanReroll(int slot)
+        { return IsRewardPending && slot >= 0 && slot < offers.Count && !rerolled[slot] && (!IsRecruitOffer || OpenRecruits > offers.Count); }
         public bool Reroll(int slot)
         {
             if (!CanReroll(slot)) return false;
@@ -459,6 +490,8 @@ namespace PrototypeLab.Roguelike
                 var definition = GetDefinition(offer.CompanionId);
                 if (!CanRecruit(definition)) return false;
                 AddCompanion(definition);
+                // A campaign draft deals the next companion's cards straight away.
+                if (DraftOpen) { BeginReward(true); return true; }
             }
             else if (offer.Kind == RewardKind.Oath)
             {
@@ -511,7 +544,7 @@ namespace PrototypeLab.Roguelike
         }
         private bool CanRecruit(CompanionDefinition definition)
         {
-            if (definition == null || companions.Count >= MaxCompanions || GetCompanion(definition.Id) != null) return false;
+            if (definition == null || companions.Count >= CompanionLimit || GetCompanion(definition.Id) != null || !InPool(definition)) return false;
             return IsOathTrial ? OathState.Supports(definition.Id) : IsRecruitOffer;
         }
         private void AddCompanion(CompanionDefinition definition)
@@ -519,6 +552,7 @@ namespace PrototypeLab.Roguelike
             var companion = new CompanionState(definition);
             companion.ExternalBonus = stat => SynergyBonus(companion, stat);
             companions.Add(companion);
+            if (joined != null) joined(companion);
         }
         private float SynergyBonus(HeroState hero, HeroStat stat)
         {
@@ -542,8 +576,13 @@ namespace PrototypeLab.Roguelike
         }
         private static RewardTier RollTier(double roll)
         { return roll < .4 ? RewardTier.Silver : roll < .8 ? RewardTier.Gold : RewardTier.Diamond; }
+        // A draft from fewer than three gods shows only as many cards as there are gods.
         private void GenerateOffers()
-        { offers.Clear(); for (int slot = 0; slot < OfferSlots; slot++) offers.Add(CreateOffer(slot, null)); }
+        {
+            offers.Clear();
+            int count = IsRecruitOffer ? Math.Min(OfferSlots, OpenRecruits) : OfferSlots;
+            for (int slot = 0; slot < count; slot++) offers.Add(CreateOffer(slot, null));
+        }
         private sealed class Candidate
         {
             public CompanionDefinition Recruit;
@@ -553,9 +592,15 @@ namespace PrototypeLab.Roguelike
         }
         private RewardOffer CreateRecruitOffer(int slot, string previousAugment)
         {
-            Predicate<CompanionDefinition> open = d => GetCompanion(d.Id) == null && "recruit:" + d.Id != previousAugment &&
+            Predicate<CompanionDefinition> open = d => InPool(d) && GetCompanion(d.Id) == null && "recruit:" + d.Id != previousAugment &&
                 !offers.Exists(o => o.Slot != slot && o.CompanionId == d.Id);
             var pool = new List<CompanionDefinition>();
+            if (recruitPool != null)
+            {
+                // A campaign draft deals evenly from the gods the chapter has opened.
+                foreach (var definition in Definitions) if (open(definition)) pool.Add(definition);
+                return new RewardOffer(nextOfferId++, slot, pool[random.Next(pool.Count)]);
+            }
             // Every mythology is open. The first card keeps a synergy route alive for an existing party.
             if (slot == 0 && companions.Count > 0)
                 foreach (var definition in Definitions) if (open(definition) && MythCount(definition.MythId) > 0) pool.Add(definition);

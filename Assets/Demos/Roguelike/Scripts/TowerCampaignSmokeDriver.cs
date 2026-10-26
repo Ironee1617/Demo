@@ -8,14 +8,15 @@ using UnityEngine;
 namespace PrototypeLab.Roguelike
 {
     // Opt-in story campaign fixture (-towerCampaignSmoke): walks the title, prologue, village tutorial, the
-    // tower gate, the first expedition, hell, the abyss and the evil god, and captures each screen.
+    // tower gate, the companion drafts of the first and fourth expeditions, hell, the abyss and the evil god,
+    // and captures each screen.
     // It never writes the player's saved progress.
     public sealed class TowerCampaignSmokeDriver : MonoBehaviour
     {
         [Serializable] private sealed class CampaignReport
         {
             public string mode = "towerCampaignSmoke", finishedUtc;
-            public bool success, villageTutorial, gateParty, firstChapter, hellChapter, abyssChapter, finalBoss, chapterRecorded, expeditionLost;
+            public bool success, villageTutorial, gateParty, companionDraft, firstChapter, hellChapter, abyssChapter, finalBoss, chapterRecorded, expeditionLost;
             public List<string> samples = new List<string>(), screenshots = new List<string>(), errors = new List<string>();
         }
         private readonly CampaignReport report = new CampaignReport();
@@ -77,16 +78,14 @@ namespace PrototypeLab.Roguelike
             var save = new TowerCampaignSave { PrologueSeen = true, TutorialDone = true };
             for (int c = 0; c < chapters; c++)
             {
-                var chapter = save.NextChapter; string chosen = chapter.Candidates.Count > 0 ? chapter.Candidates[c % 2] : null;
-                var party = new List<string>(); if (chosen != null) party.Add(chosen);
-                for (int i = save.Roster.Count - 1; i >= 0 && party.Count < TowerRun.MaxCompanions; i--) party.Add(save.Roster[i]);
-                var run = save.BeginChapter(500 + c, chosen, party);
+                var run = save.BeginChapter(500 + c);
+                while (run.IsRecruitOffer) run.ChooseOffer(run.Offers[0].Id);
                 while (true)
                 {
                     run.ClearFloor(); if (run.IsRewardPending) run.ChooseOffer(run.Offers[0].Id);
                     if (run.IsComplete) break; run.AdvanceFloor();
                 }
-                save.RecordChapterClear(run, chosen);
+                save.RecordChapterClear(run);
             }
             return save;
         }
@@ -100,6 +99,21 @@ namespace PrototypeLab.Roguelike
             game.NextFloor(FloorType.Normal);
         }
         private TowerGame.Fighter Boss() { return game.enemies.Find(e => e.isBoss); }
+        // Picks the first card of every companion card set the expedition opens with.
+        private int Draft(string preferred = null)
+        {
+            int sets = 0;
+            while (game.run.IsRewardPending && game.run.IsRecruitOffer)
+            {
+                var offers = game.run.Offers; long pick = offers[0].Id;
+                foreach (var offer in offers) if (offer.CompanionId == preferred) pick = offer.Id;
+                Require(offers.Count == Math.Min(TowerRun.OfferSlots, game.run.OpenRecruits), "A draft shows up to three of the remaining gods.");
+                var pool = new List<string>(TowerCampaign.CompanionPool(game.run.Chapter));
+                foreach (var offer in offers) Require(pool.Contains(offer.CompanionId), "Draft card " + offer.CompanionId + " is outside the chapter's pool.");
+                game.SelectOffer(pick); sets++;
+            }
+            return sets;
+        }
 
         private IEnumerator Suite()
         {
@@ -134,25 +148,40 @@ namespace PrototypeLab.Roguelike
             yield return Shot("village-gate");
             report.villageTutorial = true;
 
-            game.OpenGate(null);
-            Require(game.villagePanel == TowerGame.VillagePanel.Gate && !game.CanDepart, "The gate waits for a chapter god.");
-            yield return Frames(4); yield return Shot("gate-choose");
-            game.expeditionChoice = "poseidon";
-            Require(game.CanDepart && game.ExpeditionMembers().Count == 1, "One Olympian may depart.");
-            yield return Frames(4); yield return Shot("gate-chosen");
+            game.OpenGate();
+            Require(game.villagePanel == TowerGame.VillagePanel.Gate && game.campaign.CompanionSlots == 1 && game.campaign.CompanionPool.Count == 2, "The first gate drafts one of the two Olympians.");
+            yield return Frames(4); yield return Shot("gate-first");
             report.gateParty = true;
             Require(game.StartExpedition(), "The first expedition departs.");
-            Require(!game.village && game.run.IsCampaign && game.run.Floor == 1 && game.run.Theme.Id == TowerThemeId.Olympus && game.run.GetCompanion("poseidon") != null, "Chapter one starts on Olympus with Poseidon.");
+            Require(!game.village && game.run.IsCampaign && game.run.Floor == 1 && game.run.Theme.Id == TowerThemeId.Olympus && game.run.Companions.Count == 0, "Chapter one starts on Olympus.");
+            Require(game.run.IsRewardPending && game.run.IsRecruitOffer && game.run.Offers.Count == 2 && !game.run.CanReroll(0), "Chapter one opens with both Olympians and nothing to reroll.");
             yield return Frames(4); yield return Shot("chapter1-intro");
-            game.SkipStory(); yield return Frames(40); yield return Shot("chapter1-floor1");
+            game.SkipStory(); yield return Frames(4); yield return Shot("chapter1-draft");
+            Require(Draft("poseidon") == 1 && game.run.GetCompanion("poseidon") != null && game.run.Companions.Count == 1 && !game.run.IsRewardPending, "Poseidon joins from the single draft.");
+            yield return Frames(40); yield return Shot("chapter1-floor1");
             report.firstChapter = true;
+
+            // Past floor 30: Olympus, Asgard, Dangun and Eden's gods, drafted twice.
+            game.campaign = Progress(3); game.EnterVillage(); game.SmokeControlled = true;
+            game.OpenGate();
+            Require(game.campaign.CompanionSlots == 2 && game.campaign.CompanionPool.Count == 8, "Chapter four drafts two of eight gods.");
+            yield return Frames(4); yield return Shot("gate-two-slots");
+            Require(game.StartExpedition(), "The fourth expedition departs."); game.SkipStory();
+            Require(game.run.Floor == 31 && game.run.Offers.Count == 3 && game.run.CanReroll(0), "Three of eight gods are dealt.");
+            yield return Frames(4); yield return Shot("eden-draft-1");
+            game.SelectOffer(game.run.Offers[0].Id);
+            Require(game.run.IsRecruitOffer && game.run.Companions.Count == 1 && game.run.OpenRecruits == 7, "The second companion is drafted straight after the first.");
+            yield return Frames(4); yield return Shot("eden-draft-2");
+            Require(Draft() == 1 && game.run.Companions.Count == 2, "Two companions climb past floor 30.");
+            report.companionDraft = true;
 
             // Hell: seven myths restored, Solomon's demons wait at the gate.
             game.campaign = Progress(7); game.EnterVillage(); game.SmokeControlled = true; Place(18.5f);
             yield return Frames(14); yield return Shot("village-late");
-            game.OpenGate("bael"); yield return Frames(4); yield return Shot("gate-hell");
+            game.OpenGate(); yield return Frames(4); yield return Shot("gate-hell");
             Require(game.StartExpedition(), "The hell expedition departs.");
             game.SkipStory();
+            Require(Draft() == 3, "Past floor 60 three companions are drafted.");
             Require(game.run.Floor == 71 && game.run.Theme.Id == TowerThemeId.Hell && game.run.Companions.Count == 3, "Hell spans floor 71 with a full party.");
             yield return Frames(60); yield return Shot("hell-71");
             foreach (var e in game.enemies) Sample("hell-71 " + e.monster.Name + " / " + e.art.ProfileName);
@@ -162,7 +191,9 @@ namespace PrototypeLab.Roguelike
             yield return Shot("expedition-lost");
             Require(game.run.IsCampaign && game.hero.hp <= 0 && game.campaign.ClearedChapters == 7, "A defeat records nothing.");
             report.expeditionLost = true;
+            var fallen = new List<string>(); foreach (var c in game.run.Companions) fallen.Add(c.Id);
             game.RetryExpedition(); game.SkipStory(); game.SmokeControlled = true;
+            Require(!game.run.IsRewardPending && game.run.Companions.Count == 3 && fallen.TrueForAll(id => game.run.GetCompanion(id) != null), "A retry keeps the same companions without a new draft.");
             for (int i = 0; i < 4; i++) Advance();
             Require(game.run.Floor == 75, "Hell's mid-chapter boss floor.");
             yield return Frames(150); yield return Shot("hell-75-boss");
@@ -175,9 +206,10 @@ namespace PrototypeLab.Roguelike
 
             // The abyss and the evil god.
             game.campaign = Progress(8); game.EnterVillage(); game.SmokeControlled = true;
-            game.OpenGate(null); yield return Frames(4); yield return Shot("gate-abyss");
-            Require(game.CanDepart && game.ExpeditionMembers().Count == 3, "The final ascent brings three restored gods.");
+            game.OpenGate(); yield return Frames(4); yield return Shot("gate-abyss");
+            Require(game.campaign.CompanionSlots == 3 && game.campaign.CompanionPool.Count == 16, "The final ascent drafts three of all sixteen restored gods.");
             Require(game.StartExpedition(), "The abyss expedition departs."); game.SkipStory();
+            Require(Draft() == 3 && game.run.Companions.Count == 3, "Three restored gods join the final ascent.");
             Require(game.run.Floor == 81 && game.run.Theme.Id == TowerThemeId.Abyss, "The abyss starts on floor 81.");
             yield return Frames(60); yield return Shot("abyss-81");
             foreach (var e in game.enemies) Sample("abyss-81 " + e.monster.Name + " / " + e.art.ProfileName);
