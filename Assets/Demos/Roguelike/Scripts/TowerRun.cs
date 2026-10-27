@@ -13,7 +13,7 @@ namespace PrototypeLab.Roguelike
     public enum SkillEffect { Fireball, IceNova, ChainLightning, Meteor, ArcaneVolley, Shockwave, BladeStorm, DashStrike, MultiShot, PierceShot, RainArrows, PoisonCloud, HealPulse, ShieldPulse, LifeDrain, Sentry }
     public enum FloorType { Normal, Elite, Rest, Shop }
     public enum ShopItem { Augment, Heal, Vitality }
-    // Ordinary floors deal stat cards, every fifth floor skill cards; elite, shop and oath cards keep both kinds.
+    // Ordinary floors deal stat cards, every fifth floor and elite floor skill cards; shop and oath cards keep both kinds.
     public enum RewardDraft { Mixed, Stats, Skills }
 
     public sealed class CompanionDefinition
@@ -333,8 +333,8 @@ namespace PrototypeLab.Roguelike
     {
         // Every cleared floor deals cards; each RewardInterval-th floor deals skills instead of stats and branches.
         public const int MaxCompanions = 3, OfferSlots = 3, DefaultMaxFloor = 90, RewardInterval = 5;
-        // Gold prices; a floor's breakable caches scatter about fifteen gold.
-        public const int AugmentPrice = 50, HealPrice = 20, VitalityPrice = 40;
+        // Gold prices; a floor's breakable caches scatter about fifteen gold and an elite floor pays two floors' worth on top.
+        public const int AugmentPrice = 50, HealPrice = 20, VitalityPrice = 40, EliteBounty = 30;
         public const float RestHealFraction = .5f, ShopHealFraction = .35f, VitalityHealth = 15;
         // A free climb opens with one recruit; these floors grant the second and third. A chapter past them
         // drafts that many companions before its first fight instead.
@@ -366,6 +366,8 @@ namespace PrototypeLab.Roguelike
         public bool IsRecruitOffer { get; private set; }
         /// <summary>Which augments the pending card set deals: stats, skills or both.</summary>
         public RewardDraft Draft { get; private set; }
+        /// <summary>The pending cards are an elite floor's spoils: gold-or-better skills, or diamond stats once nothing is left to learn.</summary>
+        public bool IsEliteReward { get; private set; }
         /// <summary>Most companions this climb may hold: three, or the slots a campaign chapter drafts.</summary>
         public int CompanionLimit { get; private set; }
         /// <summary>Gods who could still be recruited: the chapter's pool in a campaign draft, else every mythology.</summary>
@@ -489,7 +491,7 @@ namespace PrototypeLab.Roguelike
             if (IsFloorCleared || IsRewardPending || IsComplete) return false;
             IsFloorCleared = true; ClearedFloors++;
             if (IsOathTrial) { if (Floor < MaxFloor) BeginReward(false); }
-            else if (FloorType == FloorType.Elite) BeginReward(false);
+            else if (FloorType == FloorType.Elite) BeginReward(false, OpenSkills > 0 ? RewardDraft.Skills : RewardDraft.Stats, true);
             else if (FloorType == FloorType.Normal)
             {
                 bool skills = Floor % RewardInterval == 0;
@@ -542,7 +544,7 @@ namespace PrototypeLab.Roguelike
                 var augment = GetAugment(offer.AugmentId);
                 if (hero == null || augment == null || !hero.Apply(augment)) return false;
             }
-            IsRewardPending = false; IsRecruitOffer = false; offers.Clear(); return true;
+            IsRewardPending = false; IsRecruitOffer = false; IsEliteReward = false; offers.Clear(); return true;
         }
         public bool DismissCompanion(string id)
         {
@@ -551,9 +553,11 @@ namespace PrototypeLab.Roguelike
             companions.Remove(companion);
             if (IsRewardPending)
             {
+                // Elite spoils whose last learnable skills left with the companion turn to diamond stats.
+                if (IsEliteReward && Draft == RewardDraft.Skills && OpenSkills == 0) Draft = RewardDraft.Stats;
                 GenerateOffers();
                 // A skill floor whose last learnable skills left with the companion has nothing to deal.
-                if (offers.Count == 0) { IsRewardPending = false; IsRecruitOffer = false; }
+                if (offers.Count == 0) { IsRewardPending = false; IsRecruitOffer = false; IsEliteReward = false; }
             }
             return true;
         }
@@ -581,9 +585,9 @@ namespace PrototypeLab.Roguelike
             shop.Add(new ShopOffer(ShopItem.Heal, "회복의 물약", "최대 생명력의 " + AugmentDefinition.Number(ShopHealFraction * 100) + "%를 회복합니다.", HealPrice));
             shop.Add(new ShopOffer(ShopItem.Vitality, "생명의 정수", "이번 등반 동안 최대 생명력 +" + AugmentDefinition.Number(VitalityHealth) + "\n늘어난 만큼 회복합니다.", VitalityPrice));
         }
-        private void BeginReward(bool recruit, RewardDraft draft = RewardDraft.Mixed)
+        private void BeginReward(bool recruit, RewardDraft draft = RewardDraft.Mixed, bool elite = false)
         {
-            IsRewardPending = true; IsRecruitOffer = recruit; Draft = recruit ? RewardDraft.Mixed : draft;
+            IsRewardPending = true; IsRecruitOffer = recruit; IsEliteReward = elite && !recruit; Draft = recruit ? RewardDraft.Mixed : draft;
             Array.Clear(rerolled, 0, rerolled.Length); GenerateOffers();
         }
         private bool CanRecruit(CompanionDefinition definition)
@@ -667,7 +671,9 @@ namespace PrototypeLab.Roguelike
                 if (available.Count > 0)
                     return new RewardOffer(nextOfferId++, slot, available[random.Next(available.Count)], Oath.CompanionId);
             }
-            RewardTier tier = RollTier(random.NextDouble());
+            // Elite spoils skip silver: skills roll gold or diamond in the usual two-to-one ratio, stats are always diamond.
+            double roll = random.NextDouble();
+            RewardTier tier = !IsEliteReward ? RollTier(roll) : Draft == RewardDraft.Stats ? RewardTier.Diamond : RollTier(.4 + roll * .6);
             Predicate<string> dealt = id => id == previousAugment || offers.Exists(o => o.Slot != slot && o.AugmentId == id);
             var candidates = new List<Candidate>();
             // Regular cards no longer recruit; only the oath trial keeps its angels in the mixed pool.
@@ -692,6 +698,8 @@ namespace PrototypeLab.Roguelike
             RewardKind kind = Draft == RewardDraft.Skills ? RewardKind.Skill : RewardKind.Trait;
             Predicate<AugmentDefinition> ofKind = a => Draft == RewardDraft.Mixed || a.Kind == kind;
             var dealable = open.FindAll(a => a.Tier == tier && ofKind(a));
+            // Elite spoils borrow the other high tier before falling back to silver.
+            if (dealable.Count == 0 && IsEliteReward) dealable = open.FindAll(a => a.Tier >= RewardTier.Gold && ofKind(a));
             if (dealable.Count == 0) dealable = open.FindAll(ofKind);
             if (dealable.Count == 0 && Draft != RewardDraft.Skills) dealable = open.FindAll(a => a.Tier == tier);
             if (dealable.Count == 0 && Draft != RewardDraft.Skills) dealable = open;

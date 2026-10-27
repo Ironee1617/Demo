@@ -21,7 +21,7 @@ namespace PrototypeLab.Roguelike
         {return type==FloorType.Elite?"엘리트":type==FloorType.Rest?"휴식":type==FloorType.Shop?"상점":"일반";}
         internal static string FloorTypeSummary(FloorType type)
         {
-            return type==FloorType.Elite?"강한 적 · 클리어 시 증강":type==FloorType.Rest?"생명력 "+Mathf.RoundToInt(TowerRun.RestHealFraction*100)+"% 회복":
+            return type==FloorType.Elite?"강한 적 · 스킬 증강·"+TowerRun.EliteBounty+" G":type==FloorType.Rest?"생명력 "+Mathf.RoundToInt(TowerRun.RestHealFraction*100)+"% 회복":
                 type==FloorType.Shop?"골드로 증강·회복 구매":"다음 층";
         }
         private void MakeElite(Fighter actor)
@@ -31,6 +31,18 @@ namespace PrototypeLab.Roguelike
             actor.damageScale*=TowerDifficulty.EliteDamage;
             actor.root.transform.localScale=Vector3.one*TowerDifficulty.EliteScale;
             actor.art.Tint=new Color(1,.84f,.76f);
+        }
+        // Where the floor's last monster fell; the elite bounty bursts from there.
+        private Vector2? lastFallen;
+        // The bounty scatters as gold coins, which the cleared floor draws to the hero like any other coin.
+        private void DropEliteBounty()
+        {
+            var random=new System.Random(unchecked(seed*613^run.Floor*4973));
+            // Without a recorded fall the coins burst from above the hero, out of pickup reach, so they still land first.
+            Vector2 at=lastFallen.HasValue?lastFallen.Value+Vector2.up*.9f:hero.pos+Vector2.up*1.8f;
+            for(int left=TowerRun.EliteBounty;left>0;)
+            {var kind=left>=TowerLoot.GoldCoinGold?LootKind.GoldCoin:LootKind.Coin;DropLoot(kind,at,random);left-=TowerLoot.GoldOf(kind);}
+            Toast("엘리트 현상금","금화 "+TowerRun.EliteBounty+" G가 쏟아집니다",brass,3.2f);
         }
         // The gate whose doorway the hero is standing in. Fifth floors offer only rest, shop and elite doors.
         internal FloorType? NearestGate()

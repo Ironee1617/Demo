@@ -57,6 +57,8 @@ public static class TowerLootTests
             // About fifteen gold a floor: five battle floors before the branch can afford a card, but not every ware.
             float perFloor = (TowerLoot.MinCaches + TowerLoot.MaxCaches) * .5f * (Mean(13, TowerLoot.All[0], 1, 4000, out _, out _) + Mean(14, TowerLoot.All[1], 1, 4000, out _, out _)) * .5f;
             Check(perFloor * 5 >= TowerRun.AugmentPrice && perFloor * 5 < TowerRun.AugmentPrice + TowerRun.VitalityPrice + TowerRun.HealPrice, "five floors of caches pay for one card: " + perFloor);
+            // An elite bounty pays about two early floors of caches, but no card on its own.
+            Check(TowerRun.EliteBounty >= perFloor * 1.5f && TowerRun.EliteBounty <= perFloor * 2.5f && TowerRun.EliteBounty < TowerRun.AugmentPrice, "elite bounty near two floors of caches: " + TowerRun.EliteBounty + " / " + perFloor);
         });
         test("caches stand on level ground or platforms spread along the floor, away from the entry, exits, merchant and traps", () => {
             int placed = 0, raised = 0, spreadFloors = 0; float spread = 0;

@@ -147,7 +147,7 @@ namespace PrototypeLab.Roguelike
             cameraCeiling=Mathf.Max(1.8f,world.HighestPlatform+4);BuildTraps();
             hero.pos=new Vector2(-12,TowerWorld.Ground);hero.velocityY=0;hero.dropTime=0;hero.facing=1;hero.grounded=true;hero.support=-1;hero.lastX=-12;
             hero.root.transform.position=hero.pos;previousHeroPosition=hero.pos;view.transform.position=new Vector3(-7,0,-10);appliedShake=Vector3.zero;
-            foreach(var s in shots)Destroy(s.root);shots.Clear();ClearFloorSkillEffects();shopOpen=false;
+            foreach(var s in shots)Destroy(s.root);shots.Clear();ClearFloorSkillEffects();shopOpen=false;lastFallen=null;
             if(run.FloorType==FloorType.Rest||run.FloorType==FloorType.Shop)
             {
                 // Peaceful floors hold no monsters; the first update clears them.
@@ -165,7 +165,7 @@ namespace PrototypeLab.Roguelike
             using(TowerProfiling.Actors.Auto())SpawnEnemies(count,elite,bossFloor,roster);
             using(TowerProfiling.Party.Auto()){SyncAllies();ResetAllyFormation();}
             var boss=bossFloor?enemies.Find(e=>e.isBoss):null;
-            if(elite)Notice("엘리트 층  ·  클리어하면 능력치·스킬 증강",3);
+            if(elite)Notice("엘리트 층  ·  클리어하면 금 등급 이상 스킬 증강과 현상금 "+TowerRun.EliteBounty+" G",3);
             else if(boss!=null&&IsFinalBoss(boss))Notice(boss.monster.Name+" 강림  ·  지구를 삼킨 자",4);
             else Notice(boss!=null?(boss.title??boss.monster.Name)+" 출현  ·  "+SignatureName(run.Theme.Id):"",boss!=null?3:0);
         }
@@ -254,6 +254,7 @@ namespace PrototypeLab.Roguelike
             else if(RemainingEnemies==0&&!run.IsFloorCleared)
             {
                 run.ClearFloor();ClearOathEffects();foreach(var shot in shots)if(shot.root)Destroy(shot.root);shots.Clear();RecordFloorResult();FlushGold();CancelPendingSkills();hero.hp=Mathf.Min(PlayerMaxHealth,hero.hp+18);Sound(chimeSound,.8f);
+                if(run.FloorType==FloorType.Elite)DropEliteBounty();
                 if(run.FloorType==FloorType.Rest||run.FloorType==FloorType.Shop)OnSpecialFloorCleared();
                 else Notice(run.IsBranchFloor?"층 클리어  ·  원하는 출구를 고르세요":"층 클리어",2.5f);
             }
@@ -329,7 +330,7 @@ namespace PrototypeLab.Roguelike
             bool critical=criticalHit;criticalHit=false;
             if(!CanTarget(e,null))return;e.hp-=damage;e.hurt=.14f;e.pos.x=Mathf.Clamp(e.pos.x+push,TowerWorld.Left,TowerWorld.Right);
             FloatText(e.pos+Vector2.up*1.8f,Mathf.CeilToInt(damage)+(critical?"!":""),critical?new Color(1,.5f,.32f):TowerWorld.Gold);Burst(e.pos+Vector2.up,TowerWorld.Gold,4,.3f);Sound(hitSound,.35f);
-            if(e.hp<=0){kills++;if(vfx!=null)vfx.KillBurst(e.pos+Vector2.up*(e.isBoss?1.6f:.9f),e.isBoss?TowerWorld.Gold:TowerWorld.Teal);HitStop(e.isBoss?.12f:.05f);if(e.isBoss)Shake(.3f,.45f);if(IsFinalBoss(e)){Shake(.6f,1.1f);Toast(e.monster.Name+" 붕괴","지구를 삼킨 악신이 무너집니다",brass,4);}enemies.Remove(e);RetireEnemy(e);}
+            if(e.hp<=0){kills++;lastFallen=e.pos;if(vfx!=null)vfx.KillBurst(e.pos+Vector2.up*(e.isBoss?1.6f:.9f),e.isBoss?TowerWorld.Gold:TowerWorld.Teal);HitStop(e.isBoss?.12f:.05f);if(e.isBoss)Shake(.3f,.45f);if(IsFinalBoss(e)){Shake(.6f,1.1f);Toast(e.monster.Name+" 붕괴","지구를 삼킨 악신이 무너집니다",brass,4);}enemies.Remove(e);RetireEnemy(e);}
         }
         private void HurtHero(float damage)
         {

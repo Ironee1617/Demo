@@ -200,10 +200,11 @@ namespace PrototypeLab.Roguelike
             // A chapter opens with its companion draft: one card set per slot, from the gods the chapter has opened.
             bool recruit=run.IsRecruitOffer,opening=recruit&&!run.IsFloorCleared,draft=recruit&&run.IsCampaign;
             string pick=draft?"COMPANION "+(run.Companions.Count+1)+" / "+run.CompanionLimit:"RECRUIT";
-            // Ordinary floors deal stat cards and every fifth floor skill cards; elite, shop and oath cards mix both.
-            bool stats=!recruit&&run.Draft==RewardDraft.Stats,skills=!recruit&&run.Draft==RewardDraft.Skills;
+            // Ordinary floors deal stat cards, every fifth floor skill cards and elite floors gold-or-better spoils; shop and oath cards mix both.
+            bool stats=!recruit&&run.Draft==RewardDraft.Stats,skills=!recruit&&run.Draft==RewardDraft.Skills,elite=run.IsEliteReward;
             string heading=draft?"함께 오를 동료를 고르세요":recruit?"동료를 영입하세요":stats?"능력치를 강화하세요":skills?"새 스킬을 고르세요":"힘을 선택하세요";
-            MenuBackdrop(heading,opening?(draft?"EXPEDITION START  /  ":"CLIMB START  /  ")+pick:"FLOOR "+run.Floor.ToString("00")+(recruit?"  /  RECRUIT":stats?"  /  STAT AUGMENT":skills?"  /  SKILL AUGMENT":"  /  REWARD"));
+            if(elite)heading="엘리트 전리품  ·  "+heading;
+            MenuBackdrop(heading,opening?(draft?"EXPEDITION START  /  ":"CLIMB START  /  ")+pick:"FLOOR "+run.Floor.ToString("00")+(recruit?"  /  RECRUIT":elite?"  /  ELITE SPOILS":stats?"  /  STAT AUGMENT":skills?"  /  SKILL AUGMENT":"  /  REWARD"));
             if(!opening&&run.IsFloorCleared)Label(new Rect(1130,83,400,36),CombatTime(LastFloorSeconds)+(LastFloorFlawless?"  ·  무피격":""),18,LastFloorFlawless?TowerWorld.Teal:muted,TextAnchor.MiddleRight);
             // A draft from a small pool can show fewer cards and have no spare god or skill to reroll into.
             bool spare=recruit?run.OpenRecruits>run.Offers.Count:!skills||run.OpenSkills>run.Offers.Count;
