@@ -1,0 +1,34 @@
+물고기 속도와 외계인 크기 R24 (2026-10-25)
+
+요청
+ - 상어는 멈추지 말고 천천히 계속 움직이게.
+ - 물고기마다 이동 속도를 다르게, 외계인이 그 물고기로 변신하면 그 속도를 따라가게.
+ - 상어와 가오리는 잠수부가 뿌리는 먹이에 관심 없게.
+ - 외계인 크기 조금 더 줄이기.
+
+이동 속도 (Fish0 = 4m/s 기준, 변신한 외계인도 같은 속도)
+ Fish0 4.0 / 블루탱 4.6 / 흰동가리 3.6 / 옐로탱 4.4 / 상어 2.0 / 만타가오리 2.8 / 광어 1.8(움직일 때)
+ - 원래 외계인 모습일 때는 기존 속도(4.0) 그대로. 잠수부도 그대로(4.7).
+ - 느리게 가기(slow)는 1.65와 그 물고기 속도 중 느린 쪽, 달리기(sprint)는 그 속도의 1.6배.
+
+상어
+ - 멈추지 않고 2m/s로 계속 천천히 순찰. 3~7초마다 방향을 조금씩 바꾸며 부드럽게 선회.
+ - 120초 시뮬레이션에서 정지 0%, 평균 1.95m/s.
+
+먹이
+ - 상어와 만타가오리는 잠수부가 뿌린 먹이로 오지 않음(잠수부를 피하는 건 그대로).
+ - 나머지(일반물고기, 블루탱, 흰동가리, 옐로탱, 광어)는 먹이로 모임. 광어는 바닥을 따라 다가감.
+
+외계인 크기
+ - 외계인 본 모습을 0.85배로 줄임(보이는 크기, 몸 충돌, 작살 맞는 범위, 촉수 포식 거리 모두).
+ - 변신할 때는 0.85 → 물고기 크기로 자연스럽게 바뀜.
+
+수치 조절
+ - Species0~6.asset 인스펙터: swimSpeed(속도 배율), ignoresFeed(먹이 무시), habit(Cruise = 상어식 순찰).
+ - 외계인 크기: Scripts\AquariumFishTraits.cs 의 AlienScale(0.85).
+
+바뀐 파일 (원본 백업: ArtSources\Cartoon\Backups\R24_before_speeds_alien_size)
+ - Scripts\AquariumFishTraits.cs, Scripts\AquariumModel.cs, Scripts\AquariumBodyCollision.cs,
+   Scripts\AquariumThirdPersonCamera.cs(조준 판정을 새 크기에 맞춤),
+   Characters\Runtime\AquariumSpecies.cs, Characters\Runtime\AquariumCreature.cs,
+   Characters\Editor\FishSpeciesR22.cs

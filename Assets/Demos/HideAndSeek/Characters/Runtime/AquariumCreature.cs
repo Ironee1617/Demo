@@ -16,6 +16,7 @@ namespace PrototypeLab.Aquarium
         private bool closedMouthReturn,directMouthReturn;
         private float transitionAt,transitionDuration,speed,phase;
         private GameObject spear;
+        private AquariumDeadEyes deadEyes;
         private SkinnedMeshRenderer bridge;
         private AquariumInkCloud revealInk;
         private float revealInkAt=-100;
@@ -76,6 +77,14 @@ namespace PrototypeLab.Aquarium
         }
         private static AquariumSpecies Species(int id)
         {foreach(var s in catalog)if(s.speciesId==id)return s;return catalog[0];}
+        // R23: uniform size of a form (aliens 1, fish from their species).
+        private static float SizeOf(int id)=>id<0?AquariumFishTraits.AlienScale:Mathf.Max(.05f,Species(id%100).bodyScale);
+        private float PresentedSize(float now)
+        {
+            if(outgoing==null)return SizeOf(form);
+            float u=Mathf.Clamp01((now-transitionAt)/Mathf.Max(.0001f,transitionDuration)),e=u*u*u*(u*(u*6-15)+10);
+            return Mathf.Lerp(SizeOf(previousForm),SizeOf(form),e);
+        }
         private static Color Tint(int id)=>id<0?new Color(.91f,.82f,1):Species(id%100).tint;
         private AquariumRig GetForm(int id)
         {
@@ -86,7 +95,7 @@ namespace PrototypeLab.Aquarium
             if(prefab==null)throw new System.InvalidOperationException("Missing aquarium form "+id);
             rig=Instantiate(prefab,transform).GetComponent<AquariumRig>();rig.gameObject.SetActive(false);forms.Add(id,rig);return rig;
         }
-        public void Present(int target,string motion,float born,float now,float moveSpeed,bool impaled=false)
+        public void Present(int target,string motion,float born,float now,float moveSpeed,bool dead=false)
         {
             if(stagedMeal){transform.localPosition=unstagedPosition;transform.localRotation=unstagedRotation;stagedMeal=false;}
             engulfApplied=Vector3.zero;engulfAppliedSwell=1;motionBorn=born;morphTwist=0;
@@ -190,7 +199,10 @@ namespace PrototypeLab.Aquarium
             float recoil=expelled?Mathf.Pow(1-Mathf.Clamp01((now-born)/AquariumModel.ReleaseKickSeconds),2):0;
             transform.localRotation=Quaternion.Euler(-14*recoil,0,9*recoil+morphTwist);
             if(expelled && outgoing==null)transform.localScale=new Vector3(1-.16f*recoil,1-.13f*recoil,1+.22f*recoil);
-            if(impaled && spear==null)CreateSpear();if(spear!=null)spear.SetActive(impaled);
+            // R23: species size (a disguise grows or shrinks to its fish through the morph).
+            transform.localScale*=PresentedSize(now);
+            // A speared body is only towed by the line; no spear is drawn stuck in it.
+            if(spear!=null)spear.SetActive(false);
             if(revealInk!=null)revealInk.Present(now-revealInkAt+.08f,AquariumModel.TraceDuration,transform.position,transform.forward);
             if(form<0 && !current.cartoon && outgoing==null && (motion=="TentacleEat" || motion=="Bite"))
             {
@@ -210,6 +222,9 @@ namespace PrototypeLab.Aquarium
                 transform.localRotation=Quaternion.Slerp(unstagedRotation,engulfAim,remaining);
                 transform.localPosition=unstagedPosition+engulfOffset*remaining;
             }
+            // Dead fish and aliens get cartoon X eyes riding on the skinned eye surface.
+            if(dead){if(deadEyes==null)deadEyes=new AquariumDeadEyes(transform);deadEyes.Present(outgoing!=null && outgoing.gameObject.activeSelf?outgoing:current);}
+            else if(deadEyes!=null)deadEyes.Hide();
         }
         private void MorphBody(float u)
         {

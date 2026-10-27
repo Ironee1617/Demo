@@ -6,9 +6,13 @@ namespace PrototypeLab.Aquarium
     // Host-owned rounded character hulls. Unity colliders use these same dimensions.
     public static class AquariumBodyCollision
     {
-        public const float FishRadius=.54f, FishHalf=.16f, AlienRadius=.62f, AlienHalf=.25f, DiverRadius=.60f, DiverHalf=.62f;
+        // R24: the alien hull follows its smaller form (AquariumFishTraits.AlienScale, was .62/.25).
+        public const float FishRadius=.54f, FishHalf=.16f, AlienRadius=.62f*AquariumFishTraits.AlienScale, AlienHalf=.25f*AquariumFishTraits.AlienScale, DiverRadius=.60f, DiverHalf=.62f;
         public static float Radius(bool diver,bool alien) { return diver?DiverRadius:alien?AlienRadius:FishRadius; }
         public static float Half(bool diver,bool alien) { return diver?DiverHalf:alien?AlienHalf:FishHalf; }
+        // R23: a fish (or an alien disguised as one) takes its species' sized hull.
+        public static float Radius(bool diver,bool alien,int species) { return diver?DiverRadius:alien?AlienRadius:AquariumFishTraits.HullRadius(species); }
+        public static float Half(bool diver,bool alien,int species) { return diver?DiverHalf:alien?AlienHalf:AquariumFishTraits.HullHalf(species); }
         static float Clamp(float x) { return Math.Max(0,Math.Min(1,x)); }
         public static Point Penetration(Point a,Point ad,float ar,float ah,Point b,Point bd,float br,float bh)
         {
@@ -40,7 +44,7 @@ namespace PrototypeLab.Aquarium
         public static Point Move(Swimmer player,Point travel,List<Swimmer> players,List<Prey> fish,float time,List<Harpoon> harpoons=null)
         {
             bool diver=player.team==Team.Seeker,alien=player.species<0 || player.revealUntil>time;
-            float radius=Radius(diver,alien),half=Half(diver,alien),wallRadius=diver?.5f:.4f;Point position=player.position;
+            float radius=Radius(diver,alien,player.species),half=Half(diver,alien,player.species),wallRadius=diver?.5f:.4f;Point position=player.position;
             int steps=Math.Max(1,(int)Math.Ceiling(travel.Length/.18f));
             for(int step=0;step<steps;step++)
             {
@@ -52,14 +56,16 @@ namespace PrototypeLab.Aquarium
                     {
                         if(other==player || other.swallowedBy!=0 || !other.alive && (time-other.deathAt>2.4f || Tethered(other.id,true,harpoons)))continue;
                         bool od=other.team==Team.Seeker,oa=other.species<0 || other.revealUntil>time;
-                        if((position-other.position).Length>radius+half+Radius(od,oa)+Half(od,oa))continue;
-                        var correction=Penetration(position,player.facing,radius,half,other.position,other.facing,Radius(od,oa),Half(od,oa));
+                        float otherR=Radius(od,oa,other.species),otherH=Half(od,oa,other.species);
+                        if((position-other.position).Length>radius+half+otherR+otherH)continue;
+                        var correction=Penetration(position,player.facing,radius,half,other.position,other.facing,otherR,otherH);
                         if(correction.Length>.001f){position+=correction;hit=true;}
                     }
                     foreach(var other in fish)
                     {
-                        if(other.eaten || other.dead && (other.harpoonOwner==player.id || Tethered(other.id,false,harpoons)) || (position-other.position).Length>radius+half+FishRadius+FishHalf)continue;
-                        var correction=Penetration(position,player.facing,radius,half,other.position,other.facing,FishRadius,FishHalf);
+                        float fr=AquariumFishTraits.HullRadius(other.species),fh=AquariumFishTraits.HullHalf(other.species);
+                        if(other.eaten || other.dead && (other.harpoonOwner==player.id || Tethered(other.id,false,harpoons)) || (position-other.position).Length>radius+half+fr+fh)continue;
+                        var correction=Penetration(position,player.facing,radius,half,other.position,other.facing,fr,fh);
                         if(correction.Length>.001f){position+=correction;hit=true;}
                     }
                     if(!hit)break;position=AquariumModel.Constrain(position,wallRadius);
@@ -72,11 +78,11 @@ namespace PrototypeLab.Aquarium
             var bodies=contactBodies??(contactBodies=new List<Body>(players.Count+fish.Count));bodies.Clear();
             foreach(var p in players)
             {
-                if(p.swallowedBy!=0 || !p.alive && (time-p.deathAt>2.4f || Tethered(p.id,true,harpoons)))continue;
+                if(p.swallowedBy!=0 || p.entryAt>time || !p.alive && (time-p.deathAt>2.4f || Tethered(p.id,true,harpoons)))continue;
                 bool diver=p.team==Team.Seeker,alien=p.species<0 || p.revealUntil>time;
-                bodies.Add(new Body{player=p,position=p.position,direction=p.facing,radius=Radius(diver,alien),half=Half(diver,alien),wallRadius=diver?.5f:.4f,weight=time<p.stunnedUntil?0:diver?.6f:1});
+                bodies.Add(new Body{player=p,position=p.position,direction=p.facing,radius=Radius(diver,alien,p.species),half=Half(diver,alien,p.species),wallRadius=diver?.5f:.4f,weight=time<p.stunnedUntil?0:diver?.6f:1});
             }
-            foreach(var f in fish)if(!f.eaten && !(f.dead && Tethered(f.id,false,harpoons)))bodies.Add(new Body{fish=f,position=f.position,direction=f.facing,radius=FishRadius,half=FishHalf,wallRadius=.35f,weight=2});
+            foreach(var f in fish)if(!f.eaten && !(f.dead && Tethered(f.id,false,harpoons)))bodies.Add(new Body{fish=f,position=f.position,direction=f.facing,radius=AquariumFishTraits.HullRadius(f.species),half=AquariumFishTraits.HullHalf(f.species),wallRadius=AquariumFishTraits.WallRadius(f.species),weight=2*AquariumFishTraits.Scale(f.species)});
             // Repeated projected contacts handle crowds and contacts beside glass/rocks.
             for(int pass=0;pass<8;pass++)
             {

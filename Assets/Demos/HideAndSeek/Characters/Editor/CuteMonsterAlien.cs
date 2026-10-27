@@ -117,6 +117,7 @@ namespace PrototypeLab.Aquarium.Editor
             {
                 var closed = new Vector3[n]; foreach (var p in blink) closed[p.Key] = p.Value.dp;
                 mesh.boneWeights = EyelidFollowsEye(d.pos, closed, d.weights, d.tri0.Concat(d.tri1).ToArray(), d.boneNames);
+                LowerLidColour(mesh);
             }
             mesh.RecalculateBounds(); mesh.RecalculateTangents();
             return SaveAsset(mesh, OutFolder + "/CuteMonster.asset");
@@ -213,6 +214,50 @@ namespace PrototypeLab.Aquarium.Editor
             float s = val[0] + val[1] + val[2] + val[3]; if (s <= 0) s = 1;
             return new BoneWeight { boneIndex0 = idx[0], weight0 = val[0] / s, boneIndex1 = idx[1], weight1 = val[1] / s, boneIndex2 = idx[2], weight2 = val[2] / s, boneIndex3 = idx[3], weight3 = val[3] / s };
         }
+        // ================================================================ LOWER LID COLOUR (R20)
+        // The lower lid is a mirrored copy of the upper one, so its winding is reversed: the skin-coloured
+        // outer layer faces into the eye (culled) and the pink inner layer faces out. A shut eye then read as
+        // half skin, half pink. The two layers share their layout (1080 vertices each, same ring order), so
+        // swapping their palette UVs puts the skin colour and lash line on the layer that is actually seen.
+        // Returns 1 when fixed, 0 when already fixed, -1 when the mesh does not match the expected layout.
+        public static int LowerLidColour(Mesh mesh)
+        {
+            int key = mesh.GetBlendShapeIndex("Blink_100"); if (key < 0) return -1;
+            int n = mesh.vertexCount; var delta = new Vector3[n]; mesh.GetBlendShapeFrameVertices(key, mesh.GetBlendShapeFrameCount(key) - 1, delta, null, null);
+            var lids = new List<int>(); for (int i = 0; i < n; i++) if (delta[i].sqrMagnitude > 1e-14f) lids.Add(i);
+            if (lids.Count != 4320 || lids[lids.Count - 1] - lids[0] != lids.Count - 1) return -1;
+            var pos = mesh.vertices; var uv = mesh.uv; const int lid = 2160, half = 1080;
+            // The lower lid is the block whose closed position sits lower.
+            float y0 = 0, y1 = 0; for (int i = 0; i < lid; i++) { y0 += pos[lids[i]].y + delta[lids[i]].y; y1 += pos[lids[lid + i]].y + delta[lids[lid + i]].y; }
+            int start = lids[0] + (y1 < y0 ? lid : 0);
+            bool Row(int from, float v) { for (int i = 0; i < half; i++) if (Mathf.Abs(uv[from + i].y - v) > .01f) return false; return true; }
+            const float skinRow = 1 - 1.5f / 4, innerRow = 1 - 2.5f / 4;
+            if (Row(start, innerRow) && Row(start + half, skinRow)) return 0;
+            if (!Row(start, skinRow) || !Row(start + half, innerRow)) return -1;
+            // Confirm the skin layer really faces inward before swapping.
+            var tri = mesh.GetTriangles(1); int inward = 0, total = 0;
+            for (int t = 0; t < tri.Length; t += 3)
+            {
+                int a = tri[t], b = tri[t + 1], c = tri[t + 2];
+                if (a < start || a >= start + half || b < start || b >= start + half || c < start || c >= start + half) continue;
+                var pa = pos[a] + delta[a]; var normal = Vector3.Cross(pos[b] + delta[b] - pa, pos[c] + delta[c] - pa);
+                total++; if (normal.z < 0) inward++;
+            }
+            if (total == 0 || inward * 2 < total) return -1;
+            for (int i = 0; i < half; i++) { var keep = uv[start + i]; uv[start + i] = uv[start + half + i]; uv[start + half + i] = keep; }
+            mesh.uv = uv; return 1;
+        }
+        [MenuItem("Aquarium/Characters/Fix cute monster lower eyelid colour (R20)")]
+        public static void FixLowerLid()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath); var rig = prefab != null ? prefab.GetComponent<AquariumRig>() : null;
+            if (rig == null || rig.skin == null || !rig.skin.sharedMesh.name.StartsWith("CuteMonster")) { Debug.LogWarning("Cute monster alien not found"); return; }
+            var mesh = rig.skin.sharedMesh; int result = LowerLidColour(mesh);
+            if (result == 1) { EditorUtility.SetDirty(mesh); AssetDatabase.SaveAssets(); Debug.Log("CUTE_MONSTER_LOWER_LID_FIXED"); }
+            else if (result == 0) Debug.Log("CUTE_MONSTER_LOWER_LID_OK (already skin coloured)");
+            else Debug.LogWarning("CUTE_MONSTER_LOWER_LID_UNEXPECTED_LAYOUT");
+        }
+
         // Re-skins the eyelid of the existing alien mesh in place (prefab, clips and springs untouched).
         [MenuItem("Aquarium/Characters/Fix cute monster eyelid skinning (R19)")]
         public static void FixEyelids()

@@ -14,7 +14,7 @@ namespace PrototypeLab.Aquarium.Editor
         const string Characters="Assets/Demos/HideAndSeek/Characters/Resources/AquariumCharacters";
         const string Equipment="Assets/Demos/HideAndSeek/Equipment/Resources/AquariumEquipment";
         [Serializable] public class Bone {public string name;public int parent;public float[] position,rotation,scale,world;}
-        [Serializable] public class Data {public string name,kind,atlas;public bool firstPerson;public Bone[] bones;public string[] shapeNames,parts;public int[] partVertexCounts;public int vertices,triangles;public float[] mouthAnchor,throatAnchor,gunPosition,gunRotation,muzzle,ropeExit;public float gunScale,headLength;}
+        [Serializable] public class Data {public string name,kind,atlas;public bool firstPerson;public Bone[] bones;public string[] shapeNames,parts;public int[] partVertexCounts;public int vertices,triangles;public float[] mouthAnchor,throatAnchor,gunPosition,gunRotation,muzzle,ropeExit,eyes;public float gunScale,headLength,eyeRadius;}
         static Vector3 V(float[] a)=>new Vector3(a[0],a[1],a[2]);
         static Vector3 V(BinaryReader r)=>new Vector3(r.ReadSingle(),r.ReadSingle(),r.ReadSingle());
         static string Source=>Environment.GetEnvironmentVariable("AQUARIUM_CARTOON_SOURCE")??Path.GetFullPath(Path.Combine(Application.dataPath,"../ArtSources/Cartoon/Export"));
@@ -82,6 +82,13 @@ namespace PrototypeLab.Aquarium.Editor
             skin.receiveShadows=false;
             rig.skin=skin;rig.cartoon=true;rig.cartoonKind=d.kind;rig.restPositions=bones.Select(b=>b.localPosition).ToArray();rig.restRotations=bones.Select(b=>b.localRotation).ToArray();rig.restScales=bones.Select(b=>b.localScale).ToArray();
             rig.mouthAnchor=V(d.mouthAnchor);rig.throatAnchor=V(d.throatAnchor);
+            if(d.eyes!=null && d.eyes.Length>=6)
+            {
+                // R22: painted fish carry their eye positions (pupil xyz + gaze axis xyz per eye).
+                int count=d.eyes.Length/6;rig.eyePupils=new Vector3[count];rig.eyeAxes=new Vector3[count];
+                for(int i=0;i<count;i++){rig.eyePupils[i]=new Vector3(d.eyes[i*6],d.eyes[i*6+1],d.eyes[i*6+2]);rig.eyeAxes[i]=new Vector3(d.eyes[i*6+3],d.eyes[i*6+4],d.eyes[i*6+5]).normalized;}
+                rig.eyeRadius=d.eyeRadius;
+            }
             if(d.kind=="Diver")
             {
                 var socket=Child("Harpoon grip socket",bones.Single(b=>b.name=="HandL"),V(d.gunPosition));socket.localRotation=new Quaternion(d.gunRotation[0],d.gunRotation[1],d.gunRotation[2],d.gunRotation[3]);socket.localScale=Vector3.one*d.gunScale;rig.gunSocket=socket;

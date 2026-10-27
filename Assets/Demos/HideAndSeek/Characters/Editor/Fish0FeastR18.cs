@@ -77,6 +77,8 @@ namespace PrototypeLab.Aquarium.Editor
                 var fish = AssetDatabase.LoadAssetAtPath<GameObject>(Characters + "/Fish0.prefab");
                 foreach (var species in Resources.LoadAll<AquariumSpecies>("AquariumCharacters"))
                 {
+                    // R22: species 1+ are the painted fish (FishSpeciesR22); only Fish0's own entry here.
+                    if (species.speciesId != 0 && species.normal != null && species.normal != fish) continue;
                     species.normal = fish; species.feeding = fish; species.closedFeeding = fish;
                     species.feedingMouthRadius = MouthRadius;
                     EditorUtility.SetDirty(species);

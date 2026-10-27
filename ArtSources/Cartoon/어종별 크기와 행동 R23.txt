@@ -1,0 +1,37 @@
+어종별 크기와 행동 R23 (2026-10-24)
+
+요청
+ - 어종마다 크기 다르게: 블루탱/옐로탱 조금 작게, 상어 크게, 가오리 크게.
+ - 행동 패턴: 일반물고기/블루탱/옐로탱은 혼자 랜덤으로 돌아다님,
+   상어는 조금 움직이다가 가만히 있을 때가 많음(간격 랜덤), 가오리는 랜덤으로 돌아다님,
+   광어는 바닥에 붙어 다니고 잘 안 움직임.
+
+크기 (Fish0 = 1)
+ 0 Fish0 1.0 / 1 블루탱 0.78 / 2 흰동가리 1.0 / 3 옐로탱 0.78 / 4 상어 1.8 / 5 만타가오리 1.6 / 6 광어 1.0
+ - 보이는 크기, 몸 충돌, 작살 판정, 먹기 사거리가 모두 같이 커지고 작아짐.
+ - 외계인이 그 물고기로 변신하면 똑같은 크기가 됨(변신 중에 크기가 자연스럽게 바뀜).
+ - 상어는 길쭉한 충돌 판정(몸통 전체가 작살에 맞음).
+
+행동
+ - 일반물고기, 블루탱, 옐로탱, 흰동가리: 혼자 랜덤 방향으로 계속 헤엄(기존과 같음).
+ - 상어: 1.2~3.4초 천천히 헤엄 → 3~9초 가만히 떠 있음, 둘 다 랜덤 반복.
+   잠수부가 4.5m 안에 오거나 먹이가 있으면 깨서 움직임.
+ - 만타가오리: 랜덤으로 돌아다니되, 조금 느리게 크게 선회하며 미끄러지듯 이동.
+ - 광어: 바닥 모래에 납작하게 붙어 있음. 6~16초 가만히 → 0.6~1.5초 바닥을 따라 짧게 이동.
+   잠수부가 2.2m 안으로 바짝 와야 도망감. 먹이에는 바닥을 따라 다가감.
+ - 120초 시뮬레이션: 상어 62% 정지, 광어 87% 정지(항상 바닥 위 0.22), 나머지는 계속 헤엄.
+
+수치 조절
+ - Species0~6.asset 인스펙터의 "R23 size and behaviour" 항목
+   (bodyScale 크기, hullWidth/hullLength 충돌 모양, habit 행동)을 바꾸면 바로 반영됨.
+ - FishSpeciesR22.cs 를 다시 실행하면 표의 기본값으로 다시 설정됨.
+
+바뀐/추가된 파일 (원본 백업: ArtSources\Cartoon\Backups\R23_before_fish_sizes_habits)
+ - Scripts\AquariumFishTraits.cs (새)  : 종별 크기/충돌/행동 표
+ - Scripts\AquariumModel.cs            : 종별 행동(TickFishHabit), 광어 바닥 스폰, 작살 판정, 먹기 사거리
+ - Scripts\AquariumBodyCollision.cs    : 종별 몸 충돌 크기
+ - Scripts\AquariumView.cs             : 종별 콜라이더 크기
+ - Characters\Runtime\AquariumSpecies.cs : bodyScale, hullWidth, hullLength, habit 필드
+ - Characters\Runtime\AquariumCreature.cs: 종별 크기 표시(변신 중 크기 보간)
+ - Characters\Editor\FishSpeciesR22.cs  : 크기/행동 기본값 설정
+ - 확인용 렌더: ArtSources\Cartoon\R22Renders\r23_size_lineup.png

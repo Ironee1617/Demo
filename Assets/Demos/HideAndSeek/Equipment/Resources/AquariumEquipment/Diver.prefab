@@ -614,12 +614,17 @@ MonoBehaviour:
   clips:
   - {fileID: 7400000, guid: 3b6420a6425ff7249be8def75f4578a9, type: 2}
   - {fileID: 7400000, guid: bc0794ea598ec4b45853d4e11448d2b6, type: 2}
+  - {fileID: 7400000, guid: 38379cf4214f7094bb85b5a8497d6b73, type: 2}
+  - {fileID: 7400000, guid: 5dfa453c6ca70604a95da752bc3631d4, type: 2}
+  - {fileID: 7400000, guid: a051b3ea568c6b346805f26dfd6621a1, type: 2}
   - {fileID: 7400000, guid: e6b971fdd0df1bf44ac0d72011aca0fb, type: 2}
   - {fileID: 7400000, guid: 2c9667398ce16c246a88050d3dc848bc, type: 2}
   - {fileID: 7400000, guid: 03b2a82ea20804c45a0146bb58a2a59e, type: 2}
   - {fileID: 7400000, guid: e7a16f5d50995274790b078a9b41f447, type: 2}
   - {fileID: 7400000, guid: 758b7d64977ffb444aaeb0ebb12dca5c, type: 2}
   - {fileID: 7400000, guid: 38d0f848ee53fa74bbf26e326b1ba29e, type: 2}
+  - {fileID: 7400000, guid: 9f7a9b81d8fde2242b8cdd692da2b666, type: 2}
+  - {fileID: 7400000, guid: 98310fde37d3e9944927e4b123b718f3, type: 2}
   restPositions:
   - {x: 0, y: 0, z: 0}
   - {x: -0, y: -0.46, z: 0}

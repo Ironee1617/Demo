@@ -267,6 +267,7 @@ namespace PrototypeLab.Aquarium
 
         private void StartSwimLookScenario()
         {
+            session.DiveEntry = false;   // the swim measurements start from a fixed point in open water
             session.StartPractice("Look swimming tester", mode == "swimLookSeeker" ? Team.Seeker : Team.Hider);
             // Keep the movement measurement clear of NPC body contacts.
             session.Model.Fish.Clear();session.Model.Fish.Add(new Prey{id=100,position=new Point(-25,10,-5),turnAt=float.MaxValue});
@@ -537,6 +538,7 @@ namespace PrototypeLab.Aquarium
 
         private void StartScenario()
         {
+            session.DiveEntry = false;   // scenario places the diver itself
             session.StartPractice("Scenario swimmer", Team.Hider);
             foreach (var player in session.Model.Players)
             {
@@ -825,6 +827,7 @@ namespace PrototypeLab.Aquarium
         }
         private void StartRevivalScenario()
         {
+            session.DiveEntry = false;   // scenario places the diver itself
             session.StartPractice("Revival tester", Team.Hider);
             // Keep the full roster and live fish, but freeze bot decisions so only the tested input acts.
             foreach (var player in session.Model.Players) player.bot = false;
@@ -887,13 +890,14 @@ namespace PrototypeLab.Aquarium
 
         private void StartHarpoonScenario()
         {
+            session.DiveEntry = false;   // scenario places the diver itself
             session.StartPractice("Harpoon equipment check", Team.Seeker);
             foreach (var p in session.Model.Players) { p.bot = false; p.velocity = new Point(); p.lastMealAt = float.MaxValue; }
             while (session.Model.Time < session.Model.HuntAt + .1f) session.Model.Tick(1f / 30);
             var diver = session.Model.Player(session.LocalId); diver.position = AquariumModel.Constrain(new Point(2.3f, 9, 4), .6f); diver.facing = new Point(0, 0, 1);
             foreach (var p in session.Model.Players) if (p != diver) p.position = AquariumModel.Constrain(new Point(-20 + p.id * 2, 8, -5), .6f);
             foreach (var f in session.Model.Fish) { f.position = AquariumModel.Constrain(new Point(-20, 8, -5), .6f); f.facing = new Point(1, 0); f.turnAt = float.MaxValue; }
-            var target = session.Model.Fish[0]; target.position = AquariumModel.Constrain(diver.position + diver.facing * 6, .6f);
+            var target = session.Model.Fish[0]; target.position = AquariumModel.Constrain(diver.position + diver.facing * 4, .6f);   // inside the 5 m harpoon range
             target.facing = target.steering = new Point(); target.swimSpeed = 0; equipmentCaughtFish = target.id;
             equipmentNextShot = session.Model.Time + 1;
         }

@@ -1,0 +1,42 @@
+색칠 물고기 6종 추가 R22 (2026-10-24)
+
+요청
+ - 물고기\Painted 폴더의 색칠된 모델 6종(블루탱, 흰동가리, 옐로탱, 상어, 만타가오리, 넙치)을
+   리깅/애니메이션해서 게임에 넣기. 기존 물고기(Fish0)와 똑같은 취급, 외계인이 전부 변신 가능.
+ - 어색한 페인팅 수정.
+
+결과 (종 번호 = Species 에셋)
+ 0 Fish0 (그대로)   1 블루탱   2 흰동가리   3 옐로탱   4 상어   5 만타가오리   6 넙치
+ - AquariumSpecies.Count = 7. 물고기 32마리가 7종으로 나뉨(5,5,5,5,4,4,4).
+ - 외계인은 조준한 물고기/동료의 종으로 변신하므로 7종 모두 변신 가능.
+ - 각 모델은 Fish0와 같은 리그 규약: Root/Body 본, 블렌드셰이프
+   Metamorphosis, Alien_Mouth_Open, Swallow, Swim_Left/Right, To_Matched_0125~1000, Fin_Up/Down.
+   클립 Idle, Swim, Bite, TentacleEat, Eaten, Harpoon, Morph, Unmorph, SpitRecoil, SpitOut
+   (AquariumCartoonImport가 Fish0와 같은 방식으로 생성).
+ - 변신 중간의 진주 알, 이빨/혀(입 벌릴 때 나옴)는 Fish0와 동일한 부품을 각 입 위치로 옮겨 사용.
+ - 헤엄: 둥근 물고기/상어는 꼬리 흔들기, 만타는 날개짓, 넙치는 지느러미 물결.
+ - 포식: 큰 입이 벌어지고 목구멍이 분홍~짙은 색으로 보이게(입 안쪽 전용 그라데이션 띠).
+ - 죽으면 X_X 눈이 각 물고기의 눈 위치에 붙음(리그에 눈 위치 저장).
+
+페인팅 수정
+ - 흰동가리 등지느러미 앞쪽 절반이 검게 칠해져 일직선으로 끊겨 보이던 부분 → 주황으로 통일.
+ - 블루탱/흰동가리/옐로탱/넙치: 입 구멍 안쪽을 입속 색(분홍→짙은 자주)으로 칠함.
+ - UV 섬 가장자리의 검은 틈(경계 번짐) 메움.
+
+바뀐/추가된 파일 (원본 백업: ArtSources\Cartoon\Backups\R22_before_painted_fish)
+ - Characters\Runtime\AquariumRig.cs        : eyePupils, eyeAxes, eyeRadius 필드
+ - Characters\Runtime\AquariumDeadEyes.cs   : 물고기별 눈 위치 사용(Fish0는 기존 값)
+ - Characters\Editor\AquariumCartoonImport.cs: json의 eyes/eyeRadius 읽기
+ - Characters\Editor\Fish0FeastR18.cs       : 새 종을 Fish0로 되돌리지 않게
+ - Characters\Editor\FishSpeciesR22.cs (새) : 6종 가져오기 + Species1~6 설정
+     메뉴 Aquarium > Characters > Add painted fish species (R22)
+     Export 파일이 바뀌면 다음 에디터 로드 때 1번 자동 실행(Play 중이면 끝난 뒤), 열린 씬은 건드리지 않음.
+ - 에셋: Characters\Resources\AquariumCharacters\PaintedFish\ (프리팹/메시/재질/아틀라스/클립)
+         Species1~6.asset
+ - 원본 데이터: ArtSources\Cartoon\Export\Fish{BlueTang,Clownfish,YellowTang,Shark,MantaRay,Flatfish}.cartoon/.json/_Atlas.png
+ - 생성 스크립트: ArtSources\Cartoon\Tools\PaintedFishR22\ (python, 참고용)
+ - 확인용 렌더: ArtSources\Cartoon\R22Renders\r22_species_v2.png
+
+주의
+ - AquariumCartoonImport.Run(“Import approved cartoon models”)은 여전히 실행하지 마세요
+   (외계인이 문어로 덮어써짐).

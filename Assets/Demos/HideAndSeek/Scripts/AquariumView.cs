@@ -55,6 +55,8 @@ namespace PrototypeLab.Aquarium
             public LineRenderer tether;
             public CapsuleCollider bodyCollider;
             public float moveSpeed,bank;
+            public Vector3 velocity,shotTip,shotDirection,dockStart,dockAnchor;
+            public bool shotPresented,docking;
             public readonly PositionHistory positions = new PositionHistory();
             public bool dead, carried;
         }
@@ -81,6 +83,7 @@ namespace PrototypeLab.Aquarium
         {if(!cache.TryGetValue(id,out var key)){key=prefix+id;cache.Add(id,key);}return key;}
         private static string FishKind(int species)=>species>=0 && species<fishKinds.Length?fishKinds[species]:"fish"+species;
         private readonly Dictionary<int, GameObject> effects = new Dictionary<int, GameObject>();
+        private const float HarpoonDockSeconds = .6f;
         private readonly List<Material> materials = new List<Material>();
 
 
@@ -92,10 +95,15 @@ namespace PrototypeLab.Aquarium
         private readonly HashSet<Actor> hiddenByCamera = new HashSet<Actor>();
         private readonly Dictionary<Renderer, bool> hiddenRendererStates = new Dictionary<Renderer, bool>();
         private readonly Color[] colors = { new Color(1f, 0.49f, 0.12f), new Color(0.25f, 0.55f, 0.91f), new Color(0.94f, 0.45f, 0.62f) };
-        private readonly Material sand, dark, teal, white, black, purple, steel, glass, mouthLining, eggPearl, eggGold;
+        private readonly Material sand, dark, teal, white, black, purple, steel, glass, mouthLining, eggShell;
         private readonly Material[] fishMaterials, finMaterials;
         private readonly Material lineMaterial;
         private readonly Mesh fanMesh, coneMesh;
+        private readonly Mesh[] biscuitMeshes, crumbMeshes;
+        private readonly Material splashWater, splashFoam, splashBubble;
+        private readonly MaterialPropertyBlock splashProperties = new MaterialPropertyBlock();
+        private readonly Material biscuit;
+        private Texture2D biscuitTexture;
         private readonly LineRenderer localRing;
         private readonly System.Random random = new System.Random(54);
         public Camera Camera { get; private set; }
@@ -109,8 +117,9 @@ namespace PrototypeLab.Aquarium
             white = Material(new Color(0.96f, 0.99f, 1f)); black = Material(new Color(0.012f, 0.015f, 0.045f));
             purple = Material(new Color(0.81f, 0.68f, 0.97f)); steel = Material(new Color(0.66f, 0.83f, 0.9f));
             mouthLining = Material(new Color(0.89f, 0.28f, 0.5f));
-            eggPearl = Material(new Color(1f, 0.9f, 0.69f)); eggGold = Material(new Color(1f, 0.63f, 0.18f));
-            eggGold.EnableKeyword("_EMISSION"); eggGold.SetColor("_EmissionColor", new Color(0.3f, 0.12f, 0.015f));
+            // Revival egg: one glossy, candy-yellow shell (a faint warm glow keeps it readable in deep water).
+            eggShell = Material(new Color(1f, 0.82f, 0.12f)); eggShell.SetFloat("_Glossiness", 0.9f); eggShell.SetFloat("_Metallic", 0.12f);
+            eggShell.EnableKeyword("_EMISSION"); eggShell.SetColor("_EmissionColor", new Color(0.16f, 0.1f, 0f));
             glass = Material(new Color(0.15f, 0.48f, 0.56f, 0.055f), true);
             lineMaterial = new Material(Shader.Find("Sprites/Default")); materials.Add(lineMaterial);
             outlineMaterial = new Material(Resources.Load<Shader>("AquariumTargetOutline"));
@@ -118,6 +127,11 @@ namespace PrototypeLab.Aquarium
             fishMaterials = new Material[3]; finMaterials = new Material[3];
             for (int i = 0; i < 3; i++) { fishMaterials[i] = Material(colors[i]); finMaterials[i] = Material(Color.Lerp(colors[i], Color.white, 0.38f)); }
             fanMesh = MakeFanMesh(); coneMesh = MakeConeMesh();
+            biscuitTexture = MakeBiscuitTexture(); biscuit = Material(Color.white); biscuit.mainTexture = biscuitTexture; biscuit.SetFloat("_Glossiness", 0.12f);
+            biscuitMeshes = new Mesh[4]; for (int i = 0; i < biscuitMeshes.Length; i++) biscuitMeshes[i] = MakeBiscuitMesh(i);
+            crumbMeshes = new Mesh[3]; for (int i = 0; i < crumbMeshes.Length; i++) crumbMeshes[i] = MakeCrumbMesh(i);
+            splashWater = Material(new Color(.92f, .98f, 1f, .95f), true); splashFoam = Material(new Color(1f, 1f, 1f, .8f), true);
+            splashBubble = Material(new Color(.82f, .95f, 1f, .5f), true);
             AquariumCreature.Prewarm();
             BuildEnvironment();
             localRing = Ring("Your swimmer", root, 0.68f, new Color(0.59f, 1f, 0.81f, 0.85f), 0.035f);
@@ -188,6 +202,311 @@ namespace PrototypeLab.Aquarium
             }
             mesh.vertices = vertices; mesh.triangles = triangles; mesh.RecalculateNormals(); return mesh;
         }
+        // ---------------------------------------------------------------- biscuit food
+        // A square cracker (rounded corners, docking holes) broken along one or two jagged lines.
+        // Top and bottom are planar-mapped onto the biscuit face of the texture; the baked crust and the
+        // paler crumb of a broken edge use the two strips at its right.
+        private static Mesh MakeBiscuitMesh(int seed)
+        {
+            const float half = 0.065f, corner = 0.018f, thick = 0.0125f, bevel = 0.005f;
+            List<Vector2> outline = null; List<bool> broken = null;
+            // The caps are fanned from the centre, so keep the broken outline star-shaped (retry with a finer break).
+            for (int attempt = 0; attempt < 6; attempt++)
+            {
+                BiscuitOutline(seed * 13 + attempt, half, corner, attempt < 3 ? 1 : .4f, out outline, out broken);
+                if (StarShaped(outline)) break;
+            }
+            var centre = Vector2.zero; foreach (var p in outline) centre += p; centre /= outline.Count;
+            int count = outline.Count;
+            var vertices = new List<Vector3>(); var uvs = new List<Vector2>(); var triangles = new List<int>();
+            System.Func<Vector2, Vector2> FaceUV = p => new Vector2(0.03f + 0.82f * (p.x / (2 * half) + 0.5f), 0.03f + 0.94f * (p.y / (2 * half) + 0.5f));
+            for (int side = 1; side >= -1; side -= 2)
+            {
+                // Each face: an inset cap plus a bevel ring down to the outer edge (rounded, baked rim).
+                int capCentre = vertices.Count; vertices.Add(new Vector3(centre.x, side * thick, centre.y)); uvs.Add(FaceUV(centre));
+                int inner = vertices.Count;
+                for (int i = 0; i < count; i++)
+                {
+                    var inset = outline[i] + (centre - outline[i]).normalized * bevel;
+                    vertices.Add(new Vector3(inset.x, side * thick, inset.y)); uvs.Add(FaceUV(inset));
+                }
+                int outer = vertices.Count;
+                for (int i = 0; i < count; i++)
+                { vertices.Add(new Vector3(outline[i].x, side * (thick - bevel * 0.8f), outline[i].y)); uvs.Add(FaceUV(outline[i]) * 0.98f + new Vector2(0.01f, 0.01f)); }
+                for (int i = 0; i < count; i++)
+                {
+                    int j = (i + 1) % count;
+                    if (side > 0) { triangles.Add(capCentre); triangles.Add(inner + j); triangles.Add(inner + i); triangles.Add(inner + i); triangles.Add(inner + j); triangles.Add(outer + j); triangles.Add(inner + i); triangles.Add(outer + j); triangles.Add(outer + i); }
+                    else { triangles.Add(capCentre); triangles.Add(inner + i); triangles.Add(inner + j); triangles.Add(inner + i); triangles.Add(outer + j); triangles.Add(inner + j); triangles.Add(inner + i); triangles.Add(outer + i); triangles.Add(outer + j); }
+                }
+            }
+            // Side wall: crust on the baked rim, pale crumb on the broken edges (split vertices for hard edges).
+            for (int i = 0; i < count; i++)
+            {
+                int j = (i + 1) % count; bool crumb = broken[i];
+                float u = crumb ? 0.975f : 0.915f;
+                int b = vertices.Count;
+                float top = thick - bevel * 0.8f;
+                vertices.Add(new Vector3(outline[i].x, top, outline[i].y)); vertices.Add(new Vector3(outline[j].x, top, outline[j].y));
+                vertices.Add(new Vector3(outline[j].x, -top, outline[j].y)); vertices.Add(new Vector3(outline[i].x, -top, outline[i].y));
+                for (int k = 0; k < 4; k++) uvs.Add(new Vector2(u, k < 2 ? 0.8f : 0.2f));
+                triangles.Add(b); triangles.Add(b + 1); triangles.Add(b + 2); triangles.Add(b); triangles.Add(b + 2); triangles.Add(b + 3);
+            }
+            var mesh = new Mesh { name = "Biscuit piece " + seed };
+            mesh.SetVertices(vertices); mesh.SetUVs(0, uvs); mesh.SetTriangles(triangles, 0);
+            // Keep the outward winding whichever way the cut polygon was traversed.
+            mesh.RecalculateNormals(); var normals = mesh.normals; float facing = 0;
+            for (int i = 0; i < normals.Length; i++) facing += Vector3.Dot(normals[i], vertices[i] - new Vector3(centre.x, 0, centre.y));
+            if (facing < 0) { var t = mesh.triangles; for (int i = 0; i < t.Length; i += 3) { int x = t[i + 1]; t[i + 1] = t[i + 2]; t[i + 2] = x; } mesh.triangles = t; mesh.RecalculateNormals(); }
+            mesh.RecalculateBounds(); return mesh;
+        }
+        private static void BiscuitOutline(int seed, float half, float corner, float jitter, out List<Vector2> outline, out List<bool> broken)
+        {
+            var rnd = new System.Random(311 + seed * 97);
+            System.Func<float, float, float> R = (a, b) => a + (float)rnd.NextDouble() * (b - a);
+            outline = new List<Vector2>(); broken = new List<bool>();
+            for (int q = 0; q < 4; q++)
+            {
+                var c = new Vector2((q == 0 || q == 3 ? 1 : -1) * (half - corner), (q < 2 ? 1 : -1) * (half - corner));
+                float start = q * 90f;
+                for (int k = 0; k <= 6; k++) { float a = (start + k * 15f) * Mathf.Deg2Rad; outline.Add(c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * corner); broken.Add(false); }
+            }
+            int cuts = seed % 2 == 0 ? 1 : 2; float firstAngle = R(0, Mathf.PI * 2);
+            for (int cut = 0; cut < cuts; cut++)
+            {
+                // A second break runs roughly across the first one, so no piece becomes a thin sliver.
+                float angle = cut == 0 ? firstAngle : firstAngle + R(1.05f, 2.1f); var n = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                float offset = cut == 0 ? R(-0.01f, 0.02f) : R(0.004f, 0.026f);
+                var clipped = new List<Vector2>(); var clippedBroken = new List<bool>();
+                for (int i = 0; i < outline.Count; i++)
+                {
+                    Vector2 a = outline[i], b = outline[(i + 1) % outline.Count];
+                    float da = Vector2.Dot(a, n) - offset, db = Vector2.Dot(b, n) - offset;
+                    if (da <= 0) { clipped.Add(a); clippedBroken.Add(broken[i]); }
+                    // Leaving the kept side starts the break edge; re-entering continues the original edge.
+                    if ((da <= 0) != (db <= 0)) { clipped.Add(Vector2.Lerp(a, b, da / (da - db))); clippedBroken.Add(da <= 0 || broken[i]); }
+                }
+                // Roughen the straight break: subdivide every broken edge and jitter it in and out.
+                outline = new List<Vector2>(); broken = new List<bool>();
+                for (int i = 0; i < clipped.Count; i++)
+                {
+                    outline.Add(clipped[i]); broken.Add(clippedBroken[i]);
+                    if (!clippedBroken[i]) continue;
+                    Vector2 a = clipped[i], b = clipped[(i + 1) % clipped.Count]; float length = (b - a).magnitude;
+                    int steps = Mathf.Max(2, Mathf.RoundToInt(length / 0.011f));
+                    var normal = new Vector2(a.y - b.y, b.x - a.x).normalized;
+                    for (int k = 1; k < steps; k++) { outline.Add(Vector2.Lerp(a, b, k / (float)steps) + normal * R(-0.0045f, 0.0045f) * jitter); broken.Add(true); }
+                }
+            }
+        }
+        private static bool StarShaped(List<Vector2> outline)
+        {
+            var centre = Vector2.zero; foreach (var p in outline) centre += p; centre /= outline.Count;
+            float sign = 0;
+            for (int i = 0; i < outline.Count; i++)
+            {
+                Vector2 a = outline[i] - centre, b = outline[(i + 1) % outline.Count] - centre; float cross = a.x * b.y - a.y * b.x;
+                if (Mathf.Abs(cross) < 1e-7f) continue;
+                if (sign == 0) sign = Mathf.Sign(cross); else if (Mathf.Sign(cross) != sign) return false;
+            }
+            return true;
+        }
+        // ---------------------------------------------------------------- dive splash
+        // The diver's entry: a crown of droplets thrown up on arcs (stretched along their flight, falling back),
+        // a foam patch and two rings spreading on the surface (fast out, slow fade), and a bubble cloud dragged
+        // down under the surface that wobbles back up a beat later (follow-through).
+        private const int SplashDrops = 30, SplashBubbles = 26;
+        private GameObject MakeSplash()
+        {
+            var fx = new GameObject("Dive splash"); fx.transform.SetParent(root, false);
+            for (int i = 0; i < SplashDrops; i++) Quiet(Ball("Splash drop", fx.transform, Vector3.zero, Vector3.zero, splashWater));
+            Quiet(Ball("Splash foam", fx.transform, Vector3.zero, Vector3.zero, splashFoam));
+            for (int i = 0; i < 2; i++) Ring("Splash ring", fx.transform, 1, new Color(1, 1, 1, .8f), .07f);
+            for (int i = 0; i < SplashBubbles; i++) Quiet(Ball("Splash bubble", fx.transform, Vector3.zero, Vector3.zero, splashBubble));
+            return fx;
+        }
+        private static void Quiet(GameObject go)
+        { var r = go.GetComponent<Renderer>(); r.shadowCastingMode = ShadowCastingMode.Off; r.receiveShadows = false; }
+        private void PresentSplash(Transform fx, float seconds, WaterEffect e)
+        {
+            fx.position = new Vector3(e.position.x, e.position.y + .03f, e.position.z); fx.rotation = Quaternion.identity;
+            var forward = new Vector3(e.direction.x, 0, e.direction.z); forward = forward.sqrMagnitude > .0001f ? forward.normalized : Vector3.forward;
+            int drop = 0, bubble = 0, ring = 0;
+            for (int c = 0; c < fx.childCount; c++)
+            {
+                var child = fx.GetChild(c);
+                if (child.name == "Splash drop")
+                {
+                    // The first few drops form a tall central plume, the rest a wide crown.
+                    int i = drop++; bool plume = i < 7; float a = seconds - .03f * Hash(i, 21);
+                    float angle = (i + .4f * Hash(i, 22)) * Mathf.PI * 2 / (plume ? 7 : SplashDrops - 7);
+                    var outward = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * (plume ? .35f : 1) + forward * .35f;
+                    float up = plume ? 3.6f + 1.2f * Hash(i, 23) : 2.3f + 1.6f * Hash(i, 23), spread = plume ? .25f + .2f * Hash(i, 24) : .7f + .9f * Hash(i, 24);
+                    var position = outward * (.3f + spread * a) + Vector3.up * (up * a - 4.9f * a * a);
+                    bool alive = a > 0 && position.y > -.03f;
+                    child.gameObject.SetActive(alive); if (!alive) continue;
+                    var velocity = outward * spread + Vector3.up * (up - 9.8f * a);
+                    float size = (.085f + .075f * Hash(i, 25)) * (1 - .4f * Mathf.Clamp01(a / .8f)), stretch = 1 + Mathf.Min(1.4f, velocity.magnitude * .32f);
+                    child.localPosition = position; child.localRotation = Quaternion.LookRotation(velocity.normalized);
+                    child.localScale = new Vector3(size / Mathf.Sqrt(stretch), size / Mathf.Sqrt(stretch), size * stretch);
+                }
+                else if (child.name == "Splash foam")
+                {
+                    float grow = 1 - Mathf.Exp(-3.2f * seconds), fade = 1 - Mathf.SmoothStep(0, 1, Mathf.InverseLerp(.25f, 1.9f, seconds));
+                    child.gameObject.SetActive(fade > .01f);
+                    child.localPosition = forward * .15f; child.localScale = new Vector3(.8f + 1.7f * grow, .03f, .8f + 1.5f * grow);
+                    var r = child.GetComponent<Renderer>(); r.GetPropertyBlock(splashProperties); splashProperties.SetColor("_Color", new Color(1, 1, 1, .75f * fade)); r.SetPropertyBlock(splashProperties);
+                }
+                else if (child.name == "Splash ring")
+                {
+                    int k = ring++; float a = seconds - .18f * k, grow = 1 - Mathf.Exp(-2.0f * Mathf.Max(0, a));
+                    float fade = a <= 0 ? 0 : 1 - Mathf.SmoothStep(0, 1, Mathf.InverseLerp(.2f, 2.2f, a));
+                    child.gameObject.SetActive(fade > .01f);
+                    child.localPosition = forward * .2f * grow; child.localScale = Vector3.one * (.35f + (2.0f - .5f * k) * grow);
+                    var line = child.GetComponent<LineRenderer>(); var color = new Color(1, 1, 1, .8f * fade); line.startColor = line.endColor = color;
+                }
+                else if (child.name == "Splash bubble")
+                {
+                    int j = bubble++; float born = .02f + .3f * Hash(j, 31), life = 1.3f + .7f * Hash(j, 33), a = seconds - born;
+                    float angle = Hash(j, 34) * Mathf.PI * 2, reach = .35f * Hash(j, 35);
+                    var start = new Vector3(Mathf.Cos(angle) * reach, -(.3f + 1.1f * Hash(j, 32)), Mathf.Sin(angle) * reach) + forward * (.25f + .7f * Hash(j, 36));
+                    var position = start + Vector3.up * (.32f * a + .22f * a * a) + new Vector3(Mathf.Sin(a * 7 + j), 0, Mathf.Cos(a * 6 + j * 1.7f)) * .03f;
+                    bool alive = a > 0 && a < life && position.y < -.04f;
+                    child.gameObject.SetActive(alive); if (!alive) continue;
+                    float size = (.03f + .05f * Hash(j, 37)) * Mathf.SmoothStep(0, 1, a / .08f) * (1 - Mathf.SmoothStep(.6f, 1, a / life));
+                    child.localPosition = position; child.localRotation = Quaternion.identity; child.localScale = new Vector3(size, size * .85f, size);
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------- biscuit crumbling
+        // Each piece stays whole for a while, then breaks down in four chips: a quick crack (a small
+        // pop and settle) knocks the piece down a size and throws two crumbs out on an arc; the crumbs
+        // drag to a stop, sink and shrink away. The last nub dissolves into a final pair of crumbs, and
+        // every piece is gone before the feed ends. Staggered start times keep the pieces from crumbling
+        // in unison. Everything is a pure function of the feed's age, so replays and late joins agree.
+        private const int CrumbsPerPiece = 10, BiscuitChips = 4;
+        private static float Hash(int a, int b) { return Mathf.Repeat(Mathf.Sin(a * 12.9898f + b * 78.233f) * 43758.5453f, 1); }
+        private static void BiscuitSchedule(int piece, float duration, out float start, out float end)
+        {
+            start = duration * (.16f + .36f * Hash(piece, 1));
+            end = Mathf.Min(duration * .8f, start + duration * (.26f + .07f * Hash(piece, 2)));
+        }
+        // Remaining size of a crumbling piece (1 = whole) and the time each chip breaks off (k = chip, BiscuitChips = last nub).
+        private static float ChipTime(float start, float end, int k) { return Mathf.Lerp(start, end, k < BiscuitChips ? k * .2f : .84f); }
+        private static float BiscuitSize(float start, float end, float t)
+        {
+            if (t <= start) return 1;
+            float size = 1, pop = 0;
+            for (int k = 0; k < BiscuitChips; k++)
+            {
+                float at = ChipTime(start, end, k), u = Mathf.Clamp01((t - at) / .09f);
+                size -= .18f * Mathf.SmoothStep(0, 1, u);
+                if (u > 0 && u < 1) pop += .10f * Mathf.Sin(u * Mathf.PI);
+            }
+            float last = ChipTime(start, end, BiscuitChips), fade = Mathf.Clamp01((t - last) / Mathf.Max(.05f, end - last));
+            size *= 1 - fade * fade * (3 - 2 * fade);
+            return Mathf.Max(0, size) * (1 + pop);
+        }
+        private static Vector3 BiscuitDrift(int i, float seconds)
+        { return new Vector3(Mathf.Sin(i * 2.4f) * .5f, Mathf.Cos(i * 1.7f) * .25f + .04f * Mathf.Sin(seconds * 1.6f + i), Mathf.Cos(i * 2.4f) * .5f); }
+        private void PresentBiscuits(Transform fx, float seconds, float duration)
+        {
+            int piece = 0, crumb = 0;
+            for (int c = 0; c < fx.childCount; c++)
+            {
+                var child = fx.GetChild(c);
+                if (child.name == "Biscuit piece")
+                {
+                    int i = piece++;
+                    BiscuitSchedule(i, duration, out float start, out float end);
+                    float size = BiscuitSize(start, end, seconds), baseScale = 1.5f + .45f * Mathf.Repeat(i * .618f, 1);
+                    child.gameObject.SetActive(size > .001f);
+                    child.localPosition = BiscuitDrift(i, seconds);
+                    // Each crack jolts the piece's tumble a little (follow-through after the break).
+                    float jolt = 0; for (int k = 0; k <= BiscuitChips; k++) { float u = seconds - ChipTime(start, end, k); if (u > 0 && seconds > start) jolt += 18 * (1 - Mathf.Exp(-u * 9)) * (Hash(i, 10 + k) - .5f); }
+                    child.localRotation = Quaternion.Euler(Mathf.Sin(i * 1.3f) * 35 + seconds * (14 + i * 3) + jolt, i * 67 + seconds * (22 - i * 2.5f), Mathf.Cos(i * 2.1f) * 35 - jolt * .6f);
+                    child.localScale = Vector3.one * (baseScale * size);
+                }
+                else if (child.name == "Biscuit crumb")
+                {
+                    int j = crumb++, owner = j / CrumbsPerPiece, k = j % CrumbsPerPiece / 2, which = j % 2;
+                    BiscuitSchedule(owner, duration, out float start, out float end);
+                    float born = ChipTime(start, end, k) + which * .04f, life = Mathf.Min(1.2f + .5f * Hash(owner * 31 + j, 3), duration - .05f - born), age = seconds - born;
+                    bool alive = age >= 0 && age < life && seconds > start;
+                    child.gameObject.SetActive(alive);
+                    if (!alive) continue;
+                    // Thrown out from the piece's edge on an arc; water drag stops it, then it sinks and shrinks away.
+                    float angle = Hash(owner * 31 + j, 4) * Mathf.PI * 2, rise = Hash(owner * 31 + j, 5) - .35f;
+                    var direction = new Vector3(Mathf.Cos(angle), rise * .8f, Mathf.Sin(angle)).normalized;
+                    float baseScale = 1.5f + .45f * Mathf.Repeat(owner * .618f, 1), edge = .09f * baseScale * Mathf.Max(.3f, BiscuitSize(start, end, born));
+                    float speed = .32f + .22f * Hash(owner * 31 + j, 6), travel = speed * (1 - Mathf.Exp(-3.2f * age)) / 3.2f;
+                    child.localPosition = BiscuitDrift(owner, born) + direction * (edge + travel) + Vector3.down * (.11f * age * age / (age + .35f))
+                        + new Vector3(Mathf.Sin(age * 3.1f + j), 0, Mathf.Cos(age * 2.7f + j)) * .012f * age;
+                    child.localRotation = Quaternion.Euler(Hash(j, 7) * 360 + age * (160 + 120 * Hash(j, 8)), Hash(j, 9) * 360 + age * 90, Hash(j, 11) * 360);
+                    float grow = Mathf.SmoothStep(0, 1, age / .06f), shrink = 1 - Mathf.SmoothStep(.45f, 1, age / life);
+                    child.localScale = Vector3.one * ((.8f + .5f * Hash(j, 12)) * grow * shrink * (k == BiscuitChips ? 1.25f : 1));
+                }
+            }
+        }
+        // A small jagged crumb: an irregular toasted chunk, pale where it broke.
+        private static Mesh MakeCrumbMesh(int seed)
+        {
+            int sides = 5 + seed % 2; var outline = new List<Vector2>(); var random = new System.Random(9000 + seed * 17);
+            for (int i = 0; i < sides; i++) { float a = (i + (float)random.NextDouble() * .5f) / sides * Mathf.PI * 2; float r = .013f + .009f * (float)random.NextDouble(); outline.Add(new Vector2(Mathf.Cos(a) * r, Mathf.Sin(a) * r)); }
+            float thick = .008f + .003f * (float)random.NextDouble();
+            var vertices = new List<Vector3>(); var uvs = new List<Vector2>(); var triangles = new List<int>();
+            for (int side = 1; side >= -1; side -= 2)
+            {
+                int centre = vertices.Count; vertices.Add(new Vector3(0, side * thick * 1.15f, 0)); uvs.Add(new Vector2(.45f, .5f));
+                for (int i = 0; i < sides; i++) { vertices.Add(new Vector3(outline[i].x, side * thick * (.7f + .3f * (float)random.NextDouble()), outline[i].y)); uvs.Add(new Vector2(.45f + outline[i].x * 4, .5f + outline[i].y * 4)); }
+                for (int i = 0; i < sides; i++)
+                {
+                    int a = centre + 1 + i, b = centre + 1 + (i + 1) % sides;
+                    if (side > 0) { triangles.Add(centre); triangles.Add(b); triangles.Add(a); } else { triangles.Add(centre); triangles.Add(a); triangles.Add(b); }
+                }
+            }
+            for (int i = 0; i < sides; i++)
+            {
+                int j = (i + 1) % sides, b = vertices.Count;
+                vertices.Add(vertices[1 + i]); vertices.Add(vertices[1 + j]); vertices.Add(vertices[sides + 2 + j]); vertices.Add(vertices[sides + 2 + i]);
+                for (int k = 0; k < 4; k++) uvs.Add(new Vector2(.975f, k < 2 ? .8f : .2f));
+                triangles.Add(b); triangles.Add(b + 1); triangles.Add(b + 2); triangles.Add(b); triangles.Add(b + 2); triangles.Add(b + 3);
+            }
+            var mesh = new Mesh { name = "Biscuit crumb " + seed };
+            mesh.SetVertices(vertices); mesh.SetUVs(0, uvs); mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals(); var normals = mesh.normals; float facing = 0;
+            for (int i = 0; i < normals.Length; i++) facing += Vector3.Dot(normals[i], vertices[i]);
+            if (facing < 0) { var t = mesh.triangles; for (int i = 0; i < t.Length; i += 3) { int x = t[i + 1]; t[i + 1] = t[i + 2]; t[i + 2] = x; } mesh.triangles = t; mesh.RecalculateNormals(); }
+            mesh.RecalculateBounds(); return mesh;
+        }
+
+        private static Texture2D MakeBiscuitTexture()
+        {
+            const int size = 128; var pixels = new Color32[size * size]; var rnd = new System.Random(7);
+            Color face = new Color(0.90f, 0.66f, 0.34f), toasted = new Color(0.74f, 0.47f, 0.20f), hole = new Color(0.46f, 0.27f, 0.11f);
+            Color crust = new Color(0.66f, 0.40f, 0.16f), crumb = new Color(0.96f, 0.84f, 0.60f);
+            for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
+            {
+                float u = (x + 0.5f) / size, v = (y + 0.5f) / size; Color c;
+                if (u > 0.95f) c = crumb; else if (u > 0.88f) c = crust;
+                else
+                {
+                    // Face: golden centre browning toward the rim, fine speckle and a 4x4 grid of docking holes.
+                    float fx = (u - 0.03f) / 0.82f, fy = (v - 0.03f) / 0.94f;
+                    float rim = Mathf.Max(Mathf.Abs(fx - 0.5f), Mathf.Abs(fy - 0.5f)) * 2;
+                    c = Color.Lerp(face, toasted, Mathf.SmoothStep(0.55f, 1.05f, rim));
+                    float gx = fx * 4 - Mathf.Floor(fx * 4) - 0.5f, gy = fy * 4 - Mathf.Floor(fy * 4) - 0.5f;
+                    float d = Mathf.Sqrt(gx * gx + gy * gy);
+                    c = Color.Lerp(c, hole, 1 - Mathf.SmoothStep(0.07f, 0.12f, d));
+                    c = Color.Lerp(c, toasted, 0.35f * (1 - Mathf.SmoothStep(0.12f, 0.2f, d)) * Mathf.SmoothStep(0.07f, 0.12f, d));
+                }
+                float speck = (float)rnd.NextDouble(); if (speck > 0.965f) c *= 0.82f; else if (speck < 0.03f) c = Color.Lerp(c, Color.white, 0.12f);
+                c.a = 1; pixels[x + y * size] = c;
+            }
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, true) { name = "Biscuit food", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            texture.SetPixels32(pixels); texture.Apply(true, true); return texture;
+        }
         private Transform MeshShape(string name, Mesh mesh, Transform parent, Vector3 at, Vector3 size, Material mat)
         {
             var go = new GameObject(name); go.transform.SetParent(parent, false); go.transform.localPosition = at; go.transform.localScale = size;
@@ -228,7 +547,9 @@ namespace PrototypeLab.Aquarium
             else if (kind == "harpoon")
             {
                 UnityEngine.Object.Instantiate(Resources.Load<GameObject>("AquariumEquipment/HarpoonHead"), t);
-                actor.tether = new GameObject("Braided retrieval line").AddComponent<LineRenderer>(); actor.tether.transform.SetParent(t, false);
+                // The line is tied to the tail of the spear's long steel rod, not to the head.
+                var tail = new GameObject("Spear tail").transform; tail.SetParent(t, false); tail.localPosition = new Vector3(0, 0, -.75f);
+                actor.tether = new GameObject("Braided retrieval line").AddComponent<LineRenderer>(); actor.tether.transform.SetParent(tail, false);
                 actor.tether.sharedMaterial = Resources.Load<Material>("AquariumEquipment/Rope");
                 actor.tether.positionCount = 25; actor.tether.useWorldSpace = true; actor.tether.widthMultiplier = .014f;
                 actor.tether.numCapVertices = 3; actor.tether.numCornerVertices = 2; actor.tether.textureMode = LineTextureMode.Tile;
@@ -236,10 +557,8 @@ namespace PrototypeLab.Aquarium
             }
             else if (kind == "egg")
             {
-                Ball("Pearl egg", t, new Vector3(0, 0.32f - AquariumModel.EggRadius, 0), new Vector3(0.47f, 0.64f, 0.47f), eggPearl);
-                Ball("Amber egg core", t, new Vector3(0, 0.24f - AquariumModel.EggRadius, 0.18f), new Vector3(0.22f, 0.28f, 0.12f), eggGold);
+                Ball("Glossy egg", t, new Vector3(0, 0.32f - AquariumModel.EggRadius, 0), new Vector3(0.47f, 0.64f, 0.47f), eggShell);
                 Ball("Egg glint", t, new Vector3(-0.1f, 0.47f - AquariumModel.EggRadius, 0.18f), new Vector3(0.07f, 0.11f, 0.035f), white);
-                var band = Ring("Shell seam", t, 0.23f, new Color(1f, 0.66f, 0.22f, 0.85f), 0.018f); band.transform.localPosition = new Vector3(0, 0.26f - AquariumModel.EggRadius, 0);
             }
             if(kind=="alien" || kind=="diver" || kind.StartsWith("fish"))
             {
@@ -264,8 +583,10 @@ namespace PrototypeLab.Aquarium
             actor.kind=kind;
             if(actor.bodyCollider!=null)
             {
-                float radius=AquariumBodyCollision.Radius(kind=="diver",kind=="alien");
-                actor.bodyCollider.radius=radius;actor.bodyCollider.height=2*(radius+AquariumBodyCollision.Half(kind=="diver",kind=="alien"));
+                // R23: sized per fish species (a disguise takes its fish's hull).
+                int sizedSpecies=kind.StartsWith("fish")?int.Parse(kind.Substring(4)):-1;
+                float radius=AquariumBodyCollision.Radius(kind=="diver",kind=="alien",sizedSpecies);
+                actor.bodyCollider.radius=radius;actor.bodyCollider.height=2*(radius+AquariumBodyCollision.Half(kind=="diver",kind=="alien",sizedSpecies));
             }
             if (actor.dead != dead) actor.positions.Clear();
             actor.dead = dead;
@@ -276,6 +597,8 @@ namespace PrototypeLab.Aquarium
             if (fresh || !freezeExistingPoses) actor.root.transform.position = displayed;
             float measured = snapped || dt <= 0 ? 0 : Vector3.Distance(actor.root.transform.position, before) / dt;
             actor.moveSpeed = snapped ? 0 : Mathf.Lerp(actor.moveSpeed, measured, 1 - Mathf.Exp(-Mathf.Max(0, dt) * 12));
+            var measuredVelocity = snapped || dt <= 0 ? Vector3.zero : (actor.root.transform.position - before) / dt;
+            actor.velocity = snapped ? Vector3.zero : Vector3.Lerp(actor.velocity, measuredVelocity, 1 - Mathf.Exp(-Mathf.Max(0, dt) * 12));
             var direction = new Vector3(facing.x, facing.y, facing.z);
             if (direction.sqrMagnitude < 0.001f) direction = Vector3.forward;
             var rot = Quaternion.LookRotation(direction, Mathf.Abs(direction.normalized.y) > 0.99f ? Vector3.forward : Vector3.up);
@@ -345,9 +668,22 @@ namespace PrototypeLab.Aquarium
                 if (actor.diver != null && !frozenPose)
                 {
                     float remaining=p.nextAction-visualTime;
-                    if(actor.diver.cartoon && remaining>2.5f)actor.diver.SamplePose("Fire",3-remaining,visualTime);
+                    // Round opening: stand on the dive deck, then the giant-stride entry (the host moves the root).
+                    float entry=p.entryAt>0?visualTime-(p.entryAt-AquariumDiveEntry.Seconds):float.NaN;
+                    if(!float.IsNaN(entry) && visualTime<p.entryAt && actor.diver.HasClip("DiveIn") && actor.diver.HasClip("DeckIdle"))
+                    {
+                        if(entry<0)actor.diver.SamplePose("DeckIdle",visualTime,visualTime);
+                        else actor.diver.SamplePose("DiveIn",entry,visualTime);
+                    }
+                    else if(actor.diver.cartoon && remaining>2.5f)actor.diver.SamplePose("Fire",3-remaining,visualTime);
                     else if(actor.diver.cartoon && remaining>0)actor.diver.SamplePose("Reload",3-remaining,visualTime);
-                    else actor.diver.SampleLocomotion(actor.moveSpeed,visualTime,p.id*.37f);
+                    else
+                    {
+                        // Swim direction in the diver's own heading frame picks the forward / back / sideways stroke.
+                        var heading=new Vector3(p.facing.x,0,p.facing.z);
+                        var swimLocal=heading.sqrMagnitude>.0001f?Quaternion.Inverse(Quaternion.LookRotation(heading.normalized))*actor.velocity:actor.velocity;
+                        actor.diver.SampleLocomotion(actor.moveSpeed,visualTime,p.id*.37f,swimLocal);
+                    }
                     actor.gun.SetLoaded(visualTime >= p.nextAction);
                 }
                 if(actor.creature!=null && !frozenPose)
@@ -358,7 +694,7 @@ namespace PrototypeLab.Aquarium
                     if(deathPose)motion=p.deathReason=="harpoon"?"Harpoon":"Eaten";
                     if(motion=="Bite" && form>=0 && age<AquariumFeeding.ReturnToFish)form+=100;
                     float poseTime=deathPose?Mathf.Min(visualTime,p.deathAt+2.4f):visualTime;
-                    actor.creature.Present(form,motion,p.visualAt,poseTime,deathPose?0:actor.moveSpeed,deathPose && p.deathReason=="harpoon");
+                    actor.creature.Present(form,motion,p.visualAt,poseTime,deathPose?0:actor.moveSpeed,deathPose);
                     actor.root.transform.localScale=Vector3.one;
                     actor.bodyCollider.enabled=!deathPose || visualTime-p.deathAt<2.4f;
                 }
@@ -392,11 +728,20 @@ namespace PrototypeLab.Aquarium
                 var actor=Place(FishKey(f.id),FishKind(f.species),f.position,f.facing,dt,visualTime,f.dead && age>2.4f,state.time,renderAt);
                 if(frozenPose)continue;
                 actor.root.transform.localScale=Vector3.one;
-                actor.creature.Present(f.species,f.eaten?"Eaten":f.dead?"Harpoon":"Locomotion",f.visualAt,visualTime,actor.moveSpeed,f.dead);
+                actor.creature.Present(f.species,f.eaten?"Eaten":f.dead?"Harpoon":"Locomotion",f.visualAt,visualTime,actor.moveSpeed,f.dead && !f.eaten);
                 if(f.eaten && actors.TryGetValue(PlayerKey(f.eater),out var predator))IngestActor(actor,predator,age);
                 actor.bodyCollider.enabled=!f.eaten;
             }
-            foreach (var h in state.harpoons) Place("h" + h.id, "harpoon", h.position, h.direction, dt, visualTime,false,state.time,renderAt);
+            foreach (var h in state.harpoons)
+            {
+                // Interpolated tip and a smoothed heading: snapshots arrive in steps, the spear must not.
+                var shotActor = Place("h" + h.id, "harpoon", h.position, h.direction, dt, visualTime,false,state.time,renderAt);
+                var heading = new Vector3(h.direction.x, h.direction.y, h.direction.z);
+                if (heading.sqrMagnitude < .0001f) heading = Vector3.forward;
+                shotActor.shotTip = shotActor.root.transform.position;
+                shotActor.shotDirection = !shotActor.shotPresented ? heading.normalized : Vector3.Slerp(shotActor.shotDirection, heading.normalized, 1 - Mathf.Exp(-Mathf.Max(0, dt) * 14));
+                shotActor.shotPresented = true;
+            }
             if (state.eggs != null) foreach (var egg in state.eggs)
             {
                 var actor = Place("e" + egg.id, "egg", egg.position, new Point(0, 1), dt, visualTime,false,state.time,renderAt);
@@ -416,24 +761,40 @@ namespace PrototypeLab.Aquarium
             {
                 activeEffects.Add(e.id); GameObject fx;
                 if(finished && effects.ContainsKey(e.id))continue;
+                // No expanding rings for any event (harpoon shot, miss, meal, morph, scan, egg...).
+                // Events keep only their ink, splash or biscuits; their sounds are played elsewhere.
+                if (e.kind != "feed" && e.kind != "splash" && !AquariumInkCloud.IsInk(e.kind)) continue;
                 if (!effects.TryGetValue(e.id, out fx))
                 {
-                    if (AquariumInkCloud.IsInk(e.kind))
+                    if (e.kind == "splash") fx = MakeSplash();
+                    else if (AquariumInkCloud.IsInk(e.kind))
                     {
                         fx=new GameObject(e.kind+" volumetric ink");fx.transform.SetParent(root,false);
-                        fx.AddComponent<AquariumInkCloud>().Initialize(e.id,e.kind!="eat",false,e.kind=="burp",e.kind=="allyEat");
+                        fx.AddComponent<AquariumInkCloud>().Initialize(e.id,AquariumInkCloud.IsYellow(e.kind),false,e.kind=="burp",AquariumInkCloud.IsCapture(e.kind));
                     }
                     else
                     {
-                        Color color = e.kind == "morph" ? new Color(0.86f, 0.63f, 1) : e.kind == "caught" || e.kind == "miss" ? new Color(1, 0.4f, 0.3f) : e.kind == "hatch" || e.kind == "egg" ? new Color(1, 0.8f, 0.4f) : new Color(0.55f, 1, 0.76f);
-                        fx = Ring(e.kind, root, 1, color, 0.055f).gameObject;
-                        if (e.kind == "feed") for (int i = 0; i < 10; i++)
-                            Ball("Food pellet", fx.transform, new Vector3(Mathf.Sin(i * 2.4f) * 0.5f, Mathf.Cos(i * 1.7f) * 0.25f, Mathf.Cos(i * 2.4f) * 0.5f), Vector3.one * 0.08f, fishMaterials[0]);
+                        // Feed: just the biscuits, no ring around them.
+                        fx = new GameObject(e.kind); fx.transform.SetParent(root, false);
+                        for (int i = 0; i < 10; i++)
+                        {
+                            // Broken biscuit pieces, each a little different in size and tilt.
+                            var piece = MeshShape("Biscuit piece", biscuitMeshes[i % biscuitMeshes.Length], fx.transform,
+                                new Vector3(Mathf.Sin(i * 2.4f) * 0.5f, Mathf.Cos(i * 1.7f) * 0.25f, Mathf.Cos(i * 2.4f) * 0.5f), Vector3.one * (1.5f + 0.45f * Mathf.Repeat(i * 0.618f, 1)), biscuit);
+                            piece.localRotation = Quaternion.Euler(Mathf.Sin(i * 1.3f) * 35, i * 67, Mathf.Cos(i * 2.1f) * 35);
+                            // The crumbs this piece sheds as it breaks apart (hidden until each chip comes off).
+                            for (int k = 0; k < CrumbsPerPiece; k++)
+                            {
+                                var crumb = MeshShape("Biscuit crumb", crumbMeshes[(i + k) % crumbMeshes.Length], fx.transform, Vector3.zero, Vector3.zero, biscuit);
+                                crumb.gameObject.SetActive(false);
+                            }
+                        }
                     }
                     effects[e.id] = fx;
                 }
                 float age = Mathf.Clamp01((visualTime - e.born) / Mathf.Max(0.01f, e.duration));
-                if(AquariumInkCloud.IsInk(e.kind))
+                if(e.kind=="splash")PresentSplash(fx.transform,visualTime-e.born,e);
+                else if(AquariumInkCloud.IsInk(e.kind))
                 {
                     float seconds=visualTime-e.born-(e.kind=="burp"?0:.12f);
                     Vector3 source=new Vector3(e.position.x,e.position.y,e.position.z),direction=new Vector3(e.direction.x,e.direction.y,e.direction.z);
@@ -444,8 +805,9 @@ namespace PrototypeLab.Aquarium
                 else
                 {
                     fx.transform.position=new Vector3(e.position.x,e.position.y+age*.3f,e.position.z);
-                    fx.transform.localScale=Vector3.one*(e.kind=="feed"?1:.15f+age*1.3f);
-                    var line=fx.GetComponent<LineRenderer>();var c=line.startColor;c.a=1-age;line.startColor=line.endColor=c;
+                    fx.transform.localScale=Vector3.one;
+                    // The pieces sink-drift and tumble slowly in the water, then crumble away.
+                    PresentBiscuits(fx.transform,visualTime-e.born,e.duration);
                 }
             }
             expiredEffects.Clear();
@@ -476,14 +838,28 @@ namespace PrototypeLab.Aquarium
                 Actor projectile, owner;
                 if (!actors.TryGetValue("h" + shot.id, out projectile) || !actors.TryGetValue(PlayerKey(shot.owner), out owner) || owner.gun == null) continue;
                 var gun = equipment.Visible && equipment.Owner == shot.owner ? equipment.gun : owner.gun;
-                var tip = new Vector3(shot.position.x, shot.position.y, shot.position.z);
-                var direction = new Vector3(shot.direction.x, shot.direction.y, shot.direction.z).normalized;
+                var tip = projectile.shotPresented ? projectile.shotTip : new Vector3(shot.position.x, shot.position.y, shot.position.z);
+                var direction = projectile.shotPresented ? projectile.shotDirection : new Vector3(shot.direction.x, shot.direction.y, shot.direction.z).normalized;
                 var dockedTip = gun.muzzle.position + gun.muzzle.forward * gun.headLength * gun.transform.lossyScale.z;
                 if (!shot.returning) tip = Vector3.Lerp(dockedTip, tip, Mathf.Clamp01((state.time - shot.born) / .07f));
                 else
                 {
-                    float dock = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(shot.retrievedAt - .3f, shot.retrievedAt, state.time));
-                    tip = Vector3.Lerp(tip, dockedTip, dock); direction = Vector3.Slerp(direction, gun.muzzle.forward, dock);
+                    // The last stretch is reeled straight down the barrel: the spear swings onto the muzzle axis
+                    // (tip out), then slides in tail first and seats exactly when the cooldown ends.
+                    float u = Mathf.InverseLerp(shot.retrievedAt - HarpoonDockSeconds, shot.retrievedAt, state.time);
+                    if (u > 0)
+                    {
+                        // One smooth curve from where the spear was when docking began (carried along with the swimming
+                        // diver, but not swung by the reloading gun) to the seated tip, arriving tail first along the barrel.
+                        var axis = gun.muzzle.forward; var anchor = owner.root.transform.position;
+                        if (!projectile.docking) { projectile.docking = true; projectile.dockStart = tip; projectile.dockAnchor = anchor; }
+                        var start = projectile.dockStart + (anchor - projectile.dockAnchor);
+                        float span = Mathf.Max(.25f, Vector3.Distance(start, dockedTip));
+                        float e = 1 - (1 - u) * (1 - u), e2 = e * e, e3 = e2 * e;
+                        var leave = (dockedTip - start) * .8f; var arrive = -axis * span * 1.4f;
+                        tip = (2 * e3 - 3 * e2 + 1) * start + (e3 - 2 * e2 + e) * leave + (-2 * e3 + 3 * e2) * dockedTip + (e3 - e2) * arrive;
+                        direction = Vector3.Slerp(direction, axis, Mathf.SmoothStep(0, 1, Mathf.InverseLerp(0, .45f, u)));
+                    }
                 }
                 float weaponScale=gun.transform.lossyScale.z;
                 projectile.root.transform.localScale=Vector3.one*weaponScale;
@@ -491,7 +867,8 @@ namespace PrototypeLab.Aquarium
                 // Equipment docking adjusts the rendered tip after the world pose is drawn.
                 if (shot.caughtFish != 0) PinHarpoonCatch(FishKey(shot.caughtFish), tip, shot.catchOffset);
                 if (shot.caughtPlayer != 0) PinHarpoonCatch(PlayerKey(shot.caughtPlayer), tip, shot.catchOffset);
-                var from = gun.ropeExit.position; var to = projectile.root.transform.position;
+                projectile.tether.transform.parent.localPosition = new Vector3(0, 0, -gun.shaftLength);
+                var from = gun.ropeExit.position; var to = projectile.tether.transform.parent.position;
                 float distance = Vector3.Distance(from, to);
                 float sag = Mathf.Min(.45f, distance * .035f) * (shot.returning ? 1 : .35f);
                 var side = Vector3.Cross((to - from).normalized, Vector3.up);
@@ -675,7 +1052,9 @@ namespace PrototypeLab.Aquarium
             ClearOutline();
             foreach (var actor in actors.Values) DestroyActor(actor);
             foreach (var mat in materials) ReleaseObject(mat);
-            ReleaseObject(fanMesh); ReleaseObject(coneMesh);
+            ReleaseObject(fanMesh); ReleaseObject(coneMesh); ReleaseObject(biscuitTexture);
+            foreach (var mesh in biscuitMeshes) ReleaseObject(mesh);
+            foreach (var mesh in crumbMeshes) ReleaseObject(mesh);
             ReleaseObject(root.gameObject);
         }
     }
