@@ -131,7 +131,7 @@ namespace PrototypeLab.Roguelike
             }
             Fill(new Rect(64,772,1472,1),new Color(.5f,.56f,.63f,.15f));
             if(Button(new Rect(64,791,236,53),"돌아가기  [Esc]",muted))villagePanel=VillagePanel.None;
-            Label(new Rect(326,791,730,53),"동료 "+slots+"명을 고른 뒤 "+next.FirstFloor+"층부터 오릅니다",16,muted,TextAnchor.MiddleLeft);
+            Label(new Rect(326,791,730,53),"동료 "+slots+"명을 고른 뒤 1층부터 "+next.LastFloor+"층까지 오릅니다",16,muted,TextAnchor.MiddleLeft);
             if(Button(new Rect(1080,786,456,64),next.IsFinal?"최후의 원정 출발":"원정 출발",brass,true,true))StartExpedition();
         }
 

@@ -138,7 +138,7 @@ public static class TowerCampaignTests
             var save = Progress(3);
             Require(save.CompanionSlots == 2 && save.CompanionPool.Count == 8, "chapter four drafts two of eight");
             var run = save.BeginChapter(77);
-            Require(run.Floor == 31 && run.CompanionLimit == 2 && run.Offers.Count == 3, "first draft");
+            Require(run.Floor == 1 && run.MaxFloor == 40 && run.CompanionLimit == 2 && run.Offers.Count == 3, "first draft");
             string first = run.Offers[2].CompanionId;
             Require(run.ChooseOffer(run.Offers[2].Id) && run.IsRewardPending && run.IsRecruitOffer && run.OpenRecruits == 7, "the second draft follows at once");
             foreach (var offer in run.Offers) Require(offer.CompanionId != first, "the first pick is not dealt again");
@@ -147,20 +147,20 @@ public static class TowerCampaignTests
             save = Progress(6);
             Require(save.CompanionSlots == 3 && save.CompanionPool.Count == 14, "chapter seven drafts three of fourteen");
             run = save.BeginChapter(78);
-            Require(Draft(run) == 3 && run.Companions.Count == 3 && run.Floor == 61, "three companions past floor 60");
+            Require(Draft(run) == 3 && run.Companions.Count == 3 && run.Floor == 1 && run.MaxFloor == 70, "three companions past floor 60");
             save = Progress(8);
             Require(save.NextChapter.IsFinal && save.CompanionSlots == 3 && save.CompanionPool.Count == 16, "the final ascent drafts from all sixteen gods");
             run = save.BeginChapter(79);
-            Require(Draft(run) == 3 && run.Companions.Count == 3 && run.Floor == 81, "three companions face the evil god");
+            Require(Draft(run) == 3 && run.Companions.Count == 3 && run.Floor == 1 && run.MaxFloor == 90, "three companions face the evil god");
         });
-        test("each restored myth returns the hero to the village, opens ten more floors and keeps the growth of everyone who came", () => {
+        test("each restored myth returns the hero to the village, opens ten more floors and keeps the growth of everyone who came; every expedition starts again on floor 1", () => {
             var save = new TowerCampaignSave();
             for (int c = 0; c < TowerCampaign.Chapters.Count; c++)
             {
                 var chapter = save.NextChapter; Require(chapter.Index == c && save.UnlockedFloor == chapter.LastFloor, "unlocked through chapter " + c);
                 var run = save.BeginChapter(1000 + c);
-                Require(run.IsCampaign && Object.ReferenceEquals(run.Chapter, chapter) && run.Floor == chapter.FirstFloor && run.MaxFloor == chapter.LastFloor, "expedition floors " + c);
-                Require(run.Theme.Id == chapter.Theme && run.Player.Level == 1 + save.SavedUpgrades("player"), "expedition opens on the chapter theme with the saved hero");
+                Require(run.IsCampaign && Object.ReferenceEquals(run.Chapter, chapter) && run.Floor == 1 && run.MaxFloor == chapter.LastFloor, "expedition floors " + c);
+                Require(run.Theme.Id == TowerThemeId.Olympus && run.Player.Level == 1 + save.SavedUpgrades("player"), "expedition opens on Olympus with the saved hero");
                 // Picking the most grown god shows that every draft pick brings back their own saved upgrades.
                 Require(Draft(run, offers => { var best = offers[0]; foreach (var o in offers) if (save.SavedUpgrades(o.CompanionId) > save.SavedUpgrades(best.CompanionId)) best = o; return best; }) == save.CompanionSlots, "one draft per slot in chapter " + c);
                 foreach (var companion in run.Companions) Require(companion.Level == 1 + save.SavedUpgrades(companion.Id), companion.Id + " replays their saved growth");
@@ -168,7 +168,7 @@ public static class TowerCampaignTests
                 Require(!save.RecordChapterClear(run), "an unfinished expedition is not recorded");
                 int replayed = Levels(run);
                 Climb(run);
-                Require(run.IsComplete && run.Floor == chapter.LastFloor && run.ClearedFloors == 10, "chapter climbed " + c);
+                Require(run.IsComplete && run.Floor == chapter.LastFloor && run.ClearedFloors == chapter.LastFloor && run.Theme.Id == chapter.Theme, "climbed from floor 1 through chapter " + c);
                 int grown = Levels(run);
                 Require(grown >= replayed + 2, "two fifth-floor rewards per chapter");
                 Require(save.RecordChapterClear(run) && save.ClearedChapters == c + 1, "chapter recorded " + c);

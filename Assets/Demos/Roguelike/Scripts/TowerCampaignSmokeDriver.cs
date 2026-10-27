@@ -98,6 +98,17 @@ namespace PrototypeLab.Roguelike
             if (game.run.IsRewardPending) game.run.ChooseOffer(game.run.Offers[0].Id);
             game.NextFloor(FloorType.Normal);
         }
+        // Every expedition starts on floor 1; walks up through the restored chapters a floor per frame.
+        private IEnumerator ClimbTo(int floor)
+        {
+            while (game.run.Floor < floor)
+            {
+                Advance(); game.invulnerable = 99; game.hero.hp = Mathf.Max(game.hero.hp, 1);
+                Require(game.run.Theme.Id == TowerCampaign.ForFloor(game.run.Floor).Theme, "Floor " + game.run.Floor + " shows its own chapter's theme.");
+                yield return null;
+            }
+            Require(game.run.Floor == floor, "The expedition did not reach floor " + floor + ".");
+        }
         private TowerGame.Fighter Boss() { return game.enemies.Find(e => e.isBoss); }
         // Picks the first card of every companion card set the expedition opens with.
         private int Draft(string preferred = null)
@@ -167,7 +178,8 @@ namespace PrototypeLab.Roguelike
             Require(game.campaign.CompanionSlots == 2 && game.campaign.CompanionPool.Count == 8, "Chapter four drafts two of eight gods.");
             yield return Frames(4); yield return Shot("gate-two-slots");
             Require(game.StartExpedition(), "The fourth expedition departs."); game.SkipStory();
-            Require(game.run.Floor == 31 && game.run.Offers.Count == 3 && game.run.CanReroll(0), "Three of eight gods are dealt.");
+            Require(game.run.Floor == 1 && game.run.MaxFloor == 40 && game.run.Theme.Id == TowerThemeId.Olympus, "The fourth expedition starts again on floor 1.");
+            Require(game.run.Offers.Count == 3 && game.run.CanReroll(0), "Three of eight gods are dealt.");
             yield return Frames(4); yield return Shot("eden-draft-1");
             game.SelectOffer(game.run.Offers[0].Id);
             Require(game.run.IsRecruitOffer && game.run.Companions.Count == 1 && game.run.OpenRecruits == 7, "The second companion is drafted straight after the first.");
@@ -182,7 +194,12 @@ namespace PrototypeLab.Roguelike
             Require(game.StartExpedition(), "The hell expedition departs.");
             game.SkipStory();
             Require(Draft() == 3, "Past floor 60 three companions are drafted.");
-            Require(game.run.Floor == 71 && game.run.Theme.Id == TowerThemeId.Hell && game.run.Companions.Count == 3, "Hell spans floor 71 with a full party.");
+            Require(game.run.Floor == 1 && game.run.MaxFloor == 80 && game.run.Theme.Id == TowerThemeId.Olympus, "The hell expedition starts again on floor 1.");
+            yield return ClimbTo(11);
+            Require(game.run.Theme.Id == TowerThemeId.Asgard, "Floor 11 passes through restored Asgard.");
+            yield return Frames(40); yield return Shot("hell-run-asgard-11");
+            yield return ClimbTo(71);
+            Require(game.run.Theme.Id == TowerThemeId.Hell && game.run.Companions.Count == 3, "Hell spans floor 71 with a full party.");
             yield return Frames(60); yield return Shot("hell-71");
             foreach (var e in game.enemies) Sample("hell-71 " + e.monster.Name + " / " + e.art.ProfileName);
             Require(game.enemies.Exists(e => e.art.ProfileName.StartsWith("Infernal")), "Hell creatures are regraded.");
@@ -194,8 +211,8 @@ namespace PrototypeLab.Roguelike
             var fallen = new List<string>(); foreach (var c in game.run.Companions) fallen.Add(c.Id);
             game.RetryExpedition(); game.SkipStory(); game.SmokeControlled = true;
             Require(!game.run.IsRewardPending && game.run.Companions.Count == 3 && fallen.TrueForAll(id => game.run.GetCompanion(id) != null), "A retry keeps the same companions without a new draft.");
-            for (int i = 0; i < 4; i++) Advance();
-            Require(game.run.Floor == 75, "Hell's mid-chapter boss floor.");
+            Require(game.run.Floor == 1, "A retry starts again on floor 1.");
+            yield return ClimbTo(75);
             yield return Frames(150); yield return Shot("hell-75-boss");
             Sample("hell-75 boss " + Boss().monster.Name + " / " + Boss().art.ProfileName + " / " + game.BossPatternName(Boss()));
             for (int i = 0; i < 5; i++) Advance();
@@ -210,7 +227,9 @@ namespace PrototypeLab.Roguelike
             Require(game.campaign.CompanionSlots == 3 && game.campaign.CompanionPool.Count == 16, "The final ascent drafts three of all sixteen restored gods.");
             Require(game.StartExpedition(), "The abyss expedition departs."); game.SkipStory();
             Require(Draft() == 3 && game.run.Companions.Count == 3, "Three restored gods join the final ascent.");
-            Require(game.run.Floor == 81 && game.run.Theme.Id == TowerThemeId.Abyss, "The abyss starts on floor 81.");
+            Require(game.run.Floor == 1 && game.run.MaxFloor == 90, "The final ascent starts again on floor 1.");
+            yield return ClimbTo(81);
+            Require(game.run.Theme.Id == TowerThemeId.Abyss, "The abyss starts on floor 81.");
             yield return Frames(60); yield return Shot("abyss-81");
             foreach (var e in game.enemies) Sample("abyss-81 " + e.monster.Name + " / " + e.art.ProfileName);
             Require(game.enemies.Exists(e => e.art.ProfileName.StartsWith("Flayed")), "Abyss creatures are regraded.");

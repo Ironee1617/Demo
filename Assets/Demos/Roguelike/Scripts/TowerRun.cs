@@ -426,15 +426,16 @@ namespace PrototypeLab.Roguelike
             else if (startingRecruit) BeginReward(true);
         }
         /// <summary>
-        /// One chapter expedition: floors <see cref="TowerChapter.FirstFloor"/> to <see cref="TowerChapter.LastFloor"/>
-        /// with <paramref name="party"/> already along; <see cref="DraftCompanions"/> opens the campaign's draft.
+        /// One chapter expedition: every expedition climbs from floor 1 through the restored chapters to
+        /// <see cref="TowerChapter.LastFloor"/> with <paramref name="party"/> already along; <see cref="DraftCompanions"/>
+        /// opens the campaign's draft.
         /// </summary>
         internal static TowerRun ForChapter(int seed, TowerChapter chapter, IList<string> party)
         {
             if (chapter == null) throw new ArgumentNullException("chapter");
             if (party == null || party.Count > MaxCompanions) throw new ArgumentOutOfRangeException("party");
             var run = new TowerRun(new Random(seed), chapter.LastFloor, false, null);
-            run.Chapter = chapter; run.Floor = chapter.FirstFloor;
+            run.Chapter = chapter;
             foreach (string id in party) run.Join(id);
             return run;
         }

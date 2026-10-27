@@ -114,13 +114,15 @@ namespace PrototypeLab.Roguelike
                 Round(new Rect(137,98,296*Mathf.Clamp01(PlayerShield/(PlayerMaxHealth*.65f)),4),TowerWorld.Teal,2);
                 Label(new Rect(324,122,120,22),"보호막 "+Mathf.CeilToInt(PlayerShield),13,TowerWorld.Teal,TextAnchor.MiddleRight);
             }
-            string place=run.IsCampaign?run.Chapter.Numeral+"  ·  "+run.Chapter.Title:run.Theme.Name;
+            // Expeditions climb from floor 1, so the HUD names the chapter of the floor underfoot.
+            var here=run.IsCampaign?TowerCampaign.ForFloor(run.Floor):null;
+            string place=here!=null?here.Numeral+"  ·  "+here.Title:run.Theme.Name;
             Label(new Rect(565,26,470,23),place+(run.FloorType!=FloorType.Normal?"  ·  "+FloorTypeName(run.FloorType)+" 층":""),16,run.FloorType==FloorType.Normal?paper:TowerWorld.GateColor(run.FloorType),TextAnchor.MiddleCenter);
             Label(new Rect(675,50,142,52),run.Floor.ToString("00"),43,brass,TextAnchor.MiddleRight,true);
             Label(new Rect(827,72,90,25),"/ "+run.MaxFloor,18,muted);
             // Long climbs show the current five-floor block; the oath trial keeps its full track.
             // Chapters show their own ten floors; long free climbs the current five-floor block; the oath trial its full track.
-            int first=run.IsCampaign?run.Chapter.FirstFloor:run.MaxFloor<=25?1:(run.Floor-1)/TowerRun.RewardInterval*TowerRun.RewardInterval+1;
+            int first=here!=null?here.FirstFloor:run.MaxFloor<=25?1:(run.Floor-1)/TowerRun.RewardInterval*TowerRun.RewardInterval+1;
             int shown=run.IsCampaign?TowerCampaign.FloorsPerChapter:run.MaxFloor<=25?run.MaxFloor:TowerRun.RewardInterval;
             float spacing=run.IsCampaign?22:run.MaxFloor<=25?14:26;
             for(int i=0;i<shown;i++)
