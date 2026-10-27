@@ -12,16 +12,16 @@ namespace PrototypeLab.Roguelike
         internal const float AwakenedBossHealth=1.3f;
         internal TowerCampaignSave campaign;
         internal bool village;
-        internal enum VillagePanel { None, Gate, Shrine }
+        internal enum VillagePanel { None, Gate, Shrine, SkillTree }
         internal VillagePanel villagePanel;
         private bool chapterRecorded;
         private IReadOnlyList<TowerStoryPage> storyPages;private int storyPage;private string storyEyebrow;private Action storyDone;
         internal bool StoryOpen{get{return storyPages!=null;}}
         internal bool VillageBlocking{get{return villagePanel!=VillagePanel.None||StoryOpen;}}
 
-        // The village runs left to right: tutorial signs and ledges, the training yard, the shrine,
-        // the plaza where restored gods wait, then the tower gate where the next chapter's gods stand.
-        internal const float VillageSpawnX=-13,SteleX=-14.6f,ShrineX=11.2f;
+        // The village runs left to right: the skill tree's runestone among the tutorial signs and ledges, the
+        // training yard, the shrine, the plaza where restored gods wait, then the tower gate where the next chapter's gods stand.
+        internal const float VillageSpawnX=-13,SteleX=-14.6f,RunestoneX=-9.9f,ShrineX=11.2f;
         internal static readonly float[] DummyXs={4.6f,7.2f};
         private static readonly float[] CandidateXs={20.1f,22.5f};
         // Five places in the plaza by the shrine, then the clearing under the tutorial ledges; the gods of the
@@ -39,6 +39,7 @@ namespace PrototypeLab.Roguelike
         private readonly List<Dummy> dummies=new List<Dummy>();
         private readonly List<Fighter> villagers=new List<Fighter>();
         private readonly List<SpriteRenderer> shrineLights=new List<SpriteRenderer>();
+        private SpriteRenderer runestoneGlow;
         private GameObject villageRoot;
         private float villageClock;
 
@@ -55,7 +56,7 @@ namespace PrototypeLab.Roguelike
         internal void ResetCampaign()
         {
             campaign=new TowerCampaignSave();SaveCampaign();EnterVillage();intro=true;
-            Toast("새로운 여정","되찾은 신화와 성장이 모두 초기화되었습니다",muted,3.2f);
+            Toast("새로운 여정","되찾은 신화와 스킬트리가 모두 초기화되었습니다",muted,3.2f);
         }
 
         internal void EnterVillage()
@@ -93,6 +94,10 @@ namespace PrototypeLab.Roguelike
             villageRoot=new GameObject("Lantern village");villageRoot.transform.SetParent(transform,false);
             foreach(var sign in TutorialSigns)StoryProp("signpost",new Vector2(sign.x,sign.y),-8);
             StoryProp("stele",new Vector2(SteleX,TowerWorld.Ground),-8);
+            // The skill tree's runestone glows brighter while it has a rank to teach.
+            runestoneGlow=TowerWorld.SpriteObject(villageRoot.transform,"Runestone glow",new Vector2(RunestoneX,TowerWorld.Ground+.85f),new Vector2(2.2f,2),
+                Alpha(SkillPointColor,.3f),-9,TowerWorld.Glow).GetComponent<SpriteRenderer>();
+            StoryProp("runestone",new Vector2(RunestoneX,TowerWorld.Ground),-8);
             var shrine=StoryProp("shrine",new Vector2(ShrineX,TowerWorld.Ground),-9);
             // One flame on the shrine for every restored mythology.
             shrineLights.Clear();
@@ -169,6 +174,8 @@ namespace PrototypeLab.Roguelike
             }
             for(int i=0;i<shrineLights.Count;i++)
             {var c=shrineLights[i].color;c.a=.7f+Mathf.Sin(villageClock*3+i*1.3f)*.15f;shrineLights[i].color=c;}
+            if(runestoneGlow){var c=runestoneGlow.color;c.a=SkillTreeReady?.42f+Mathf.Sin(villageClock*2.6f)*.16f:.16f;runestoneGlow.color=c;}
+            if(!SmokeControlled&&Input.GetKeyDown(KeyCode.K))OpenSkillTree();
             if(!campaign.TutorialDone&&hero.pos.x>17.5f)
             {
                 campaign.TutorialDone=true;SaveCampaign();
@@ -191,12 +198,15 @@ namespace PrototypeLab.Roguelike
             return hit;
         }
 
-        private enum VillageSpot { None, Stele, Shrine, Gate, Villager }
+        /// <summary>Some node of the skill tree can be learned with the points in hand.</summary>
+        internal bool SkillTreeReady
+        {get{foreach(var node in TowerSkillTree.Nodes)if(campaign.CanLearn(node))return true;return false;}}
+        private enum VillageSpot { None, Stele, Runestone, Shrine, Gate, Villager }
         private VillageSpot NearestSpot(out Fighter npc)
         {
             npc=null;float best=float.PositiveInfinity;var spot=VillageSpot.None;float x=hero.pos.x;
             Action<VillageSpot,float,float> consider=(kind,at,range)=>{float d=Mathf.Abs(x-at);if(d<range&&d<best){best=d;spot=kind;}};
-            consider(VillageSpot.Stele,SteleX,1.3f);consider(VillageSpot.Shrine,ShrineX,1.9f);consider(VillageSpot.Gate,TowerWorld.ExitX,2.1f);
+            consider(VillageSpot.Stele,SteleX,1.3f);consider(VillageSpot.Runestone,RunestoneX,1.1f);consider(VillageSpot.Shrine,ShrineX,1.9f);consider(VillageSpot.Gate,TowerWorld.ExitX,2.1f);
             foreach(var v in villagers){float d=Mathf.Abs(x-v.pos.x);if(d<.9f&&d<best){best=d;spot=VillageSpot.Villager;npc=v;}}
             return spot;
         }
@@ -206,6 +216,7 @@ namespace PrototypeLab.Roguelike
             switch(spot)
             {
                 case VillageSpot.Stele: return "이야기 비석  ·  루멘의 이야기를 다시 읽기";
+                case VillageSpot.Runestone: return "스킬트리  ·  스킬 포인트 "+campaign.SkillPoints+"로 영구 능력 배우기";
                 case VillageSpot.Shrine: return "신화의 제단  ·  되찾은 신화 보기";
                 case VillageSpot.Gate: return campaign.IsComplete?"서약의 탑  ·  악신은 쓰러졌습니다":"서약의 탑  ·  원정 준비";
                 case VillageSpot.Villager: return TowerRun.GetDefinition(npc.id).Name+"  ·  대화하기";
@@ -218,6 +229,7 @@ namespace PrototypeLab.Roguelike
         {
             Fighter npc;var spot=NearestSpot(out npc);
             if(spot==VillageSpot.Stele)ShowStory(TowerCampaign.Prologue,"PROLOGUE",null);
+            else if(spot==VillageSpot.Runestone)OpenSkillTree();
             else if(spot==VillageSpot.Shrine){villagePanel=VillagePanel.Shrine;Sound(chimeSound,.3f);}
             else if(spot==VillageSpot.Gate)OpenGate();
             else if(spot==VillageSpot.Villager)
@@ -231,15 +243,15 @@ namespace PrototypeLab.Roguelike
         internal void OpenGate(){villagePanel=VillagePanel.Gate;Sound(chimeSound,.3f);}
 
         /// <summary>
-        /// Leaves the village for the next chapter. After its intro page the expedition opens with companion
-        /// cards drawn like augments, one set per slot; <paramref name="kept"/> skips the slots it already fills.
+        /// Leaves the village for the next chapter. After its intro page the expedition opens with a screen that
+        /// shows every god of the companion pool to pick from; <paramref name="kept"/> skips the slots it already fills.
         /// </summary>
         internal bool StartExpedition(IList<string> kept=null)
         {
             var chapter=campaign.NextChapter;if(chapter==null||!campaign.CanDepart(kept))return false;
             seed=Environment.TickCount&0x7fffffff;
             StartRun(campaign.BeginChapter(seed,kept));
-            chapterRecorded=false;
+            chapterRecorded=false;ExpeditionPoints=0;
             ShowStory(new[]{new TowerStoryPage(chapter.Title+"  ·  "+chapter.Subtitle,chapter.Intro)},chapter.Numeral+"  /  "+chapter.Floors,null);
             return true;
         }

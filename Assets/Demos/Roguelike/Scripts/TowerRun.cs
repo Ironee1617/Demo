@@ -401,6 +401,10 @@ namespace PrototypeLab.Roguelike
         public HeroState Player { get; private set; }
         /// <summary>The party's passives: counters, stacks and clocks that last the whole climb.</summary>
         public TowerPassiveState Passives { get; private set; }
+        /// <summary>The village skill tree whose ranks every hero of this climb carries; null outside the campaign.</summary>
+        public TowerSkillTreeState SkillTree { get; private set; }
+        /// <summary>Stat card sets the skill tree still owes before the first fight, dealt once the companions have joined.</summary>
+        public int OpeningAugments { get; private set; }
         public OathState Oath { get; private set; }
         public bool IsOathTrial { get { return Oath != null; } }
         public IReadOnlyList<CompanionState> Companions { get { return companionView; } }
@@ -420,7 +424,7 @@ namespace PrototypeLab.Roguelike
             RunId = Guid.NewGuid().ToString("N");
             Player = new HeroState("player", "플레이어", 28, 160, 0, 6, .43f, 2.6f);
             Passives = new TowerPassiveState(this);
-            Player.ExternalBonus = stat => SynergyBonus(Player, stat) + Passives.StatBonus(Player, stat);
+            Player.ExternalBonus = stat => SynergyBonus(Player, stat) + Passives.StatBonus(Player, stat) + TreeBonus(Player, stat);
             companionView = companions.AsReadOnly(); offerView = offers.AsReadOnly(); shopView = shop.AsReadOnly();
             if (oathCompanionId != null)
             {
@@ -601,9 +605,22 @@ namespace PrototypeLab.Roguelike
         private void AddCompanion(CompanionDefinition definition)
         {
             var companion = new CompanionState(definition);
-            companion.ExternalBonus = stat => SynergyBonus(companion, stat) + Passives.StatBonus(companion, stat);
+            companion.ExternalBonus = stat => SynergyBonus(companion, stat) + Passives.StatBonus(companion, stat) + TreeBonus(companion, stat);
             companions.Add(companion);
             if (joined != null) joined(companion);
+        }
+        private float TreeBonus(HeroState hero, HeroStat stat) { return SkillTree == null ? 0 : SkillTree.Bonus(hero, stat); }
+        /// <summary>Gives every hero of this climb the tree's ranks and queues its opening stat cards.</summary>
+        internal void UseSkillTree(TowerSkillTreeState tree)
+        { SkillTree = tree; OpeningAugments = tree == null ? 0 : (int)tree.Perk(SkillPerk.OpeningAugment); }
+        /// <summary>
+        /// Deals one of the skill tree's opening stat card sets: only before the first floor is cleared and once no
+        /// other cards (such as the companion pick) are pending.
+        /// </summary>
+        public bool DealOpeningAugment()
+        {
+            if (OpeningAugments <= 0 || IsRewardPending || IsFloorCleared || ClearedFloors > 0) return false;
+            OpeningAugments--; BeginReward(false, RewardDraft.Stats); return true;
         }
         private float SynergyBonus(HeroState hero, HeroStat stat)
         {

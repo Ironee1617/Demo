@@ -193,6 +193,7 @@ namespace PrototypeLab.Roguelike
                 else if(Input.GetKeyDown(KeyCode.Return)&&intro&&!help)StartClimb();
             }
             if(run.IsCampaign&&run.IsComplete&&!chapterRecorded)CompleteChapter();
+            TickOpeningAugments();
             ConfigurePixelCamera();
             if(Paused){AnimateIdle(frame);TickDeaths(frame);return;}
             // A short hit stop slows the simulation; input, HUD and camera keep real time.
@@ -255,6 +256,7 @@ namespace PrototypeLab.Roguelike
             {
                 run.ClearFloor();ClearOathEffects();foreach(var shot in shots)if(shot.root)Destroy(shot.root);shots.Clear();RecordFloorResult();FlushGold();CancelPendingSkills();hero.hp=Mathf.Min(PlayerMaxHealth,hero.hp+18);Sound(chimeSound,.8f);
                 if(run.FloorType==FloorType.Elite)DropEliteBounty();
+                RewardTreeFloorClear();
                 if(run.FloorType==FloorType.Rest||run.FloorType==FloorType.Shop)OnSpecialFloorCleared();
                 else Notice(run.IsBranchFloor?"층 클리어  ·  원하는 출구를 고르세요":"층 클리어",2.5f);
             }

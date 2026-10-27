@@ -36,6 +36,7 @@ namespace PrototypeLab.Roguelike
                 if(village)DrawVillageHUD();else DrawHUD();GUI.enabled=!party&&!help&&!StoryOpen;
                 if(run.IsRewardPending)DrawRewards();else if(shopOpen)DrawShop();
                 else if(villagePanel==VillagePanel.Gate)DrawGatePanel();else if(villagePanel==VillagePanel.Shrine)DrawShrinePanel();
+                else if(villagePanel==VillagePanel.SkillTree)DrawSkillTreePanel();
                 GUI.enabled=!help&&!StoryOpen;
                 if(party)DrawParty();else if(menu)DrawMenu();else if(hero.hp<=0)DrawEnding(false);else if(run.IsComplete){if(run.IsCampaign)DrawChapterComplete();else DrawEnding(true);}
             }
@@ -395,7 +396,7 @@ namespace PrototypeLab.Roguelike
             Panel(new Rect(772,198,712,574),brass);
             Label(new Rect(808,229,640,37),trial?"서약 연계":"회피와 반격",27,brass,TextAnchor.MiddleLeft,true);
             string rules=trial?"검격 적중 +1 · 순간 회피 +2\n기본 4충전 후 다음 검격 적중에 연계가 발동합니다. 헛스윙은 충전을 소모하지 않습니다.\n\n회피 시작 0.12초 안에 탄환을 통과하면 순간 회피입니다. 다음 검격의 반격 효과는 3초간 유지됩니다.\n\n여러 서약 변형은 함께 적용되며 충전은 다음 층에도 유지됩니다.\n\n5·10층 보스 · 10층 클리어로 종료\n부서지는 항아리와 상자, 골드는 나오지 않습니다.":
-                "회피 시작 0.12초 안에 탄환을 통과하면 반격을 준비합니다. 3초 안에 맞힌 다음 검격은 피해가 50% 증가합니다.\n\n탑은 열 층마다 한 신화를 가둔 장입니다. 원정을 떠나면 되찾은 신화와 그 장 신화의 신들 가운데 함께 오를 동료를 직접 고릅니다. 30층을 넘으면 둘, 60층을 넘으면 셋을 데려갑니다.\n\n층마다 능력치 증강, 5층마다 보스와 스킬 증강이 나오고 그 장의 마지막 층에는 각성한 보스가 있습니다. 장을 끝내면 성장을 간직한 채 마을로 돌아오고 다음 열 층이 열립니다. 원정에 실패하면 그 원정에서 얻은 성장은 사라집니다.";
+                "회피 시작 0.12초 안에 탄환을 통과하면 반격을 준비합니다. 3초 안에 맞힌 다음 검격은 피해가 50% 증가합니다.\n\n탑은 열 층마다 한 신화를 가둔 장입니다. 원정을 떠나면 되찾은 신화와 그 장 신화의 신들 가운데 함께 오를 동료를 직접 고릅니다. 30층을 넘으면 둘, 60층을 넘으면 셋을 데려갑니다.\n\n층마다 능력치 증강, 5층마다 보스와 스킬 증강이 나오고 그 장의 마지막 층에는 각성한 보스가 있습니다. 장을 끝내면 마을로 돌아와 다음 열 층이 열리고, 증강은 원정마다 처음부터 다시 쌓습니다. 층을 넘길 때마다 얻는 스킬 포인트는 실패해도 남으며, 마을의 스킬트리(K)에서 영구 능력을 배웁니다.";
             Label(new Rect(808,298,640,360),rules,19,muted);
             Label(new Rect(808,675,640,65),trial?"적을 모두 처치하면 생명력 18 회복\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회":"5층 갈림길에서 휴식·상점·엘리트 문 · 항아리·상자에서 하트와 골드\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회",18,paper);
         }

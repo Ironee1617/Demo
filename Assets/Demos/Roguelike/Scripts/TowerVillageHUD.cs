@@ -26,6 +26,10 @@ namespace PrototypeLab.Roguelike
             var next=campaign.NextChapter;
             Label(new Rect(400,70,800,24),next==null?"악신이 쓰러진 행성 "+TowerCampaign.Planet:"다음 원정  ·  "+next.Numeral+" "+next.Title+"  ·  "+next.Floors,15,next==null?brass:muted,TextAnchor.MiddleCenter);
             DrawGold(new Rect(1150,84,262,24),15,brass);
+            // The skill tree button lights up while the points in hand can buy a rank.
+            bool ready=SkillTreeReady;
+            if(Button(new Rect(1150,28,262,42),"스킬트리  ·  "+campaign.SkillPoints+" SP",SkillPointColor,true,ready))OpenSkillTree();Keycap(new Rect(1375,39,28,20),"K");
+            if(ready)Diamond(new Vector2(1166,49),7+Mathf.Sin(Time.unscaledTime*4)*1.5f,SkillPointColor);
             if(Button(new Rect(1424,28,112,42),"메뉴",muted))menu=!menu;Keycap(new Rect(1499,39,28,20),"Esc");
             if(noticeTime>0&&!menu&&!party&&!help&&!VillageBlocking)
             {
@@ -42,7 +46,7 @@ namespace PrototypeLab.Roguelike
                 Label(new Rect(r.x+70,r.y+10,r.width-90,42),prompt,18,paper,TextAnchor.MiddleLeft,true);
             }
         }
-        private bool VillageHUDHit(Vector2 p){return new Rect(36,27,440,92).Contains(p)||new Rect(1424,28,112,42).Contains(p);}
+        private bool VillageHUDHit(Vector2 p){return new Rect(36,27,440,92).Contains(p)||new Rect(1150,28,386,42).Contains(p);}
 
         private void WorldTag(Vector2 world,string title,string subtitle,Color accent,bool active)
         {
@@ -67,6 +71,7 @@ namespace PrototypeLab.Roguelike
             }
             Fighter npc;var spot=NearestSpot(out npc);
             WorldTag(new Vector2(SteleX,TowerWorld.Ground+2.25f),"이야기 비석",null,silver,spot==VillageSpot.Stele);
+            WorldTag(new Vector2(RunestoneX,TowerWorld.Ground+1.95f),"스킬트리","스킬 포인트 "+campaign.SkillPoints,SkillPointColor,spot==VillageSpot.Runestone);
             WorldTag(new Vector2(ShrineX,TowerWorld.Ground+3.75f),"신화의 제단",RestoredLine(),gold,spot==VillageSpot.Shrine);
             var next=campaign.NextChapter;
             WorldTag(new Vector2(TowerWorld.ExitX,TowerWorld.Ground+4.1f),"서약의 탑",next==null?"고요해진 탑":next.Numeral+" "+next.Title+"  ·  "+next.Floors,brass,spot==VillageSpot.Gate);
@@ -103,7 +108,7 @@ namespace PrototypeLab.Roguelike
             Label(new Rect(96,526,410,24),next.LastFloor+"층  ·  "+(theme.FinalBoss!=null?theme.FinalBoss.Name:theme.Boss.Name+" · 각성"),16,theme.FinalBoss!=null?brass:paper,TextAnchor.MiddleLeft,theme.FinalBoss!=null);
             Fill(new Rect(96,566,406,1),Alpha(brass,.18f));
             Label(new Rect(96,580,410,24),RestoredLine(),15,muted);
-            FitLabel(new Rect(96,610,410,130),"층마다 능력치 증강 · 5층마다 보스와 스킬 증강 · 5층을 넘으면 휴식·상점·엘리트 문을 고릅니다.\n원정에 실패하면 그 원정에서 얻은 성장은 사라지고, 마지막 층을 넘기면 성장을 간직한 채 마을로 돌아옵니다.",14,12,muted);
+            FitLabel(new Rect(96,610,410,130),"층마다 능력치 증강 · 5층마다 보스와 스킬 증강 · 5층을 넘으면 휴식·상점·엘리트 문을 고릅니다.\n증강은 원정마다 처음부터 다시 쌓습니다. 층을 넘길 때마다 스킬 포인트를 얻고, 마을의 스킬트리에서 영구 능력을 배웁니다.",14,12,muted);
 
             // Companions are picked on departure from the whole pool, one per open slot.
             int slots=campaign.CompanionSlots;var pool=campaign.CompanionPool;
@@ -121,14 +126,14 @@ namespace PrototypeLab.Roguelike
             string hoverId=null;Rect hoverRect=default(Rect);
             for(int i=0;i<pool.Count;i++)
             {
-                // The next chapter's own gods are new to the pool; the others show the growth they bring back.
-                string id=pool[i];var d=TowerRun.GetDefinition(id);bool fresh=IsCandidate(id);int saved=campaign.SavedUpgrades(id);
+                // The next chapter's own gods are new to the pool; the others show their role.
+                string id=pool[i];var d=TowerRun.GetDefinition(id);bool fresh=IsCandidate(id);
                 float x=566+i%8*121,y=372+i/8*190;Rect card=new Rect(x,y,113,180);
                 Round(card,rim,5);Round(Inset(card,1),ink,4);if(fresh)Border(card,Alpha(TowerWorld.Teal,.7f));
                 PortraitArt(new Rect(x+16,y+10,80,80),d.ArtIndex);
                 Label(new Rect(x+4,y+96,105,24),d.Name,15,paper,TextAnchor.MiddleCenter,true);
                 Label(new Rect(x+4,y+121,105,20),TowerMythCatalog.Get(d.MythId).Name,12,muted,TextAnchor.MiddleCenter);
-                Label(new Rect(x+4,y+146,105,22),fresh?"새 동료 후보":saved>0?"성장 Lv. "+(1+saved):RoleName(d.Role),12,fresh?TowerWorld.Teal:saved>0?brass:muted,TextAnchor.MiddleCenter);
+                Label(new Rect(x+4,y+146,105,22),fresh?"새 동료 후보":RoleName(d.Role),12,fresh?TowerWorld.Teal:muted,TextAnchor.MiddleCenter);
                 if(GUI.enabled&&card.Contains(Pointer)){hoverId=id;hoverRect=card;}
             }
             Fill(new Rect(64,772,1472,1),new Color(.5f,.56f,.63f,.15f));
@@ -189,8 +194,9 @@ namespace PrototypeLab.Roguelike
         private void DrawExpeditionStats(float y)
         {
             float x=240;
-            StatCell(new Rect(x,y,240,75),"처치",kills.ToString());StatCell(new Rect(x+290,y,240,75),"원정 시간",CombatTime(elapsed));
-            StatCell(new Rect(x+580,y,240,75),"모은 골드","+"+GoldCollected+" G");StatCell(new Rect(x+870,y,240,75),"무피격 클리어",FlawlessFloors+"층");
+            StatCell(new Rect(x,y,200,75),"처치",kills.ToString());StatCell(new Rect(x+230,y,200,75),"원정 시간",CombatTime(elapsed));
+            StatCell(new Rect(x+460,y,200,75),"모은 골드","+"+GoldCollected+" G");StatCell(new Rect(x+690,y,200,75),"무피격 클리어",FlawlessFloors+"층");
+            StatCell(new Rect(x+920,y,200,75),"스킬 포인트","+"+ExpeditionPoints+" SP");
         }
         private void DrawChapterComplete()
         {
@@ -214,7 +220,9 @@ namespace PrototypeLab.Roguelike
             // Clearing floors 30 and 60 opens another companion slot for the next expedition.
             bool wider=next!=null&&TowerCampaign.CompanionSlots(next)>TowerCampaign.CompanionSlots(ch);
             Label(new Rect(0,y,1600,28),next!=null?"다음 원정이 열렸습니다  ·  "+next.Numeral+" "+next.Title+"  "+next.Floors:"모든 신화를 되찾고 악신을 쓰러뜨렸습니다",18,paper,TextAnchor.MiddleCenter);
-            Label(new Rect(0,y+30,1600,24),wider?"이제 동료 "+TowerCampaign.CompanionSlots(next)+"명을 골라 함께 오릅니다  ·  이번 원정의 성장은 마을에 간직됩니다":"이번 원정의 성장은 마을에 간직됩니다",14,wider?brass:muted,TextAnchor.MiddleCenter,wider);
+            // Augments stay behind with the expedition; the skill points it banked go to the village's skill tree.
+            string reset="이번 원정의 증강은 초기화되고, 모은 스킬 포인트로 마을의 스킬트리를 배웁니다";
+            Label(new Rect(0,y+30,1600,24),wider?"이제 동료 "+TowerCampaign.CompanionSlots(next)+"명을 골라 함께 오릅니다  ·  "+reset:reset,14,wider?brass:muted,TextAnchor.MiddleCenter,wider);
             Fill(new Rect(240,y+70,1120,1),Alpha(brass,.18f));
             DrawExpeditionStats(y+90);
             if(ch.IsFinal)
@@ -240,7 +248,7 @@ namespace PrototypeLab.Roguelike
             Label(new Rect(600,318,400,32),"/ "+ch.LastFloor+"층",22,muted,TextAnchor.MiddleCenter);
             DrawExpeditionStats(420);
             Fill(new Rect(240,534,1120,1),Alpha(silver,.18f));
-            Label(new Rect(240,560,1120,60),"이번 원정에서 얻은 증강은 사라졌습니다. 모은 골드는 남아 있습니다.\n같은 동료와 곧바로 다시 오르거나, 마을로 돌아가 다음 출발 때 동료를 새로 고를 수 있습니다.",17,muted,TextAnchor.MiddleCenter);
+            Label(new Rect(240,560,1120,60),"이번 원정에서 얻은 증강은 사라졌습니다. 모은 골드와 스킬 포인트는 남아 있습니다.\n같은 동료와 곧바로 다시 오르거나, 마을로 돌아가 다음 출발 때 동료를 새로 고를 수 있습니다.",17,muted,TextAnchor.MiddleCenter);
             if(Button(new Rect(555,689,490,60),"같은 동료와 다시 도전",brass,true,true))RetryExpedition();
             if(Button(new Rect(660,771,280,44),"마을로 돌아가기",muted))EnterVillage();
         }

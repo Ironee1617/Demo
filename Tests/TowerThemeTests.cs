@@ -96,6 +96,7 @@ public static class TowerThemeTests
             Require(invalidFloor, "invalid inputs are rejected");
         });
         TowerCampaignTests.Run(Test);
+        TowerSkillTreeTests.Run(Test);
         Console.WriteLine("TOWER_THEME_TESTS_" + (failed == 0 ? "OK " : "FAILED ") + passed + "/" + (passed + failed));
         return failed == 0 ? 0 : 1;
     }

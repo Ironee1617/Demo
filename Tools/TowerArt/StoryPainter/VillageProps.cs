@@ -22,6 +22,7 @@ public static class VillageProps
     {
         yield return ("signpost", Signpost());
         yield return ("stele", Stele());
+        yield return ("runestone", Runestone());
         yield return ("shrine", Shrine());
         yield return ("dummy", Dummy());
     }
@@ -89,6 +90,62 @@ public static class VillageProps
             return Stone.At(v, tx.X, tx.Y);
         }, Outline, Box(14, 16, 98, 178));
         img.Light(56, 142, 34, Col.Hex("58e0d0"), .5f);
+        return img;
+    }
+
+    // The skill tree's runestone: a squat tablet whose face carries a small copy of the tree, a root on top and
+    // coloured branches below, some runes lit and some still dark. Short enough for its label to sit above it.
+    static readonly (float x, float y, int colour, bool lit)[] Runes =
+    {
+        (60, 126, 0, true), (60, 111, 1, true), (45, 111, 1, true), (75, 111, 1, true), (60, 96, 0, true),
+        (45, 96, 2, true), (30, 96, 2, false), (75, 96, 3, true), (90, 96, 3, false), (60, 81, 4, true), (60, 66, 0, true),
+        (45, 66, 5, true), (30, 66, 5, false), (75, 66, 6, true), (90, 66, 6, true), (30, 51, 5, false), (90, 51, 6, false),
+        (60, 51, 4, false), (45, 38, 5, false), (75, 38, 6, false)
+    };
+    static readonly (int a, int b)[] RuneLinks =
+    {
+        (0, 1), (1, 2), (1, 3), (1, 4), (4, 5), (5, 6), (4, 7), (7, 8), (4, 9), (9, 10), (10, 11), (11, 12), (10, 13), (13, 14),
+        (12, 15), (14, 16), (10, 17), (15, 18), (16, 19)
+    };
+    // Root, arcane, swift, bond, fortune, guard, might: the branch colours of the tree screen.
+    static readonly Col[] RuneBright = { Col.Hex("f4ead2"), Col.Hex("b088f8"), Col.Hex("84dc70"), Col.Hex("66d4dc"), Col.Hex("f2c454"), Col.Hex("74a2ff"), Col.Hex("f4664e") };
+    static readonly Col[] RuneDeep = { Col.Hex("7e6e50"), Col.Hex("4e3290"), Col.Hex("2c6426"), Col.Hex("1c5a60"), Col.Hex("74541a"), Col.Hex("223e7a"), Col.Hex("782216") };
+
+    static Img Runestone()
+    {
+        var img = new Img(120, 150);
+        img.Part(Rect(6, 0, 114, 16, 4), 6, tx => Stone.At(.2f + tx.Key * .55f + Noise.Value(tx.X, tx.Y, 6, 51) * .08f, tx.X, tx.Y), Outline, Box(4, 0, 116, 18));
+        img.Part((float x, float y, out float t, out float s) =>
+        {
+            t = (x - 60) / 48; s = (y - 14) / 130;
+            // A broad slab narrowing a little towards its chamfered top.
+            float half = 48 - Math.Max(0, y - 100) * .12f;
+            if (y < 14 || y > 144 || MathF.Abs(x - 60) > half) return false;
+            return y < 136 || MathF.Abs(x - 60) - (half - 8) + (y - 136) < 0;
+        }, 10, tx =>
+        {
+            for (int i = 0; i < Runes.Length; i++)
+            {
+                var r = Runes[i]; float dx = MathF.Abs(tx.X + .5f - r.x), dy = MathF.Abs(tx.Y + .5f - r.y);
+                if (dx > 4.5f || dy > 4.5f) continue;
+                bool rim = dx > 3.4f || dy > 3.4f;
+                if (!r.lit) return rim ? Stone[1] : Col.Lerp(Stone[2], RuneDeep[r.colour], .35f);
+                return rim ? RuneBright[r.colour] : Col.Lerp(RuneDeep[r.colour], RuneBright[r.colour], .45f + tx.Key * .4f);
+            }
+            foreach (var (a, b) in RuneLinks)
+            {
+                var p = Runes[a]; var q = Runes[b];
+                float vx = q.x - p.x, vy = q.y - p.y, u = Math.Clamp(((tx.X + .5f - p.x) * vx + (tx.Y + .5f - p.y) * vy) / (vx * vx + vy * vy), 0, 1);
+                float ex = p.x + vx * u - tx.X - .5f, ey = p.y + vy * u - tx.Y - .5f;
+                if (ex * ex + ey * ey > 1.3f) continue;
+                return p.lit && q.lit ? Col.Lerp(RuneDeep[q.colour], RuneBright[q.colour], .6f) : Stone[1];
+            }
+            float v = .2f + tx.Key * .55f + Noise.Value(tx.X, tx.Y, 8, 53) * .07f;
+            if (Noise.Ridge(tx.X, tx.Y, 26, 55) > .93f) v -= .16f;
+            if (tx.Y < 28 && Noise.Value(tx.X, tx.Y, 7, 57) > .15f) return Moss.At(.25f + tx.Key * .5f, tx.X, tx.Y);
+            return Stone.At(v, tx.X, tx.Y);
+        }, Outline, Box(10, 12, 110, 146), smooth: 1);
+        img.Light(60, 96, 52, Col.Hex("8cc0ff"), .4f);
         return img;
     }
 

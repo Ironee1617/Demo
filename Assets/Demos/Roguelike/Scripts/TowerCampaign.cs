@@ -143,22 +143,24 @@ namespace PrototypeLab.Roguelike
     }
 
     /// <summary>
-    /// Persistent campaign progress: restored chapters and the growth every hero keeps between chapters. An
-    /// expedition starts from this state and drafts its companions from the gods its chapter has opened; dying
-    /// discards that expedition's gains, while clearing its last floor records them. Save() can be stored
-    /// directly in PlayerPrefs.
+    /// Persistent campaign progress: restored chapters, skill points and the village skill tree. Every
+    /// expedition starts its augments over, drafts its companions from the gods its chapter has opened and
+    /// carries the skill tree's ranks; each floor it clears earns skill points that stay even if it fails.
+    /// Save() can be stored directly in PlayerPrefs.
     /// </summary>
     public sealed class TowerCampaignSave
     {
-        private const string Version = "c2", LegacyVersion = "c1";
+        private const string Version = "c3";
         private static readonly IReadOnlyList<string> NoGods = Array.AsReadOnly(new string[0]);
-        // Augment id -> level (skill level or trait stack); each augment names its owner.
-        private readonly Dictionary<string, int> growth = new Dictionary<string, int>();
         public int ClearedChapters { get; private set; }
         public bool PrologueSeen { get; set; }
         public bool TutorialDone { get; set; }
         public bool EndingSeen { get; set; }
-        public float Vitality { get; private set; }
+        /// <summary>Unspent skill points.</summary>
+        public int SkillPoints { get; private set; }
+        public TowerSkillTreeState SkillTree { get; private set; }
+        /// <summary>Every skill point ever earned: the unspent ones and those in the tree.</summary>
+        public int EarnedPoints { get { return SkillPoints + SkillTree.Spent; } }
         public bool IsComplete { get { return ClearedChapters >= TowerCampaign.Chapters.Count; } }
         public TowerChapter NextChapter { get { return IsComplete ? null : TowerCampaign.Chapters[ClearedChapters]; } }
         /// <summary>The highest floor the hero may climb to now.</summary>
@@ -167,14 +169,30 @@ namespace PrototypeLab.Roguelike
         public IReadOnlyList<string> CompanionPool { get { return NextChapter == null ? NoGods : TowerCampaign.CompanionPool(NextChapter); } }
         /// <summary>How many companions the next expedition drafts.</summary>
         public int CompanionSlots { get { return NextChapter == null ? 0 : TowerCampaign.CompanionSlots(NextChapter); } }
+        public TowerCampaignSave() { SkillTree = new TowerSkillTreeState(); }
         public bool IsRestored(TowerChapter chapter) { return chapter != null && chapter.Index < ClearedChapters; }
-        public int GrowthLevel(string augmentId) { int level; return growth.TryGetValue(augmentId, out level) ? level : 0; }
-        /// <summary>Saved upgrades a hero brings along whenever they join an expedition.</summary>
-        public int SavedUpgrades(string heroId)
+
+        /// <summary>Banks points from a cleared floor, saturating at Int32.MaxValue; returns the amount actually added.</summary>
+        public int AddSkillPoints(int amount)
         {
-            int total = 0;
-            foreach (var entry in growth) { var augment = TowerRun.GetAugment(entry.Key); if (augment != null && augment.OwnerId == heroId) total += entry.Value; }
-            return total;
+            if (amount <= 0) return 0;
+            int before = SkillPoints;
+            SkillPoints = (int)Math.Min(Int32.MaxValue - SkillTree.Spent, (long)SkillPoints + amount);
+            return SkillPoints - before;
+        }
+        public bool CanLearn(SkillNode node) { return SkillTree.CanLearn(node, SkillPoints); }
+        /// <summary>Spends a node's cost on one more rank once the node it grows from has been learned.</summary>
+        public bool LearnSkill(string nodeId)
+        {
+            var node = TowerSkillTree.Get(nodeId);
+            if (!CanLearn(node) || !SkillTree.Learn(node)) return false;
+            SkillPoints -= node.Cost; return true;
+        }
+        /// <summary>Unlearns the whole tree and refunds every point spent on it; returns the refund.</summary>
+        public int ResetSkillTree()
+        {
+            int refund = SkillTree.Spent;
+            SkillTree.Clear(); SkillPoints += refund; return refund;
         }
 
         /// <summary>
@@ -192,20 +210,20 @@ namespace PrototypeLab.Roguelike
         }
 
         /// <summary>
-        /// Builds the next expedition and replays every saved upgrade. Companions in <paramref name="party"/>
-        /// (a retry after a defeat) come straight along; the remaining slots open as recruit cards drawn from
-        /// the companion pool before the first fight, and each god replays their own growth on joining.
+        /// Builds the next expedition with fresh augments and the skill tree's ranks. Companions in
+        /// <paramref name="party"/> (a retry after a defeat) come straight along; the remaining slots are picked
+        /// before the first fight from a screen that shows every god of the companion pool.
         /// </summary>
         public TowerRun BeginChapter(int seed, IList<string> party = null)
         {
             if (!CanDepart(party)) throw new InvalidOperationException("Invalid expedition party.");
             var run = TowerRun.ForChapter(seed, NextChapter, new string[0]);
-            Replay(run.Player);
-            run.DraftCompanions(party ?? new string[0], CompanionPool, CompanionSlots, Replay);
+            run.UseSkillTree(SkillTree);
+            run.DraftCompanions(party ?? new string[0], CompanionPool, CompanionSlots, null);
             return run;
         }
 
-        /// <summary>A preview of the next expedition, shown in the village before departure.</summary>
+        /// <summary>A preview of the next expedition with the skill tree applied, shown in the village before departure.</summary>
         public TowerRun Preview(int seed, IEnumerable<string> companions)
         {
             var chapter = NextChapter ?? TowerCampaign.Chapters[TowerCampaign.Chapters.Count - 1];
@@ -213,40 +231,20 @@ namespace PrototypeLab.Roguelike
             foreach (string id in companions ?? NoGods)
                 if (valid.Count < TowerRun.MaxCompanions && !valid.Contains(id) && TowerRun.GetDefinition(id) != null) valid.Add(id);
             var run = TowerRun.ForChapter(seed, chapter, valid);
-            Replay(run.Player);
-            foreach (var companion in run.Companions) Replay(companion);
+            run.UseSkillTree(SkillTree);
             return run;
         }
 
-        private void Replay(HeroState hero)
-        {
-            if (hero.Id == "player" && Vitality > 0) hero.AddVitality(Vitality);
-            foreach (var entry in growth)
-            {
-                var augment = TowerRun.GetAugment(entry.Key);
-                if (augment == null || augment.OwnerId != hero.Id) continue;
-                for (int level = 0; level < entry.Value; level++) if (!hero.Apply(augment)) break;
-            }
-        }
-
         /// <summary>
-        /// Records a finished chapter: every hero who came keeps the upgrades gathered on the way and the next
-        /// ten floors open. Returns false unless the run is the completed next chapter.
+        /// Records a finished chapter: its myth is restored and the next ten floors open. The augments gathered
+        /// on the way stay behind; only skill points and the skill tree carry on. Returns false unless the run is
+        /// the completed next chapter.
         /// </summary>
         public bool RecordChapterClear(TowerRun run)
         {
             if (run == null || run.Chapter == null || run.Chapter != NextChapter || !run.IsComplete) return false;
-            Capture(run.Player);
-            foreach (var companion in run.Companions) Capture(companion);
-            Vitality = Math.Max(Vitality, run.Player.BonusHealth);
             ClearedChapters++;
             return true;
-        }
-
-        private void Capture(HeroState hero)
-        {
-            foreach (var skill in hero.Skills) growth[skill.Definition.Id] = Math.Max(GrowthLevel(skill.Definition.Id), skill.Level);
-            foreach (var trait in hero.Traits) growth[trait.Definition.Id] = Math.Max(GrowthLevel(trait.Definition.Id), trait.Level);
         }
 
         private static bool Contains(IReadOnlyList<string> list, string value)
@@ -254,35 +252,32 @@ namespace PrototypeLab.Roguelike
 
         public string Save()
         {
-            var upgrades = new List<string>();
-            foreach (var entry in growth) upgrades.Add(entry.Key + "=" + entry.Value.ToString(CultureInfo.InvariantCulture));
-            upgrades.Sort(StringComparer.Ordinal);
             int flags = (PrologueSeen ? 1 : 0) | (TutorialDone ? 2 : 0) | (EndingSeen ? 4 : 0);
             return String.Join(";", new[] { Version, ClearedChapters.ToString(CultureInfo.InvariantCulture), flags.ToString(CultureInfo.InvariantCulture),
-                Vitality.ToString("R", CultureInfo.InvariantCulture), String.Join(",", upgrades.ToArray()) });
+                SkillPoints.ToString(CultureInfo.InvariantCulture), SkillTree.Save() });
         }
 
         public static TowerCampaignSave Load(string saved)
         {
             var save = new TowerCampaignSave();
             if (String.IsNullOrEmpty(saved)) return save;
-            string[] fields = saved.Split(';'); int cleared, flags; float vitality;
-            // c1 also kept the gods who joined for good and the last party; companions are drafted per expedition now.
-            if (fields.Length == 7 && fields[0] == LegacyVersion) fields = new[] { Version, fields[1], fields[2], fields[5], fields[6] };
+            string[] fields = saved.Split(';'); int cleared, flags, points; float vitality;
+            // c1 also kept the gods who joined for good and the last party; c2 the augments and bonus health every
+            // hero kept between chapters. Augments now start over with every expedition, so only chapters and flags carry on.
+            if (fields.Length == 7 && fields[0] == "c1") fields = new[] { "c2", fields[1], fields[2], fields[5], fields[6] };
+            if (fields.Length == 5 && fields[0] == "c2")
+            {
+                if (!Single.TryParse(fields[3], NumberStyles.Float, CultureInfo.InvariantCulture, out vitality) || Single.IsNaN(vitality) || Single.IsInfinity(vitality)) return save;
+                fields = new[] { Version, fields[1], fields[2], "0", "" };
+            }
             if (fields.Length != 5 || fields[0] != Version) return save;
             if (!Int32.TryParse(fields[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out cleared) ||
                 !Int32.TryParse(fields[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out flags) ||
-                !Single.TryParse(fields[3], NumberStyles.Float, CultureInfo.InvariantCulture, out vitality) ||
-                Single.IsNaN(vitality) || Single.IsInfinity(vitality)) return save;
+                !Int32.TryParse(fields[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out points) || points < 0) return save;
             save.ClearedChapters = Math.Max(0, Math.Min(TowerCampaign.Chapters.Count, cleared));
             save.PrologueSeen = (flags & 1) != 0; save.TutorialDone = (flags & 2) != 0; save.EndingSeen = (flags & 4) != 0;
-            save.Vitality = Math.Max(0, vitality);
-            foreach (string entry in fields[4].Split(','))
-            {
-                string[] pair = entry.Split('='); int level;
-                if (pair.Length != 2 || TowerRun.GetAugment(pair[0]) == null || !Int32.TryParse(pair[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out level) || level < 1) continue;
-                save.growth[pair[0]] = Math.Min(level, 999);
-            }
+            save.SkillTree = TowerSkillTreeState.Load(fields[4]);
+            save.SkillPoints = (int)Math.Min(points, Int32.MaxValue - (long)save.SkillTree.Spent);
             return save;
         }
     }

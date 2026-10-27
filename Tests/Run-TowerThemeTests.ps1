@@ -15,8 +15,10 @@ $sources = @(
     'Assets/Demos/Roguelike/Scripts/TowerDifficulty.cs',
     'Assets/Demos/Roguelike/Scripts/TowerThemeCatalog.cs',
     'Assets/Demos/Roguelike/Scripts/TowerCampaign.cs',
+    'Assets/Demos/Roguelike/Scripts/TowerSkillTree.cs',
     'Tests/TowerThemeTests.cs',
-    'Tests/TowerCampaignTests.cs'
+    'Tests/TowerCampaignTests.cs',
+    'Tests/TowerSkillTreeTests.cs'
 ) | ForEach-Object { Join-Path $projectRoot $_ }
 & (Join-Path $monoRoot 'bin/mono.exe') (Join-Path $monoRoot 'lib/mono/4.5/csc.exe') /nologo /target:exe "/out:$binary" @sources
 if ($LASTEXITCODE -ne 0) { throw 'Theme tests failed to compile.' }

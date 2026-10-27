@@ -151,32 +151,32 @@ public static class TowerCampaignTests
             run = save.BeginChapter(79);
             Require(Draft(run) == 3 && run.Companions.Count == 3 && run.Floor == 1 && run.MaxFloor == 90, "three companions face the evil god");
         });
-        test("each restored myth returns the hero to the village, opens ten more floors and keeps the growth of everyone who came; every expedition starts again on floor 1", () => {
-            var save = new TowerCampaignSave();
+        test("each restored myth returns the hero to the village, opens ten more floors and resets every augment; every expedition starts again on floor 1", () => {
+            var save = new TowerCampaignSave(); var fresh = new TowerCampaignSave().Preview(7, new string[0]).Player;
             for (int c = 0; c < TowerCampaign.Chapters.Count; c++)
             {
                 var chapter = save.NextChapter; Require(chapter.Index == c && save.UnlockedFloor == chapter.LastFloor, "unlocked through chapter " + c);
                 var run = save.BeginChapter(1000 + c);
                 Require(run.IsCampaign && Object.ReferenceEquals(run.Chapter, chapter) && run.Floor == 1 && run.MaxFloor == chapter.LastFloor, "expedition floors " + c);
-                Require(run.Theme.Id == TowerThemeId.Olympus && run.Player.Level == 1 + save.SavedUpgrades("player"), "expedition opens on Olympus with the saved hero");
-                // Picking the most grown god shows that every draft pick brings back their own saved upgrades.
-                Require(Draft(run, offers => { var best = offers[0]; foreach (var o in offers) if (save.SavedUpgrades(o.CompanionId) > save.SavedUpgrades(best.CompanionId)) best = o; return best; }) == save.CompanionSlots, "one draft per slot in chapter " + c);
-                foreach (var companion in run.Companions) Require(companion.Level == 1 + save.SavedUpgrades(companion.Id), companion.Id + " replays their saved growth");
+                Require(run.Theme.Id == TowerThemeId.Olympus && run.Player.Level == 1 && run.Player.Skills.Count == 0 && run.Player.Traits.Count == 0, "expedition opens on Olympus with a fresh hero");
+                Require(Draft(run) == save.CompanionSlots, "one draft per slot in chapter " + c);
+                foreach (var companion in run.Companions) Require(companion.Level == 1 && companion.Skills.Count == 0, companion.Id + " joins without earlier augments");
                 Require(run.Companions.Count == save.CompanionSlots, "party size in chapter " + c);
                 Require(!save.RecordChapterClear(run), "an unfinished expedition is not recorded");
-                int replayed = Levels(run);
+                int joined = Levels(run);
                 Climb(run);
                 Require(run.IsComplete && run.Floor == chapter.LastFloor && run.ClearedFloors == chapter.LastFloor && run.Theme.Id == chapter.Theme, "climbed from floor 1 through chapter " + c);
                 int grown = Levels(run);
-                Require(grown >= replayed + 2, "two fifth-floor rewards per chapter");
+                Require(grown >= joined + 2, "two fifth-floor rewards per chapter");
                 Require(save.RecordChapterClear(run) && save.ClearedChapters == c + 1, "chapter recorded " + c);
                 Require(!save.RecordChapterClear(run), "a chapter is recorded once");
                 Require(save.IsRestored(chapter), "chapter restored");
                 if (!save.IsComplete)
                 {
-                    // Coming home and leaving again rebuilds the same heroes from the save.
+                    // Coming home resets every augment: the same gods start over at level one.
                     var preview = save.Preview(7, Ids(run));
-                    Require(Levels(preview) == grown, "village preview keeps every upgrade (" + Levels(preview) + " vs " + grown + ")");
+                    Require(Levels(preview) == 1 + run.Companions.Count, "village preview starts over (" + Levels(preview) + " vs " + grown + ")");
+                    Require(Math.Abs(preview.Player.Damage - fresh.Damage) < .001f && Math.Abs(preview.Player.MaxHealth - fresh.MaxHealth) < .001f, "no stat bonus survives the return");
                 }
             }
             Require(save.IsComplete && save.NextChapter == null && save.UnlockedFloor == 90 && save.CompanionSlots == 0 && save.CompanionPool.Count == 0, "the evil god falls after nine chapters");
@@ -186,7 +186,7 @@ public static class TowerCampaignTests
             var save = new TowerCampaignSave();
             var failed = save.BeginChapter(5); Draft(failed);
             Require(failed.ClearFloor() && failed.ChooseOffer(failed.Offers[0].Id) && failed.AdvanceFloor() && failed.ClearFloor(), "climb a little");
-            Require(save.ClearedChapters == 0 && save.SavedUpgrades("player") == 0, "nothing recorded on defeat");
+            Require(save.ClearedChapters == 0 && save.Save() == new TowerCampaignSave().Save(), "nothing recorded on defeat");
             var retry = save.BeginChapter(6, Ids(failed));
             Require(retry.Floor == 1 && !retry.IsRewardPending && Ids(retry)[0] == Ids(failed)[0], "the same companion, no new draft");
             Climb(retry);
@@ -198,24 +198,28 @@ public static class TowerCampaignTests
             Require(Draft(partial) == 1 && partial.Companions.Count == 2, "the open slot fills");
             Require(!save.CanDepart(new[] { "zeus", "odin", "thor" }) && !save.CanDepart(new[] { "ra" }), "kept parties respect the slots and the pool");
         });
-        test("saves round-trip, carry old saves forward and ignore damaged or impossible entries", () => {
+        test("saves round-trip with skill points and the tree, carry old saves forward without their growth and ignore damaged entries", () => {
             var save = Progress(3); save.PrologueSeen = true; save.TutorialDone = true;
+            save.AddSkillPoints(9);
+            Require(save.LearnSkill("origin") && save.LearnSkill("arc_seed") && save.LearnSkill("arc_seed"), "learn a few ranks");
             string text = save.Save(); var loaded = TowerCampaignSave.Load(text);
-            Require(text.StartsWith("c2;") && loaded.Save() == text, "round trip " + text);
+            Require(text == "c3;3;3;6;arc_seed=2,origin=1" && loaded.Save() == text, "round trip " + text);
             Require(loaded.ClearedChapters == 3 && loaded.PrologueSeen && loaded.TutorialDone && !loaded.EndingSeen && loaded.CompanionSlots == 2, "fields restored");
+            Require(loaded.SkillPoints == 6 && loaded.EarnedPoints == 9 && loaded.SkillTree.Rank("arc_seed") == 2, "points and ranks restored");
             var everyone = TowerCampaign.CompanionPool(TowerCampaign.Chapters[2]);
             var a = save.Preview(1, everyone); var b = loaded.Preview(1, everyone);
-            Require(Levels(a) == Levels(b) && Math.Abs(a.Player.MaxHealth - b.Player.MaxHealth) < .001f && Math.Abs(a.Player.Damage - b.Player.Damage) < .001f, "growth restored");
-            foreach (string bad in new[] { null, "", "x", "c2;9", "c2;1;0;0", "c2;one;0;0;", "c2;1;0;NaN;", "c3;1;0;0;", "c1;1;0;;;0" })
+            Require(Math.Abs(a.Player.Damage - b.Player.Damage) < .001f && Math.Abs(a.Player.SkillPowerMultiplier - b.Player.SkillPowerMultiplier) < .001f, "the tree's bonuses restored");
+            foreach (string bad in new[] { null, "", "x", "c3;9", "c3;1;0;0", "c3;one;0;0;", "c3;1;0;-4;", "c3;1;0;many;", "c2;1;0;NaN;", "c4;1;0;0;", "c1;1;0;;;0" })
             {
                 var broken = TowerCampaignSave.Load(bad);
-                Require(broken.ClearedChapters == 0 && broken.Vitality == 0 && !broken.PrologueSeen, "damaged save ignored: " + bad);
+                Require(broken.ClearedChapters == 0 && broken.SkillPoints == 0 && broken.SkillTree.Spent == 0 && !broken.PrologueSeen, "damaged save ignored: " + bad);
             }
             var legacy = TowerCampaignSave.Load("c1;1;3;zeus,thor,athena;thor,zeus;-5;zeus.skill1=2,unknown=3,player.fireball=0");
-            Require(legacy.ClearedChapters == 1 && legacy.PrologueSeen && legacy.TutorialDone && legacy.Vitality == 0, "a c1 save keeps its chapters and flags, vitality clamped");
-            Require(legacy.GrowthLevel("zeus.skill1") == 2 && legacy.GrowthLevel("unknown") == 0 && legacy.GrowthLevel("player.fireball") == 0, "unknown and empty upgrades dropped");
-            Require(legacy.CompanionPool.Count == 4 && legacy.Save().StartsWith("c2;1;3;"), "old gods and parties give way to the draft");
-            var overflow = TowerCampaignSave.Load("c2;99;7;0;");
+            Require(legacy.ClearedChapters == 1 && legacy.PrologueSeen && legacy.TutorialDone && legacy.SkillPoints == 0, "a c1 save keeps its chapters and flags");
+            Require(legacy.CompanionPool.Count == 4 && legacy.Save() == "c3;1;3;0;", "old gods, parties and growth give way");
+            var grown = TowerCampaignSave.Load("c2;2;1;15;player.might=3,zeus.skill1=2");
+            Require(grown.ClearedChapters == 2 && grown.Save() == "c3;2;1;0;" && Levels(grown.Preview(1, new[] { "zeus" })) == 2, "a c2 save drops the growth and health it kept between chapters");
+            var overflow = TowerCampaignSave.Load("c3;99;7;0;");
             Require(overflow.IsComplete && overflow.ClearedChapters == 9 && overflow.EndingSeen, "chapter count clamps");
         });
     }

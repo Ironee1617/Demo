@@ -87,7 +87,7 @@ namespace PrototypeLab.Roguelike
         private void FlushGold(){if(goldUnsaved)SaveProgress();}
         private void AddGold(int amount)
         {
-            int added=progress.AddGold(amount);if(added<=0)return;
+            int added=progress.AddGold(TreeGold(amount));if(added<=0)return;
             GoldCollected+=added;goldUnsaved=true;
             goldFlashAmount=goldFlash>0?goldFlashAmount+added:added;goldFlash=1.4f;
         }
@@ -211,7 +211,7 @@ namespace PrototypeLab.Roguelike
         {
             if(p.kind==LootKind.Heart)
             {
-                float healed=Mathf.Min(PlayerMaxHealth-hero.hp,TowerLoot.HeartHeal(PlayerMaxHealth));hero.hp+=healed;HeartsCollected++;
+                float healed=Mathf.Min(PlayerMaxHealth-hero.hp,TreeHeartHeal(TowerLoot.HeartHeal(PlayerMaxHealth)));hero.hp+=healed;HeartsCollected++;
                 FloatText(hero.pos+Vector2.up*2,"+"+Mathf.CeilToInt(healed),new Color(1,.45f,.5f));
                 if(vfx!=null)vfx.Cast(SkillEffect.HealPulse,hero.pos+Vector2.up,1.1f,new Color(1,.42f,.48f));
                 Sound(chimeSound,.3f);
