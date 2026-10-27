@@ -23,7 +23,7 @@ namespace PrototypeLab.Aquarium.Editor
         [Serializable] class SocketData { public string bone; public float[] position, rotation; public float scale; }
         [Serializable] class ClipData { public string name; public float length; public bool loop; public int frames; public float[] data; }
         [Serializable] class RigData { public string name; public string[] bones; public int[] parents; public float[] world; public SocketData socket; public int vertices; public ClipData[] clips; }
-        [Serializable] class GunData { public float[] muzzle, ropeExit; public float headLength; }
+        [Serializable] class GunData { public float[] muzzle, ropeExit; public float headLength, shaftLength; }
 
         static Vector3 V3(float[] a, int i = 0) => new Vector3(a[i], a[i + 1], a[i + 2]);
 
@@ -174,7 +174,7 @@ namespace PrototypeLab.Aquarium.Editor
                 var g = new GameObject(name); var gun = g.AddComponent<AquariumHarpoonGun>();
                 var barrel = Child("Cartoon barrel", g.transform, Vector3.zero);
                 barrel.gameObject.AddComponent<MeshFilter>().sharedMesh = body; barrel.gameObject.AddComponent<MeshRenderer>().sharedMaterial = material;
-                gun.muzzle = Child("Muzzle", g.transform, V3(d.muzzle)); gun.ropeExit = Child("Rope exit", g.transform, V3(d.ropeExit)); gun.headLength = d.headLength;
+                gun.muzzle = Child("Muzzle", g.transform, V3(d.muzzle)); gun.ropeExit = Child("Rope exit", g.transform, V3(d.ropeExit)); gun.headLength = d.headLength; gun.shaftLength = d.shaftLength > 0 ? d.shaftLength : gun.shaftLength;
                 var loaded = Child("Loaded spear", g.transform, V3(d.muzzle));
                 loaded.gameObject.AddComponent<MeshFilter>().sharedMesh = spear; loaded.gameObject.AddComponent<MeshRenderer>().sharedMaterial = material; gun.loadedHarpoon = loaded;
                 PrefabUtility.SaveAsPrefabAsset(g, Equipment + "/" + name + ".prefab"); UnityEngine.Object.DestroyImmediate(g);

@@ -83,6 +83,7 @@ MonoBehaviour:
   ropeExit: {fileID: 8034399587215370121}
   loadedHarpoon: {fileID: 2877091826340591774}
   headLength: 0.290634
+  shaftLength: 0.75
 --- !u!1 &6086778450188242404
 GameObject:
   m_ObjectHideFlags: 0

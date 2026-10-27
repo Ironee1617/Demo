@@ -19,6 +19,8 @@ namespace PrototypeLab.Aquarium
         public bool FreeView { get; private set; }
         public bool SpectatingDiver { get; private set; }
         public bool DeathReview { get; private set; }
+        // The diver's round opening (deck idle + dive-in) is filmed from outside; the first-person view takes over as it ends.
+        public bool Cinematic { get; private set; }
         public float Yaw { get { return yaw; } }
         public float Pitch { get { return pitch; } }
         public AquariumThirdPersonCamera(Camera camera) { this.camera = camera; }
@@ -103,7 +105,7 @@ namespace PrototypeLab.Aquarium
 
         public void Look(float horizontal, float vertical, float scroll)
         {
-            if (SpectatingDiver || (observerView && !FreeView)) return;
+            if (SpectatingDiver || Cinematic || (observerView && !FreeView)) return;
             targetYaw = Mathf.Repeat(targetYaw + horizontal * 2.3f, 360);
             targetPitch = Mathf.Clamp(targetPitch - vertical * 2.3f, -65, 65);
             if (!DeathReview) targetDistance = Mathf.Clamp(targetDistance - scroll * 0.5f, 2.4f, 5.5f);
@@ -132,6 +134,7 @@ namespace PrototypeLab.Aquarium
 
         public void UpdatePose(AquariumSnapshot state, AquariumView view, float dt)
         {
+            Cinematic = false;
             if (!Active)
             {
                 // An establishing view for menus only; every player uses perspective during a round.
@@ -155,6 +158,11 @@ namespace PrototypeLab.Aquarium
             camera.orthographic = false; camera.fieldOfView = 68; camera.nearClipPlane = 0.06f;
             var rotation = Quaternion.Euler(pitch, yaw, 0);
             var centre = view != null ? view.PlayerPosition(player) : new Vector3(player.position.x, player.position.y, player.position.z);
+            if (FirstPerson && player.team == Team.Seeker && player.entryAt > 0 && state.time < player.entryAt)
+            {
+                DiveEntryShot(state, player, centre, view);
+                return;
+            }
             if (FirstPerson)
             {
                 var eye = centre + Vector3.up * 0.15f + rotation * Vector3.forward * 0.4f;
@@ -190,6 +198,29 @@ namespace PrototypeLab.Aquarium
             view?.CameraOcclusion(FollowId, centre);
         }
 
+        // Establishing shot of the diver on the deck from over the water, a slow push-in, then the camera follows the
+        // stride and the splash down under the surface and hands over to the diver's own eyes as the hunt begins.
+        private void DiveEntryShot(AquariumSnapshot state, Swimmer player, Vector3 centre, AquariumView view)
+        {
+            float t = state.time - (player.entryAt - AquariumDiveEntry.Seconds);
+            var heading = new Vector3(player.facing.x, 0, player.facing.z);
+            if (heading.sqrMagnitude < .0001f) heading = Vector3.forward;
+            yaw = targetYaw = Quaternion.LookRotation(heading).eulerAngles.y; pitch = targetPitch = 0;
+            Vector3 wide = Shot(-7.0f, 9.5f, AquariumDiveEntry.PadTop + 4.3f), above = Shot(-3.4f, 6.6f, AquariumModel.WaterHeight + 1.0f), under = Shot(-2.2f, 7.4f, AquariumModel.WaterHeight - .9f);
+            Vector3 position = t < .2f ? Vector3.Lerp(wide, above, .3f * Mathf.SmoothStep(0, 1, Mathf.InverseLerp(-2.4f, .2f, t)))
+                : t < 1.0f ? Vector3.Lerp(Vector3.Lerp(wide, above, .3f), above, Mathf.SmoothStep(0, 1, Mathf.InverseLerp(.2f, 1.0f, t)))
+                : Vector3.Lerp(above, under, Mathf.SmoothStep(0, 1, Mathf.InverseLerp(1.0f, 2.0f, t)));
+            var look = Quaternion.LookRotation(centre + Vector3.up * .25f - position);
+            // Hand over to the diver's eyes over the last half second (the diver is level and gliding by then).
+            float handover = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(AquariumDiveEntry.Seconds - .5f, AquariumDiveEntry.Seconds, t));
+            var fps = Quaternion.Euler(0, yaw, 0); var eye = centre + Vector3.up * 0.15f + fps * Vector3.forward * 0.4f;
+            camera.transform.SetPositionAndRotation(Vector3.Lerp(position, eye, handover), Quaternion.Slerp(look, fps, handover));
+            Cinematic = handover < .9f; snap = false;
+            view?.CameraOcclusion(FollowId, centre, !Cinematic);
+        }
+        private static Vector3 Shot(float across, float inward, float height)
+        { var p = AquariumEntryLayout.At(across, inward, height); return new Vector3(p.x, p.y, p.z); }
+
         public Point Aim(AquariumSnapshot state, Swimmer local)
         {
             var forward = camera.transform.forward;
@@ -198,10 +229,10 @@ namespace PrototypeLab.Aquarium
             float nearest = AquariumModel.ObstacleHit(start, end);
             foreach (var fish in state.fish)
                 if (!fish.eaten && !fish.dead)
-                    nearest = Mathf.Min(nearest, AquariumModel.HitTime(start, end, fish.position, 0.42f));
+                    nearest = Mathf.Min(nearest, AquariumModel.FishHitTime(start, end, fish));
             foreach (var p in state.players)
                 if (p.id != local.id && p.team == Team.Hider && p.alive && p.swallowedBy == 0)
-                    nearest = Mathf.Min(nearest, AquariumModel.HitTime(start, end, p.position, 0.48f));
+                    nearest = Mathf.Min(nearest, AquariumModel.PlayerHitTime(start, end, p, state.time));
             if (local.team == Team.Seeker && state.eggs != null)
                 foreach (var egg in state.eggs)
                     nearest = Mathf.Min(nearest, AquariumModel.HitTime(start, end, egg.position, 0.45f));

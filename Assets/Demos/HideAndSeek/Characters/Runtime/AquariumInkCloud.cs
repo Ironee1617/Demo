@@ -14,7 +14,10 @@ namespace PrototypeLab.Aquarium
         private Vector3 origin, direction;
         private bool anchored, yellow, concealTransformation, oralJet, capture;
         private float seed,previousAge=-100;
-        public static bool IsInk(string kind)=>kind=="eat" || kind=="allyEat" || kind=="burp";
+        public static bool IsInk(string kind)=>kind=="eat" || kind=="allyEat" || kind=="burp" || kind=="harpoonFish" || kind=="harpoonAlien";
+        // Harpoon hits reuse the meal inks: a speared fish bleeds the fish meal's dark purple, a speared alien the yellow alien ink.
+        public static bool IsYellow(string kind)=>kind!="eat" && kind!="harpoonFish";
+        public static bool IsCapture(string kind)=>kind=="allyEat" || kind=="harpoonAlien";
 
         public void Initialize(int eventId,bool isYellow,bool wholeBody=false,bool jet=false,bool tentacleCapture=false)
         {

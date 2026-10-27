@@ -90,10 +90,13 @@ namespace PrototypeLab.Aquarium
         private float nextHeartbeat, nextDirectory;
         private Task connectionOperation = Task.CompletedTask, cleanupOperation = Task.CompletedTask;
 
+        // Rounds open with the diver's deck entry (checks that measure from a fixed start turn it off).
+        public bool DiveEntry = true;
+
         public void StartPractice(string name, Team team)
         {
             Leave(); Practice = true; LocalId = 1;
-            Model = new AquariumModel(speciesCount: AquariumSpecies.Count); Model.AddPlayer(1, name, team);
+            Model = new AquariumModel(speciesCount: AquariumSpecies.Count) { DiveEntry = DiveEntry }; Model.AddPlayer(1, name, team);
             int nextId = 2;
             if (team == Team.Hider) Model.AddPlayer(nextId++, "연습 잠수부", Team.Seeker, true);
             while (nextId <= AquariumModel.MaxPlayers)
@@ -258,7 +261,7 @@ namespace PrototypeLab.Aquarium
 
         private void StartHost(string name, Team team)
         {
-            Model = new AquariumModel(speciesCount: AquariumSpecies.Count); Model.AddPlayer(1, name, team); LocalId = 1; peers[NetworkManager.ServerClientId] = 1;
+            Model = new AquariumModel(speciesCount: AquariumSpecies.Count) { DiveEntry = DiveEntry }; Model.AddPlayer(1, name, team); LocalId = 1; peers[NetworkManager.ServerClientId] = 1;
             if (!network.StartHost()) throw new InvalidOperationException("방을 열지 못했습니다. 잠시 후 다시 시도해 주세요.");
             network.CustomMessagingManager.RegisterNamedMessageHandler(Channel, Receive);
             Busy = false; Status = ""; State = Model.Snapshot();

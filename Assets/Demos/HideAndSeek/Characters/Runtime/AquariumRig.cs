@@ -21,6 +21,10 @@ namespace PrototypeLab.Aquarium
         public Mesh closedEnvelope;
         public Vector3 mouthAnchor=new Vector3(0,-.025f,.34f);
         public Vector3 throatAnchor=new Vector3(0,-.035f,.045f);
+        // R22: a fish model's own eyes (mesh space pupil centres and gaze axes) for the dead "X_X"
+        // marks. Empty on Fish0, which keeps its measured defaults in AquariumDeadEyes.
+        public Vector3[] eyePupils,eyeAxes;
+        public float eyeRadius;
         public AnimationClip[] clips;
         public Vector3[] restPositions,restScales;
         public Quaternion[] restRotations;
@@ -60,6 +64,29 @@ namespace PrototypeLab.Aquarium
         }
         public float LocomotionPhase=>locomotionPhase;
         public float LocomotionSpeed=>locomotionSpeed;
+        // Divers have SwimBack/SwimLeft/SwimRight beside Swim; they are blended by the local swim direction.
+        private int directionalSwim=-1;
+        private Vector2 swimDirection=new Vector2(0,1);
+        private Vector3[] strokePositions,strokeScales;
+        private Quaternion[] strokeRotations;
+        public bool DirectionalSwim
+        {
+            get
+            {
+                if(directionalSwim<0)directionalSwim=HasClip("SwimBack") && HasClip("SwimLeft") && HasClip("SwimRight")?1:0;
+                return directionalSwim==1;
+            }
+        }
+        public bool HasClip(string name){foreach(var c in clips)if(c.name==name || c.name.EndsWith("_"+name))return true;return false;}
+        public Vector2 SwimDirection=>swimDirection;
+        // localVelocity: x = right, z = forward in the swimmer's own heading frame.
+        public void SampleLocomotion(float moveSpeed,float now,float phase,Vector3 localVelocity)
+        {
+            float dt=locomotionAt<0?0:Mathf.Clamp(now-locomotionAt,0,.1f);
+            var wanted=new Vector2(localVelocity.x,localVelocity.z);
+            if(wanted.sqrMagnitude>.04f)swimDirection=Vector2.Lerp(swimDirection,wanted.normalized,1-Mathf.Exp(-dt*6));
+            SampleLocomotion(moveSpeed,now,phase);
+        }
         public void SampleLocomotion(float moveSpeed,float now,float phase=0)
         {
             BeginTransition("Locomotion",now);
@@ -75,7 +102,27 @@ namespace PrototypeLab.Aquarium
             var idle=Clip("Idle");idle.SampleAnimation(gameObject,Mathf.Repeat(locomotionPhase+phase,idle.length));
             for(int i=0;i<Bones.Length;i++){idlePositions[i]=Bones[i].localPosition;idleRotations[i]=Bones[i].localRotation;idleScales[i]=Bones[i].localScale;}
             for(int i=0;i<idleShapes.Length;i++)idleShapes[i]=skin.GetBlendShapeWeight(i);
-            var swim=Clip("Swim");swim.SampleAnimation(gameObject,Mathf.Repeat(locomotionPhase+phase,swim.length));
+            var swim=Clip("Swim");
+            if(DirectionalSwim)
+            {
+                // Forward or back-pedal stroke, blended toward the sideways stroke by how sideways the swim is.
+                var d=swimDirection.sqrMagnitude>.0001f?swimDirection.normalized:new Vector2(0,1);
+                float side=Mathf.Abs(d.x)/Mathf.Max(.0001f,Mathf.Abs(d.x)+Mathf.Abs(d.y));
+                var stroke=d.y>=0?swim:Clip("SwimBack");
+                stroke.SampleAnimation(gameObject,Mathf.Repeat(locomotionPhase+phase,stroke.length));
+                if(side>.001f)
+                {
+                    if(strokePositions==null){strokePositions=new Vector3[Bones.Length];strokeScales=new Vector3[Bones.Length];strokeRotations=new Quaternion[Bones.Length];}
+                    for(int i=0;i<Bones.Length;i++){strokePositions[i]=Bones[i].localPosition;strokeRotations[i]=Bones[i].localRotation;strokeScales[i]=Bones[i].localScale;}
+                    var sideways=Clip(d.x>0?"SwimRight":"SwimLeft");sideways.SampleAnimation(gameObject,Mathf.Repeat(locomotionPhase+phase,sideways.length));
+                    for(int i=0;i<Bones.Length;i++)
+                    {
+                        var b=Bones[i];b.localPosition=Vector3.Lerp(strokePositions[i],b.localPosition,side);
+                        b.localRotation=Quaternion.Slerp(strokeRotations[i],b.localRotation,side);b.localScale=Vector3.Lerp(strokeScales[i],b.localScale,side);
+                    }
+                }
+            }
+            else swim.SampleAnimation(gameObject,Mathf.Repeat(locomotionPhase+phase,swim.length));
             float weight=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.03f,1.5f,locomotionSpeed));
             for(int i=0;i<Bones.Length;i++)
             {

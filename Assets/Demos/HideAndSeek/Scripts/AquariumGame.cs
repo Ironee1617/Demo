@@ -22,7 +22,7 @@ namespace PrototypeLab.Aquarium
         private float nextRoomsRefreshAt;
         private Vector2 roomScroll;
         private Team selectedTeam;
-        private bool pause, showRules, pendingAction, pendingMorph, pendingFeed, pendingScan, pendingEgg;
+        private bool pause, showRules, pendingAction, pendingMorph, pendingFeed, pendingScan, pendingEgg, pendingUnmorph;
         private float inputTimer;
         private MorphTarget morphTarget;
         private int pendingMorphTargetId;
@@ -56,7 +56,7 @@ namespace PrototypeLab.Aquarium
             sounds["caught"] = Tone("caught", 450, 90, 0.25f);
             sounds["hatch"] = Tone("hatch", 520, 1050, 0.5f); sounds["scan"] = Tone("scan", 300, 650, 0.35f);
             sounds["egg"] = Tone("egg", 500, 740, 0.2f);
-            sounds["feed"] = FeedSound();
+            sounds["feed"] = FeedSound(); sounds["splash"] = SplashSound();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             smoke = gameObject.AddComponent<AquariumSmokeDriver>();
             smoke.Initialize(session, view, followCamera); automated = smoke.enabled;
@@ -69,6 +69,23 @@ namespace PrototypeLab.Aquarium
             for (int i = 0; i < count; i++)
             { float p = (float)i / count; phase += Mathf.Lerp(start, end, p) * Mathf.PI * 2 / 22050; data[i] = Mathf.Sin(phase) * Mathf.Sin(p * Mathf.PI) * 0.4f; }
             var clip = AudioClip.Create(name, count, 1, 22050, false); clip.SetData(data, 0); return clip;
+        }
+
+        // The diver's entry: a bright splash (filtered noise, sharp attack), a low plunge thump and a bubble gurgle.
+        private AudioClip SplashSound()
+        {
+            const int rate = 22050;
+            var data = new float[(int)(rate * 1.1f)]; var noise = new System.Random(731); float low = 0, high = 0;
+            for (int i = 0; i < data.Length; i++)
+            {
+                float t = (float)i / rate, attack = Mathf.Clamp01(t / .012f);
+                float white = (float)noise.NextDouble() * 2 - 1; low = Mathf.Lerp(low, white, .08f); high = Mathf.Lerp(high, white, .55f);
+                float splash = (high - low) * Mathf.Exp(-t * 7.5f) * attack;
+                float thump = Mathf.Sin(2 * Mathf.PI * (95 * t - 40 * t * t)) * Mathf.Exp(-t * 11) * attack;
+                float gurgle = Mathf.Sin(2 * Mathf.PI * (420 * t + 900 * t * t)) * Mathf.Exp(-(t - .35f) * (t - .35f) * 30) * (.5f + .5f * Mathf.Sin(t * 70));
+                data[i] = splash * .55f + thump * .35f + gurgle * .12f;
+            }
+            var clip = AudioClip.Create("dive splash", data.Length, 1, rate, false); clip.SetData(data, 0); return clip;
         }
 
         private AudioClip FeedSound()
@@ -142,12 +159,16 @@ namespace PrototypeLab.Aquarium
                 pendingFeed |= control && p.team == Team.Seeker && Input.GetKeyDown(KeyCode.F);
                 pendingScan |= control && p.team == Team.Seeker && Input.GetKeyDown(KeyCode.R);
                 pendingEgg |= control && p.team == Team.Hider && Input.GetKeyDown(KeyCode.R);
+                // R25: C drops the disguise.
+                pendingUnmorph |= control && p.team == Team.Hider && Input.GetKeyDown(KeyCode.C);
                 inputTimer += Time.unscaledDeltaTime;
                 if (session.IsHost || inputTimer >= 1f / 30f)
                 {
                     inputTimer %= 1f / 30f;
                     var aim = followCamera.Aim(session.State, p);
-                    var move = control ? followCamera.Movement(0, Input.GetKey(KeyCode.W) ? 1 : 0) : new Point();
+                    // Divers swim in every direction (WASD / arrow keys); aliens keep the single forward key.
+                    var move = !control ? new Point() : p.team == Team.Seeker ? followCamera.Movement(DiverAxis(KeyCode.D, KeyCode.RightArrow, KeyCode.A, KeyCode.LeftArrow), DiverAxis(KeyCode.W, KeyCode.UpArrow, KeyCode.S, KeyCode.DownArrow))
+                        : followCamera.Movement(0, Input.GetKey(KeyCode.W) ? 1 : 0);
                     session.Input(new SwimInput
                     {
                         x = move.x, y = move.y, z = move.z,
@@ -155,13 +176,13 @@ namespace PrototypeLab.Aquarium
                         sprint = control && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)),
                         action = pendingAction && control, morph = pendingMorph && control, feed = pendingFeed && control,
                         morphTargetId = pendingMorphTargetId, morphTargetPlayer = pendingMorphTargetPlayer,
-                        scan = pendingScan && control, layEgg = pendingEgg && control
+                        scan = pendingScan && control, layEgg = pendingEgg && control, unmorph = pendingUnmorph && control
                     });
-                    pendingAction = pendingMorph = pendingFeed = pendingScan = pendingEgg = false;
+                    pendingAction = pendingMorph = pendingFeed = pendingScan = pendingEgg = pendingUnmorph = false;
                     pendingMorphTargetId = 0;
                 }
             }
-            else { pendingAction = pendingMorph = pendingFeed = pendingScan = pendingEgg = false; }
+            else { pendingAction = pendingMorph = pendingFeed = pendingScan = pendingEgg = pendingUnmorph = false; }
             using(sessionMarker.Auto())session.Update(Time.unscaledDeltaTime);
             if (!session.Connected)
             {
@@ -197,11 +218,14 @@ namespace PrototypeLab.Aquarium
             UpdateFeedSound();
         }
 
+        private static float DiverAxis(KeyCode positive, KeyCode positiveAlt, KeyCode negative, KeyCode negativeAlt)
+        { return (Input.GetKey(positive) || Input.GetKey(positiveAlt) ? 1 : 0) - (Input.GetKey(negative) || Input.GetKey(negativeAlt) ? 1 : 0); }
+
         private void LateUpdate()
         {
             followCamera.Prepare(session.State, session.LocalId, session.SpectatingId);
             using(cameraMarker.Auto())followCamera.UpdatePose(session.State, view, Time.unscaledDeltaTime);
-            view.PresentEquipment(session.State, followCamera.FollowId, followCamera.FirstPerson);
+            view.PresentEquipment(session.State, followCamera.FollowId, followCamera.FirstPerson && !followCamera.Cinematic);
             var local = Local();
             using(targetMarker.Auto())
             {
@@ -498,7 +522,8 @@ namespace PrototypeLab.Aquarium
                 foreach (var egg in state.eggs) nearest = Mathf.Min(nearest, egg.hatchAt - state.time);
                 Panel(new Rect(24, 106, 236, 44), ink);
                 Icon(40, 116, HudIcon.Egg, cyan);
-                Label(76, 113, 168, 30, state.eggs.Length + "  ·  " + Mathf.CeilToInt(Mathf.Max(0, nearest)) + "s", body);
+                // R25: a laid egg counts down from laying; afterwards it waits to revive a fallen ally.
+                Label(76, 113, 168, 30, state.eggs.Length + "  ·  " + (nearest > 0 ? Mathf.CeilToInt(nearest) + "s" : "부화 가능"), body);
             }
             if (GUI.Button(new Rect(width - 112, height - 37, 88, 26), "Esc 메뉴", button)) pause = true;
             if (session.IsSpectator)
@@ -515,6 +540,8 @@ namespace PrototypeLab.Aquarium
                 float hunger = p.alive ? Mathf.Clamp(AquariumModel.HungerSeconds - (state.time - p.lastMealAt), 0, AquariumModel.HungerSeconds) : 0;
                 Resource(40, resourcesY + 49, HudIcon.Hunger, hunger / AquariumModel.HungerSeconds, Mathf.CeilToInt(hunger) + "s",
                     hunger <= 15 ? new Color(1, 0.35f, 0.35f) : new Color(1, 0.73f, 0.36f));
+                // R25: eating opens below this mark.
+                Panel(new Rect(40 + 34 + 110 * AquariumModel.FeedingHungerFraction - 1, resourcesY + 49 + 5, 2, 16), new Color(1, 1, 1, 0.85f));
                 Icon(40, resourcesY + 85, HudIcon.Fish, muted); Label(74, resourcesY + 83, 56, 26, p.personalEaten.ToString(), small);
                 Icon(136, resourcesY + 85, HudIcon.Score, muted); Label(170, resourcesY + 83, 74, 26, p.score.ToString(), small);
             }
@@ -532,16 +559,20 @@ namespace PrototypeLab.Aquarium
             }
             else
             {
-                string eggStatus = p.swallowedBy != 0 ? "사용 불가" : p.stunnedUntil > state.time ? Ready(p.stunnedUntil, state.time) : p.eggUsed ? "사용 완료" : p.personalEaten < AquariumModel.EggFoodRequired
-                    ? p.personalEaten + " / " + AquariumModel.EggFoodRequired : !HasReviveTarget(state) ? "대상 없음" : "준비";
+                // R25: one egg per EggFoodRequired fish; shows progress to the next one.
+                int eggsReady = AquariumModel.EggsReady(p);
+                string eggStatus = p.swallowedBy != 0 ? "사용 불가" : p.stunnedUntil > state.time ? Ready(p.stunnedUntil, state.time)
+                    : eggsReady > 0 ? (eggsReady > 1 ? "준비 ×" + eggsReady : "준비") : (p.personalEaten % AquariumModel.EggFoodRequired) + " / " + AquariumModel.EggFoodRequired;
+                // R25: eating opens once the hunger gauge is below half.
+                float fullFor = AquariumModel.HungerLeft(p, state.time) - AquariumModel.HungerSeconds * AquariumModel.FeedingHungerFraction;
                 Skill(actionsX, actionsY, 140, p.team == Team.Hider ? "Q" : "LMB", p.team == Team.Hider ? "위장" : "작살",
                     p.team == Team.Hider ? p.swallowedBy != 0 ? "사용 불가" : Ready(Mathf.Max(p.stunnedUntil, Mathf.Max(p.nextMorph, p.morphLockedUntil)), state.time) : Ready(Mathf.Max(p.nextAction, state.huntAt), state.time));
                 Skill(actionsX + 152, actionsY, 140, p.team == Team.Hider ? "E" : "F", p.team == Team.Hider ? "포식" : "먹이",
-                    p.team == Team.Hider ? p.swallowedBy != 0 ? "사용 불가" : Ready(Mathf.Max(state.huntAt, Mathf.Max(p.nextAction, p.stunnedUntil)), state.time) : Ready(p.nextFeed, state.time));
+                    p.team == Team.Hider ? p.swallowedBy != 0 ? "사용 불가" : state.time >= state.huntAt && fullFor >= 0 ? "배부름 " + (fullFor + .05f).ToString("0.0") + "s" : Ready(Mathf.Max(state.huntAt, Mathf.Max(p.nextAction, p.stunnedUntil)), state.time) : Ready(p.nextFeed, state.time));
                 Skill(actionsX + 304, actionsY, 140, "R", p.team == Team.Hider ? "산란" : "탐지",
                     p.team == Team.Hider ? eggStatus : p.scanUntil > state.time ? (p.scanUntil - state.time).ToString("0.0") + "s" : Ready(p.nextScan, state.time));
             }
-            Label(actionsX, height - 37, 444, 25, "W 전진  ·  마우스 시점  ·  Shift 질주", small);
+            Label(actionsX, height - 37, 444, 25, p.team == Team.Seeker ? "WASD 이동  ·  마우스 시점  ·  Shift 질주" : "W 전진  ·  마우스 시점  ·  Shift 질주  ·  C 위장 해제", small);
             if (state.phase == RoundPhase.Playing && state.time < state.huntAt)
             {
                 float x = width / 2 - 136;
@@ -680,17 +711,17 @@ namespace PrototypeLab.Aquarium
             Label(x + 26, y + 22, 728, 40, "조작 · 규칙", heading);
             Separator(x + 26, y + 74, 728);
             Label(x + 26, y + 93, 218, 34, "이동", heading);
-            Label(x + 26, y + 139, 218, 145, "W  시선 방향으로 전진\n마우스  시점\nShift  질주\n휠  카메라 거리\nEsc  메뉴", body);
+            Label(x + 26, y + 139, 218, 145, "W  전진 (잠수부 WASD)\n마우스  시점\nShift  질주\n휠  카메라 거리\nEsc  메뉴", body);
             Label(x + 274, y + 93, 218, 34, "외계인", heading);
-            Label(x + 274, y + 139, 218, 145, "Q  위장\nE  포식\nR  산란\n\n물고기 목표를 채우면 승리", body);
+            Label(x + 274, y + 139, 218, 145, "Q  위장\nC  위장 해제\nE  포식\nR  산란\n물고기 목표를 채우면 승리", body);
             Label(x + 522, y + 93, 232, 34, "잠수부", heading);
             Label(x + 522, y + 139, 232, 145, "클릭  작살\nF  먹이 뿌리기\nR  생명체 탐지\n\n외계인과 알을 제거하면 승리", body);
             Separator(x + 26, y + 298, 728);
             Icon(x + 26, y + 317, HudIcon.Stamina, cyan);
             Label(x + 62, y + 314, 182, 30, "스태미나", body);
             Icon(x + 274, y + 317, HudIcon.Hunger, new Color(1, 0.73f, 0.36f));
-            Label(x + 310, y + 314, 444, 30, "굶주림까지 남은 시간 · 포식하면 회복", body);
-            Label(x + 26, y + 358, 728, 42, "직접 3마리 포식 후 산란 1회 · 알은 12초 뒤 동료 부활\n제한 시간 3분 · 시간 종료 시 잠수부 승리 · 오사는 외계인 목표 감소", small);
+            Label(x + 310, y + 314, 444, 30, "굶주림까지 남은 시간 · 절반 아래일 때만 포식", body);
+            Label(x + 26, y + 358, 728, 42, "10마리 포식마다 산란 1회 · 낳고 12초 뒤부터 부화, 쓰러진 동료 부활\n제한 시간 3분 · 시간 종료 시 잠수부 승리 · 오사는 외계인 목표 감소", small);
             if (Button(x + 544, y + 412, 210, "돌아가기", true)) showRules = false;
         }
 

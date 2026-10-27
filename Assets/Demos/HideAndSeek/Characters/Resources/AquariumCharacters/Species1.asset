@@ -13,9 +13,15 @@ MonoBehaviour:
   m_Name: Species1
   m_EditorClassIdentifier: Assembly-CSharp::PrototypeLab.Aquarium.AquariumSpecies
   speciesId: 1
-  normal: {fileID: 8886805995010208783, guid: 029fa9c3b54610142b64dcc709247f7e, type: 3}
-  feeding: {fileID: 8886805995010208783, guid: 029fa9c3b54610142b64dcc709247f7e, type: 3}
-  closedFeeding: {fileID: 8886805995010208783, guid: 029fa9c3b54610142b64dcc709247f7e, type: 3}
-  tint: {r: 0.91, g: 0.96, b: 1, a: 1}
+  normal: {fileID: 3975422011809086819, guid: 32131984a05fcdf409d34095f98bcce0, type: 3}
+  feeding: {fileID: 3975422011809086819, guid: 32131984a05fcdf409d34095f98bcce0, type: 3}
+  closedFeeding: {fileID: 3975422011809086819, guid: 32131984a05fcdf409d34095f98bcce0, type: 3}
+  tint: {r: 1, g: 1, b: 1, a: 1}
   mouth: {x: 0, y: 0, z: 0.48}
-  feedingMouthRadius: 0.21
+  feedingMouthRadius: 0.1932
+  bodyScale: 0.78
+  hullWidth: 1
+  hullLength: 1
+  habit: 0
+  swimSpeed: 1.15
+  ignoresFeed: 0
