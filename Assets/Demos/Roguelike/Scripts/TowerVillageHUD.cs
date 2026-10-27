@@ -105,19 +105,20 @@ namespace PrototypeLab.Roguelike
             Label(new Rect(96,580,410,24),RestoredLine(),15,muted);
             FitLabel(new Rect(96,610,410,130),"층마다 능력치 증강 · 5층마다 보스와 스킬 증강 · 5층을 넘으면 휴식·상점·엘리트 문을 고릅니다.\n원정에 실패하면 그 원정에서 얻은 성장은 사라지고, 마지막 층을 넘기면 성장을 간직한 채 마을로 돌아옵니다.",14,12,muted);
 
-            // Companions are drafted like augments on departure: random cards from the pool, one pick per open slot.
+            // Companions are picked on departure from the whole pool, one per open slot.
             int slots=campaign.CompanionSlots;var pool=campaign.CompanionPool;
-            Label(new Rect(566,176,970,30),"동료 증강  ·  출발하면 후보 가운데 무작위 "+Mathf.Min(TowerRun.OfferSlots,pool.Count)+"명이 나오고, 그중 한 명을 고릅니다",20,paper,TextAnchor.MiddleLeft,true);
+            Label(new Rect(566,176,970,30),"동료 선택  ·  출발하면 후보 "+pool.Count+"명 가운데 함께 오를 동료 "+slots+"명을 직접 고릅니다",20,paper,TextAnchor.MiddleLeft,true);
             for(int i=0;i<TowerRun.MaxCompanions;i++)
             {
                 bool open=i<slots;Rect r=new Rect(566+i*328,218,314,92);
                 Round(r,rim,5);Round(Inset(r,1),ink,4);if(open){Light(new Rect(r.x+2,r.y+2,r.width-4,44),Alpha(brass,.12f));Border(r,Alpha(brass,.55f));}
                 Diamond(new Vector2(r.x+30,r.y+46),open?9:6,open?brass:Alpha(muted,.6f));
                 Label(new Rect(r.x+52,r.y+14,250,28),(i+1)+"번째 동료",19,open?paper:muted,TextAnchor.MiddleLeft,true);
-                Label(new Rect(r.x+52,r.y+48,250,24),open?"출발할 때 동료 증강으로 고릅니다":TowerRun.RecruitFloors[i-1]+"층을 클리어하면 열립니다",14,open?brass:Alpha(muted,.8f));
+                Label(new Rect(r.x+52,r.y+48,250,24),open?"출발할 때 후보 가운데 고릅니다":TowerRun.RecruitFloors[i-1]+"층을 클리어하면 열립니다",14,open?brass:Alpha(muted,.8f));
             }
             Label(new Rect(566,334,500,28),"동료 후보  "+pool.Count+"명",19,paper,TextAnchor.MiddleLeft,true);
-            Label(new Rect(1036,334,500,28),"되찾은 신화와 이번 장 신화의 신들",14,muted,TextAnchor.MiddleRight);
+            Label(new Rect(1036,334,500,28),"되찾은 신화와 이번 장 신화의 신들  ·  마우스를 올리면 정보",14,muted,TextAnchor.MiddleRight);
+            string hoverId=null;Rect hoverRect=default(Rect);
             for(int i=0;i<pool.Count;i++)
             {
                 // The next chapter's own gods are new to the pool; the others show the growth they bring back.
@@ -128,11 +129,13 @@ namespace PrototypeLab.Roguelike
                 Label(new Rect(x+4,y+96,105,24),d.Name,15,paper,TextAnchor.MiddleCenter,true);
                 Label(new Rect(x+4,y+121,105,20),TowerMythCatalog.Get(d.MythId).Name,12,muted,TextAnchor.MiddleCenter);
                 Label(new Rect(x+4,y+146,105,22),fresh?"새 동료 후보":saved>0?"성장 Lv. "+(1+saved):RoleName(d.Role),12,fresh?TowerWorld.Teal:saved>0?brass:muted,TextAnchor.MiddleCenter);
+                if(GUI.enabled&&card.Contains(Pointer)){hoverId=id;hoverRect=card;}
             }
             Fill(new Rect(64,772,1472,1),new Color(.5f,.56f,.63f,.15f));
             if(Button(new Rect(64,791,236,53),"돌아가기  [Esc]",muted))villagePanel=VillagePanel.None;
             Label(new Rect(326,791,730,53),"동료 "+slots+"명을 고른 뒤 1층부터 "+next.LastFloor+"층까지 오릅니다",16,muted,TextAnchor.MiddleLeft);
             if(Button(new Rect(1080,786,456,64),next.IsFinal?"최후의 원정 출발":"원정 출발",brass,true,true))StartExpedition();
+            ShowGodInfo(hoverId,hoverRect,1);
         }
 
         private void DrawShrinePanel()
@@ -237,7 +240,7 @@ namespace PrototypeLab.Roguelike
             Label(new Rect(600,318,400,32),"/ "+ch.LastFloor+"층",22,muted,TextAnchor.MiddleCenter);
             DrawExpeditionStats(420);
             Fill(new Rect(240,534,1120,1),Alpha(silver,.18f));
-            Label(new Rect(240,560,1120,60),"이번 원정에서 얻은 증강은 사라졌습니다. 모은 골드는 남아 있습니다.\n같은 동료와 곧바로 다시 오르거나, 마을로 돌아가 다음 출발 때 동료를 새로 뽑을 수 있습니다.",17,muted,TextAnchor.MiddleCenter);
+            Label(new Rect(240,560,1120,60),"이번 원정에서 얻은 증강은 사라졌습니다. 모은 골드는 남아 있습니다.\n같은 동료와 곧바로 다시 오르거나, 마을로 돌아가 다음 출발 때 동료를 새로 고를 수 있습니다.",17,muted,TextAnchor.MiddleCenter);
             if(Button(new Rect(555,689,490,60),"같은 동료와 다시 도전",brass,true,true))RetryExpedition();
             if(Button(new Rect(660,771,280,44),"마을로 돌아가기",muted))EnterVillage();
         }

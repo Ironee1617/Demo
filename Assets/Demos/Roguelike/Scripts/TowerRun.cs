@@ -364,6 +364,8 @@ namespace PrototypeLab.Roguelike
         public bool IsFloorCleared { get; private set; }
         public bool IsRewardPending { get; private set; }
         public bool IsRecruitOffer { get; private set; }
+        /// <summary>The campaign's opening pick: every free god of the chapter's pool is offered to choose from.</summary>
+        public bool IsCompanionPick { get { return IsRewardPending && IsRecruitOffer && recruitPool != null; } }
         /// <summary>Which augments the pending card set deals: stats, skills or both.</summary>
         public RewardDraft Draft { get; private set; }
         /// <summary>The pending cards are an elite floor's spoils: gold-or-better skills, or diamond stats once nothing is left to learn.</summary>
@@ -442,9 +444,9 @@ namespace PrototypeLab.Roguelike
             return run;
         }
         /// <summary>
-        /// The campaign's opening draft: <paramref name="party"/> joins at once, then recruit cards drawn from
-        /// <paramref name="pool"/> alone follow one another until <paramref name="slots"/> companions have joined.
-        /// <paramref name="joined"/> sees every companion as it joins, before the next card set is dealt.
+        /// The campaign's opening pick: <paramref name="party"/> joins at once, then every god of
+        /// <paramref name="pool"/> still free is offered together, pick after pick, until <paramref name="slots"/>
+        /// companions have joined. <paramref name="joined"/> sees every companion as it joins, before the next pick opens.
         /// </summary>
         internal void DraftCompanions(IList<string> party, IEnumerable<string> pool, int slots, Action<CompanionState> joined)
         {
@@ -510,10 +512,11 @@ namespace PrototypeLab.Roguelike
             Floor++; IsFloorCleared = false; FloorType = next; shop.Clear(); ShopTraded = false;
             return true;
         }
-        // A small draft pool may have no god or skill left to deal in place of a card.
+        // A small draft pool may have no god or skill left to deal in place of a card; the campaign's opening
+        // pick already offers every free god.
         public bool CanReroll(int slot)
         {
-            return IsRewardPending && slot >= 0 && slot < offers.Count && !rerolled[slot] &&
+            return IsRewardPending && slot >= 0 && slot < offers.Count && slot < OfferSlots && !rerolled[slot] &&
                 (IsRecruitOffer ? OpenRecruits > offers.Count : Draft != RewardDraft.Skills || OpenSkills > offers.Count);
         }
         public bool Reroll(int slot)
@@ -531,7 +534,7 @@ namespace PrototypeLab.Roguelike
                 var definition = GetDefinition(offer.CompanionId);
                 if (!CanRecruit(definition)) return false;
                 AddCompanion(definition);
-                // A campaign draft deals the next companion's cards straight away.
+                // The campaign's opening pick offers the remaining gods for the next slot straight away.
                 if (DraftOpen) { BeginReward(true); return true; }
             }
             else if (offer.Kind == RewardKind.Oath)
@@ -624,11 +627,13 @@ namespace PrototypeLab.Roguelike
         }
         private static RewardTier RollTier(double roll)
         { return roll < .4 ? RewardTier.Silver : roll < .8 ? RewardTier.Gold : RewardTier.Diamond; }
-        // A draft from fewer than three gods or learnable skills shows only as many cards as there are.
+        // A draft from fewer than three gods or learnable skills shows only as many cards as there are; the
+        // campaign's opening pick offers every free god of its pool.
         private void GenerateOffers()
         {
             offers.Clear();
-            int count = IsRecruitOffer ? Math.Min(OfferSlots, OpenRecruits) : Draft == RewardDraft.Skills ? Math.Min(OfferSlots, OpenSkills) : OfferSlots;
+            int count = IsRecruitOffer ? recruitPool != null ? OpenRecruits : Math.Min(OfferSlots, OpenRecruits) :
+                Draft == RewardDraft.Skills ? Math.Min(OfferSlots, OpenSkills) : OfferSlots;
             for (int slot = 0; slot < count; slot++) offers.Add(CreateOffer(slot, null));
         }
         private sealed class Candidate
@@ -642,13 +647,17 @@ namespace PrototypeLab.Roguelike
         {
             Predicate<CompanionDefinition> open = d => InPool(d) && GetCompanion(d.Id) == null && "recruit:" + d.Id != previousAugment &&
                 !offers.Exists(o => o.Slot != slot && o.CompanionId == d.Id);
-            var pool = new List<CompanionDefinition>();
             if (recruitPool != null)
             {
-                // A campaign draft deals evenly from the gods the chapter has opened.
-                foreach (var definition in Definitions) if (open(definition)) pool.Add(definition);
-                return new RewardOffer(nextOfferId++, slot, pool[random.Next(pool.Count)]);
+                // The campaign's opening pick lays out the free gods in chapter order, nothing left to chance.
+                foreach (string id in recruitPool)
+                {
+                    var definition = GetDefinition(id);
+                    if (definition != null && open(definition)) return new RewardOffer(nextOfferId++, slot, definition);
+                }
+                throw new InvalidOperationException("No free god left in the companion pool.");
             }
+            var pool = new List<CompanionDefinition>();
             // Every mythology is open. The first card keeps a synergy route alive for an existing party.
             if (slot == 0 && companions.Count > 0)
                 foreach (var definition in Definitions) if (open(definition) && MythCount(definition.MythId) > 0) pool.Add(definition);

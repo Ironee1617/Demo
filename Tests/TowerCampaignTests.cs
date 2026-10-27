@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using PrototypeLab.Roguelike;
 
-// Story campaign rules: chapters, the companion draft that opens each expedition, expedition growth and saves.
+// Story campaign rules: chapters, the companion pick that opens each expedition, expedition growth and saves.
 public static class TowerCampaignTests
 {
     private static void Require(bool value, string message) { if (!value) throw new Exception(message); }
@@ -19,14 +19,14 @@ public static class TowerCampaignTests
             Require(run.AdvanceFloor(), "advance from " + run.Floor);
         }
     }
-    // Takes every companion card set the expedition opens with, checking each against the chapter's pool.
+    // Takes every companion pick the expedition opens with, checking each against the chapter's pool.
     private static int Draft(TowerRun run, Func<IReadOnlyList<RewardOffer>, RewardOffer> pick = null)
     {
         var pool = new List<string>(TowerCampaign.CompanionPool(run.Chapter)); int sets = 0;
         while (run.IsRewardPending)
         {
-            Require(run.IsRecruitOffer && !run.IsFloorCleared, "an expedition opens with companion cards only");
-            Require(run.Offers.Count == Math.Min(TowerRun.OfferSlots, run.OpenRecruits), "up to three of the remaining gods are dealt");
+            Require(run.IsRecruitOffer && run.IsCompanionPick && !run.IsFloorCleared, "an expedition opens with the companion pick only");
+            Require(run.Offers.Count == run.OpenRecruits, "every free god of the pool is offered");
             var dealt = new HashSet<string>();
             foreach (var offer in run.Offers)
             {
@@ -116,31 +116,29 @@ public static class TowerCampaignTests
             Require(Draft(run, offers => offers[0].CompanionId == "poseidon" ? offers[0] : offers[1]) == 1, "a single draft");
             Require(run.Companions.Count == 1 && run.GetCompanion("poseidon") != null && !run.IsRewardPending && run.ClearFloor(), "Poseidon joins and the fight begins");
         });
-        test("drafts deal three random gods from the pool and rerolls bring in the spare ones", () => {
+        test("the opening pick lays out every free god of the pool in chapter order, whatever the seed, with nothing to reroll", () => {
             var save = Progress(1);
             Require(save.CompanionSlots == 1 && save.CompanionPool.Count == 4, "Olympus and Asgard after the first chapter");
-            var seen = new HashSet<string>();
-            for (int seed = 0; seed < 60; seed++)
+            for (int seed = 0; seed < 20; seed++)
             {
                 var run = save.BeginChapter(seed);
-                Require(run.Offers.Count == 3 && run.OpenRecruits == 4, "three of four");
-                foreach (var offer in run.Offers) seen.Add(offer.CompanionId);
-                var before = new HashSet<string>(); foreach (var offer in run.Offers) before.Add(offer.CompanionId);
-                long kept = run.Offers[1].Id; string replaced = run.Offers[0].CompanionId;
-                Require(run.CanReroll(0) && run.Reroll(0) && !run.CanReroll(0), "one reroll per card");
-                Require(!before.Contains(run.Offers[0].CompanionId) && run.Offers[1].Id == kept, "a reroll deals the spare god and keeps the others");
-                Require(run.Offers[0].CompanionId != replaced, "the rerolled god leaves the slot");
-                Require(Draft(run) == 1 && run.Companions.Count == 1, "one companion before floor 30");
+                Require(run.IsCompanionPick && run.Offers.Count == 4 && run.OpenRecruits == 4, "all four gods are offered");
+                for (int i = 0; i < run.Offers.Count; i++)
+                {
+                    Require(run.Offers[i].CompanionId == save.CompanionPool[i], "pool order at " + i + ": " + run.Offers[i].CompanionId);
+                    Require(!run.CanReroll(i) && !run.Reroll(i), "nothing to reroll at " + i);
+                }
+                Require(run.ChooseOffer(run.Offers[3].Id) && run.GetCompanion("thor") != null && !run.IsRewardPending && !run.IsCompanionPick, "any god may be chosen, here the last one");
+                Require(run.ClearFloor() && run.IsRewardPending && !run.IsCompanionPick && run.CanReroll(0), "floor cards after the pick still reroll");
             }
-            Require(seen.SetEquals(new[] { "zeus", "poseidon", "odin", "thor" }), "every pool god appears and nobody else: " + String.Join(",", new List<string>(seen).ToArray()));
         });
-        test("past floor 30 the draft repeats for a second companion and past floor 60 for a third", () => {
+        test("past floor 30 the pick repeats for a second companion and past floor 60 for a third", () => {
             var save = Progress(3);
-            Require(save.CompanionSlots == 2 && save.CompanionPool.Count == 8, "chapter four drafts two of eight");
+            Require(save.CompanionSlots == 2 && save.CompanionPool.Count == 8, "chapter four picks two of eight");
             var run = save.BeginChapter(77);
-            Require(run.Floor == 1 && run.MaxFloor == 40 && run.CompanionLimit == 2 && run.Offers.Count == 3, "first draft");
+            Require(run.Floor == 1 && run.MaxFloor == 40 && run.CompanionLimit == 2 && run.Offers.Count == 8, "first pick");
             string first = run.Offers[2].CompanionId;
-            Require(run.ChooseOffer(run.Offers[2].Id) && run.IsRewardPending && run.IsRecruitOffer && run.OpenRecruits == 7, "the second draft follows at once");
+            Require(run.ChooseOffer(run.Offers[2].Id) && run.IsCompanionPick && run.OpenRecruits == 7 && run.Offers.Count == 7, "the second pick follows at once");
             foreach (var offer in run.Offers) Require(offer.CompanionId != first, "the first pick is not dealt again");
             Require(Draft(run) == 1 && run.Companions.Count == 2 && !run.IsRewardPending, "two companions");
             Require(run.ClearFloor() && !run.IsRecruitOffer, "the fight begins once both companions joined");
