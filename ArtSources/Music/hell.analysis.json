@@ -1,0 +1,34 @@
+{
+  "id": "hell",
+  "title": "Brimstone Choir",
+  "title_ko": "유황의 합창",
+  "bpm": 72,
+  "beats": 4,
+  "bars": 28,
+  "note_events": 633,
+  "production": "myth-v8",
+  "master": {
+    "seconds": 93.333333,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.514,
+    "rms_dbfs": -15.271,
+    "loop_seam_delta": 0.074575,
+    "minimum_half_second_rms": 0.020467,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg": {
+    "seconds": 93.333333,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.258,
+    "rms_dbfs": -15.28,
+    "loop_seam_delta": 0.074279,
+    "minimum_half_second_rms": 0.020374,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg_bytes": 2076262,
+  "sha256": "15cbeea1742c9cb71928b5c9fbd0a13a0fd986e19b57ff29964b175c4db5b9cf"
+}

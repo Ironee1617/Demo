@@ -32,19 +32,11 @@ namespace PrototypeLab.Roguelike
             }
         }
 
-        /// <summary>
-        /// Tracks are still stored under the painted board names; each mythology plays its board's track. Hell slows
-        /// the ember track into a dirge, the abyss drags the tomb track lower still, and the village plays the garden track.
-        /// </summary>
+        /// <summary>Every mythology, hell, the abyss and the village has its own composed track, played at pitch.</summary>
         internal static string Track(TowerThemeId theme, out float pitch)
         {
-            switch (theme)
-            {
-                case TowerThemeId.Hell: pitch = .86f; return "lava";
-                case TowerThemeId.Abyss: pitch = .72f; return "ruins";
-                case TowerThemeId.Village: pitch = .94f; return "jungle";
-                default: pitch = 1; return TowerThemeMonsterArt.Sheet(theme);
-            }
+            pitch = 1;
+            return theme.ToString().ToLowerInvariant();
         }
 
         public void PlayTheme(TowerThemeId theme)

@@ -1,0 +1,34 @@
+{
+  "id": "olympus",
+  "title": "Mount of Marble",
+  "title_ko": "대리석의 산",
+  "bpm": 100,
+  "beats": 4,
+  "bars": 38,
+  "note_events": 1205,
+  "production": "myth-v8",
+  "master": {
+    "seconds": 91.2,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.514,
+    "rms_dbfs": -15.3,
+    "loop_seam_delta": 0.032193,
+    "minimum_half_second_rms": 0.050363,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg": {
+    "seconds": 91.2,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.217,
+    "rms_dbfs": -15.295,
+    "loop_seam_delta": 0.033657,
+    "minimum_half_second_rms": 0.050485,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg_bytes": 2358778,
+  "sha256": "b308c8fa2d2a4865db2cf95b39672f336ec78abd4ae35b50aa932a38882487bd"
+}

@@ -13,7 +13,7 @@ namespace PrototypeLab.Roguelike
         {
             public bool success, stereoStreaming, playbackAdvances, sameThemeContinuous, themeBoundaryCrossfades;
             public bool loopWraps, disablePauses, reenableResumes, lifecycleCleanup, soundEffectsIndependent;
-            public int tracks, pauseRequestedSamples, pauseSettledSamples, pausedSamples;
+            public int tracks, themes, pauseRequestedSamples, pauseSettledSamples, pausedSamples;
             public string finishedUtc;
             public List<string> samples = new List<string>(), errors = new List<string>();
         }
@@ -94,33 +94,66 @@ namespace PrototypeLab.Roguelike
             Require(game.run.Floor == 2 && Audible(music) == first && first.clip == firstClip && first.timeSamples > before,
                 "Advancing within the same theme restarted its music.");
             report.sameThemeContinuous = true;
-            while (game.run.Floor < 5) AdvanceFloor();
+            // Chapters last FloorsPerTheme floors, so the first theme boundary is the floor after the first chapter.
+            int boundary = TowerThemeCatalog.FloorsPerTheme + 1;
+            while (game.run.Floor < boundary - 1) AdvanceFloor();
             var oldTheme = music.CurrentTheme;
             AdvanceFloor();
-            Require(game.run.Floor == 6 && game.run.Theme.Id != oldTheme && music.CurrentTheme == game.run.Theme.Id,
+            Require(game.run.Floor == boundary && game.run.Theme.Id != oldTheme && music.CurrentTheme == game.run.Theme.Id,
                 "The new floor theme did not select its own music.");
-            yield return new WaitForSecondsRealtime(.25f);
-            var decks = music.GetComponents<AudioSource>(); int audible = 0; float sum = 0;
-            foreach (var source in decks) { if (source.isPlaying && source.volume > .001f) audible++; sum += source.volume; }
-            Require(audible == 2 && sum <= TowerMusic.DefaultVolume + .005f, "Theme change did not crossfade both decks at a bounded volume.");
-            yield return new WaitForSecondsRealtime(TowerMusic.CrossfadeSeconds + .2f);
+            // The fade advances by real frame time, and the long frame after the ten-floor fixture can finish it at once.
+            // Sample every frame: the deck sum must stay bounded, and both decks must be heard unless one frame covered the fade.
+            var decks = music.GetComponents<AudioSource>();
+            bool heardBoth = false, longFrame = false;
+            int fadeFrames = 0, maxAudible = 0; float maxDelta = 0;
+            var trace = new System.Text.StringBuilder();
+            for (float fadeClock = 0; fadeClock < TowerMusic.CrossfadeSeconds + .2f; fadeClock += Time.unscaledDeltaTime)
+            {
+                yield return null;
+                fadeFrames++;
+                maxDelta = Mathf.Max(maxDelta, Time.unscaledDeltaTime);
+                if (Time.unscaledDeltaTime >= TowerMusic.CrossfadeSeconds) longFrame = true;
+                int audible = 0; float sum = 0;
+                foreach (var source in decks) { if (source.isPlaying && source.volume > .001f) audible++; sum += source.volume; }
+                Require(sum <= TowerMusic.DefaultVolume + .005f, "Theme change exceeded the bounded crossfade volume: " + sum.ToString("F3"));
+                if (audible == 2) heardBoth = true;
+                maxAudible = Mathf.Max(maxAudible, audible);
+                if (fadeFrames <= 12)
+                    foreach (var source in decks)
+                        trace.Append(" [").Append(source.clip ? source.clip.name : "-").Append(' ').Append(source.isPlaying ? "play" : "stop")
+                             .Append(' ').Append(source.volume.ToString("F3")).Append(' ').Append(source.clip ? source.clip.loadState.ToString() : "").Append(']');
+            }
+            Require(heardBoth || longFrame, "Theme change did not crossfade both decks: frames=" + fadeFrames + ", max audible=" + maxAudible
+                + ", max frame=" + maxDelta.ToString("F3") + "s, first frames:" + trace);
             Require(Array.FindAll(decks, source => source.isPlaying).Length == 1, "Outgoing music did not stop after the fade.");
+            report.samples.Add("crossfade: " + fadeFrames + " frames, both decks heard=" + heardBoth + ", single long frame=" + longFrame);
             report.themeBoundaryCrossfades = true;
 
-            foreach (var theme in TowerThemeCatalog.All)
+            // Every mythology, hell, the abyss and the village plays its own composed track.
+            var tracks = new HashSet<string>();
+            var themeIds = new List<TowerThemeId>();
+            foreach (var theme in TowerThemeCatalog.All) themeIds.Add(theme.Id);
+            if (!themeIds.Contains(TowerThemeId.Village)) themeIds.Add(TowerThemeId.Village);
+            foreach (var themeId in themeIds)
             {
-                var clip = Resources.Load<AudioClip>("Tower/Music/" + theme.Id.ToString().ToLowerInvariant());
-                Require(clip != null && clip.length >= 90 && clip.length <= 120.1f, "Missing track or duration outside 90–120 seconds: " + theme.Id);
-                Require(clip.channels == 2 && clip.loadType == AudioClipLoadType.Streaming, "Music must remain stereo and stream from disk: " + theme.Id);
-                music.PlayTheme(theme.Id);
+                float pitch;
+                string track = TowerMusic.Track(themeId, out pitch);
+                var clip = Resources.Load<AudioClip>("Tower/Music/" + track);
+                Require(clip != null && clip.length >= 80 && clip.length <= 120.1f, "Missing track or duration outside 80–120 seconds: " + themeId + " -> " + track);
+                Require(clip.channels == 2 && clip.loadType == AudioClipLoadType.Streaming, "Music must remain stereo and stream from disk: " + track);
+                music.PlayTheme(themeId);
                 yield return new WaitForSecondsRealtime(TowerMusic.CrossfadeSeconds + .2f);
                 var source = Audible(music);
-                Require(source != null && source.clip == clip && source.loop && source.spatialBlend == 0 && source.isPlaying, "Theme did not play as a 2D loop: " + theme.Id);
+                Require(source != null && source.clip == clip && Mathf.Approximately(source.pitch, pitch) && source.loop && source.spatialBlend == 0 && source.isPlaying,
+                    "Theme did not play its track as a 2D loop: " + themeId + " -> " + track);
                 before = source.timeSamples;
                 yield return new WaitForSecondsRealtime(.2f);
-                Require(source.timeSamples > before && Mathf.Abs(source.volume - TowerMusic.DefaultVolume) < .001f, "Playback did not advance at the expected volume: " + theme.Id);
-                report.tracks++; report.samples.Add(theme.Id + ": " + clip.length.ToString("F2") + " s, " + clip.frequency + " Hz, stereo streaming");
+                Require(source.timeSamples > before && Mathf.Abs(source.volume - TowerMusic.DefaultVolume) < .001f, "Playback did not advance at the expected volume: " + themeId);
+                if (tracks.Add(track)) report.tracks++;
+                report.themes++;
+                report.samples.Add(themeId + " -> " + track + " x" + pitch.ToString("F2") + ": " + clip.length.ToString("F2") + " s, " + clip.frequency + " Hz, stereo streaming");
             }
+            Require(report.tracks == report.themes, "Themes must not share tracks any more: " + report.tracks + " tracks for " + report.themes + " themes.");
             report.stereoStreaming = report.playbackAdvances = true;
             var looping = Audible(music);
             looping.time = looping.clip.length - .25f;
