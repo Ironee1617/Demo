@@ -4,6 +4,8 @@
 
 미카엘·가브리엘·라파엘·우리엘·메타트론을 3~3.5등신을 목표로 한 청년 체형으로 다듬었습니다. 이전 2등신 버전의 큰 눈·동그란 볼을 줄이고, 팔다리와 갑옷·깃털을 자연스럽게 그렸습니다. 부드러운 표정과 도트 윤곽은 유지합니다. 각자의 금발/은발/갈색/적색/연보라 머리, 검/나팔/치유 지팡이/화염검/기록서가 구분됩니다. 초상화, 신화 선택, 서약 선택, 보상, 파티, 전투가 같은 새 리소스를 사용합니다.
 
+> 2026-10-28부터 에덴 다섯 천사도 다른 동료와 함께 치비 도트(`TowerGodPixelArt`)로 그리며, EdenCute 시트와 `TowerEdenArt`는 삭제했습니다. [신화 동료 치비 도트](Roguelike-God-Pixels.md)를 보세요. 아래는 이전 기록입니다.
+
 `Assets/Demos/Roguelike/Resources/Tower/Myths/EdenCute/`의 다섯 PNG는 내장 ImageGen으로 제작했습니다. 현재 버전의 전체 프롬프트는 `ArtSources/EdenBalanced/generation-record.json`에 저장했습니다. 앞선 2등신 원본은 `ArtSources/EdenCute/v1/`에 보존했습니다. 활성 PNG의 기존 `.meta`와 GUID는 유지하며, 기존 `eden.png`와 다른 신화의 이미지·측정 데이터도 그대로 둡니다.
 
 ## 프레임과 재생

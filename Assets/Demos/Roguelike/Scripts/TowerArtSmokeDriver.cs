@@ -85,7 +85,6 @@ namespace PrototypeLab.Roguelike
                     art.SetLocomotion(true, 0, false); art.SetPose(false, false, false, 1, .01f);
                     var initial = Pose(art); StartMotion(art, ch.role, motion); Advance(art, motion, 0);
                     int steps = motion == 4 ? 2 : motion == 2 ? Mathf.CeilToInt(art.AttackHitTime(.6f) / .04f) : motion == 3 ? Mathf.CeilToInt(art.CastReleaseTime(SkillEffect.Fireball, .6f) / .04f) : 4;
-                    if (motion == 0 && TowerEdenArt.Contains(ch.art)) steps = 12; // Authored idle holds each pixel pose for .42 s.
                     var first = Pose(art); for (int frame = 1; frame <= steps; frame++) Advance(art, motion, frame);
                     Require(Different(initial, Pose(art)) && (motion != 0 || Different(first, Pose(art))), ch.name + " motion did not change: " + Motions[motion]);
                     report.motionSamples++; report.changedMotionSamples++;
@@ -152,8 +151,8 @@ namespace PrototypeLab.Roguelike
         private static float[] Pose(TowerActorArt art)
         {
             var values = new List<float>();
-            var eden = art.GetComponent<TowerEdenArt>();
-            if (eden != null) values.Add(eden.CurrentFrame);
+            var god = art.GetComponent<TowerGodPixelArt>();
+            if (god != null) values.Add(god.CurrentFrame);
             foreach (var t in art.GetComponentsInChildren<Transform>())
             { var p = t.localPosition; var r = t.localEulerAngles; var s = t.localScale; values.AddRange(new[] { p.x, p.y, p.z, r.x, r.y, r.z, s.x, s.y, s.z }); }
             foreach (var vertex in MeshVertices(art)) values.AddRange(new[] { vertex.x, vertex.y, vertex.z });

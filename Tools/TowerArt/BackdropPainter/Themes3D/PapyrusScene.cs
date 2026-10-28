@@ -93,7 +93,7 @@ public sealed class PapyrusScene : ThemePainter
 
     PaintedLayer SkyLayer()
     {
-        var spec = new LayerSpec("sky", .95f, 48, 30, -11, 21, -97);
+        var spec = new LayerSpec("sky", .95f, 128, 30, -11, 21, -97);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(2.5f);
         int sand = m.Sandstone("c89a5e", "eed2a0", .6f, 501);
         int stone = m.Sandstone("b48a58", "e2c08a", .25f, 502);
@@ -114,7 +114,7 @@ public sealed class PapyrusScene : ThemePainter
 
     PaintedLayer Far()
     {
-        var spec = new LayerSpec("far", .85f, 64, 32, -11, 19, -96);
+        var spec = new LayerSpec("far", .85f, 128, 32, -11, 19, -96);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3);
         int sand = m.Sandstone("c89a5e", "eed2a0", .5f, 511);
         int stone = m.Sandstone("b08452", "dcb47e", .22f, 512);
@@ -180,7 +180,7 @@ public sealed class PapyrusScene : ThemePainter
 
     PaintedLayer Mid()
     {
-        var spec = new LayerSpec("mid", .65f, 96, 36, -9.5f, 21, -95);
+        var spec = new LayerSpec("mid", .65f, 192, 36, -9.5f, 21, -95);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3.5f);
         int sandstone = m.Sandstone("b08452", "e0bc86", .26f, 521);
         // Glyph columns wrap around each shaft; on the architrave they run along its front face.
@@ -245,7 +245,7 @@ public sealed class PapyrusScene : ThemePainter
     PaintedLayer Near()
     {
         // A lintel with the winged sun disc reaches into the top of the view when the camera climbs.
-        var spec = new LayerSpec("near", .4f, 96, 40, 8.6f, 5, -94);
+        var spec = new LayerSpec("near", .4f, 192, 40, 8.6f, 5, -94);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(4);
         int sandstone = m.Sandstone("a87a4a", "d8b480", .24f, 531);
         int gold = m.Metal("e6b44a", .25f, .1f, "6b5a2e", 532);

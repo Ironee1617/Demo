@@ -41,19 +41,17 @@ namespace PrototypeLab.Roguelike
                 int pick=i-run.Companions.Count;string id=kept?run.Companions[i].Id:pick>=0&&pick<companionPicks.Count?companionPicks[pick]:null;
                 if(id==null)
                 {
-                    Round(r,rim,5);Round(Inset(r,1),ink,4);bool nextSlot=open&&pick==companionPicks.Count;
-                    if(nextSlot){Light(new Rect(r.x+2,r.y+2,r.width-4,44),Alpha(brass,.12f));Border(r,Alpha(brass,.55f));}
-                    Diamond(new Vector2(r.x+30,r.y+46),open?9:6,open?brass:Alpha(muted,.6f));
-                    Label(new Rect(r.x+52,r.y+14,250,28),(i+1)+"번째 동료",19,open?paper:muted,TextAnchor.MiddleLeft,true);
-                    Label(new Rect(r.x+52,r.y+48,250,24),open?"아래 후보에서 고르세요":TowerRun.RecruitFloors[i-1]+"층을 클리어하면 열립니다",14,open?brass:Alpha(muted,.8f));
+                    bool nextSlot=open&&pick==companionPicks.Count;Slot(r,brass,nextSlot);
+                    Diamond(new Vector2(r.x+32,r.y+46),open?13:8,open?brass:Alpha(muted,.5f));if(open)Diamond(new Vector2(r.x+32,r.y+46),6,night);
+                    Title(new Rect(r.x+56,r.y+14,250,28),(i+1)+"번째 동료",19,open?paper:muted,TextAnchor.MiddleLeft);
+                    Label(new Rect(r.x+56,r.y+48,250,24),open?"아래 후보에서 고르세요":TowerRun.RecruitFloors[i-1]+"층을 클리어하면 열립니다",14,open?brass:Alpha(muted,.8f));
                     continue;
                 }
                 var d=TowerRun.GetDefinition(id);Color c=TierColor(d.Tier);
-                if(kept){Round(r,rim,5);Round(Inset(r,1),ink,4);}
-                else if(Button(r,"",c)){companionPicks.Remove(id);Sound(chimeSound,.2f);return;}
-                SelectionFrame(r,c,true);
+                if(kept)GodCard(r,c,true,.12f);
+                else if(Tile(r,c,true)){companionPicks.Remove(id);Sound(chimeSound,.2f);return;}
                 Portrait(new Rect(r.x+12,r.y+11,70,70),d.ArtIndex,c);
-                Label(new Rect(r.x+96,r.y+12,190,28),d.Name,19,paper,TextAnchor.MiddleLeft,true);
+                Title(new Rect(r.x+96,r.y+12,190,28),d.Name,19,paper,TextAnchor.MiddleLeft);
                 Label(new Rect(r.x+96,r.y+42,200,20),RoleName(d.Role)+"  ·  "+TowerMythCatalog.Get(d.MythId).Name,13,muted);
                 Label(new Rect(r.x+96,r.y+64,200,18),kept?"함께하는 동료":"누르면 뺍니다",12,kept?brass:Alpha(muted,.85f));
                 if(live&&r.Contains(mouse)){hoverId=id;hoverRect=r;hoverMembers=PartyMythCount(d.MythId);}
@@ -68,19 +66,18 @@ namespace PrototypeLab.Roguelike
             {
                 string id=run.Offers[i].CompanionId;var d=TowerRun.GetDefinition(id);var myth=TowerMythCatalog.Get(d.MythId);Color c=TierColor(d.Tier);
                 Rect card=new Rect(left+i%8*184,top+i/8*226,172,212);int order=companionPicks.IndexOf(id);bool picked=order>=0,fresh=IsCandidate(id);
-                if(Button(card,"",c)){TogglePick(id,needed);return;}
-                SelectionFrame(card,c,picked);
+                if(Tile(card,c,picked)){TogglePick(id,needed);return;}
                 Halo(new Rect(card.x+16,card.y+6,140,126),Alpha(c,picked?.34f:.2f));
                 PortraitArt(new Rect(card.x+31,card.y+14,110,110),d.ArtIndex);
-                Label(new Rect(card.x+6,card.y+130,160,26),d.Name,18,paper,TextAnchor.MiddleCenter,true);
+                Title(new Rect(card.x+6,card.y+128,160,28),d.Name,18,paper,TextAnchor.MiddleCenter);
                 Label(new Rect(card.x+6,card.y+158,160,20),myth.Name+"  ·  "+RoleName(d.Role),13,muted,TextAnchor.MiddleCenter);
                 Label(new Rect(card.x+6,card.y+182,160,20),fresh?"새 동료":TierName(d.Tier),12,fresh?TowerWorld.Teal:c,TextAnchor.MiddleCenter,true);
-                if(picked){Round(new Rect(card.x+10,card.y+10,30,30),c,15);Label(new Rect(card.x+10,card.y+10,30,30),(order+1).ToString(),16,ink,TextAnchor.MiddleCenter,true);}
+                if(picked){Diamond(new Vector2(card.x+26,card.y+26),30,c);Diamond(new Vector2(card.x+26,card.y+26),24,Color.Lerp(c,Color.black,.55f));Title(new Rect(card.x+10,card.y+10,32,32),(order+1).ToString(),17,paper,TextAnchor.MiddleCenter);}
                 else if(full)Round(card,new Color(0,0,0,.45f),6);
                 if(live&&card.Contains(mouse)){hoverId=id;hoverRect=card;hoverMembers=PartyMythCount(d.MythId)+(picked?0:1);}
             }
 
-            Fill(new Rect(64,772,1472,1),new Color(.5f,.56f,.63f,.15f));
+            Divider(new Rect(64,767,1472,10),.5f);
             Label(new Rect(64,786,990,28),needed>1?"후보를 눌러 동료 "+needed+"명을 고르세요  ·  고른 동료는 다시 누르거나 위의 칸을 눌러 뺍니다":"후보를 눌러 함께 오를 동료를 고르세요  ·  다른 신을 누르면 바뀝니다",17,paper,TextAnchor.MiddleLeft);
             Label(new Rect(64,816,990,24),run.CompanionLimit>1?"신 위에 마우스를 올리면 정보가 보입니다  ·  같은 신화 2명이면 시너지가 발동합니다":"신 위에 마우스를 올리면 고유 패시브와 능력치가 보입니다",14,muted,TextAnchor.MiddleLeft);
             if(Button(new Rect(1080,786,456,64),ready?"이 동료들과 출발  [Enter]":"동료 "+(needed-companionPicks.Count)+"명을 더 고르세요",brass,ready,true)){ConfirmCompanionPick();return;}
@@ -104,7 +101,7 @@ namespace PrototypeLab.Roguelike
         }
         private void DrawPickSynergies(Rect r)
         {
-            Round(r,rim,5);Round(Inset(r,1),ink,4);
+            Slot(r);
             Label(new Rect(r.x+20,r.y+10,r.width-40,24),"신화 시너지",15,brass,TextAnchor.MiddleLeft,true);
             if(run.CompanionLimit<2){FitLabel(new Rect(r.x+20,r.y+38,r.width-40,46),"이번 원정은 동료 1명과 오릅니다.\n30층을 넘으면 둘, 60층을 넘으면 셋이 함께합니다.",14,11,muted);return;}
             var active=new List<string>();var seen=new List<string>();
@@ -135,22 +132,23 @@ namespace PrototypeLab.Roguelike
             float y=Mathf.Clamp(anchor.y-30,12,888-h);
             Panel(new Rect(x,y,w,h),c);
             Halo(new Rect(x+6,y+8,136,124),Alpha(c,.3f));PortraitArt(new Rect(x+22,y+20,104,104),d.ArtIndex);
-            Label(new Rect(x+142,y+22,280,32),d.Name,26,paper,TextAnchor.MiddleLeft,true);
+            Title(new Rect(x+142,y+22,280,32),d.Name,26,paper,TextAnchor.MiddleLeft);
             Label(new Rect(x+142,y+56,280,22),d.Title,15,c);
             Label(new Rect(x+142,y+82,280,20),RoleName(d.Role)+"  ·  "+myth.Name+"  ·  "+TierName(d.Tier)+(god.Level>1?"  ·  Lv. "+god.Level:""),13,muted);
             Label(new Rect(x+142,y+104,280,20),d.Description.Split('\n')[0],12,muted);
-            Fill(new Rect(x+22,y+138,w-44,1),Alpha(c,.25f));
+            Divider(new Rect(x+22,y+133,w-44,10),.6f,false,c);
             bool healer=d.Role==CompanionRole.Healer;
             string[] names={"공격력","공격 간격","사거리","이동 속도","스킬 위력",healer?"5초마다 회복":"치유 배율"};
             string[] values={god.Damage.ToString("0.#"),god.AttackInterval.ToString("0.00")+"초",god.Range.ToString("0.#"),god.MoveSpeed.ToString("0.#"),
                 god.SkillPowerMultiplier.ToString("0.##")+"배",healer?god.HealAmount.ToString("0.#"):god.HealingMultiplier.ToString("0.##")+"배"};
             for(int i=0;i<names.Length;i++)
             {
-                float cx=x+22+i%3*132,cy=y+148+i/3*48;
-                Label(new Rect(cx,cy,128,18),names[i],12,muted);Label(new Rect(cx,cy+18,128,26),values[i],19,paper,TextAnchor.UpperLeft,true);
+                float cx=x+22+i%3*132,cy=y+148+i/3*48;int icon=IconFor(names[i]);
+                if(icon>=0)Icon(new Rect(cx-2,cy+10,26,26),(UIIcon)icon);
+                Label(new Rect(cx+28,cy,100,18),names[i],12,muted);Title(new Rect(cx+28,cy+17,100,26),values[i],19,paper);
             }
-            Fill(new Rect(x+22,y+246,w-44,1),Alpha(c,.25f));
-            Label(new Rect(x+22,y+256,w-44,24),"고유 패시브  ·  "+passive.Name,16,c,TextAnchor.MiddleLeft,true);
+            Divider(new Rect(x+22,y+241,w-44,10),.6f,false,c);
+            Title(new Rect(x+22,y+256,w-44,24),"고유 패시브  ·  "+passive.Name,16,c,TextAnchor.MiddleLeft);
             FitLabel(new Rect(x+22,y+282,w-44,60),passive.Description,15,12,paper);
             FitLabel(new Rect(x+22,y+288+said,w-44,40),passive.Lore,13,11,muted);
             Label(new Rect(x+22,y+skills,w-44,22),"스킬  ·  증강으로 배우고 강화합니다",14,paper,TextAnchor.MiddleLeft,true);
@@ -163,7 +161,7 @@ namespace PrototypeLab.Roguelike
                 if(++slot==4)break;
             }
             float box=y+skills+82;
-            Round(new Rect(x+16,box,w-32,76),new Color(1,1,1,members>=2?.06f:.03f),5);
+            Slot(new Rect(x+16,box,w-32,76),brass,members>=2);
             Label(new Rect(x+28,box+6,w-56,22),"「"+synergy.Name+"」  "+myth.Name+"  "+Mathf.Min(members,3)+" / 3"+(members>=2?"  ·  발동":""),14,members>=2?brass:paper,TextAnchor.MiddleLeft,true);
             FitLabel(new Rect(x+28,box+30,w-56,40),members>=2?synergy.Describe(members):"같은 신화 2명부터  "+synergy.Describe(2),13,10,members>=2?paper:muted);
         }

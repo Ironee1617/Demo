@@ -569,34 +569,24 @@ namespace PrototypeLab.Roguelike
                 try
                 {
                     var art = TowerActorArt.Create(root.transform, index);
-                    var rig = art.GetComponentInChildren<TowerMythRig>();
-                    var eden = art.GetComponentInChildren<TowerEdenArt>();
-                    var parts = rig != null ? rig.CapturePartIndices() : null;
+                    var god = art.GetComponentInChildren<TowerGodPixelArt>();
+                    Require(god != null, "Companion is not drawn as a pixel god: art=" + index);
                     for (int frame = 0; frame < 150; frame++)
                     {
                         float speed = frame < 20 || frame >= 130 ? 0 : frame < 65 ? 3 : 8;
                         int face = frame < 95 ? 1 : -1;
                         art.SetLocomotion(true, 0, false, speed, speed * face);
                         art.SetPose(speed > 0, false, false, face, 1f / 60);
-                        if (eden != null)
-                        {
-                            float sole = eden.Renderer.bounds.min.y - root.transform.position.y;
-                            worst = Mathf.Min(worst, sole);
-                            Require(Mathf.Abs(sole) <= .003f, "Eden pixel sole left the floor: art=" + index + ", frame=" + frame + ", y=" + sole);
-                            continue;
-                        }
-                        var vertices = rig.CaptureVertices();
-                        for (int i = 0; i < vertices.Length; i++) if (parts[i] == 9 || parts[i] == 12)
-                        {
-                            worst = Mathf.Min(worst, vertices[i].y);
-                            Require(vertices[i].y >= -.003f, "Rendered sole crossed the floor: art=" + index + ", frame=" + frame + ", y=" + vertices[i].y);
-                        }
+                        // Pixel gods stand on the point between their boots; the body sprite pivots there.
+                        float sole = god.Body.transform.position.y - root.transform.position.y;
+                        worst = Mathf.Min(worst, sole);
+                        Require(Mathf.Abs(sole) <= .003f, "Pixel god boots left the floor: art=" + index + ", frame=" + frame + ", y=" + sole);
                     }
                 }
                 finally { Destroy(root); }
                 yield return null;
             }
-            current.detail = "All 50 companion meshes kept painted soles above the floor through idle, walk, run, reversal and stop; minimum y=" + worst + ".";
+            current.detail = "All 50 companions kept their soles on the floor through idle, walk, run, reversal and stop; minimum y=" + worst + ".";
         }
         private IEnumerator SmoothFollowAndJump()
         {

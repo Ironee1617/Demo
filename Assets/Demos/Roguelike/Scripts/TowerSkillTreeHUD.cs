@@ -121,10 +121,12 @@ namespace PrototypeLab.Roguelike
             if(e.type==EventType.KeyDown&&e.keyCode==KeyCode.K&&Time.frameCount!=treeOpenedFrame){villagePanel=VillagePanel.None;e.Use();return;}
 
             Panel(TreeFrame,brass);
-            Round(new Rect(TreeFrame.x+22,TreeFrame.y+20,196,58),new Color(.02f,.012f,.016f,.92f),5);Border(new Rect(TreeFrame.x+22,TreeFrame.y+20,196,58),Alpha(SkillPointColor,.55f));
-            Diamond(new Vector2(TreeFrame.x+48,TreeFrame.y+49),15,SkillPointColor);Diamond(new Vector2(TreeFrame.x+48,TreeFrame.y+49),7,new Color(.05f,.03f,.04f));
-            Label(new Rect(TreeFrame.x+70,TreeFrame.y+22,140,22),"스킬 포인트",13,muted);
-            Label(new Rect(TreeFrame.x+70,TreeFrame.y+40,140,34),points.ToString("N0"),26,points>0?paper:muted,TextAnchor.MiddleLeft,true);
+            // A faint star chart behind the tree.
+            Halo(new Rect(TreeFrame.center.x-420,TreeFrame.y-60,840,640),new Color(.35f,.45f,.8f,.08f));
+            Slot(new Rect(TreeFrame.x+22,TreeFrame.y+20,200,60),SkillPointColor,true);
+            Icon(new Rect(TreeFrame.x+32,TreeFrame.y+30,40,40),UIIcon.Crystal);
+            Label(new Rect(TreeFrame.x+78,TreeFrame.y+24,140,20),"스킬 포인트",13,muted);
+            Title(new Rect(TreeFrame.x+78,TreeFrame.y+40,140,34),points.ToString("N0"),26,points>0?paper:muted,TextAnchor.MiddleLeft);
 
             SkillNode hovered=null;
             foreach(var node in TowerSkillTree.Nodes)if(TreeNodeRect(node).Contains(e.mousePosition))hovered=node;
@@ -140,14 +142,15 @@ namespace PrototypeLab.Roguelike
             {
                 if(node.IsRoot)continue;var parent=TowerSkillTree.Get(node.ParentId);Color c=BranchColor(node.Branch);
                 bool learned=tree.Rank(node.Id)>0,open=tree.IsOpen(node);
-                TreeLine(TreeCenter(parent),TreeCenter(node),learned?3:2,learned?Alpha(c,.9f):open?Alpha(c,.38f):new Color(.42f,.36f,.36f,.28f));
+                if(learned)TreeLine(TreeCenter(parent),TreeCenter(node),7,Alpha(c,.18f));
+                TreeLine(TreeCenter(parent),TreeCenter(node),learned?3:2,learned?Alpha(Color.Lerp(c,Color.white,.2f),.95f):open?Alpha(c,.4f):new Color(.4f,.44f,.56f,.28f));
             }
             var selected=TowerSkillTree.Get(treeSelection)??TowerSkillTree.Root;
             foreach(var node in TowerSkillTree.Nodes)DrawTreeNode(node,TreeNodeRect(node),tree.Rank(node.Id),tree.IsOpen(node),campaign.CanLearn(node),node==selected,node==hovered);
             float x=TreeFrame.x+24;
             for(var branch=SkillBranch.Arcane;branch<=SkillBranch.Might;branch++)
             {
-                Color c=BranchColor(branch);Round(new Rect(x,TreeFrame.yMax-34,12,12),c,2);
+                Color c=BranchColor(branch);Diamond(new Vector2(x+6,TreeFrame.yMax-28),12,c);
                 Label(new Rect(x+18,TreeFrame.yMax-40,48,24),TowerSkillTree.BranchName(branch),13,Alpha(c,.9f),TextAnchor.MiddleLeft,true);x+=66;
             }
 
@@ -162,35 +165,36 @@ namespace PrototypeLab.Roguelike
         {
             Color c=BranchColor(node.Branch);bool learned=rank>0,maxed=rank>=node.MaxRank;
             float flash=node.Id==treeFlashId?Mathf.Clamp01(1-(Time.unscaledTime-treeFlashTime)/.6f):0;
-            if(selected)Halo(new Rect(r.x-18,r.y-18,r.width+36,r.height+36),Alpha(c,.4f));
-            else if(learned)Halo(new Rect(r.x-10,r.y-10,r.width+20,r.height+20),Alpha(c,.16f));
+            if(selected)Halo(new Rect(r.x-20,r.y-20,r.width+40,r.height+40),Alpha(c,.45f));
+            else if(learned)Halo(new Rect(r.x-12,r.y-12,r.width+24,r.height+24),Alpha(c,.2f));
             if(flash>0)Halo(new Rect(r.x-26,r.y-26,r.width+52,r.height+52),Alpha(Color.Lerp(c,Color.white,.4f),.7f*flash));
-            Color rim=learned?c:open?Alpha(c,affordable?.8f:.42f):new Color(.32f,.25f,.26f,.75f);
-            Round(r,rim,5);
-            Round(Inset(r,2),learned?Color.Lerp(c,Color.black,.6f):new Color(.05f,.03f,.035f,.97f),4);
-            if(learned)Light(Inset(r,3),Alpha(Color.Lerp(c,Color.white,.3f),maxed?.32f:.18f));
-            if(node.IsKeystone){Border(Inset(r,4),Alpha(learned?paper:c,learned?.5f:.3f));Diamond(new Vector2(r.center.x,r.y),7,rim);}
-            // Learnable now: a slow pulse around the node.
-            if(open&&!maxed&&affordable){float pulse=.3f+.3f*Mathf.Sin(Time.unscaledTime*4+node.Column);Border(Inset(r,-3),Alpha(c,pulse),2);}
-            if(selected||hovered)Border(Inset(r,-5),Alpha(paper,selected?.85f:.45f));
-            Label(r,NodeRune(node),node.IsKeystone?19:16,learned?paper:open?Alpha(Color.Lerp(c,paper,.25f),.95f):Alpha(muted,.5f),TextAnchor.MiddleCenter,true);
+            // Learnable now: a slow pulse of light behind the node.
+            if(open&&!maxed&&affordable){float pulse=.18f+.18f*Mathf.Sin(Time.unscaledTime*4+node.Column);Halo(new Rect(r.x-16,r.y-16,r.width+32,r.height+32),Alpha(c,pulse));}
+            // Round sockets for ordinary nodes, a larger diamond for keystones; both carved from the kit and tinted by branch.
+            Color body=learned?Color.Lerp(c,Color.black,maxed?.25f:.42f):open?new Color(.13f,.15f,.22f):new Color(.07f,.08f,.11f);
+            Color edge=learned?Color.Lerp(c,Color.white,.25f):open?Alpha(Color.Lerp(c,Color.white,.2f),affordable?.9f:.55f):new Color(.42f,.45f,.55f,.55f);
+            if(selected||hovered)edge=Color.Lerp(edge,Color.white,selected?.6f:.35f);
+            Rect shape=node.IsKeystone?Inset(r,-r.width*.2f):Inset(r,-r.width*.08f);
+            GUI.color=body;var fill=Kit(node.IsKeystone?"key-fill":"node-disc");if(fill!=null)GUI.DrawTexture(shape,fill);
+            GUI.color=edge;var ring=Kit(node.IsKeystone?"key-rim":"node-rim");if(ring!=null)GUI.DrawTexture(shape,ring);GUI.color=Color.white;
+            Title(new Rect(r.x,r.y+1,r.width,r.height),NodeRune(node),node.IsKeystone?19:16,learned?new Color(1,.97f,.9f):open?Alpha(Color.Lerp(c,paper,.35f),.95f):Alpha(muted,.5f),TextAnchor.MiddleCenter);
             if(node.MaxRank>1)
                 for(int i=0;i<node.MaxRank;i++)
-                {float px=r.center.x+(i-(node.MaxRank-1)*.5f)*7;Round(new Rect(px-2.5f,r.yMax+3,5,4),i<rank?c:new Color(.3f,.24f,.24f,.85f),1);}
+                {float px=r.center.x+(i-(node.MaxRank-1)*.5f)*8;Diamond(new Vector2(px,shape.yMax+3),6,i<rank?Color.Lerp(c,Color.white,.2f):new Color(.3f,.33f,.42f,.85f));}
         }
 
         private void DrawTreeCard(SkillNode node,bool interactive)
         {
             var tree=campaign.SkillTree;Color c=BranchColor(node.Branch);int rank=tree.Rank(node.Id);
             bool open=tree.IsOpen(node),maxed=rank>=node.MaxRank,affordable=campaign.SkillPoints>=node.Cost;
-            Panel(TreeCard,c);Light(new Rect(TreeCard.x+2,TreeCard.y+2,TreeCard.width-4,120),Alpha(c,.12f));
-            float x=TreeCard.x+24,w=TreeCard.width-48,y=TreeCard.y+22;
-            Rect icon=new Rect(x,y,66,66);Halo(new Rect(icon.x-16,icon.y-16,98,98),Alpha(c,.3f));
+            Card(TreeCard,c,false);
+            float x=TreeCard.x+26,w=TreeCard.width-52,y=TreeCard.y+24;
+            Rect icon=new Rect(x+6,y+6,54,54);Halo(new Rect(icon.x-22,icon.y-22,98,98),Alpha(c,.3f));
             DrawTreeNode(node,icon,rank,open,false,false,false);
-            FitLabel(new Rect(x+84,y+2,w-84,34),node.Name,25,18,paper,TextAnchor.MiddleLeft,true);
+            FitTitle(new Rect(x+84,y+2,w-84,34),node.Name,25,18,paper,TextAnchor.MiddleLeft);
             Label(new Rect(x+84,y+38,w-84,24),TowerSkillTree.BranchName(node.Branch)+(node.IsKeystone?"  ·  핵심":"")+"  ·  "+TargetName(node),14,c);
-            y+=90;Fill(new Rect(x,y,w,1),Alpha(c,.25f));y+=14;
-            Label(new Rect(x,y,w,26),"단계  "+rank+" / "+node.MaxRank,18,paper,TextAnchor.MiddleLeft,true);
+            y+=86;Divider(new Rect(x,y,w,10),.7f,false,c);y+=18;
+            Title(new Rect(x,y,w,26),"단계  "+rank+" / "+node.MaxRank,18,paper,TextAnchor.MiddleLeft);
             Label(new Rect(x,y,w,26),node.Cost+" SP / 단계",16,SkillPointColor,TextAnchor.MiddleRight,true);y+=36;
             Label(new Rect(x,y,w,24),rank>0?"현재   "+node.Effect(rank):"현재   배우지 않음",16,rank>0?paper:muted);y+=28;
             Label(new Rect(x,y,w,24),maxed?"최대 단계에 도달했습니다":(rank>0?"다음   ":"배우면   ")+node.Effect(rank+1),16,maxed?brass:TowerWorld.Teal);y+=34;
@@ -199,15 +203,14 @@ namespace PrototypeLab.Roguelike
             FitLabel(new Rect(x,y,w,40),state,15,12,!maxed&&(!open||!affordable)?new Color(.95f,.45f,.42f):muted);y+=46;
             bool can=interactive&&campaign.CanLearn(node);
             if(Button(new Rect(x,y,w,50),maxed?"최대 단계":"배우기  ·  "+node.Cost+" SP",c,can,true))LearnTreeNode(node);
-            y+=68;Fill(new Rect(x,y,w,1),Alpha(c,.2f));y+=12;
-            Label(new Rect(x,y,w,26),"적용 중인 효과",18,paper,TextAnchor.MiddleLeft,true);y+=32;
+            y+=64;Divider(new Rect(x,y,w,10),.5f);y+=16;
+            Title(new Rect(x,y,w,26),"적용 중인 효과",18,paper,TextAnchor.MiddleLeft);y+=32;
             var summary=tree.Summary();
             if(summary.Count==0){Label(new Rect(x,y,w,48),"아직 배운 노드가 없습니다.\n층을 넘기며 모은 포인트로 위쪽 불씨부터 배우세요.",14,muted);return;}
-            PrepareScrollStyle();var previousSkin=GUI.skin;GUI.skin=uiSkin;
-            Rect view=new Rect(x,y,w+12,TreeCard.yMax-18-y);
-            treeSummaryScroll=GUI.BeginScrollView(view,treeSummaryScroll,new Rect(0,0,w-6,Mathf.Max(view.height-2,summary.Count*25)),false,true);
-            for(int i=0;i<summary.Count;i++){Diamond(new Vector2(6,i*25+12),5,Alpha(c,.8f));Label(new Rect(18,i*25,w-30,24),summary[i],15,paper,TextAnchor.MiddleLeft);}
-            GUI.EndScrollView();GUI.skin=previousSkin;
+            Rect view=new Rect(x,y,w+12,TreeCard.yMax-24-y);
+            treeSummaryScroll=BeginScroll(view,treeSummaryScroll,new Rect(0,0,w-6,Mathf.Max(view.height-2,summary.Count*25)));
+            for(int i=0;i<summary.Count;i++){Diamond(new Vector2(6,i*25+12),7,Alpha(c,.85f));Label(new Rect(18,i*25,w-30,24),summary[i],15,paper,TextAnchor.MiddleLeft);}
+            EndScroll();
         }
     }
 }

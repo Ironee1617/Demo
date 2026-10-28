@@ -92,7 +92,7 @@ public sealed class DangunScene : ThemePainter
 
     PaintedLayer SkyLayer()
     {
-        var spec = new LayerSpec("sky", .95f, 48, 30, -11, 21, -97);
+        var spec = new LayerSpec("sky", .95f, 128, 30, -11, 21, -97);
         var sc = new Scene(spec.Period); var n = sc.N; var sky = MakeSky(spec.Period); var cam = new Camera(2.5f);
         // Three ranges, each fainter, separated by banks of mist.
         var ranges = new[] { (z: 58f, y: -3.6f, amp: 6.2f, seed: 201, dark: "8e98a2", light: "b8c0c6"), (z: 44f, y: -4.6f, amp: 4.6f, seed: 202, dark: "6e7a80", light: "a0a8aa"), (z: 32f, y: -5.6f, amp: 3.4f, seed: 203, dark: "4e5a58", light: "86908a") };
@@ -116,7 +116,7 @@ public sealed class DangunScene : ThemePainter
 
     PaintedLayer Far()
     {
-        var spec = new LayerSpec("far", .85f, 64, 32, -11, 18, -96);
+        var spec = new LayerSpec("far", .85f, 128, 32, -11, 18, -96);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3);
         int ridge = Ridge(sc, "4a524c", "7c827a", 211);
         int bark = m.Wood("5a2e1e", "a0583a", .85f, true, 212);
@@ -169,7 +169,7 @@ public sealed class DangunScene : ThemePainter
 
     PaintedLayer Mid()
     {
-        var spec = new LayerSpec("mid", .65f, 96, 36, -9.5f, 21, -95);
+        var spec = new LayerSpec("mid", .65f, 192, 36, -9.5f, 21, -95);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3.5f);
         int grass = m.Ground("4a5a30", "86945a", "6a5a42", 231);
         int bark = m.Rock("3a2e24", "6a5442", .5f, .95f, .25f, 232, "4e5e34", .3f);
@@ -295,7 +295,7 @@ public sealed class DangunScene : ThemePainter
     PaintedLayer Near()
     {
         // Pine boughs reaching in from the top corners when the camera climbs.
-        var spec = new LayerSpec("near", .4f, 96, 40, 8.6f, 5, -94);
+        var spec = new LayerSpec("near", .4f, 192, 40, 8.6f, 5, -94);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(4);
         int bark = m.Wood("4a261a", "8a4a30", .85f, true, 261);
         int needles = m.Foliage("18281a", "425e36", .3f, 262);

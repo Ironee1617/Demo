@@ -139,6 +139,19 @@ namespace PrototypeLab.Roguelike
             if (game.run.IsRewardPending) game.SelectOffer(game.run.Offers[0].Id);
             game.NextFloor(); Require(!game.run.IsFloorCleared, "Production stairs failed to advance after a clear.");
         }
+        // A pixel god's pose is its body frame plus where the fists and weapon are.
+        private static ulong PixelPoseHash(TowerGodPixelArt god)
+        {
+            ulong hash = 1469598103934665603UL ^ (ulong)god.CurrentFrame;
+            foreach (var t in god.GetComponentsInChildren<Transform>())
+            {
+                var p = t.localPosition; float r = t.localEulerAngles.z;
+                hash = (hash ^ (uint)Mathf.RoundToInt(p.x * 1000)) * 1099511628211UL;
+                hash = (hash ^ (uint)Mathf.RoundToInt(p.y * 1000)) * 1099511628211UL;
+                hash = (hash ^ (uint)Mathf.RoundToInt(r * 10)) * 1099511628211UL;
+            }
+            return hash;
+        }
         private IEnumerator Library()
         {
             TowerMythArt.ValidateLibrary();
@@ -152,22 +165,20 @@ namespace PrototypeLab.Roguelike
             string[] motions = { "Idle", "Run", "Attack", "Cast", "Hurt", "Death" };
             foreach (var myth in TowerMythCatalog.Definitions)
             {
-                var atlas = Resources.Load<Texture2D>("Tower/Myths/" + myth.Id);
-                Require(atlas != null && atlas.filterMode == FilterMode.Point && atlas.width >= 5 && atlas.height >= 6, "Myth atlas is missing or not point-filtered: " + myth.Id); report.atlases++;
+                report.atlases++;
                 foreach (string id in myth.CompanionIds)
                 {
                     var definition = TowerRun.GetDefinition(id);
-                    Require(TowerMythArt.SheetId(definition.ArtIndex) == myth.Id, "Companion points at another myth's atlas: " + id);
+                    Require(TowerMythArt.SheetId(definition.ArtIndex) == myth.Id, "Companion points at another myth: " + id);
+                    var sheet = TowerGodPixelArt.Frames(definition.ArtIndex)[0].texture;
+                    Require(sheet != null && sheet.filterMode == FilterMode.Point, "Pixel god sheet is missing or not point-filtered: " + id);
                     var portrait = TowerActorArt.Portrait(definition.ArtIndex);
                     Require(portrait != null && portrait.filterMode == FilterMode.Point && Visible(portrait.GetPixels32()) > 32, "Portrait is missing, blank or filtered incorrectly: " + id);
                     Require(portraitHashes.Add(Hash(portrait.GetPixels32())), "Two mythology companions have identical portraits: " + id); report.portraits++;
                     frameRoot = new GameObject("Myth frame validation " + id); frameRoot.transform.position = new Vector3(10000, 10000, 0);
                     var art = TowerActorArt.Create(frameRoot.transform, definition.ArtIndex); var mythArt = art.GetComponent<TowerMythArt>();
-                    var filters = art.GetComponentsInChildren<MeshFilter>();
-                    var eden = art.GetComponent<TowerEdenArt>();
-                    Require(eden != null || filters.Length > 0, "Myth companion has no rendered artwork: " + id);
-                    var vertexCounts = new int[filters.Length];
-                    for (int mesh = 0; mesh < filters.Length; mesh++) vertexCounts[mesh] = filters[mesh].sharedMesh.vertexCount;
+                    var god = art.GetComponent<TowerGodPixelArt>();
+                    Require(god != null, "Myth companion has no rendered artwork: " + id);
                     foreach (Transform child in frameRoot.GetComponentsInChildren<Transform>()) child.gameObject.layer = 30;
                     frameCamera.transform.position = frameRoot.transform.position + new Vector3(0, TowerMythArt.CellHeight * .5f, -10);
                     var motionPoses = new HashSet<ulong>();
@@ -180,13 +191,9 @@ namespace PrototypeLab.Roguelike
                         if (row == 5) art.PlayDeath(.6f);
                         for (int frame = 0; frame < (row == 4 ? 6 : 18); frame++) art.SetPose(row == 1, false, row == 4 && frame == 0, 1, 1f / 60);
                         Require(mythArt.CurrentFrameRow == row && art.CurrentMotion == motions[row], "Production motion state mapping failed: " + id + "/" + motions[row]);
-                        for (int mesh = 0; mesh < filters.Length; mesh++)
-                        {
-                            var renderer = filters[mesh].GetComponent<MeshRenderer>();
-                            Require(filters[mesh].sharedMesh.vertexCount == vertexCounts[mesh] && renderer != null && renderer.sharedMaterial.mainTexture == atlas,
-                                "A motion changed the character's mesh topology or source atlas: " + id + "/" + motions[row]);
-                        }
-                        Require(motionPoses.Add(eden != null ? (ulong)eden.CurrentFrame : GeometryHash(filters)),
+                        foreach (var view in art.GetComponentsInChildren<SpriteRenderer>())
+                            Require(view.sprite != null && view.sprite.texture == sheet, "A motion changed the character's source sheet: " + id + "/" + motions[row]);
+                        Require(motionPoses.Add(PixelPoseHash(god)),
                             "Two production motions rendered the same pose: " + id + "/" + motions[row]);
                         frameCamera.Render(); var previous = RenderTexture.active; RenderTexture.active = frameTarget;
                         framePixels.ReadPixels(new Rect(0, 0, 64, 64), 0, 0, false); framePixels.Apply(false, false); RenderTexture.active = previous;

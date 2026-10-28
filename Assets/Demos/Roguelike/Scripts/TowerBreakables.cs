@@ -230,14 +230,14 @@ namespace PrototypeLab.Roguelike
         private void DrawGold(Rect r,int size,Color color,string prefix="보유 ")
         {
             string text=prefix+progress.Gold.ToString("N0",CultureInfo.InvariantCulture)+" G";
-            textStyle.fontSize=size;textStyle.fontStyle=FontStyle.Bold;float width=textStyle.CalcSize(new GUIContent(text)).x;
-            Label(r,text,size,color,TextAnchor.MiddleRight,true);
+            titleStyle.fontSize=size;float width=titleStyle.CalcSize(new GUIContent(text)).x;
+            Title(new Rect(r.x+1,r.y+2,r.width,r.height),text,size,new Color(0,0,0,.6f),TextAnchor.MiddleRight);Title(r,text,size,color,TextAnchor.MiddleRight);
             var coin=PickupSprite(LootKind.Coin);float icon=size*1.25f,left=r.xMax-width-icon-6;
             if(coin!=null)GUI.DrawTexture(new Rect(left,r.center.y-icon*.5f,icon,icon),coin.texture,ScaleMode.ScaleToFit,true);
             if(goldFlash>0)
             {
                 float a=Mathf.Clamp01(goldFlash*2),rise=(1.4f-goldFlash)*8;
-                Label(new Rect(left-160,r.y-rise,152,r.height),"+"+goldFlashAmount+" G",size,Alpha(TowerWorld.Gold,a),TextAnchor.MiddleRight,true);
+                Title(new Rect(left-160,r.y-rise,152,r.height),"+"+goldFlashAmount+" G",size,Alpha(TowerWorld.Gold,a),TextAnchor.MiddleRight);
             }
         }
     }

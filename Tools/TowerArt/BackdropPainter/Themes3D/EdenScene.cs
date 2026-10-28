@@ -54,7 +54,7 @@ public sealed class EdenScene : ThemePainter
 
     PaintedLayer SkyLayer()
     {
-        var spec = new LayerSpec("sky", .95f, 48, 30, -11, 21, -97);
+        var spec = new LayerSpec("sky", .95f, 128, 30, -11, 21, -97);
         var sc = new Scene(spec.Period); var n = sc.N; var sky = MakeSky(spec.Period); var cam = new Camera(2.5f);
         int land = Highland(sc, 301);
         var peaks = new[] { (4f, 3.4f, 4f), (12f, 2.2f, 3f), (21f, 4f, 4.4f), (27f, 2.6f, 3f) };
@@ -76,7 +76,7 @@ public sealed class EdenScene : ThemePainter
 
     PaintedLayer Far()
     {
-        var spec = new LayerSpec("far", .85f, 64, 32, -11, 21, -96);
+        var spec = new LayerSpec("far", .85f, 128, 32, -11, 21, -96);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3);
         int land = Highland(sc, 311);
         int bark = m.Wood("5a4430", "a08a68", .85f, true, 313);
@@ -125,7 +125,7 @@ public sealed class EdenScene : ThemePainter
 
     PaintedLayer Mid()
     {
-        var spec = new LayerSpec("mid", .65f, 96, 36, -9.5f, 21, -95);
+        var spec = new LayerSpec("mid", .65f, 192, 36, -9.5f, 21, -95);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3.5f);
         int meadow = m.Ground("3e6a2a", "8aae4e", "5a4630", 331, "f8e8f0", .25f);
         int bark = m.Wood("4a3424", "8a6a4a", .85f, true, 332);
@@ -211,7 +211,7 @@ public sealed class EdenScene : ThemePainter
     PaintedLayer Near()
     {
         // Vines and blossoms hanging from the top when the camera climbs.
-        var spec = new LayerSpec("near", .4f, 96, 40, 8.6f, 5, -94);
+        var spec = new LayerSpec("near", .4f, 192, 40, 8.6f, 5, -94);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(4);
         int leaves = m.Foliage("1e4a1e", "5a8a3a", .45f, 351, "f2a0c0", .3f);
         int vine = m.Wood("3a3020", "6a5a3a", .9f, true, 352);

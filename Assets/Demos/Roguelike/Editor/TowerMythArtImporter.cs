@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace PrototypeLab.Roguelike.Editor
 {
-    // Atlas cells are sliced at runtime, so importing never rewrites the generated source images.
+    // Pixel god sheets are sliced at runtime, so importing never rewrites the baked images.
     public sealed class TowerMythArtImporter : AssetPostprocessor
     {
         void OnPreprocessTexture()
@@ -13,9 +13,7 @@ namespace PrototypeLab.Roguelike.Editor
             importer.textureType=TextureImporterType.Default;importer.filterMode=FilterMode.Point;importer.wrapMode=TextureWrapMode.Clamp;
             importer.mipmapEnabled=false;importer.alphaIsTransparency=true;importer.textureCompression=TextureImporterCompression.Uncompressed;
             importer.npotScale=TextureImporterNPOTScale.None;importer.maxTextureSize=4096;
-            // Eden measures transparent frame margins once to keep every sole on
-            // the actor root. The remaining mythology atlases use their mesh rig.
-            importer.isReadable=assetPath.Contains("/EdenCute/");
+            importer.isReadable=false;
         }
     }
 }

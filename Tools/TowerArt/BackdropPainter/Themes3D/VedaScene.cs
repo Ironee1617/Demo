@@ -102,7 +102,7 @@ public sealed class VedaScene : ThemePainter
 
     PaintedLayer SkyLayer()
     {
-        var spec = new LayerSpec("sky", .95f, 48, 30, -11, 21, -97);
+        var spec = new LayerSpec("sky", .95f, 128, 30, -11, 21, -97);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(2.5f);
         int stone = m.Rock("6a3a2a", "a8644a", 1, .9f, .3f, 402);
         int water = m.Water("4a2a2a", 1.2f, .12f, 403);
@@ -123,7 +123,7 @@ public sealed class VedaScene : ThemePainter
 
     PaintedLayer Far()
     {
-        var spec = new LayerSpec("far", .85f, 64, 32, -11, 19, -96);
+        var spec = new LayerSpec("far", .85f, 128, 32, -11, 19, -96);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3);
         int sandstone = m.Sandstone("8a4a32", "c88a62", .3f, 411);
         int plaster = m.Paint("e8c8a0", .7f, .3f, 412);
@@ -166,7 +166,7 @@ public sealed class VedaScene : ThemePainter
 
     PaintedLayer Mid()
     {
-        var spec = new LayerSpec("mid", .65f, 96, 36, -9.5f, 21, -95);
+        var spec = new LayerSpec("mid", .65f, 192, 36, -9.5f, 21, -95);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3.5f);
         int sandstone = m.Sandstone("8a4630", "cc8e64", .28f, 421);
         int carved = m.Rock("7a4632", "c0805c", .6f, .85f, .2f, 422);
@@ -244,7 +244,7 @@ public sealed class VedaScene : ThemePainter
     PaintedLayer Near()
     {
         // Carved lintels hung with marigold garlands and bells reach into the top of the view when the camera climbs.
-        var spec = new LayerSpec("near", .4f, 96, 40, 8.6f, 5, -94);
+        var spec = new LayerSpec("near", .4f, 192, 40, 8.6f, 5, -94);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(4);
         int stone = m.Sandstone("7a3c28", "b47250", .25f, 441);
         int marigold = Marigold(sc, 442);

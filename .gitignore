@@ -65,3 +65,8 @@ sysinfo.txt
 # Story painter: keep its project file, ignore build output.
 !/Tools/TowerArt/StoryPainter/StoryPainter.csproj
 /Tools/TowerArt/StoryPainter/bin/
+
+# UI painter: keep its project file, ignore build output.
+!/Tools/TowerArt/UIPainter/UIPainter.csproj
+/Tools/TowerArt/UIPainter/bin/
+/Tools/TowerArt/UIPainter/obj/

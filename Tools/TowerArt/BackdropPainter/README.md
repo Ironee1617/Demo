@@ -4,7 +4,7 @@
 
 ## 실행
 
-프로젝트 루트에서 실행합니다. 전체 베이크는 테마당 약 2.5분 걸립니다.
+프로젝트 루트에서 실행합니다. 원경은 2026-10-27부터 2배 해상도(sky·far 128ppu, mid·near 192ppu)로 구워 테마당 약 6.5분, 10테마 약 1시간 걸립니다. 1080p 화면(96 px/유닛)에서 중경·근경은 정확히 절반으로 줄어 그려지고, 4K(192 px/유닛)에서 1:1입니다.
 
 ```powershell
 dotnet run -c Release --project Tools/TowerArt/BackdropPainter -- --kits
@@ -28,7 +28,7 @@ dotnet run -c Release --project Tools/TowerArt/BackdropPainter -- --kits
 dotnet run -c Release --project Tools/TowerArt/BackdropPainter -- --theme village --fast --preview <임시 폴더>
 ```
 
-굽고 나면 Unity에서 에셋을 새로고침합니다. `Editor/TowerThemeArtImporter.cs`는 `Backdrops/` 아래 PNG를 BC7·Bilinear·CPU 사본 없음으로 가져오고, `Terrain/` 아래 키트는 CompressedHQ·Bilinear·밉맵·Repeat로 가져옵니다.
+굽고 나면 Unity에서 에셋을 새로고침합니다. `Editor/TowerThemeArtImporter.cs`는 `Backdrops/` 아래 PNG를 BC7·밉맵 없음·CPU 사본 없음으로 가져오고(밉맵이 있는 NPOT 텍스처는 Unity가 압축하지 않음), `Terrain/` 아래 키트는 CompressedHQ·Bilinear·밉맵·Repeat로 가져옵니다.
 
 ## 구조
 

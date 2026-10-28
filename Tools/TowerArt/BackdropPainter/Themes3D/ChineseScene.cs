@@ -77,7 +77,7 @@ public sealed class ChineseScene : ThemePainter
 
     PaintedLayer SkyLayer()
     {
-        var spec = new LayerSpec("sky", .95f, 48, 30, -11, 21, -97);
+        var spec = new LayerSpec("sky", .95f, 128, 30, -11, 21, -97);
         var sc = new Scene(spec.Period); var n = sc.N; var sky = MakeSky(spec.Period); var cam = new Camera(2.5f);
         int far = Karst(sc, "8a96a2", "b8c0c8", 601), mid = Karst(sc, "6a7680", "9aa4aa", 602);
         var rnd = new Rand(603);
@@ -98,7 +98,7 @@ public sealed class ChineseScene : ThemePainter
 
     PaintedLayer Far()
     {
-        var spec = new LayerSpec("far", .85f, 64, 32, -11, 19, -96);
+        var spec = new LayerSpec("far", .85f, 128, 32, -11, 19, -96);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3);
         int rock = Karst(sc, "4e5a5e", "86908c", 621);
         int lacquer = m.Paint("a8281e", .45f, .2f, 622);
@@ -130,7 +130,7 @@ public sealed class ChineseScene : ThemePainter
 
     PaintedLayer Mid()
     {
-        var spec = new LayerSpec("mid", .65f, 96, 36, -9.5f, 21, -95);
+        var spec = new LayerSpec("mid", .65f, 192, 36, -9.5f, 21, -95);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3.5f);
         int marble = m.Marble("f2efe8", "a8a49c", .8f, .45f, 631);
         int lacquer = m.Paint("a8261c", .4f, .25f, 632);
@@ -214,7 +214,7 @@ public sealed class ChineseScene : ThemePainter
     PaintedLayer Near()
     {
         // An upturned eave corner hung with a lantern reaches into the top of the view when the camera climbs.
-        var spec = new LayerSpec("near", .4f, 96, 40, 8.6f, 5, -94);
+        var spec = new LayerSpec("near", .4f, 192, 40, 8.6f, 5, -94);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(4);
         int tile = m.Tiles("d8a43a", .13f, .28f, 651, true);
         int lacquer = m.Paint("a8261c", .4f, .25f, 652);

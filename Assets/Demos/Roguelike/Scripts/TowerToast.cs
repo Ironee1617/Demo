@@ -36,14 +36,14 @@ namespace PrototypeLab.Roguelike
                 float slide = (1 - enter) * (1 - enter) * 48;
                 bool body = !string.IsNullOrEmpty(t.body);
                 Rect r = new Rect(x + (overlay ? 0 : slide), y - (overlay ? slide * .5f : 0), width, body ? 66 : 44);
-                Round(new Rect(r.x, r.y + 4, r.width, r.height), new Color(0, 0, 0, .5f * a), 5);
-                Round(r, new Color(.2f, .07f, .08f, .95f * a), 5);
-                Round(Inset(r, 1), new Color(.035f, .02f, .025f, .96f * a), 4);
-                Fill(new Rect(r.x + 1, r.y + 1, 4, r.height - 2), Alpha(t.accent, .9f * a));
-                Light(new Rect(r.x + 5, r.y + 1, r.width - 6, r.height - 2), Alpha(t.accent, .08f * a));
-                Drips(new Rect(r.x + 5, r.y, r.width - 10, r.height), Alpha(t.accent, a), 2);
-                Label(new Rect(r.x + 18, r.y + 7, r.width - 30, 24), t.title, 16, Alpha(paper, a), TextAnchor.MiddleLeft, true);
-                if (body) Label(new Rect(r.x + 18, r.y + 33, r.width - 30, 26), t.body, 13, Alpha(muted, a), TextAnchor.MiddleLeft);
+                Slice(new Rect(r.x - 10, r.y - 4, r.width + 20, r.height + 20), Kit("panel-shadow"), 44, new Color(1, 1, 1, .7f * a));
+                Slice(r, Kit("button-body"), 24, new Color(.07f, .085f, .13f, .96f * a));
+                Light(new Rect(r.x + 4, r.y + 3, r.width - 8, r.height - 6), Alpha(t.accent, .1f * a));
+                Slice(r, Metal("button-edge", t.accent), 24, Alpha(MetalTint(t.accent), .9f * a));
+                Diamond(new Vector2(r.x + 20, r.y + r.height * .5f), 14, Alpha(t.accent, a));
+                Diamond(new Vector2(r.x + 20, r.y + r.height * .5f), 6, Alpha(night, a));
+                Title(new Rect(r.x + 38, r.y + 7, r.width - 50, 24), t.title, 16, Alpha(paper, a), TextAnchor.MiddleLeft);
+                if (body) Label(new Rect(r.x + 38, r.y + 33, r.width - 50, 26), t.body, 13, Alpha(muted, a), TextAnchor.MiddleLeft);
                 y += r.height + 8;
             }
         }

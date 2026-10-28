@@ -123,7 +123,7 @@ public sealed class AsgardScene : ThemePainter
 
     PaintedLayer SkyLayer()
     {
-        var spec = new LayerSpec("sky", .95f, 48, 30, -11, 21, -97);
+        var spec = new LayerSpec("sky", .95f, 128, 30, -11, 21, -97);
         var sc = new Scene(spec.Period); var n = sc.N; var sky = MakeSky(spec.Period); var cam = new Camera(2.5f);
         int alpine = Alpine(sc, -.5f);
         var peaks = new[] { (6f, 6.2f, 3f), (12.4f, 3.6f, 2.2f), (18.2f, 7.4f, 3.4f), (25f, 4.4f, 2.6f), (29.2f, 2.8f, 2f) };
@@ -141,7 +141,7 @@ public sealed class AsgardScene : ThemePainter
 
     PaintedLayer Far()
     {
-        var spec = new LayerSpec("far", .85f, 64, 32, -11, 18, -96);
+        var spec = new LayerSpec("far", .85f, 128, 32, -11, 18, -96);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3);
         int cliff = m.Snowy(m.Rock("232830", "4c5564", 1.4f, .9f, .5f, 151), 1.1f);
         int timber = m.Wood("2a1e16", "5a4232", .8f, true, 152);
@@ -197,7 +197,7 @@ public sealed class AsgardScene : ThemePainter
 
     PaintedLayer Mid()
     {
-        var spec = new LayerSpec("mid", .65f, 96, 36, -9.5f, 21, -95);
+        var spec = new LayerSpec("mid", .65f, 192, 36, -9.5f, 21, -95);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3.5f);
         int bark = m.Snowy(m.Rock("2e241c", "5c4a3a", .6f, .95f, .2f, 171), .7f);
         int runeBark = m.Glyphs(bark, "56e8ff", 2.4f, p => p.Y > 1.2f && p.Y < 2.6f ? Kit3D.Runes(p.X * 1.2f + p.Z * .6f, p.Y, .26f, .42f, .03f, 172) : 0);
@@ -272,7 +272,7 @@ public sealed class AsgardScene : ThemePainter
     PaintedLayer Near()
     {
         // Icicle-hung rock overhangs reach into the top of the view when the camera climbs.
-        var spec = new LayerSpec("near", .4f, 96, 40, 9, 4.6f, -94);
+        var spec = new LayerSpec("near", .4f, 192, 40, 9, 4.6f, -94);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(4);
         int rock = m.Snowy(m.Rock("1c2028", "3a4250", 1, .9f, .5f, 191), 1.2f);
         int ice = sc.Material((Vector3 p, ref Surface s) => { s.Albedo = R.Rgb("a8d4ee"); s.Rough = .12f; s.Spec = .05f; s.Trans = .6f; s.Emit = R.Rgb("2a5a7a") * .4f; });

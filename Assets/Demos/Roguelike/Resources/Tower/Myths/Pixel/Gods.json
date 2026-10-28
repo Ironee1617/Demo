@@ -1,0 +1,2134 @@
+{
+ "version": 1,
+ "cell": 96,
+ "grip": 48,
+ "cells": {
+  "front": 11,
+  "back": 12,
+  "weapon": 13,
+  "offhand": 14,
+  "portrait": 15
+ },
+ "gods": [
+  {
+   "id": "michael",
+   "art": 100,
+   "kind": "swing",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -32,
+   "reach": 26,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "gabriel",
+   "art": 101,
+   "kind": "bow",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    10,
+    13
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": 0,
+   "reach": 11,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "raphael",
+   "art": 102,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 26,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "uriel",
+   "art": 103,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 25,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "metatron",
+   "art": 104,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 6,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "zeus",
+   "art": 105,
+   "kind": "throw",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    2
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -14,
+   "reach": 42,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "poseidon",
+   "art": 106,
+   "kind": "thrust",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    9,
+    10
+   ],
+   "back": [
+    -8,
+    12
+   ],
+   "rest": -6,
+   "reach": 24,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "hades",
+   "art": 107,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 25,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "athena",
+   "art": 108,
+   "kind": "thrust",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    10
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -6,
+   "reach": 28,
+   "offhand": true,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "artemis",
+   "art": 109,
+   "kind": "bow",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    10,
+    13
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": 0,
+   "reach": 11,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "odin",
+   "art": 110,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    9,
+    11
+   ],
+   "back": [
+    -8,
+    12
+   ],
+   "rest": -10,
+   "reach": 31,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "thor",
+   "art": 111,
+   "kind": "swing",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    9,
+    11
+   ],
+   "back": [
+    -8,
+    12
+   ],
+   "rest": -32,
+   "reach": 10,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "loki",
+   "art": 112,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 12,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "freyja",
+   "art": 113,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 24,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "tyr",
+   "art": 114,
+   "kind": "swing",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -32,
+   "reach": 22,
+   "offhand": true,
+   "oneHand": true,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "shiva",
+   "art": 115,
+   "kind": "thrust",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    10
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -6,
+   "reach": 27,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [
+    -12,
+    19,
+    13,
+    20
+   ],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "vishnu",
+   "art": 116,
+   "kind": "throw",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -14,
+   "reach": 4,
+   "offhand": true,
+   "oneHand": false,
+   "extra": [
+    -12,
+    19,
+    13,
+    20
+   ],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "brahma",
+   "art": 117,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 23,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [
+    -12,
+    19,
+    13,
+    20
+   ],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "ganesha",
+   "art": 118,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    9,
+    11
+   ],
+   "back": [
+    -8,
+    12
+   ],
+   "rest": -10,
+   "reach": 11,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [
+    -12,
+    19,
+    13,
+    20
+   ],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "hanuman",
+   "art": 119,
+   "kind": "swing",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    9,
+    11
+   ],
+   "back": [
+    -8,
+    12
+   ],
+   "rest": -32,
+   "reach": 13,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "ra",
+   "art": 120,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 26,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "osiris",
+   "art": 121,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 19,
+   "offhand": true,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "isis",
+   "art": 122,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 24,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "anubis",
+   "art": 123,
+   "kind": "swing",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    9,
+    11
+   ],
+   "back": [
+    -8,
+    12
+   ],
+   "rest": -32,
+   "reach": 12,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "horus",
+   "art": 124,
+   "kind": "bow",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    10,
+    13
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": 0,
+   "reach": 11,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "sun_wukong",
+   "art": 125,
+   "kind": "swing",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -32,
+   "reach": 26,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "nezha",
+   "art": 126,
+   "kind": "thrust",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    10
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -6,
+   "reach": 28,
+   "offhand": true,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "erlang_shen",
+   "art": 127,
+   "kind": "thrust",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    10
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -6,
+   "reach": 27,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "guan_yu",
+   "art": 128,
+   "kind": "swing",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    9,
+    11
+   ],
+   "back": [
+    -8,
+    12
+   ],
+   "rest": -32,
+   "reach": 34,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "nuwa",
+   "art": 129,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 5,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "dangun",
+   "art": 130,
+   "kind": "swing",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -32,
+   "reach": 17,
+   "offhand": true,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "jumong",
+   "art": 131,
+   "kind": "bow",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    10,
+    13
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": 0,
+   "reach": 13,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "hwanung",
+   "art": 132,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 24,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "princess_bari",
+   "art": 133,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 26,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "jacheongbi",
+   "art": 134,
+   "kind": "bow",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    10,
+    13
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": 0,
+   "reach": 11,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "bael",
+   "art": 135,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 22,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "agares",
+   "art": 136,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 24,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "vassago",
+   "art": 137,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 7,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "paimon",
+   "art": 138,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 10,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "asmodeus",
+   "art": 139,
+   "kind": "swing",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    9,
+    11
+   ],
+   "back": [
+    -8,
+    12
+   ],
+   "rest": -32,
+   "reach": 24,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "cu_chulainn",
+   "art": 140,
+   "kind": "thrust",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    10
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -6,
+   "reach": 30,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "fionn",
+   "art": 141,
+   "kind": "bow",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    10,
+    13
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": 0,
+   "reach": 11,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "lugh",
+   "art": 142,
+   "kind": "thrust",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    10
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -6,
+   "reach": 29,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "morrigan",
+   "art": 143,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 26,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "dagda",
+   "art": 144,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    9,
+    11
+   ],
+   "back": [
+    -8,
+    12
+   ],
+   "rest": -10,
+   "reach": 8,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "zodiac_rat",
+   "art": 145,
+   "kind": "swing",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -32,
+   "reach": 12,
+   "offhand": true,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "zodiac_ox",
+   "art": 146,
+   "kind": "swing",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    9,
+    11
+   ],
+   "back": [
+    -8,
+    12
+   ],
+   "rest": -32,
+   "reach": 14,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "zodiac_tiger",
+   "art": 147,
+   "kind": "swing",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    9,
+    11
+   ],
+   "back": [
+    -8,
+    12
+   ],
+   "rest": -32,
+   "reach": 14,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "zodiac_rabbit",
+   "art": 148,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 9,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  },
+  {
+   "id": "zodiac_dragon",
+   "art": 149,
+   "kind": "cast",
+   "bodyPivot": [
+    48.0,
+    65
+   ],
+   "top": 36,
+   "bob": [
+    0,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    0,
+    -1,
+    0,
+    1
+   ],
+   "front": [
+    8,
+    11
+   ],
+   "back": [
+    -7,
+    12
+   ],
+   "rest": -10,
+   "reach": 5,
+   "offhand": false,
+   "oneHand": false,
+   "extra": [],
+   "card": [
+    21,
+    0,
+    54,
+    54
+   ]
+  }
+ ]
+}

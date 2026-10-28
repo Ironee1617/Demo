@@ -59,7 +59,7 @@ public sealed class HellScene : ThemePainter
 
     PaintedLayer SkyLayer()
     {
-        var spec = new LayerSpec("sky", .95f, 48, 30, -11, 21, -97);
+        var spec = new LayerSpec("sky", .95f, 128, 30, -11, 21, -97);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(2.5f);
         int rock = Cracked(sc, 701, 2f, .5f);
         int lava = m.Lava("1a0e0a", "ff4a10", 7, 702);
@@ -87,7 +87,7 @@ public sealed class HellScene : ThemePainter
 
     PaintedLayer Far()
     {
-        var spec = new LayerSpec("far", .85f, 64, 32, -11, 19, -96);
+        var spec = new LayerSpec("far", .85f, 128, 32, -11, 19, -96);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3);
         int basalt = Cracked(sc, 711, .7f, .6f);
         int lava = m.Lava("1c100c", "ff5010", 8, 712);
@@ -132,7 +132,7 @@ public sealed class HellScene : ThemePainter
 
     PaintedLayer Mid()
     {
-        var spec = new LayerSpec("mid", .65f, 96, 36, -9.5f, 21, -95);
+        var spec = new LayerSpec("mid", .65f, 192, 36, -9.5f, 21, -95);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3.5f);
         int ground = Cracked(sc, 721, 1.8f, .52f);
         int sealStone = Basalt(m, 722);
@@ -196,7 +196,7 @@ public sealed class HellScene : ThemePainter
     PaintedLayer Near()
     {
         // Chains and hooks hanging from the top when the camera climbs.
-        var spec = new LayerSpec("near", .4f, 96, 40, 8.6f, 5, -94);
+        var spec = new LayerSpec("near", .4f, 192, 40, 8.6f, 5, -94);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(4);
         int iron = m.Metal("2a2624", .45f, .6f, "6a2a12", 741);
         var rnd = new Rand(742); var hangs = new List<(float x, float len, float z)>();
