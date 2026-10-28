@@ -60,7 +60,7 @@ public static class TowerLootTests
             // An elite bounty pays about two early floors of caches, but no card on its own.
             Check(TowerRun.EliteBounty >= perFloor * 1.5f && TowerRun.EliteBounty <= perFloor * 2.5f && TowerRun.EliteBounty < TowerRun.AugmentPrice, "elite bounty near two floors of caches: " + TowerRun.EliteBounty + " / " + perFloor);
         });
-        test("caches stand on level ground or platforms spread along the floor, away from the entry, exits, merchant and traps", () => {
+        test("caches stand on level ground or platforms spread along battle floors, away from the entry, exits and traps", () => {
             int placed = 0, raised = 0, spreadFloors = 0; float spread = 0;
             var extra = new List<float> { 2, 12 };
             for (int seed = 1; seed <= 12; seed++)
@@ -72,7 +72,7 @@ public static class TowerLootTests
                         {
                             var spots = TowerLoot.Place(layout, theme, seed, floor, type, branch, extra);
                             bool peaceful = type == FloorType.Rest || type == FloorType.Shop;
-                            Check(peaceful ? spots.Count == TowerLoot.PeacefulCaches : spots.Count >= TowerLoot.MinCaches && spots.Count <= TowerLoot.MaxCaches, "cache count " + seed + "/" + floor + "/" + type + ": " + spots.Count);
+                            Check(peaceful ? spots.Count == 0 : spots.Count >= TowerLoot.MinCaches && spots.Count <= TowerLoot.MaxCaches, "cache count " + seed + "/" + floor + "/" + type + ": " + spots.Count);
                             var again = TowerLoot.Place(layout, theme, seed, floor, type, branch, extra);
                             float right = exit - (branch ? TowerLoot.BranchClear : TowerLoot.ExitClear), least = float.MaxValue, most = float.MinValue;
                             for (int i = 0; i < spots.Count; i++)
@@ -81,7 +81,6 @@ public static class TowerLootTests
                                 Check(again[i].X == s.X && again[i].Y == s.Y && again[i].Definition == s.Definition, "placement is seeded");
                                 Check(s.Definition.Theme == theme, "the floor's own theme");
                                 Check(s.X >= TowerLoot.EntryClearX && s.X <= right, "clear of the entry and exits: " + s.X);
-                                Check(!peaceful || Math.Abs(s.X - TowerTerrainGenerator.FeatureX) >= TowerLoot.FeatureClear, "clear of the merchant and campfire");
                                 foreach (float spot in extra) Check(Math.Abs(s.X - spot) >= TowerLoot.HazardClear, "clear of positions the caller keeps clear");
                                 foreach (var hazard in layout.Hazards) Check(s.X <= hazard.Left - TowerLoot.HazardClear || s.X >= hazard.Right + TowerLoot.HazardClear, "clear of the floor's traps: " + hazard.Kind + " at " + hazard.X);
                                 Check(Math.Abs(s.Y - layout.SurfaceHeight(s.Support, s.X)) < .0001f, "standing on its support");

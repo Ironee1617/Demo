@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace PrototypeLab.Roguelike
 {
-    // Breakable caches on every tower floor (TowerLoot) and the hearts and coins they scatter. A sword blow breaks
+    // Breakable caches on the tower's battle floors (TowerLoot) and the hearts and coins they scatter. A sword blow breaks
     // them into shards cut from their own painting; coins wait where they fell while monsters remain and fly to the
     // hero once the floor is cleared. Hearts heal only a wounded hero and otherwise stay on the ground.
     public sealed partial class TowerGame
