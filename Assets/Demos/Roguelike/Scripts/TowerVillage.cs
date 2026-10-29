@@ -20,8 +20,9 @@ namespace PrototypeLab.Roguelike
         internal bool VillageBlocking{get{return villagePanel!=VillagePanel.None||StoryOpen;}}
 
         // The village runs left to right: the skill tree's runestone among the tutorial signs and ledges, the
-        // training yard, the shrine, the plaza where restored gods wait, then the tower gate where the next chapter's gods stand.
-        internal const float VillageSpawnX=-13,SteleX=-14.6f,RunestoneX=-9.9f,ShrineX=11.2f;
+        // training yard (the way into the skill practice range), the shrine, the plaza where restored gods wait,
+        // then the tower gate where the next chapter's gods stand.
+        internal const float VillageSpawnX=-13,SteleX=-14.6f,RunestoneX=-9.9f,ShrineX=11.2f,PracticeYardX=5.9f;
         internal static readonly float[] DummyXs={4.6f,7.2f};
         private static readonly float[] CandidateXs={20.1f,22.5f};
         // Five places in the plaza by the shrine, then the clearing under the tutorial ledges; the gods of the
@@ -201,12 +202,13 @@ namespace PrototypeLab.Roguelike
         /// <summary>Some node of the skill tree can be learned with the points in hand.</summary>
         internal bool SkillTreeReady
         {get{foreach(var node in TowerSkillTree.Nodes)if(campaign.CanLearn(node))return true;return false;}}
-        private enum VillageSpot { None, Stele, Runestone, Shrine, Gate, Villager }
+        private enum VillageSpot { None, Stele, Runestone, Shrine, Gate, Villager, Practice }
         private VillageSpot NearestSpot(out Fighter npc)
         {
             npc=null;float best=float.PositiveInfinity;var spot=VillageSpot.None;float x=hero.pos.x;
             Action<VillageSpot,float,float> consider=(kind,at,range)=>{float d=Mathf.Abs(x-at);if(d<range&&d<best){best=d;spot=kind;}};
             consider(VillageSpot.Stele,SteleX,1.3f);consider(VillageSpot.Runestone,RunestoneX,1.1f);consider(VillageSpot.Shrine,ShrineX,1.9f);consider(VillageSpot.Gate,TowerWorld.ExitX,2.1f);
+            consider(VillageSpot.Practice,PracticeYardX,1.5f);
             foreach(var v in villagers){float d=Mathf.Abs(x-v.pos.x);if(d<.9f&&d<best){best=d;spot=VillageSpot.Villager;npc=v;}}
             return spot;
         }
@@ -220,6 +222,7 @@ namespace PrototypeLab.Roguelike
                 case VillageSpot.Shrine: return "신화의 제단  ·  되찾은 신화 보기";
                 case VillageSpot.Gate: return campaign.IsComplete?"서약의 탑  ·  악신은 쓰러졌습니다":"서약의 탑  ·  원정 준비";
                 case VillageSpot.Villager: return TowerRun.GetDefinition(npc.id).Name+"  ·  대화하기";
+                case VillageSpot.Practice: return "스킬 연습장  ·  모든 스킬 이펙트를 재사용 대기 없이 시험";
                 default: return null;
             }
         }
@@ -232,6 +235,7 @@ namespace PrototypeLab.Roguelike
             else if(spot==VillageSpot.Runestone)OpenSkillTree();
             else if(spot==VillageSpot.Shrine){villagePanel=VillagePanel.Shrine;Sound(chimeSound,.3f);}
             else if(spot==VillageSpot.Gate)OpenGate();
+            else if(spot==VillageSpot.Practice)EnterPractice();
             else if(spot==VillageSpot.Villager)
             {
                 var definition=TowerRun.GetDefinition(npc.id);

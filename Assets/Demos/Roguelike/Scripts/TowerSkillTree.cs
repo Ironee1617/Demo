@@ -4,7 +4,7 @@ using System.Globalization;
 
 namespace PrototypeLab.Roguelike
 {
-    public enum SkillBranch { Origin, Arcane, Swift, Bond, Fortune, Guard, Might }
+    public enum SkillBranch { Origin, Arcane, Swift, Bond, Fortune, Guard, Might, Heaven, Underworld }
     public enum SkillTarget { Player, Companions, Party }
     // Skill tree effects that are not hero stats; the game applies each where it happens.
     public enum SkillPerk { None, GoldFind, ClearHeal, HeartHeal, OpeningAugment, BossPoints }
@@ -61,11 +61,12 @@ namespace PrototypeLab.Roguelike
     /// The village skill tree. Every floor an expedition clears earns skill points (kept even when the expedition
     /// fails, unlike its augments); the village spends them on ranks that every later expedition starts with.
     /// The tree grows from one root down a spine of arcane nodes into two crossroads: speed and companions on the
-    /// upper one, defence and offence on the lower, fortune between them.
+    /// upper one, defence and offence on the lower, fortune between them. Below them the spine runs on to a third,
+    /// dearer crossroads where heaven and the underworld part around fortune's last nodes and Lumen's throne.
     /// </summary>
     public static class TowerSkillTree
     {
-        public const int Columns = 23, Rows = 13;
+        public const int Columns = 23, Rows = 20;
         // One point per cleared floor; boss floors (every fifth) and elite floors pay two.
         public const int FloorPoints = 1, BossFloorPoints = 2, EliteFloorPoints = 2;
 
@@ -76,7 +77,7 @@ namespace PrototypeLab.Roguelike
         public static SkillNode Root { get { return Nodes[0]; } }
         public static int TotalCost { get { int total = 0; foreach (var node in Nodes) total += node.TotalCost; return total; } }
         public static string BranchName(SkillBranch branch)
-        { string[] names = { "근원", "비전", "신속", "유대", "행운", "수호", "전투" }; return names[(int)branch]; }
+        { string[] names = { "근원", "비전", "신속", "유대", "행운", "수호", "전투", "천공", "명계" }; return names[(int)branch]; }
 
         /// <summary>Skill points for clearing <paramref name="floor"/> of the given type, with the tree's boss-floor perk.</summary>
         public static int PointsFor(int floor, FloorType type, TowerSkillTreeState tree = null)
@@ -102,7 +103,7 @@ namespace PrototypeLab.Roguelike
         private static SkillNode[] Build()
         {
             const SkillBranch O = SkillBranch.Origin, A = SkillBranch.Arcane, S = SkillBranch.Swift, B = SkillBranch.Bond,
-                F = SkillBranch.Fortune, G = SkillBranch.Guard, M = SkillBranch.Might;
+                F = SkillBranch.Fortune, G = SkillBranch.Guard, M = SkillBranch.Might, H = SkillBranch.Heaven, U = SkillBranch.Underworld;
             const SkillTarget Allies = SkillTarget.Companions, Party = SkillTarget.Party;
             return new[]
             {
@@ -203,7 +204,69 @@ namespace PrototypeLab.Roguelike
                 Stat("mt_butcher", "도살자", M, 18, 11, "mt_revel", HeroStat.CritChance, .03f, 3, 2),
                 Stat("mt_bloodlord", "피의 군주", M, 19, 12, "mt_butcher", HeroStat.LifeSteal, .05f, 1, 4),
                 Stat("mt_reaper", "사신의 낫", M, 18, 8, "mt_slaughter", HeroStat.Damage, .05f, 3, 2),
-                Stat("mt_godslayer", "신살자", M, 19, 8, "mt_reaper", HeroStat.Damage, .12f, 1, 5)
+                Stat("mt_godslayer", "신살자", M, 19, 8, "mt_reaper", HeroStat.Damage, .12f, 1, 5),
+                // The spine runs on from fortune's bounty to the third crossroads; every rank below costs more.
+                Stat("or_stair", "별의 계단", O, 11, 10, "ft_bounty", HeroStat.MaxHealth, .03f, 2, 2),
+                Stat("or_bell", "맹세의 종", O, 11, 11, "or_stair", HeroStat.Damage, .03f, 2, 2),
+                Stat("or_gate", "천명의 문", O, 11, 12, "or_bell", HeroStat.SkillPower, .03f, 2, 2),
+                Stat("cross_heaven", "천명의 교차로", O, 11, 13, "or_gate", HeroStat.MaxHealth, .04f, 2, 3, Party),
+                // Heaven runs left: skill power and reach along the top, then angels, companions' hymns and the sun and moon.
+                Stat("hv_dawn", "여명", H, 10, 13, "cross_heaven", HeroStat.SkillPower, .04f, 3, 2),
+                Stat("hv_halo", "후광", H, 9, 13, "hv_dawn", HeroStat.Cooldown, .02f, 3, 2),
+                Stat("hv_star", "별의 인도", H, 8, 13, "hv_halo", HeroStat.Area, .05f, 3, 2),
+                Stat("hv_orbit", "천체의 궤도", H, 7, 13, "hv_star", HeroStat.Range, .05f, 3, 2),
+                Stat("hv_nova", "초신성", H, 6, 13, "hv_orbit", HeroStat.SkillPower, .05f, 3, 2),
+                Stat("hv_comet", "혜성의 꼬리", H, 5, 13, "hv_nova", HeroStat.Area, .06f, 3, 2),
+                Stat("hv_meteor", "유성우", H, 4, 13, "hv_comet", HeroStat.Projectiles, 1, 1, 6),
+                Stat("hv_choir", "천사의 합창", H, 9, 14, "hv_halo", HeroStat.Healing, .06f, 3, 2, Party),
+                Stat("hv_wing", "천상의 날개", H, 9, 15, "hv_choir", HeroStat.MoveSpeed, .03f, 3, 2),
+                Stat("hv_feather", "깃털 걸음", H, 9, 16, "hv_wing", HeroStat.DodgeCooldown, .04f, 3, 2),
+                Stat("hv_seraph", "세라핌", H, 9, 17, "hv_feather", HeroStat.DodgeCooldown, .12f, 1, 5),
+                Stat("hv_herald", "천상의 전령", H, 7, 14, "hv_orbit", HeroStat.SkillPower, .05f, 3, 2, Allies),
+                Stat("hv_hymn", "승리의 찬송", H, 7, 15, "hv_herald", HeroStat.Cooldown, .03f, 3, 2, Allies),
+                Stat("hv_trumpet", "나팔 소리", H, 7, 16, "hv_hymn", HeroStat.Area, .06f, 3, 2, Allies),
+                Stat("hv_psalm", "시편", H, 7, 17, "hv_trumpet", HeroStat.Healing, .08f, 3, 2, Allies),
+                Stat("hv_ascend", "승천", H, 8, 18, "hv_psalm", HeroStat.SkillPower, .05f, 3, 3, Party),
+                Stat("hv_elysium", "엘리시온", H, 9, 19, "hv_ascend", HeroStat.MaxHealth, .12f, 1, 6, Party),
+                Stat("hv_moon", "달의 은총", H, 5, 14, "hv_comet", HeroStat.Healing, .08f, 3, 2),
+                Stat("hv_tide", "달의 조수", H, 5, 15, "hv_moon", HeroStat.Cooldown, .03f, 3, 2),
+                Stat("hv_eclipse", "일식", H, 4, 16, "hv_tide", HeroStat.Area, .15f, 1, 5),
+                Stat("hv_sun", "태양의 권능", H, 5, 16, "hv_tide", HeroStat.SkillPower, .06f, 3, 3),
+                Stat("hv_corona", "코로나", H, 5, 17, "hv_sun", HeroStat.Area, .06f, 2, 3),
+                Stat("hv_solar", "태양신의 눈", H, 5, 18, "hv_corona", HeroStat.SkillPower, .15f, 1, 6),
+                // The underworld mirrors it on the right: blows and blood, the legions of the dead and the fires below.
+                Stat("uw_dusk", "황혼", U, 12, 13, "cross_heaven", HeroStat.Damage, .04f, 3, 2),
+                Stat("uw_styx", "망자의 강", U, 13, 13, "uw_dusk", HeroStat.CritChance, .02f, 3, 2),
+                Stat("uw_ferry", "저승 뱃사공", U, 14, 13, "uw_styx", HeroStat.AttackSpeed, .03f, 3, 2),
+                Stat("uw_gate", "명계의 문", U, 15, 13, "uw_ferry", HeroStat.Armor, 3, 3, 2),
+                Stat("uw_hound", "지옥의 사냥개", U, 16, 13, "uw_gate", HeroStat.Damage, .05f, 3, 2),
+                Stat("uw_flame", "명계의 불꽃", U, 17, 13, "uw_hound", HeroStat.Range, .05f, 3, 2),
+                Stat("uw_judge", "명왕의 심판", U, 18, 13, "uw_flame", HeroStat.Damage, .1f, 1, 6),
+                Stat("uw_soul", "영혼 흡수", U, 13, 14, "uw_styx", HeroStat.LifeSteal, .01f, 3, 2),
+                Stat("uw_ash", "잿빛 재생", U, 13, 15, "uw_soul", HeroStat.Regeneration, .4f, 3, 2),
+                Stat("uw_grave", "무덤의 인내", U, 13, 16, "uw_ash", HeroStat.MaxHealth, .05f, 3, 2),
+                Stat("uw_lich", "불사의 군주", U, 13, 17, "uw_grave", HeroStat.Regeneration, 2.5f, 1, 5),
+                Stat("uw_legion", "망자의 군단", U, 15, 14, "uw_gate", HeroStat.Damage, .05f, 3, 2, Allies),
+                Stat("uw_oath", "피의 맹약", U, 15, 15, "uw_legion", HeroStat.LifeSteal, .01f, 3, 2, Allies),
+                Stat("uw_shade", "그림자 병사", U, 15, 16, "uw_oath", HeroStat.AttackSpeed, .03f, 3, 2, Allies),
+                Stat("uw_banshee", "밴시의 울음", U, 15, 17, "uw_shade", HeroStat.CritChance, .03f, 3, 2, Allies),
+                Stat("uw_charon", "저승의 동전", U, 14, 18, "uw_banshee", HeroStat.Damage, .04f, 3, 3, Party),
+                Stat("uw_hades", "명왕의 군세", U, 13, 19, "uw_charon", HeroStat.Damage, .1f, 1, 6, Party),
+                Stat("uw_brim", "유황불", U, 17, 14, "uw_flame", HeroStat.AttackSpeed, .03f, 3, 2),
+                Stat("uw_chain", "저승의 사슬", U, 17, 15, "uw_brim", HeroStat.Armor, 3, 3, 2),
+                Stat("uw_cerberus", "케르베로스", U, 18, 16, "uw_chain", HeroStat.Armor, 12, 1, 5),
+                Stat("uw_pyre", "화장의 불길", U, 17, 16, "uw_chain", HeroStat.Damage, .05f, 3, 3),
+                Stat("uw_inferno", "지옥불", U, 17, 17, "uw_pyre", HeroStat.CritChance, .03f, 2, 3),
+                Stat("uw_tartarus", "타르타로스", U, 17, 18, "uw_inferno", HeroStat.Damage, .15f, 1, 6),
+                // Fortune's last nodes fall down the middle to the grail and the throne at the very bottom.
+                Perk("ft_well", "소원의 샘", 11, 14, "cross_heaven", SkillPerk.GoldFind, .1f, 3, 2),
+                Perk("ft_omen", "길조", 11, 15, "ft_well", SkillPerk.HeartHeal, .2f, 3, 2),
+                Perk("ft_prophet", "천리안", 10, 15, "ft_omen", SkillPerk.OpeningAugment, 1, 1, 6),
+                Perk("ft_offering", "풍년의 공물", 11, 16, "ft_omen", SkillPerk.ClearHeal, 6, 3, 2),
+                Perk("ft_sage", "대현자", 12, 16, "ft_offering", SkillPerk.BossPoints, 1, 1, 6),
+                Perk("ft_altar", "황금 제단", 11, 17, "ft_offering", SkillPerk.GoldFind, .15f, 2, 3),
+                Stat("or_grail", "성배", O, 11, 18, "ft_altar", HeroStat.Healing, .08f, 2, 3, Party),
+                Stat("or_throne", "루멘의 신좌", O, 11, 19, "or_grail", HeroStat.Damage, .1f, 1, 8, Party)
             };
         }
     }

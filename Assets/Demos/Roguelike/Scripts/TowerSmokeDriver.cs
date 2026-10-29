@@ -772,9 +772,12 @@ namespace PrototypeLab.Roguelike
             var tickShots = typeof(TowerGame).GetMethod("TickShots", flags);
             var tickAreas = typeof(TowerGame).GetMethod("TickSkillAreas", flags);
             var reset = typeof(TowerGame).GetMethod("ResetSkills", flags);
+            // Statuses (burns, curses, seeds) and follow-ups (second waves, landing bursts) tick beside areas and shots.
+            var tickStatuses = typeof(TowerGame).GetMethod("TickSkillStatuses", flags);
+            var tickMoves = typeof(TowerGame).GetMethod("TickSkillMoves", flags);
             var shots = (IList)typeof(TowerGame).GetField("shots", flags).GetValue(game);
             var covered = new HashSet<SkillEffect>();
-            Require(cast != null && tickShots != null && tickAreas != null && reset != null, "Skill fixture entry points are unavailable.");
+            Require(cast != null && tickShots != null && tickAreas != null && reset != null && tickStatuses != null && tickMoves != null, "Skill fixture entry points are unavailable.");
             foreach (var definition in TowerRun.Augments)
             {
                 if (definition.Kind != RewardKind.Skill || !covered.Add(definition.Effect)) continue;
@@ -782,16 +785,22 @@ namespace PrototypeLab.Roguelike
                 shots.Clear(); reset.Invoke(game, null);
                 game.hero.pos = new Vector2(0, TowerWorld.Ground); game.hero.root.transform.position = game.hero.pos;
                 probeTarget.pos = new Vector2(1, TowerWorld.Ground); probeTarget.root.transform.position = probeTarget.pos;
-                probeTarget.hp = probeTarget.maxHp = 1000000; probeTarget.slowTime = 0;
+                probeTarget.hp = probeTarget.maxHp = 1000000; probeTarget.slowTime = probeTarget.stunTime = 0;
+                probeTarget.burnTime = probeTarget.curseTime = probeTarget.seedTime = probeTarget.markTime = 0;
                 game.hero.hp = game.PlayerMaxHealth * .3f;
                 float beforeHp = probeTarget.hp, beforeHero = game.hero.hp, beforeShield = game.PlayerShield, beforeX = game.hero.pos.x;
                 var fixtureSkill = new SkillState(definition, game.run.Player);
                 cast.Invoke(game, new object[] { game.run.Player, fixtureSkill, game.hero, probeTarget });
-                for (int frame = 0; frame < 32; frame++) { tickAreas.Invoke(game, new object[] { .05f }); tickShots.Invoke(game, new object[] { .05f }); }
+                for (int frame = 0; frame < 32; frame++)
+                {
+                    tickAreas.Invoke(game, new object[] { .05f }); tickShots.Invoke(game, new object[] { .05f });
+                    tickStatuses.Invoke(game, new object[] { .05f }); tickMoves.Invoke(game, new object[] { .05f });
+                }
                 bool damaged = probeTarget.hp < beforeHp;
                 bool verified = definition.Effect == SkillEffect.HealPulse ? game.hero.hp > beforeHero : definition.Effect == SkillEffect.ShieldPulse ? game.PlayerShield > beforeShield : damaged;
                 if (definition.Effect == SkillEffect.IceNova || definition.Effect == SkillEffect.PoisonCloud) verified &= probeTarget.slowTime > 0;
-                if (definition.Effect == SkillEffect.LifeDrain) verified &= game.hero.hp > beforeHero;
+                if (definition.Effect == SkillEffect.LifeDrain || definition.Effect == SkillEffect.Bloom) verified &= game.hero.hp > beforeHero;
+                if (definition.Effect == SkillEffect.Hook || definition.Effect == SkillEffect.Quake) verified &= probeTarget.stunTime > 0 || probeTarget.hp <= 0;
                 if (definition.Effect == SkillEffect.DashStrike) verified &= Mathf.Abs(game.hero.pos.x - beforeX) > .01f;
                 Require(verified, "Skill effect produced no expected damage, status, healing or shield: " + definition.Effect);
                 report.effectResults.Add(definition.Effect + ": PASS");

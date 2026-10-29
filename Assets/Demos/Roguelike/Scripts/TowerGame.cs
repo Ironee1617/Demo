@@ -21,8 +21,15 @@ namespace PrototypeLab.Roguelike
             public TowerThemeId theme;
             // Shown instead of the species name, e.g. an awakened chapter boss.
             public string title;
+            // Statuses skills leave on an enemy (TowerSkillStatus.cs): burning and cursed damage over time, the hunter's mark,
+            // a seed that blooms, who applied them, and when this enemy last showed a reaction.
+            public float burnTime,burnDps,burnClock,curseTime,curseDps,curseClock,markTime,seedTime,seedPower,seedRadius,reactionAt=-9;
+            public HeroState burnOwner,curseOwner,seedOwner; public int curseSpread,burnCast,curseCast,seedCast,seedLevel; public bool markSpread,seedDouble;
         }
-        private sealed class Shot { public GameObject root; public Vector2 pos,velocity; public float damage,life,area,slowDuration,hitRadius=.16f; public bool hostile,oathChain,basic,empowered,forceCrit; public Color color; public HeroState owner; public SkillEffect effect; public int pierce=1; public readonly HashSet<Fighter> hit=new HashSet<Fighter>(); }
+        private sealed class Shot { public GameObject root; public Vector2 pos,velocity; public float damage,life,area,slowDuration,hitRadius=.16f; public bool hostile,oathChain,basic,empowered,forceCrit,signature; public Color color; public HeroState owner; public SkillEffect effect; public int pierce=1,practiceCast;
+            // Skill level (drawn grade); a returning disc's thrower and turn; a bouncing shot's remaining bounces.
+            public int level=1,bounces; public Fighter home; public bool returning,skill; public float returnScale=1,bounceRange,bounceGain=1;
+            public readonly HashSet<Fighter> hit=new HashSet<Fighter>(); }
         internal sealed class Number { public Vector2 pos; public string text; public Color color; public float life; }
         internal TowerRun run;
         internal TowerProgress progress;
@@ -55,7 +62,7 @@ namespace PrototypeLab.Roguelike
         internal float PlayerDamage { get { return run.Player.Damage; } }
         internal float PlayerArmor { get { return run.Player.Armor; } }
         internal float PlayerMoveSpeed { get { return run.Player.MoveSpeed; } }
-        internal float PlayerAttackInterval { get { return run.Player.AttackInterval; } }
+        internal float PlayerAttackInterval { get { return run.Player.AttackInterval*BannerInterval(hero); } }
         internal int ActiveProjectiles { get { return shots.Count; } }
         internal bool SmokeControlled;
         internal float MoveOverride;
@@ -113,7 +120,7 @@ namespace PrototypeLab.Roguelike
         }
         private void ResetActors()
         {
-            ResetEnemyCombat();ClearVillage();ResetLoot();
+            ResetEnemyCombat();ClearVillage();ClearPractice();ResetLoot();
             foreach(var e in enemies)if(e.root)Destroy(e.root);enemies.Clear();
             foreach(var a in allies)if(a.root)Destroy(a.root);allies.Clear();
             foreach(var s in shots)if(s.root)Destroy(s.root);shots.Clear();
@@ -252,6 +259,7 @@ namespace PrototypeLab.Roguelike
             using(TowerProfiling.Loot.Auto())TickLoot(dt);
             if(hero.hp<=0)return;
             if(village)TickVillage(dt);
+            else if(practice)TickPractice(dt);
             else if(RemainingEnemies==0&&!run.IsFloorCleared)
             {
                 run.ClearFloor();ClearOathEffects();foreach(var shot in shots)if(shot.root)Destroy(shot.root);shots.Clear();RecordFloorResult();FlushGold();CancelPendingSkills();hero.hp=Mathf.Min(PlayerMaxHealth,hero.hp+18);Sound(chimeSound,.8f);
@@ -264,9 +272,12 @@ namespace PrototypeLab.Roguelike
             else if(!SmokeControlled&&run.IsFloorCleared&&!run.IsRewardPending&&Input.GetKeyDown(KeyCode.E))
             {if(NearMerchant)InteractMerchant();else{var gate=NearestGate();if(gate.HasValue)NextFloor(gate.Value);}}
             using(TowerProfiling.World.Auto())world.Tick(dt,village||run.IsFloorCleared&&!run.IsRewardPending);
-            if(move!=0)cameraLead=Mathf.MoveTowards(cameraLead,move*1.6f,frame*4);
+            if(practice)cameraLead=PracticeCameraLead;
+            else if(move!=0)cameraLead=Mathf.MoveTowards(cameraLead,move*1.6f,frame*4);
             float cameraX=Mathf.Clamp(hero.pos.x+cameraLead,-7.5f,TowerWorld.Right-7.5f);
-            Vector3 destination=new Vector3(cameraX,Mathf.Clamp(hero.pos.y+1.5f,0,cameraCeiling),-10);
+            // The practice range keeps its ground at the same screen height on every resolution, above its skill bar.
+            float cameraY=practice?PracticeCameraY:Mathf.Clamp(hero.pos.y+1.5f,0,cameraCeiling);
+            Vector3 destination=new Vector3(cameraX,cameraY,-10);
             Vector3 settled=Vector3.Lerp(view.transform.position-appliedShake,destination,1-Mathf.Exp(-frame*5));
             appliedShake=NextShake(frame);
             view.transform.position=SnapCamera(settled+appliedShake);
@@ -302,7 +313,9 @@ namespace PrototypeLab.Roguelike
             float damage=PlayerDamage*(counter?DodgeCounterMultiplier:1)*(dashSlash?DashSlashMultiplier:finisher?FinisherMultiplier:1);
             float push=hero.facing*(heavy?.9f:.35f);
             Vector2 oathTarget=origin;float nearest=float.PositiveInfinity;
-            for(int i=enemies.Count-1;i>=0;i--){var e=enemies[i];if(CanTarget(e,run.Player)&&(e.pos.x-hero.pos.x)*hero.facing>-.4f&&Mathf.Abs(e.pos.x-hero.pos.x)<reach&&Mathf.Abs((e.pos.y+.85f)-(hero.pos.y+.9f))<1.9f){float distance=(e.pos-hero.pos).sqrMagnitude;if(distance<nearest){nearest=distance;oathTarget=e.pos;}StrikeEnemy(e,damage,run.Player,push);connected=true;}}
+            practiceStrike=-1;
+            var struck=enemies.ToArray();for(int i=struck.Length-1;i>=0;i--){var e=struck[i];if(CanTarget(e,run.Player)&&(e.pos.x-hero.pos.x)*hero.facing>-.4f&&Mathf.Abs(e.pos.x-hero.pos.x)<reach&&Mathf.Abs((e.pos.y+.85f)-(hero.pos.y+.9f))<1.9f){float distance=(e.pos-hero.pos).sqrMagnitude;if(distance<nearest){nearest=distance;oathTarget=e.pos;}StrikeEnemy(e,damage,run.Player,push);connected=true;}}
+            practiceStrike=0;
             if(StrikeTraps(reach,heavy))connected=true;
             if(village&&StrikeDummies(reach,damage,heavy))connected=true;
             bool smashed=StrikeCaches(reach,heavy);
@@ -322,8 +335,8 @@ namespace PrototypeLab.Roguelike
             var go=TowerWorld.SpriteObject(transform,hostile?"Enemy bolt":"Companion bolt",from,area>.5f?Vector2.one*.65f:pierce>1?new Vector2(.8f,.35f):new Vector2(.45f,.16f),color,120,TowerWorld.Glow);
             go.transform.localScale=Vector3.one;
             var v=(to-from).normalized*speed;go.transform.rotation=Quaternion.Euler(0,0,Mathf.Atan2(v.y,v.x)*Mathf.Rad2Deg);
-            shots.Add(new Shot{root=go,pos=from,velocity=v,damage=damage,hostile=hostile,color=color,area=area,owner=owner,pierce=pierce,slowDuration=slowDuration,life=4});
-            if(hostile)StyleHostileLastShot();else StyleLastShot(owner is CompanionState&&((CompanionState)owner).Definition.Role==CompanionRole.Archer?SkillEffect.MultiShot:SkillEffect.ArcaneVolley);
+            shots.Add(new Shot{root=go,pos=from,velocity=v,damage=damage,hostile=hostile,color=color,area=area,owner=owner,pierce=pierce,slowDuration=slowDuration,life=4,practiceCast=practiceStrike>0?practiceStrike:PracticeCasts,level=striking?strikeLevel:1,skill=striking});
+            if(hostile)StyleHostileLastShot();else StyleLastShot(owner is CompanionState&&((CompanionState)owner).Definition.Role==CompanionRole.Archer?SkillEffect.MultiShot:SkillEffect.ArcaneVolley,false);
         }
 
         private bool criticalHit;
@@ -332,7 +345,8 @@ namespace PrototypeLab.Roguelike
             bool critical=criticalHit;criticalHit=false;
             if(!CanTarget(e,null))return;e.hp-=damage;e.hurt=.14f;e.pos.x=Mathf.Clamp(e.pos.x+push,TowerWorld.Left,TowerWorld.Right);
             FloatText(e.pos+Vector2.up*1.8f,Mathf.CeilToInt(damage)+(critical?"!":""),critical?new Color(1,.5f,.32f):TowerWorld.Gold);Burst(e.pos+Vector2.up,TowerWorld.Gold,4,.3f);Sound(hitSound,.35f);
-            if(e.hp<=0){kills++;lastFallen=e.pos;if(vfx!=null)vfx.KillBurst(e.pos+Vector2.up*(e.isBoss?1.6f:.9f),e.isBoss?TowerWorld.Gold:TowerWorld.Teal);HitStop(e.isBoss?.12f:.05f);if(e.isBoss)Shake(.3f,.45f);if(IsFinalBoss(e)){Shake(.6f,1.1f);Toast(e.monster.Name+" 붕괴","지구를 삼킨 악신이 무너집니다",brass,4);}enemies.Remove(e);RetireEnemy(e);}
+            if(practice)PracticeStruck(e,damage);
+            if(e.hp<=0){kills++;lastFallen=e.pos;if(vfx!=null)vfx.KillBurst(e.pos+Vector2.up*(e.isBoss?1.6f:.9f),e.isBoss?TowerWorld.Gold:TowerWorld.Teal);HitStop(e.isBoss?.12f:.05f);if(e.isBoss)Shake(.3f,.45f);if(IsFinalBoss(e)){Shake(.6f,1.1f);Toast(e.monster.Name+" 붕괴","지구를 삼킨 악신이 무너집니다",brass,4);}enemies.Remove(e);RetireEnemy(e);StatusesOnFall(e);}
         }
         private void HurtHero(float damage)
         {

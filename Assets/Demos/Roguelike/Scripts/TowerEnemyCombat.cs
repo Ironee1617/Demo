@@ -96,6 +96,7 @@ namespace PrototypeLab.Roguelike
         private void TickEnemy(Fighter actor, float dt)
         {
             if (actor == null) return;
+            if (practice) { TickPracticeTarget(actor, dt); return; }
             if (actor.isBoss) { TickBoss(actor, dt); return; }
             if (actor.hp <= 0 || !actor.root) { RemoveEnemyCombat(actor); return; }
             EnemyState state;

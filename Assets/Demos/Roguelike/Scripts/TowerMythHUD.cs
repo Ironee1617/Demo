@@ -30,6 +30,7 @@ namespace PrototypeLab.Roguelike
             float y=384;
             if(Button(new Rect(96,y,420,62),started?"이어하기":"모험 시작",brass,true,true))StartClimb();y+=80;
             if(Button(new Rect(96,y,420,50),"서약 시험장  ·  세 천사와 10층",silver)){oathLobby=true;confirmReset=false;}y+=62;
+            if(Button(new Rect(96,y,420,50),"스킬 연습장  ·  모든 스킬 이펙트 시험",TowerWorld.Teal)){confirmReset=false;EnterPractice();return;}y+=62;
             if(Button(new Rect(96,y,420,50),"조작과 규칙",muted))help=true;y+=62;
             if(started&&Button(new Rect(96,y,420,50),confirmReset?"정말 처음부터 시작할까요?":"새로운 여정",confirmReset?crimson:muted))
             {if(confirmReset){confirmReset=false;ResetCampaign();}else confirmReset=true;}

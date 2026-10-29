@@ -16,14 +16,29 @@ namespace PrototypeLab.Roguelike
         private float goldCarry;
         // The tree's grid sits centred in the frame on the left; the selected node's card fills the right.
         private static readonly Rect TreeFrame=new Rect(64,170,1048,608),TreeCard=new Rect(1130,170,406,608);
-        private const float TreeSpacing=46,TreeNode=34,TreeKeystone=40;
-        private static readonly float TreeMiddle=TreeMiddleColumn();
+        // The grid is taller than the frame, so it scrolls in a view under the frame's header of points and branches.
+        private static readonly Rect TreeView=new Rect(72,260,1006,510),TreeTrack=new Rect(1086,272,6,486);
+        private const float TreeSpacing=46,TreeNode=34,TreeKeystone=40,TreeTop=32;
+        private static readonly float TreeMiddle=TreeMiddleColumn(),TreeHeight=TreeTop+(TowerSkillTree.Rows-1)*TreeSpacing+44;
+        private static float TreeScrollMax{get{return Mathf.Max(0,TreeHeight-TreeView.height);}}
+        // The view eases toward its goal; wheel, keys and the bar move the goal, a drag moves both.
+        private float treeScroll,treeScrollGoal,treeDragFrom,treeDragScroll;
+        private enum TreeDrag{None,Pan,Bar}
+        private TreeDrag treeDrag;
 
         internal void OpenSkillTree()
         {
-            villagePanel=VillagePanel.SkillTree;confirmTreeReset=false;treeOpenedFrame=Time.frameCount;
+            villagePanel=VillagePanel.SkillTree;confirmTreeReset=false;treeOpenedFrame=Time.frameCount;treeDrag=TreeDrag.None;
             if(TowerSkillTree.Get(treeSelection)==null)treeSelection=TowerSkillTree.Root.Id;
+            RevealTreeNode(TowerSkillTree.Get(treeSelection),true);
             Sound(chimeSound,.3f);
+        }
+        /// <summary>Scrolls the least distance that brings the node into the view, at once or eased.</summary>
+        internal void RevealTreeNode(SkillNode node,bool instant)
+        {
+            if(node==null)return;float y=TreeTop+node.Row*TreeSpacing;
+            treeScrollGoal=Mathf.Clamp(Mathf.Clamp(treeScrollGoal,y+72-TreeView.height,y-72),0,TreeScrollMax);
+            if(instant)treeScroll=treeScrollGoal;
         }
 
         /// <summary>Every cleared floor of a campaign expedition banks skill points; the tree's feast perk heals on top of the usual 18.</summary>
@@ -39,7 +54,7 @@ namespace PrototypeLab.Roguelike
         /// <summary>The tree's foresight deals its stat cards before the first fight, once the companions have joined.</summary>
         private void TickOpeningAugments()
         {
-            if(village||StoryOpen||hero==null||hero.hp<=0||run.OpeningAugments<=0)return;
+            if(village||practice||StoryOpen||hero==null||hero.hp<=0||run.OpeningAugments<=0)return;
             if(run.DealOpeningAugment())Toast("선견지명","첫 전투 전에 능력치 증강을 고릅니다",SkillPointColor,3);
         }
         /// <summary>Picked-up gold raised by the tree's gold find; fractions carry over to the next coin.</summary>
@@ -72,6 +87,8 @@ namespace PrototypeLab.Roguelike
                 case SkillBranch.Fortune: return new Color(.95f,.77f,.32f);
                 case SkillBranch.Guard: return new Color(.42f,.62f,1f);
                 case SkillBranch.Might: return new Color(.96f,.36f,.3f);
+                case SkillBranch.Heaven: return new Color(1f,.58f,.8f);
+                case SkillBranch.Underworld: return new Color(1f,.52f,.2f);
                 default: return new Color(.94f,.88f,.77f);
             }
         }
@@ -97,10 +114,64 @@ namespace PrototypeLab.Roguelike
             foreach(var node in TowerSkillTree.Nodes){low=Mathf.Min(low,node.Column);high=Mathf.Max(high,node.Column);}
             return (low+high)*.5f;
         }
-        private static Vector2 TreeCenter(SkillNode node)
-        {return new Vector2(TreeFrame.center.x+(node.Column-TreeMiddle)*TreeSpacing,TreeFrame.y+28+node.Row*TreeSpacing);}
-        private static Rect TreeNodeRect(SkillNode node)
+        private Vector2 TreeCenter(SkillNode node)
+        {return new Vector2(TreeFrame.center.x+(node.Column-TreeMiddle)*TreeSpacing,TreeView.y+TreeTop+node.Row*TreeSpacing-treeScroll);}
+        private Rect TreeNodeRect(SkillNode node)
         {float size=node.IsKeystone?TreeKeystone:TreeNode;var c=TreeCenter(node);return new Rect(c.x-size*.5f,c.y-size*.5f,size,size);}
+        /// <summary>Cuts a link to the rows between <paramref name="top"/> and <paramref name="bottom"/>; false when none of it is left.</summary>
+        private static bool ClipLink(ref Vector2 a,ref Vector2 b,float top,float bottom)
+        {
+            Vector2 p=a.y<=b.y?a:b,q=a.y<=b.y?b:a;
+            if(q.y<top||p.y>bottom)return false;
+            float dy=q.y-p.y;
+            if(dy>.01f){Vector2 from=p;if(p.y<top)p=Vector2.Lerp(from,q,(top-from.y)/dy);if(q.y>bottom)q=Vector2.Lerp(from,q,(bottom-from.y)/dy);}
+            a=p;b=q;return true;
+        }
+        /// <summary>Wheel, keys and drags move the view; a drag starts on the bar or on empty ground between the nodes.</summary>
+        private void ScrollTree(Event e,bool overNode)
+        {
+            float max=TreeScrollMax,thumb=TreeThumb.height,travel=TreeTrack.height-thumb;
+            if(GUI.enabled&&e.type==EventType.ScrollWheel&&TreeFrame.Contains(e.mousePosition)){ScrollTreeBy(e.delta.y*20);e.Use();}
+            else if(GUI.enabled&&e.type==EventType.KeyDown)
+            {
+                float step=e.keyCode==KeyCode.UpArrow?-TreeSpacing*2:e.keyCode==KeyCode.DownArrow?TreeSpacing*2:e.keyCode==KeyCode.PageUp?-TreeView.height*.8f:e.keyCode==KeyCode.PageDown?TreeView.height*.8f:0;
+                if(e.keyCode==KeyCode.Home)step=-max;else if(e.keyCode==KeyCode.End)step=max;
+                if(step!=0){ScrollTreeBy(step);e.Use();}
+            }
+            else if(e.type==EventType.MouseDown&&GUI.enabled)
+            {
+                var m=e.mousePosition;var bar=new Rect(TreeTrack.x-10,TreeTrack.y-6,TreeTrack.width+20,TreeTrack.height+12);
+                if(e.button==0&&bar.Contains(m)&&max>0)
+                {
+                    // A press beside the thumb jumps it under the pointer, then drags from there.
+                    if(!TreeThumb.Contains(m))treeScroll=treeScrollGoal=Mathf.Clamp01((m.y-thumb*.5f-TreeTrack.y)/travel)*max;
+                    treeDrag=TreeDrag.Bar;
+                }
+                else if(TreeView.Contains(m)&&(e.button!=0||!overNode))treeDrag=TreeDrag.Pan;
+                if(treeDrag!=TreeDrag.None){treeDragFrom=m.y;treeDragScroll=treeScroll;e.Use();}
+            }
+            else if(e.type==EventType.MouseDrag&&treeDrag!=TreeDrag.None)
+            {
+                float moved=e.mousePosition.y-treeDragFrom;
+                treeScroll=treeScrollGoal=Mathf.Clamp(treeDrag==TreeDrag.Bar?treeDragScroll+moved*max/Mathf.Max(1,travel):treeDragScroll-moved,0,max);
+                e.Use();
+            }
+            if(e.type==EventType.Repaint)
+                treeScroll=Mathf.Abs(treeScrollGoal-treeScroll)<.5f?treeScrollGoal:Mathf.Lerp(treeScroll,treeScrollGoal,1-Mathf.Exp(-16*Time.unscaledDeltaTime));
+            treeScroll=Mathf.Clamp(treeScroll,0,max);
+        }
+        /// <summary>Moves the view's goal down by <paramref name="pixels"/>, or up when negative; the view eases after it.</summary>
+        internal void ScrollTreeBy(float pixels){treeScrollGoal=Mathf.Clamp(treeScrollGoal+pixels,0,TreeScrollMax);}
+        /// <summary>Whether the node lies wholly inside the tree's view at its current scroll.</summary>
+        internal bool TreeNodeShown(SkillNode node){var r=TreeNodeRect(node);return r.y>=TreeView.y&&r.yMax<=TreeView.yMax;}
+        private Rect TreeThumb
+        {
+            get
+            {
+                float max=TreeScrollMax,h=Mathf.Max(48,TreeTrack.height*TreeView.height/TreeHeight);
+                return new Rect(TreeTrack.x,TreeTrack.y+(max>0?(TreeTrack.height-h)*treeScroll/max:0),TreeTrack.width,h);
+            }
+        }
         /// <summary>A straight bar between two points, drawn by rotating the GUI matrix.</summary>
         private void TreeLine(Vector2 a,Vector2 b,float width,Color color)
         {
@@ -127,9 +198,21 @@ namespace PrototypeLab.Roguelike
             Icon(new Rect(TreeFrame.x+32,TreeFrame.y+30,40,40),UIIcon.Crystal);
             Label(new Rect(TreeFrame.x+78,TreeFrame.y+24,140,20),"스킬 포인트",13,muted);
             Title(new Rect(TreeFrame.x+78,TreeFrame.y+40,140,34),points.ToString("N0"),26,points>0?paper:muted,TextAnchor.MiddleLeft);
+            float x=TreeFrame.x+250;
+            for(var branch=SkillBranch.Arcane;branch<=SkillBranch.Underworld;branch++)
+            {
+                Color c=BranchColor(branch);Diamond(new Vector2(x+6,TreeFrame.y+50),12,c);
+                Label(new Rect(x+18,TreeFrame.y+38,48,24),TowerSkillTree.BranchName(branch),13,Alpha(c,.9f),TextAnchor.MiddleLeft,true);x+=64;
+            }
+            Label(new Rect(x,TreeFrame.y+38,TreeFrame.xMax-24-x,24),"휠 · 드래그로 위아래 이동",13,muted,TextAnchor.MiddleRight);
+            Divider(new Rect(TreeFrame.x+18,TreeView.y-9,TreeFrame.width-36,10),.55f);
 
+            // A drag ends on release, or on the next press if the release fell outside the window.
+            if(e.rawType==EventType.MouseUp||e.type==EventType.MouseDown)treeDrag=TreeDrag.None;
             SkillNode hovered=null;
-            foreach(var node in TowerSkillTree.Nodes)if(TreeNodeRect(node).Contains(e.mousePosition))hovered=node;
+            if(treeDrag==TreeDrag.None&&TreeView.Contains(e.mousePosition))
+                foreach(var node in TowerSkillTree.Nodes)if(TreeNodeRect(node).Contains(e.mousePosition))hovered=node;
+            ScrollTree(e,hovered!=null);
             if(GUI.enabled&&hovered!=null&&e.type==EventType.MouseDown&&e.button==0)
             {
                 // A click selects a node; a double click also learns its next rank.
@@ -137,21 +220,40 @@ namespace PrototypeLab.Roguelike
                 if(e.clickCount>=2)LearnTreeNode(hovered);else Sound(chimeSound,.12f);
                 e.Use();
             }
-            // Links first, brighter once the lower node has a rank, then the nodes over them.
+            // Links first, brighter once the lower node has a rank, cut by hand to the view since they are drawn turned.
+            float top=TreeView.y+4,bottom=TreeView.yMax-4;
             foreach(var node in TowerSkillTree.Nodes)
             {
                 if(node.IsRoot)continue;var parent=TowerSkillTree.Get(node.ParentId);Color c=BranchColor(node.Branch);
+                Vector2 a=TreeCenter(parent),b=TreeCenter(node);if(!ClipLink(ref a,ref b,top,bottom))continue;
                 bool learned=tree.Rank(node.Id)>0,open=tree.IsOpen(node);
-                if(learned)TreeLine(TreeCenter(parent),TreeCenter(node),7,Alpha(c,.18f));
-                TreeLine(TreeCenter(parent),TreeCenter(node),learned?3:2,learned?Alpha(Color.Lerp(c,Color.white,.2f),.95f):open?Alpha(c,.4f):new Color(.4f,.44f,.56f,.28f));
+                if(learned)TreeLine(a,b,7,Alpha(c,.18f));
+                TreeLine(a,b,learned?3:2,learned?Alpha(Color.Lerp(c,Color.white,.2f),.95f):open?Alpha(c,.4f):new Color(.4f,.44f,.56f,.28f));
             }
+            // Then the nodes over them, clipped to the view. Runes of nodes wholly inside are drawn after the clip
+            // through the crisp text path; only those cut by the edge are drawn through the clip.
             var selected=TowerSkillTree.Get(treeSelection)??TowerSkillTree.Root;
-            foreach(var node in TowerSkillTree.Nodes)DrawTreeNode(node,TreeNodeRect(node),tree.Rank(node.Id),tree.IsOpen(node),campaign.CanLearn(node),node==selected,node==hovered);
-            float x=TreeFrame.x+24;
-            for(var branch=SkillBranch.Arcane;branch<=SkillBranch.Might;branch++)
+            GUI.BeginClip(TreeView,-TreeView.position,Vector2.zero,false);scrollDepth++;
+            foreach(var node in TowerSkillTree.Nodes)
             {
-                Color c=BranchColor(branch);Diamond(new Vector2(x+6,TreeFrame.yMax-28),12,c);
-                Label(new Rect(x+18,TreeFrame.yMax-40,48,24),TowerSkillTree.BranchName(branch),13,Alpha(c,.9f),TextAnchor.MiddleLeft,true);x+=66;
+                var r=TreeNodeRect(node);if(r.yMax+44<TreeView.y||r.y-44>TreeView.yMax)continue;
+                DrawTreeNode(node,r,tree.Rank(node.Id),tree.IsOpen(node),campaign.CanLearn(node),node==selected,node==hovered,r.y<TreeView.y||r.yMax>TreeView.yMax);
+            }
+            scrollDepth--;GUI.EndClip();
+            foreach(var node in TowerSkillTree.Nodes)
+                if(TreeNodeShown(node))TreeRune(node,TreeNodeRect(node),tree.Rank(node.Id)>0,tree.IsOpen(node));
+            // Shadows where the view cuts the tree, and the bar on the right.
+            float max=TreeScrollMax;
+            if(treeScroll>.5f)Light(new Rect(TreeView.x,TreeView.y,TreeView.width,30),new Color(0,0,0,.5f*Mathf.Clamp01(treeScroll/40)));
+            if(treeScroll<max-.5f)
+            {
+                EnsureUITextures();GUI.color=new Color(0,0,0,.5f*Mathf.Clamp01((max-treeScroll)/40));
+                GUI.DrawTextureWithTexCoords(new Rect(TreeView.x,TreeView.yMax-30,TreeView.width,30),uiGradient,new Rect(0,1,1,-1));GUI.color=Color.white;
+            }
+            if(max>0)
+            {
+                bool active=treeDrag==TreeDrag.Bar||new Rect(TreeTrack.x-10,TreeTrack.y,TreeTrack.width+20,TreeTrack.height).Contains(e.mousePosition);
+                Round(TreeTrack,new Color(0,0,0,.4f),3);Round(TreeThumb,Alpha(brass,active?.95f:.6f),3);
             }
 
             DrawTreeCard(hovered??selected,hovered==null);
@@ -161,7 +263,7 @@ namespace PrototypeLab.Roguelike
             {if(confirmTreeReset)ResetTree();else confirmTreeReset=true;}
         }
 
-        private void DrawTreeNode(SkillNode node,Rect r,int rank,bool open,bool affordable,bool selected,bool hovered)
+        private void DrawTreeNode(SkillNode node,Rect r,int rank,bool open,bool affordable,bool selected,bool hovered,bool rune=true)
         {
             Color c=BranchColor(node.Branch);bool learned=rank>0,maxed=rank>=node.MaxRank;
             float flash=node.Id==treeFlashId?Mathf.Clamp01(1-(Time.unscaledTime-treeFlashTime)/.6f):0;
@@ -177,10 +279,15 @@ namespace PrototypeLab.Roguelike
             Rect shape=node.IsKeystone?Inset(r,-r.width*.2f):Inset(r,-r.width*.08f);
             GUI.color=body;var fill=Kit(node.IsKeystone?"key-fill":"node-disc");if(fill!=null)GUI.DrawTexture(shape,fill);
             GUI.color=edge;var ring=Kit(node.IsKeystone?"key-rim":"node-rim");if(ring!=null)GUI.DrawTexture(shape,ring);GUI.color=Color.white;
-            Title(new Rect(r.x,r.y+1,r.width,r.height),NodeRune(node),node.IsKeystone?19:16,learned?new Color(1,.97f,.9f):open?Alpha(Color.Lerp(c,paper,.35f),.95f):Alpha(muted,.5f),TextAnchor.MiddleCenter);
+            if(rune)TreeRune(node,r,learned,open);
             if(node.MaxRank>1)
                 for(int i=0;i<node.MaxRank;i++)
                 {float px=r.center.x+(i-(node.MaxRank-1)*.5f)*8;Diamond(new Vector2(px,shape.yMax+3),6,i<rank?Color.Lerp(c,Color.white,.2f):new Color(.3f,.33f,.42f,.85f));}
+        }
+        private void TreeRune(SkillNode node,Rect r,bool learned,bool open)
+        {
+            Color c=BranchColor(node.Branch);
+            Title(new Rect(r.x,r.y+1,r.width,r.height),NodeRune(node),node.IsKeystone?19:16,learned?new Color(1,.97f,.9f):open?Alpha(Color.Lerp(c,paper,.35f),.95f):Alpha(muted,.5f),TextAnchor.MiddleCenter);
         }
 
         private void DrawTreeCard(SkillNode node,bool interactive)

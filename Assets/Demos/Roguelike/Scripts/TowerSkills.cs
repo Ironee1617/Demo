@@ -15,7 +15,11 @@ namespace PrototypeLab.Roguelike
         private sealed class SkillArea
         {
             public HeroState owner; public Fighter source; public SkillEffect effect; public GameObject root;
-            public Vector2 center; public Color color; public float radius,remaining,interval,tick,damage; public int count;
+            public Vector2 center; public Color color; public float radius,remaining,interval,tick,damage; public int count,practiceCast;
+            // The skill's level (awakened behaviour, drawn grade), its age, a second clock, how far a quake has run, which way it
+            // faces, whether it draws a burst on every tick, and which enemies it already struck (quakes) or touched lately (orbs).
+            public int level=1,facing=1; public float age,clock,travelled,hold; public bool quiet;
+            public Dictionary<Fighter,float> touched; public HashSet<Fighter> struck;
         }
         private readonly Dictionary<SkillState,SkillClock> skillClocks=new Dictionary<SkillState,SkillClock>();
         private readonly List<SkillArea> skillAreas=new List<SkillArea>();
@@ -57,9 +61,9 @@ namespace PrototypeLab.Roguelike
         private void EnsureSkillClocks(HeroState state)
         {foreach(var s in state.Skills)if(!skillClocks.ContainsKey(s))skillClocks.Add(s,new SkillClock{owner=state,skill=s});}
         private void ResetSkills()
-        {skillClocks.Clear();ClearFloorSkillEffects();if(hero!=null)hero.castRemaining=0;foreach(var actor in allies)actor.castRemaining=0;playerShield=0;shieldTime=0;regenerationClock=0;}
+        {skillClocks.Clear();ClearFloorSkillEffects();if(hero!=null)hero.castRemaining=0;foreach(var actor in allies)actor.castRemaining=0;playerShield=0;shieldTime=0;regenerationClock=0;shieldNova=0;}
         private void ClearFloorSkillEffects()
-        {foreach(var area in skillAreas)if(area.root)Destroy(area.root);skillAreas.Clear();CancelPendingSkills();if(vfx!=null)vfx.Clear();}
+        {foreach(var area in skillAreas)if(area.root)Destroy(area.root);skillAreas.Clear();CancelPendingSkills();ClearSkillMoves();if(vfx!=null)vfx.Clear();}
         private void CancelPendingSkills()
         {foreach(var pending in pendingSkills){pending.clock.pending=false;if(pending.source!=null)pending.source.castRemaining=0;}pendingSkills.Clear();}
         private void CancelPlayerCast()
@@ -75,6 +79,7 @@ namespace PrototypeLab.Roguelike
             if(regenerationClock>=1){regenerationClock-=1;if(run.Player.Regeneration>0)HealPlayer(run.Player.Regeneration,false);}
             for(int i=pendingSkills.Count-1;i>=0;i--)if(!IsCurrentHero(pendingSkills[i].clock.owner))pendingSkills.RemoveAt(i);
             EnsureSkillClocks(run.Player);foreach(var c in run.Companions)EnsureSkillClocks(c);
+            TickSkillStatuses(dt);TickSkillMoves(dt);
             TickPendingSkills(dt);
             foreach(var clock in skillClocks.Values)
             {
@@ -92,6 +97,8 @@ namespace PrototypeLab.Roguelike
                 if(effect==SkillEffect.HealPulse&&hero.hp>=PlayerMaxHealth)continue;
                 if((effect==SkillEffect.HealPulse||effect==SkillEffect.ShieldPulse)&&Vector2.Distance(source.pos,hero.pos)>clock.skill.Radius)continue;
                 if(clock.skill.Definition.Effect==SkillEffect.ShieldPulse&&playerShield>=PlayerMaxHealth*.35f)continue;
+                if(AnchoredOnHero(effect)){var near=ClosestEnemy(hero.pos,13,clock.owner);distance=near==null?999:Vector2.Distance(hero.pos,near.pos);}
+                if((int)effect>=(int)SkillEffect.Boomerang&&distance>OddCastRange(clock.skill))continue;
                 BeginSkillCast(clock,source,target);
             }
             TickSkillAreas(dt);
@@ -102,8 +109,9 @@ namespace PrototypeLab.Roguelike
             float duration=effect==SkillEffect.Meteor?.72f:effect==SkillEffect.DashStrike?.34f:effect==SkillEffect.ShieldPulse||effect==SkillEffect.HealPulse?.55f:.46f;
             source.facing=target.pos.x>=source.pos.x?1:-1;source.castRemaining=duration;source.attackPose=duration;
             source.art.PlayCast(effect,duration);clock.remaining=clock.skill.Cooldown;clock.pending=true;clock.lastStarted=elapsed;clock.castDuration=duration;
-            pendingSkills.Add(new PendingSkill{clock=clock,source=source,target=target,remaining=source.art.CastReleaseTime(effect,duration)});
-            if(vfx!=null)vfx.Cast(effect,source.pos+Vector2.up,Mathf.Min(1.3f,clock.skill.Radius*.3f),SkillColor(effect));
+            float release=source.art.CastReleaseTime(effect,duration);
+            pendingSkills.Add(new PendingSkill{clock=clock,source=source,target=target,remaining=release});
+            if(vfx!=null){vfx.Grade=clock.skill.Level;vfx.Cast(effect,source.pos+Vector2.up,Mathf.Min(1.3f,clock.skill.Radius*.3f),SkillColor(effect),release,source.facing,source.root.transform,target.pos+Vector2.up*.7f);vfx.Grade=1;}
         }
         private void TickPendingSkills(float dt)
         {
@@ -130,6 +138,18 @@ namespace PrototypeLab.Roguelike
                 case SkillEffect.HealPulse:case SkillEffect.LifeDrain:return new Color(.4f,1,.7f);
                 case SkillEffect.ShieldPulse:return new Color(.9f,.83f,.45f);
                 case SkillEffect.ChainLightning:case SkillEffect.ArcaneVolley:return new Color(.66f,.6f,1);
+                case SkillEffect.Boomerang:return new Color(1,.78f,.38f);
+                case SkillEffect.Ricochet:return new Color(1,.9f,.55f);
+                case SkillEffect.HuntMark:return new Color(1,.36f,.32f);
+                case SkillEffect.Hook:return new Color(.74f,.82f,.95f);
+                case SkillEffect.Quake:return new Color(.95f,.62f,.3f);
+                case SkillEffect.Orbit:return new Color(.5f,.78f,1);
+                case SkillEffect.Decoy:return new Color(.7f,.95f,1);
+                case SkillEffect.Mine:return new Color(1,.42f,.75f);
+                case SkillEffect.Vortex:return new Color(.36f,.9f,.95f);
+                case SkillEffect.Curse:return new Color(.68f,.34f,.95f);
+                case SkillEffect.WarBanner:return new Color(1,.72f,.32f);
+                case SkillEffect.Bloom:return new Color(1,.62f,.82f);
                 default:return TowerWorld.Gold;
             }
         }
@@ -138,81 +158,154 @@ namespace PrototypeLab.Roguelike
         private void CastScaledSkill(HeroState owner,SkillState skill,Fighter source,Fighter target,float scale)
         {
             var d=skill.Definition;var color=SkillColor(d.Effect);float damage=owner.Damage*skill.Power*scale;
+            int level=skill.Level;bool awake=skill.Awakened;
             Vector2 origin=source.pos+Vector2.up*(source==hero?.95f:.78f),aim=target.pos+Vector2.up*.7f;
             source.attackPose=.4f;source.facing=target.pos.x>=source.pos.x?1:-1;
-            if(source.castRemaining<=0&&vfx!=null)vfx.Cast(d.Effect,origin,Mathf.Min(1.3f,skill.Radius*.3f),color);
-            FloatText(source.pos+Vector2.up*2.3f,d.Name,color);Sound(chimeSound,.2f);
+            // Every hit, shot and area of this cast carries its skill: reactions, statuses and the drawn grade read it.
+            bool wasStriking=striking;var wasEffect=strikeEffect;int wasLevel=strikeLevel;
+            striking=true;strikeEffect=d.Effect;strikeLevel=level;if(vfx!=null)vfx.Grade=level;
+            if(source.castRemaining<=0&&vfx!=null)vfx.Cast(d.Effect,origin,Mathf.Min(1.3f,skill.Radius*.3f),color,.12f,source.facing,source.root.transform,aim);
+            FloatText(source.pos+Vector2.up*2.3f,level>1?d.Name+"  Lv."+level:d.Name,awake?TowerWorld.Gold:color);Sound(chimeSound,.2f);
             switch(d.Effect)
             {
                 case SkillEffect.Fireball:
-                    for(int i=0;i<skill.Count;i++){Fire(origin,aim+new Vector2(0,(i-(skill.Count-1)*.5f)*.2f),9,damage,false,color,Mathf.Max(.7f,skill.Radius),owner);StyleLastShot(d.Effect);}
+                    for(int i=0;i<skill.Count;i++){Fire(origin,aim+new Vector2(0,(i-(skill.Count-1)*.5f)*.5f),9,damage,false,color,Mathf.Max(.7f,skill.Radius),owner);StyleLastShot(d.Effect);}
                     break;
                 case SkillEffect.ArcaneVolley:
                     var eligible=enemies.FindAll(e=>CanTarget(e,owner));
                     for(int i=0;i<skill.Count;i++){var e=eligible.Count>0?eligible[i%eligible.Count]:target;Fire(origin,e.pos+Vector2.up+new Vector2(0,(i%3-1)*.15f),13,damage,false,color,0,owner);StyleLastShot(d.Effect);LimitLastShotRange(skill.Radius,13);}break;
                 case SkillEffect.MultiShot:
                     Vector2 v=(aim-origin).normalized;
-                    for(int i=0;i<skill.Count;i++){Vector2 dir=Quaternion.Euler(0,0,(i-(skill.Count-1)*.5f)*9)*v;Fire(origin,origin+dir*10,13,damage,false,color,0,owner);StyleLastShot(d.Effect);LimitLastShotRange(skill.Radius,13);}break;
+                    for(int i=0;i<skill.Count;i++){Vector2 dir=Quaternion.Euler(0,0,(i-(skill.Count-1)*.5f)*9)*v;Fire(origin,origin+dir*10,13,damage,false,color,0,owner,awake?2:1);StyleLastShot(d.Effect);LimitLastShotRange(skill.Radius,13);}break;
                 case SkillEffect.PierceShot:
-                    Fire(origin,aim,16,damage,false,color,0,owner,Mathf.Max(2,skill.Count));StyleLastShot(d.Effect);LimitLastShotRange(skill.Radius,16);break;
+                    Fire(origin,aim,16,damage,false,color,0,owner,awake?99:Mathf.Max(2,skill.Count));StyleLastShot(d.Effect);LimitLastShotRange(skill.Radius,16);
+                    if(awake)shots[shots.Count-1].hitRadius=.34f;break;
                 case SkillEffect.Shockwave:
                     Fire(origin,aim,9,damage,false,color,0,owner,Mathf.Max(3,skill.Count),Mathf.Max(.6f,skill.Duration));StyleLastShot(d.Effect);LimitLastShotRange(skill.Radius,9);
-                    if(vfx!=null)vfx.Impact(d.Effect,origin,skill.Radius,color);break;
+                    if(vfx!=null)vfx.Impact(d.Effect,origin,skill.Radius,color);
+                    if(awake)QueueSkillMove(.25f,owner,skill,()=>SecondShockwave(owner,skill,source,aim-origin,damage*.7f,color));break;
                 case SkillEffect.IceNova:
                     foreach(var e in enemies.ToArray())if(CanTarget(e,owner)&&Vector2.Distance(e.pos,source.pos)<skill.Radius)
-                    {e.slowTime=Mathf.Max(e.slowTime,skill.Duration);StrikeEnemy(e,damage,owner,Mathf.Sign(e.pos.x-source.pos.x)*.2f);}
-                    if(vfx!=null)vfx.Impact(d.Effect,origin,skill.Radius,color);break;
+                    {e.slowTime=Mathf.Max(e.slowTime,skill.Duration);if(awake)Stun(e,1,true);StrikeEnemy(e,damage,owner,Mathf.Sign(e.pos.x-source.pos.x)*.2f);}
+                    if(vfx!=null){vfx.Impact(d.Effect,origin,skill.Radius,color);if(awake)vfx.Awaken(d.Effect,source.pos+Vector2.up*.5f,skill.Radius,color,source.facing);}break;
                 case SkillEffect.ChainLightning:
                     var targets=enemies.FindAll(e=>CanTarget(e,owner));targets.Sort((a,b)=>Vector2.Distance(a.pos,source.pos).CompareTo(Vector2.Distance(b.pos,source.pos)));
-                    Vector2 previous=origin;
+                    Vector2 previous=origin;Fighter last=null;
                     for(int i=0;i<Mathf.Min(skill.Count,targets.Count);i++)
-                    {var e=targets[i];if(Vector2.Distance(e.pos,source.pos)>skill.Radius)continue;if(vfx!=null)vfx.Trail(previous,e.pos+Vector2.up,d.Effect,color);StrikeEnemy(e,damage*Mathf.Pow(.88f,i),owner,0);previous=e.pos+Vector2.up;}
+                    {var e=targets[i];if(Vector2.Distance(e.pos,source.pos)>skill.Radius)continue;if(vfx!=null)vfx.Trail(previous,e.pos+Vector2.up,d.Effect,color);StrikeEnemy(e,damage*Mathf.Pow(.88f,i),owner,0);previous=e.pos+Vector2.up;last=e;}
+                    // Awakened: a bolt falls on the last link and bursts around it.
+                    if(awake&&last!=null)SkillBurst(owner,d.Effect,last.pos,1.5f,damage*.8f,color,true);
                     break;
                 case SkillEffect.Meteor:
-                    for(int i=0;i<skill.Count;i++)AddArea(owner,source,d.Effect,target.pos+new Vector2((i-(skill.Count-1)*.5f)*1.2f,0),skill.Radius,.7f,.7f,damage,color,1);break;
+                    for(int i=0;i<skill.Count;i++)AddArea(owner,source,d.Effect,target.pos+new Vector2((i-(skill.Count-1)*.5f)*1.2f,0),skill.Radius,.7f,.7f,damage,color,1);
+                    // Awakened: two smaller stones follow either side of the main fall.
+                    if(awake)for(int side=-1;side<=1;side+=2)AddArea(owner,source,d.Effect,target.pos+new Vector2(side*1.7f,0),skill.Radius*.6f,.9f,.9f,damage*.5f,color,1);
+                    break;
                 case SkillEffect.RainArrows:
                     for(int i=0;i<skill.Count;i++)
-                    {Vector2 landing=aim+new Vector2((i-(skill.Count-1)*.5f)*.55f,0);Fire(landing+new Vector2(-1,6),landing,12,damage,false,color,Mathf.Max(.2f,skill.Radius),owner);StyleLastShot(d.Effect);}break;
+                    {Vector2 landing=aim+new Vector2((i-(skill.Count-1)*.5f)*.55f,0);Fire(landing+new Vector2(-1,6),landing,12,damage,false,color,Mathf.Max(.2f,skill.Radius),owner,1,awake?1.2f:0);StyleLastShot(d.Effect);}break;
                 case SkillEffect.BladeStorm:
                     AddArea(owner,source,d.Effect,source.pos,skill.Radius,skill.Duration,Mathf.Max(.1f,skill.Duration/Mathf.Max(1,skill.Count)),damage,color,skill.Count);break;
                 case SkillEffect.PoisonCloud:
-                    AddArea(owner,source,d.Effect,target.pos,skill.Radius,skill.Duration,.7f,damage,color,skill.Count);break;
+                    AddArea(owner,source,d.Effect,target.pos,skill.Radius,skill.Duration,level>=2?.55f:.7f,damage,color,skill.Count);break;
                 case SkillEffect.DashStrike:
                     if(vfx!=null){vfx.Afterimage(source.root.transform);vfx.Trail(origin,aim,d.Effect,color);}
                     source.pos=new Vector2(Mathf.Clamp(target.pos.x-source.facing*.9f,TowerWorld.Left+.5f,TowerWorld.Right-.5f),target.pos.y);
                     source.root.transform.position=source.pos;if(source==hero)invulnerable=Mathf.Max(invulnerable,.35f);
                     foreach(var e in enemies.ToArray())if(CanTarget(e,owner)&&Vector2.Distance(source.pos,e.pos)<skill.Radius)StrikeEnemy(e,damage,owner,source.facing*.4f);
-                    SlashArc(source.pos+Vector2.up,source.facing,color);if(vfx!=null)vfx.Impact(d.Effect,source.pos+Vector2.up,skill.Radius,color);break;
+                    if(vfx!=null)vfx.Impact(d.Effect,source.pos+Vector2.up,skill.Radius,color,source.facing);
+                    // Awakened: a crossing cut lands where the dash ended.
+                    if(awake){Vector2 landed=source.pos;QueueSkillMove(.2f,owner,skill,()=>SkillBurst(owner,SkillEffect.DashStrike,landed,skill.Radius*.8f,damage*.6f,color,true));}
+                    break;
                 case SkillEffect.HealPulse:
-                    HealPlayer(damage,true);if(vfx!=null)vfx.Impact(d.Effect,origin,skill.Radius,color);break;
+                    HealPlayer(damage,true);if(vfx!=null)vfx.Impact(d.Effect,origin,skill.Radius,color);
+                    if(level>=2)GrantShield(damage*run.Player.HealingMultiplier*.25f,3,color);
+                    if(awake){AddArea(owner,source,SkillEffect.HealPulse,hero.pos,2.2f,3,.5f,damage*.12f,color,1);if(vfx!=null)vfx.Awaken(d.Effect,hero.pos+Vector2.up*.4f,2.2f,color,0);}
+                    break;
                 case SkillEffect.ShieldPulse:
-                    playerShield=Mathf.Min(PlayerMaxHealth*.65f,playerShield+damage*run.Player.HealingMultiplier);shieldTime=Mathf.Max(shieldTime,skill.Duration);
-                    if(vfx!=null)vfx.Impact(d.Effect,hero.pos+Vector2.up,1.2f,color);FloatText(hero.pos+Vector2.up*2,"보호막 +"+Mathf.RoundToInt(damage*run.Player.HealingMultiplier),color);break;
+                    float shield=damage*run.Player.HealingMultiplier*(level>=2?1.15f:1);
+                    playerShield=Mathf.Min(PlayerMaxHealth*.65f,playerShield+shield);shieldTime=Mathf.Max(shieldTime,skill.Duration);
+                    // Awakened: the shield bursts outward when it breaks.
+                    if(awake){shieldNova=Mathf.Max(shieldNova,damage*.6f);shieldNovaOwner=owner;}
+                    if(vfx!=null)vfx.Impact(d.Effect,hero.pos+Vector2.up,1.2f,color);FloatText(hero.pos+Vector2.up*2,"보호막 +"+Mathf.RoundToInt(shield),color);break;
                 case SkillEffect.LifeDrain:
                     float drained=0;var victims=enemies.FindAll(e=>CanTarget(e,owner));victims.Sort((a,b)=>Vector2.Distance(a.pos,source.pos).CompareTo(Vector2.Distance(b.pos,source.pos)));
                     for(int i=0;i<Mathf.Min(skill.Count,victims.Count);i++)if(Vector2.Distance(source.pos,victims[i].pos)<skill.Radius)
                     {if(vfx!=null)vfx.Trail(victims[i].pos+Vector2.up,origin,d.Effect,color);drained+=StrikeEnemy(victims[i],damage,owner,0);}
-                    HealPlayer(drained*.35f*owner.HealingMultiplier,true);break;
+                    HealPlayer(drained*(awake?.7f:.35f)*owner.HealingMultiplier,true);break;
                 case SkillEffect.Sentry:
-                    AddArea(owner,source,d.Effect,source.pos+new Vector2(-source.facing*.8f,.15f),skill.Radius,skill.Duration,.85f,damage,color,skill.Count);break;
+                    AddArea(owner,source,d.Effect,source.pos+new Vector2(-source.facing*.8f,.15f),skill.Radius,skill.Duration,.85f,damage,color,skill.Count);
+                    if(awake)AddArea(owner,source,d.Effect,source.pos+new Vector2(source.facing*.8f,.15f),skill.Radius,skill.Duration,.85f,damage,color,skill.Count);
+                    break;
+                default:CastOddSkill(owner,skill,source,target,damage,color,origin,aim);break;
             }
+            striking=wasStriking;strikeEffect=wasEffect;strikeLevel=wasLevel;if(vfx!=null)vfx.Grade=1;
+            SkillJuice(d.Effect,owner,scale);
             OnPassiveSkillCast(owner,skill,source,target,scale);
+        }
+        // Action feel for skills: the camera kicks and time briefly catches on big skill moments.
+        // Companions' casts and echoes shake less and never stop time, so a full party stays readable.
+        private void SkillJuice(SkillEffect effect,HeroState owner,float scale)
+        {
+            float shake,seconds,stop=0;
+            switch(effect)
+            {
+                case SkillEffect.DashStrike:shake=.2f;seconds=.24f;stop=.07f;break;
+                case SkillEffect.Shockwave:shake=.18f;seconds=.26f;stop=.045f;break;
+                case SkillEffect.IceNova:shake=.16f;seconds=.24f;stop=.05f;break;
+                case SkillEffect.ChainLightning:shake=.12f;seconds=.2f;stop=.04f;break;
+                case SkillEffect.BladeStorm:shake=.08f;seconds=.16f;break;
+                case SkillEffect.LifeDrain:shake=.07f;seconds=.14f;break;
+                case SkillEffect.MultiShot:case SkillEffect.PierceShot:case SkillEffect.Sentry:shake=.06f;seconds=.12f;break;
+                case SkillEffect.Fireball:case SkillEffect.ArcaneVolley:case SkillEffect.RainArrows:shake=.04f;seconds=.1f;break;
+                default:shake=.03f;seconds=.1f;break;
+            }
+            bool player=owner==run.Player&&scale>=1;
+            Shake(shake*(player?1:.5f)*Mathf.Clamp01(scale),seconds);
+            if(player&&stop>0)HitStop(stop);
+        }
+        private void AreaJuice(SkillArea area)
+        {
+            float weight=area.owner==run.Player?1:.55f;
+            if(area.effect==SkillEffect.Meteor){Shake(.32f*weight,.42f);if(area.owner==run.Player)HitStop(.06f);}
+            else if(area.effect==SkillEffect.BladeStorm)Shake(.05f*weight,.08f);
         }
         private void LimitLastShotRange(float distance,float speed)
         {if(shots.Count>0)shots[shots.Count-1].life=distance/speed;}
-        private void AddArea(HeroState owner,Fighter source,SkillEffect effect,Vector2 center,float radius,float duration,float interval,float damage,Color color,int count)
+        private SkillArea AddArea(HeroState owner,Fighter source,SkillEffect effect,Vector2 center,float radius,float duration,float interval,float damage,Color color,int count)
         {
             var go=new GameObject(effect.ToString());go.transform.SetParent(transform,false);go.transform.localPosition=center+Vector2.up*.6f;
-            var area=new SkillArea{owner=owner,source=source,effect=effect,center=center,radius=radius,remaining=duration,interval=interval,tick=effect==SkillEffect.Meteor?interval:.05f,damage=damage,color=color,count=count,root=go};skillAreas.Add(area);
-            if(vfx!=null){if(effect==SkillEffect.Meteor)vfx.DescendMeteor(center+Vector2.up*.6f,interval);else vfx.AttachZone(go,effect,radius,duration);}
+            int level=striking?strikeLevel:1;
+            var area=new SkillArea{owner=owner,source=source,effect=effect,center=center,radius=radius,remaining=duration,interval=interval,tick=effect==SkillEffect.Meteor?interval:.05f,damage=damage,color=color,count=count,root=go,practiceCast=PracticeCasts,
+                level=level,facing=source!=null?source.facing:1};skillAreas.Add(area);
+            if(vfx!=null)
+            {
+                vfx.Grade=level;
+                if(effect==SkillEffect.Meteor)vfx.DescendMeteor(center+Vector2.up*.6f,interval);
+                else if(effect==SkillEffect.Decoy)vfx.AttachDecoy(go,source!=null&&source.root?source.root.transform:null,radius,duration,color);
+                // A quake draws each segment as it erupts; it has no standing zone.
+                else if(effect!=SkillEffect.Quake)vfx.AttachZone(go,effect,radius,duration,count);
+                vfx.Grade=striking?strikeLevel:1;
+            }
+            return area;
         }
         private void TickSkillAreas(float dt)
         {
             for(int i=skillAreas.Count-1;i>=0;i--)
             {
-                var a=skillAreas[i];a.remaining-=dt;a.tick-=dt;
+                var a=skillAreas[i];a.remaining-=dt;a.tick-=dt;a.age+=dt;
                 if(!IsCurrentHero(a.owner)){Destroy(a.root);skillAreas.RemoveAt(i);continue;}
-                if(a.effect==SkillEffect.BladeStorm&&a.source.root){a.center=a.source.pos;a.root.transform.position=a.center+Vector2.up*.6f;}
+                if((a.effect==SkillEffect.BladeStorm||a.effect==SkillEffect.Orbit)&&a.source!=null&&a.source.root){a.center=a.source.pos;a.root.transform.position=a.center+Vector2.up*.6f;}
+                // The area's hits carry its skill like the cast did, so statuses, reactions and the drawn grade follow it.
+                striking=true;strikeEffect=a.effect;strikeLevel=a.level;practiceStrike=a.practiceCast;if(vfx!=null)vfx.Grade=a.level;
+                if(TickOddArea(a,dt))
+                {
+                    if(a.remaining<=0)ExpireArea(a);
+                    striking=false;strikeLevel=1;practiceStrike=0;if(vfx!=null)vfx.Grade=1;
+                    if(a.remaining<=0){Destroy(a.root);skillAreas.Remove(a);}
+                    continue;
+                }
+                if(a.level>=3)AwakenedArea(a,dt);
                 if(a.tick<=0)
                 {
                     a.tick+=a.interval;
@@ -224,21 +317,24 @@ namespace PrototypeLab.Roguelike
                     {
                         foreach(var e in enemies.ToArray())if(CanTarget(e,a.owner)&&Vector2.Distance(e.pos,a.center)<a.radius)
                         {if(a.effect==SkillEffect.PoisonCloud)e.slowTime=Mathf.Max(e.slowTime,.8f);StrikeEnemy(e,a.damage,a.owner,0);}
-                        if(a.effect==SkillEffect.BladeStorm)SlashArc(a.center+Vector2.up,1,a.color);
                         if(a.effect==SkillEffect.Meteor){if(vfx!=null){vfx.Trail(a.center+Vector2.up*7,a.center+Vector2.up,a.effect,a.color);vfx.Impact(a.effect,a.center+Vector2.up,a.radius,a.color);}}
-                        if(vfx!=null&&a.effect!=SkillEffect.PoisonCloud&&a.effect!=SkillEffect.Meteor)vfx.Impact(a.effect,a.center+Vector2.up*.5f,a.radius,a.color);
+                        AreaJuice(a);
+                        // A level-three fireball's burning ground ticks quietly; its flames are the zone itself.
+                        if(vfx!=null&&!a.quiet&&a.effect!=SkillEffect.PoisonCloud&&a.effect!=SkillEffect.Meteor)vfx.Impact(a.effect,a.center+Vector2.up*.5f,a.radius,a.color);
                     }
                 }
+                striking=false;strikeLevel=1;practiceStrike=0;if(vfx!=null)vfx.Grade=1;
                 if(a.remaining<=0){Destroy(a.root);skillAreas.RemoveAt(i);}
             }
         }
         private float StrikeEnemy(Fighter enemy,float damage,HeroState owner,float push)
         {
             if(!CanTarget(enemy,owner))return 0;
-            damage*=PassiveDamageScale(enemy,owner);
+            damage*=PassiveDamageScale(enemy,owner)*SkillReactionScale(enemy,owner);
             bool critical=owner!=null&&(forcedCritical||PassiveSureshot(enemy,owner)||UnityEngine.Random.value<owner.CritChance);if(critical)damage*=run.Passives.CriticalMultiplier(owner);
             float dealt=Mathf.Min(enemy.hp,damage);criticalHit=critical;DamageEnemy(enemy,damage,push);
             if(owner!=null&&owner.LifeSteal>0)HealPlayer(dealt*owner.LifeSteal,false);
+            AfterSkillStrike(enemy,owner,damage);
             AfterPassiveStrike(enemy,owner);
             return dealt;
         }
@@ -255,7 +351,9 @@ namespace PrototypeLab.Roguelike
         private float MitigatePlayerDamage(float raw)
         {
             float reduced=raw*100/(100+Mathf.Max(0,PlayerArmor));float absorbed=Mathf.Min(playerShield,reduced);playerShield-=absorbed;
-            if(absorbed>0){if(vfx!=null)vfx.Impact(SkillEffect.ShieldPulse,hero.pos+Vector2.up,1,TowerWorld.Gold);if(reduced<=absorbed+.001f)FloatText(hero.pos+Vector2.up*2,"막음",TowerWorld.Gold);}
+            if(absorbed>0){if(vfx!=null)vfx.ShieldBlock(hero.pos+Vector2.up,TowerWorld.Gold);if(reduced<=absorbed+.001f)FloatText(hero.pos+Vector2.up*2,"막음",TowerWorld.Gold);}
+            // The burst waits for the next skill tick: this runs while enemies are being walked.
+            if(absorbed>0&&playerShield<=.001f&&shieldNova>0)shieldBreakPending=true;
             return reduced-absorbed;
         }
     }

@@ -73,6 +73,7 @@ namespace PrototypeLab.Roguelike
             WorldTag(new Vector2(SteleX,TowerWorld.Ground+2.25f),"이야기 비석",null,silver,spot==VillageSpot.Stele);
             WorldTag(new Vector2(RunestoneX,TowerWorld.Ground+1.95f),"스킬트리","스킬 포인트 "+campaign.SkillPoints,SkillPointColor,spot==VillageSpot.Runestone);
             WorldTag(new Vector2(ShrineX,TowerWorld.Ground+3.75f),"신화의 제단",RestoredLine(),gold,spot==VillageSpot.Shrine);
+            WorldTag(new Vector2(PracticeYardX,TowerWorld.Ground+3.95f),"스킬 연습장","모든 스킬 이펙트 시험",TowerWorld.Teal,spot==VillageSpot.Practice);
             var next=campaign.NextChapter;
             WorldTag(new Vector2(TowerWorld.ExitX,TowerWorld.Ground+4.1f),"서약의 탑",next==null?"고요해진 탑":next.Numeral+" "+next.Title+"  ·  "+next.Floors,brass,spot==VillageSpot.Gate);
             foreach(var v in villagers)

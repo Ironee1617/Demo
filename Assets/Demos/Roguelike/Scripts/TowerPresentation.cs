@@ -42,7 +42,7 @@ namespace PrototypeLab.Roguelike
         private void BeginAllyAttack(Fighter actor,CompanionState state,Fighter target)
         {
             float duration=Mathf.Clamp(state.AttackInterval*.65f,.24f,.62f);
-            actor.facing=target.pos.x>actor.pos.x?1:-1;actor.cooldown=state.AttackInterval;actor.attackPose=duration;
+            actor.facing=target.pos.x>actor.pos.x?1:-1;actor.cooldown=state.AttackInterval*BannerInterval(actor);actor.attackPose=duration;
             actor.basicTarget=target;actor.basicPending=true;if(actor.grounded)actor.moveVelocity=0;
             actor.basicDelay=state.Definition.Role==CompanionRole.Vanguard?actor.art.AttackHitTime(duration):actor.art.AttackReleaseTime(duration);
             actor.art.PlayAttack(duration,actor.combo++%3);
@@ -73,7 +73,8 @@ namespace PrototypeLab.Roguelike
                 if(d.remaining<=0||!d.actor.root){if(d.actor.root)Destroy(d.actor.root);deathVisuals.RemoveAt(i);}
             }
         }
-        private void StyleLastShot(SkillEffect effect)
-        {if(shots.Count==0)return;var shot=shots[shots.Count-1];shot.effect=effect;if(vfx!=null)vfx.Projectile(shot.root.transform,effect,shot.color);}
+        // Skill code restyles its shots as signature projectiles; Fire's default style is a plain basic shot.
+        private void StyleLastShot(SkillEffect effect,bool signature=true)
+        {if(shots.Count==0)return;var shot=shots[shots.Count-1];shot.effect=effect;shot.signature=signature;if(vfx!=null)vfx.Projectile(shot.root.transform,effect,shot.color,signature);}
     }
 }

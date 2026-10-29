@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 
 namespace PrototypeLab.Roguelike
@@ -8,15 +10,19 @@ namespace PrototypeLab.Roguelike
     /// High-resolution combat effects. Every element is generated once at 128 pixels per unit with trilinear
     /// filtering and drawn as layered additive light or alpha-blended smoke, so slashes, spells, projectiles,
     /// impacts and dash afterimages read as photographic light and volume instead of pixel frames.
+    /// This file holds the simulation, the shared builders and the textures; each skill family draws its own
+    /// casts, projectiles, impacts, trails and zones in a TowerVfx.&lt;Family&gt;.cs partial.
     /// </summary>
-    public sealed class TowerVfx : MonoBehaviour
+    public sealed partial class TowerVfx : MonoBehaviour
     {
         public const int PixelsPerUnit = 128;
-        public const int KnownEffectsCount = 16;
-        private const int PoolLimit = 512;
+        public const int KnownEffectsCount = 28;
+        private const int PoolLimit = 1536;
+        // Above SoftCap emitters thin out and Budget() shrinks optional particle counts; nothing is ever refused.
+        private const int SoftCap = 900, HardCap = 1600, PrewarmCount = 384;
         private const float Infinite = float.PositiveInfinity;
 
-        private enum Emit { None, Embers, Smoke, Sparkles, Frost, Poison, Motes, Trace, Flames }
+        private enum Emit { None, Embers, Smoke, Sparkles, Frost, Poison, Motes, Trace, Flames, Custom }
 
         private sealed class Clip
         {
@@ -26,10 +32,23 @@ namespace PrototypeLab.Roguelike
             public Sprite[] frames; public float fps = 24; public bool loop;
             public Vector2 position, velocity, offset; public float drag, gravity;
             public Vector3 scale = Vector3.one; public float startScale = 1, endScale = 1, ease = 2, stretch;
-            public Color color = Color.white; public Gradient ramp; public float fadeIn, fadePower = 1, flicker, pulse;
+            // Per-axis growth on top of the uniform scale (spikes and pillars grow from their base).
+            public Vector2 axisStart = Vector2.one, axisEnd = Vector2.one;
+            public Color color = Color.white; public Gradient ramp; public float fadeIn, fadePower = 1, flicker, pulse, hold;
             public float age, life, spin, angle, angleOffset; public int seed;
-            public bool alignVelocity, registered;
-            public Emit emit; public float emitRate, emitBank, emitSpread; public Color emitColor;
+            public bool alignVelocity, registered, fresh;
+            // Set by LayFlat: a squashed parent so the clip spins in the ground plane instead of tilting.
+            public Transform pivot;
+            // Orbit: when orbit is non-zero the clip circles orbitCenter (which drifts with velocity) at a radius
+            // that eases from orbitRadius to orbitRadiusEnd, so motes can spiral in to charge a cast or out to burst.
+            public Vector2 orbitCenter; public float orbit, orbitAngle, orbitRadius, orbitRadiusEnd, orbitPower = 1;
+            public Emit emit; public float emitRate, emitBank, emitSpread; public Color emitColor; public Action<Clip, Vector2> emitCustom;
+        }
+
+        /// <summary>Everything a cast (wind-up) effect may use: where, who, which way and how long until release.</summary>
+        private struct CastInfo
+        {
+            public Vector2 pos, target; public float radius, size, windup; public int facing; public Transform anchor; public Color tint, light;
         }
 
         private readonly List<Clip> clips = new List<Clip>();
@@ -37,12 +56,31 @@ namespace PrototypeLab.Roguelike
         private readonly HashSet<Clip> retiring = new HashSet<Clip>();
         private readonly Dictionary<Transform, Clip> attached = new Dictionary<Transform, Clip>();
         private readonly Stack<GameObject> pool = new Stack<GameObject>();
+        private readonly Stack<Transform> pivots = new Stack<Transform>();
+        private readonly List<Clip> spawned = new List<Clip>();
         private readonly System.Random random = new System.Random(2026);
         private int sequence;
         public int ActiveCount { get { return clips.Count; } }
 
+        private int grade = 1;
+        /// <summary>
+        /// The level (1 to 3) of the skill whose effects are being drawn. Gameplay sets it around a skill's calls and puts it
+        /// back to 1 afterwards; higher grades draw bigger, denser effects and level three adds its awakening flourish.
+        /// </summary>
+        public int Grade { get { return grade; } set { grade = Mathf.Clamp(value, 1, 3); } }
+
+        // Orbit skills: gameplay and the drawn orbs share one path so every hit lands where an orb is seen.
+        public const float OrbitDegreesPerSecond = 250, OrbitTilt = .55f;
+        /// <summary>Offset of orb <paramref name="index"/> of <paramref name="count"/> from its zone root, <paramref name="age"/> seconds after it was cast.</summary>
+        public static Vector2 OrbitOffset(int index, int count, float age, float radius)
+        {
+            float angle = (age * OrbitDegreesPerSecond + index * 360f / Mathf.Max(1, count)) * Mathf.Deg2Rad;
+            return new Vector2(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius * OrbitTilt);
+        }
+
         private static bool built;
         private static Sprite glow, core, ring, streak, spark, wisp, shard, sigil, arrow, bolt, hex, meteorRock;
+        private static Sprite crescent, burst, glint, pillar, crack, scorch, spike, swirl, petal, flake, orb, runeRing;
         private static Sprite[] smoke, flame, slash, rock, turret;
         private static Material additiveMaterial, alphaMaterial;
         private static readonly Dictionary<Material, Material> ghostMaterials = new Dictionary<Material, Material>();
@@ -58,7 +96,44 @@ namespace PrototypeLab.Roguelike
             var root = new GameObject("Combat light effects");
             root.transform.SetParent(parent, false);
             EnsureTextures();
-            return root.AddComponent<TowerVfx>();
+            var vfx = root.AddComponent<TowerVfx>();
+            vfx.Prewarm(PrewarmCount);
+            return vfx;
+        }
+
+        // A big skill spawns a few hundred sprites in its first frame; building them up front keeps a first cast from hitching.
+        private void Prewarm(int count)
+        {
+            for (int i = pool.Count; i < count; i++)
+            {
+                var go = new GameObject("Pooled effect"); go.transform.SetParent(transform, false); go.AddComponent<SpriteRenderer>(); go.SetActive(false); pool.Push(go);
+            }
+        }
+
+        private static bool codeWarmed;
+        /// <summary>True once the effect code has been compiled ahead of its first use.</summary>
+        public static bool CodeWarm { get; private set; }
+
+        private void Start() { if (!codeWarmed) { codeWarmed = true; StartCoroutine(WarmCode()); } }
+
+        // Mono compiles a method on its first call, so a skill's first cast would compile its whole family in one frame.
+        // Compile the effect code (closures included) a slice per frame after load instead.
+        private static IEnumerator WarmCode()
+        {
+            const BindingFlags all = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+            var types = new List<Type> { typeof(TowerVfx) }; types.AddRange(typeof(TowerVfx).GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic));
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            foreach (var type in types)
+            {
+                if (type.ContainsGenericParameters) continue;
+                foreach (var method in type.GetMethods(all))
+                {
+                    if (method.IsAbstract || method.ContainsGenericParameters) continue;
+                    try { method.MethodHandle.GetFunctionPointer(); } catch (Exception) { }
+                    if (watch.Elapsed.TotalMilliseconds > 1.5) { yield return null; watch.Restart(); }
+                }
+            }
+            CodeWarm = true;
         }
 
         // ---------------------------------------------------------------- simulation
@@ -81,10 +156,23 @@ namespace PrototypeLab.Roguelike
             }
             int survivors = clips.Count;
             for (int i = 0; i < survivors; i++) { var clip = clips[i]; if (clip.emit != Emit.None && clip.root && clip.age >= 0) Emission(clip, dt); }
+            Settle();
+        }
+
+        private void LateUpdate() { Settle(); }
+
+        // A clip spawned after a tick (gameplay calls, or emitters at the end of Tick) would otherwise be drawn once with
+        // Spawn's raw transform: unrotated, full size, opaque, even while its start is still delayed. Pose it at age 0 first.
+        private void Settle()
+        {
+            if (spawned.Count == 0) return;
+            for (int i = 0; i < spawned.Count; i++) { var clip = spawned[i]; if (clip.fresh && clip.root) Animate(clip, 0); }
+            spawned.Clear();
         }
 
         private void Animate(Clip clip, float dt)
         {
+            clip.fresh = false;
             if (clip.age < 0) { if (clip.renderer) clip.renderer.enabled = false; return; }
             if (clip.renderer && !clip.renderer.enabled) clip.renderer.enabled = true;
             float p = Mathf.Clamp01(clip.age / clip.life);
@@ -94,7 +182,18 @@ namespace PrototypeLab.Roguelike
                 clip.renderer.sprite = clip.frames[frame];
             }
             var transform = clip.root.transform;
-            if (ReferenceEquals(clip.external, null))
+            bool orbiting = clip.orbit != 0 && ReferenceEquals(clip.external, null);
+            if (orbiting)
+            {
+                if (clip.drag > 0) clip.velocity *= 1 / (1 + clip.drag * dt);
+                clip.orbitCenter += clip.velocity * dt;
+                float radius = Mathf.Lerp(clip.orbitRadius, clip.orbitRadiusEnd, Mathf.Pow(p, clip.orbitPower));
+                Vector2 next = clip.orbitCenter + Direction(clip.orbitAngle + clip.age * clip.orbit) * radius;
+                if (clip.alignVelocity && (next - clip.position).sqrMagnitude > .000001f) clip.angle = Mathf.Atan2(next.y - clip.position.y, next.x - clip.position.x) * Mathf.Rad2Deg;
+                clip.position = next;
+                transform.position = new Vector3(next.x, next.y, 0);
+            }
+            else if (ReferenceEquals(clip.external, null))
             {
                 if (clip.gravity != 0) clip.velocity.y -= clip.gravity * dt;
                 if (clip.drag > 0) clip.velocity *= 1 / (1 + clip.drag * dt);
@@ -102,19 +201,32 @@ namespace PrototypeLab.Roguelike
                 transform.position = new Vector3(clip.position.x, clip.position.y, 0);
             }
             else transform.localPosition = clip.offset;
-            if (clip.alignVelocity && clip.velocity.sqrMagnitude > .0001f) clip.angle = Mathf.Atan2(clip.velocity.y, clip.velocity.x) * Mathf.Rad2Deg;
-            else clip.angle += clip.spin * dt;
+            if (!orbiting)
+            {
+                if (clip.alignVelocity && clip.velocity.sqrMagnitude > .0001f) clip.angle = Mathf.Atan2(clip.velocity.y, clip.velocity.x) * Mathf.Rad2Deg;
+                else clip.angle += clip.spin * dt;
+            }
+            else if (!clip.alignVelocity) clip.angle += clip.spin * dt;
             float eased = clip.ease <= 0 ? p : 1 - Mathf.Pow(1 - p, clip.ease);
             float s = Mathf.Lerp(clip.startScale, clip.endScale, eased);
             if (clip.pulse > 0) s *= 1 + Mathf.Sin(clip.age * 21 + clip.seed) * clip.pulse;
             Vector3 scale = clip.scale * s;
+            if (clip.axisStart != Vector2.one || clip.axisEnd != Vector2.one)
+            {
+                Vector2 axis = Vector2.LerpUnclamped(clip.axisStart, clip.axisEnd, eased);
+                scale.x *= axis.x; scale.y *= axis.y;
+            }
             if (clip.stretch > 0) scale.x *= 1 + clip.velocity.magnitude * clip.stretch;
             transform.localRotation = Quaternion.Euler(0, 0, clip.angle + clip.angleOffset);
             transform.localScale = scale;
             Color tint = clip.ramp != null ? clip.ramp.Evaluate(p) * clip.color : clip.color;
             float alpha = tint.a;
             if (clip.fadeIn > 0 && clip.age < clip.fadeIn) alpha *= clip.age / clip.fadeIn;
-            if (clip.fadePower > 0) alpha *= Mathf.Pow(1 - p, clip.fadePower);
+            if (clip.fadePower > 0)
+            {
+                float fade = clip.hold > 0 ? Mathf.Clamp01((p - clip.hold) / Mathf.Max(.0001f, 1 - clip.hold)) : p;
+                alpha *= Mathf.Pow(1 - fade, clip.fadePower);
+            }
             if (clip.flicker > 0) alpha *= 1 - clip.flicker * (.5f + .5f * Mathf.Sin(clip.age * 113 + clip.seed * 7));
             tint.a = alpha;
             if (clip.renderer) clip.renderer.color = tint;
@@ -134,6 +246,13 @@ namespace PrototypeLab.Roguelike
                 if (attached.TryGetValue(clip.external, out current) && ReferenceEquals(current, clip)) attached.Remove(clip.external);
             }
             if (clip.ownedMeshes != null) foreach (var mesh in clip.ownedMeshes) if (mesh) Destroy(mesh);
+            clip.fresh = false;
+            if (clip.pivot)
+            {
+                if (clip.root) clip.root.transform.SetParent(transform, false);
+                clip.pivot.gameObject.SetActive(false); pivots.Push(clip.pivot);
+            }
+            clip.pivot = null;
             if (!clip.root) return;
             bool poolable = clip.renderer && ReferenceEquals(clip.external, null) && clip.copies == null && pool.Count < PoolLimit;
             if (poolable) { clip.root.SetActive(false); clip.renderer.sprite = null; pool.Push(clip.root); }
@@ -151,84 +270,63 @@ namespace PrototypeLab.Roguelike
         {
             // External projectile/zone roots belong to gameplay. Only our child visuals are removed.
             foreach (var clip in clips) Dispose(clip);
-            clips.Clear(); attached.Clear(); expired.Clear(); retiring.Clear();
+            clips.Clear(); attached.Clear(); expired.Clear(); retiring.Clear(); spawned.Clear();
         }
 
         private void OnDestroy() { Clear(); }
 
-        // ---------------------------------------------------------------- projectiles and zones
+        // ---------------------------------------------------------------- skill entry points (dispatch to the family partials)
 
-        public void Projectile(Transform root, SkillEffect effect, Color tint)
+        /// <summary>A skill projectile's look. Signature shots come from a learned skill; plain ones are companions' basic shots.</summary>
+        public void Projectile(Transform root, SkillEffect effect, Color tint) { Projectile(root, effect, tint, true); }
+
+        public void Projectile(Transform root, SkillEffect effect, Color tint, bool signature)
         {
             if (!root) return;
             EnsureTextures();
             var old = root.GetComponent<SpriteRenderer>(); if (old) old.enabled = false;
             root.localScale = Vector3.one;
             Clip existing; if (attached.TryGetValue(root, out existing)) Retire(existing);
-            Color light = Color.Lerp(tint, EffectColor(effect), .5f);
-            Clip primary, halo, tail;
             switch (effect)
             {
-                case SkillEffect.Fireball:
-                    primary = Attach(root, "Fireball core", core, .46f, Warm, 123); primary.pulse = .08f;
-                    halo = Attach(root, "Fireball heat", glow, 1.7f, Alpha(FireLight, .95f), 122); halo.pulse = .14f;
-                    tail = Attach(root, "Fireball flames", flame[0], 1.1f, new Color(1, .82f, .5f, .95f), 121, true, new Vector2(-.55f, 0));
-                    tail.frames = flame; tail.fps = 22; tail.angleOffset = 90; tail.pulse = .05f;
-                    Emitter(primary, Emit.Embers, 30, .18f, FireLight); Emitter(halo, Emit.Smoke, 9, .2f, new Color(.3f, .22f, .2f, .4f));
-                    Bundle(root, primary, halo, tail); break;
-                case SkillEffect.ArcaneVolley:
-                    primary = Attach(root, "Arcane bolt", bolt, .95f, new Color(.9f, .78f, 1), 123);
-                    halo = Attach(root, "Arcane halo", glow, 1, Alpha(light, .85f), 122); halo.pulse = .1f;
-                    Emitter(primary, Emit.Sparkles, 20, .15f, ArcaneLight); Emitter(halo, Emit.Trace, 30, .04f, Alpha(light, .55f));
-                    Bundle(root, primary, halo); break;
-                case SkillEffect.MultiShot:
-                case SkillEffect.RainArrows:
-                    primary = Attach(root, "Arrow", arrow, 1.15f, Color.white, 123, false);
-                    tail = Attach(root, "Arrow wake", streak, 1.7f, new Color(1, .95f, .8f, .45f), 121, true, new Vector2(-.75f, 0)); tail.scale.y *= .3f;
-                    halo = Attach(root, "Arrow light", glow, .55f, Alpha(GoldLight, .3f), 122);
-                    Emitter(halo, Emit.Trace, 14, .03f, new Color(1, 1, 1, .3f));
-                    Bundle(root, primary, tail, halo); break;
-                case SkillEffect.PierceShot:
-                    primary = Attach(root, "Piercing arrow", arrow, 1.6f, Color.white, 123, false);
-                    tail = Attach(root, "Piercing wake", streak, 2.8f, Alpha(GoldLight, .75f), 121, true, new Vector2(-1.1f, 0)); tail.scale.y *= .5f;
-                    halo = Attach(root, "Piercing light", glow, .9f, Alpha(GoldLight, .6f), 122); halo.pulse = .08f;
-                    Emitter(primary, Emit.Sparkles, 22, .2f, GoldLight); Emitter(halo, Emit.Trace, 36, .04f, Alpha(GoldLight, .6f));
-                    Bundle(root, primary, tail, halo); break;
-                case SkillEffect.Shockwave:
-                    primary = Attach(root, "Shockwave crest", ring, 1.2f, Alpha(GoldLight, .95f), 123); primary.scale.x *= .38f; primary.pulse = .06f;
-                    halo = Attach(root, "Shockwave light", glow, 1.8f, Alpha(GoldLight, .55f), 122); halo.scale.x *= .6f;
-                    tail = Attach(root, "Shockwave wake", streak, 1.8f, Alpha(GoldLight, .6f), 121, true, new Vector2(-.9f, 0)); tail.scale.y *= 1.6f;
-                    Emitter(primary, Emit.Smoke, 16, .3f, DustTone); Emitter(halo, Emit.Embers, 12, .3f, GoldLight);
-                    Bundle(root, primary, halo, tail); break;
-                case SkillEffect.Sentry:
-                    primary = Attach(root, "Sentry tracer", core, .22f, new Color(.85f, .97f, 1), 123);
-                    tail = Attach(root, "Tracer wake", streak, 1, Alpha(SteelLight, .85f), 122, true, new Vector2(-.45f, 0)); tail.scale.y *= .25f;
-                    Emitter(primary, Emit.Trace, 40, .02f, Alpha(SteelLight, .5f));
-                    Bundle(root, primary, tail); break;
-                default:
-                    primary = Attach(root, "Energy bolt", core, .36f, Color.Lerp(light, Color.white, .6f), 123); primary.pulse = .06f;
-                    halo = Attach(root, "Energy halo", glow, 1.15f, Alpha(light, .85f), 122); halo.pulse = .1f;
-                    Emitter(halo, Emit.Trace, 30, .04f, Alpha(light, .5f));
-                    Bundle(root, primary, halo); break;
+                case SkillEffect.Fireball: ProjectileFireball(root, tint, signature); break;
+                case SkillEffect.ArcaneVolley: ProjectileArcaneVolley(root, tint, signature); break;
+                case SkillEffect.MultiShot: ProjectileMultiShot(root, tint, signature); break;
+                case SkillEffect.RainArrows: ProjectileRainArrows(root, tint, signature); break;
+                case SkillEffect.PierceShot: ProjectilePierceShot(root, tint, signature); break;
+                case SkillEffect.Shockwave: ProjectileShockwave(root, tint, signature); break;
+                case SkillEffect.Sentry: ProjectileSentry(root, tint, signature); break;
+                case SkillEffect.Boomerang: ProjectileBoomerang(root, tint, signature); break;
+                case SkillEffect.Ricochet: ProjectileRicochet(root, tint, signature); break;
+                default: DefaultProjectile(root, effect, tint); break;
+            }
+            if (signature && Grade > 1) GradeProjectile(root, effect, tint);
+        }
+
+        /// <summary>A projectile striking its target. Signature hits come from learned skills; plain ones from basic and hostile shots.</summary>
+        public void ProjectileHit(SkillEffect effect, Vector2 pos, Color tint, bool signature, Vector2 direction)
+        {
+            EnsureTextures();
+            direction = direction.sqrMagnitude > .0001f ? direction.normalized : Vector2.right;
+            switch (effect)
+            {
+                case SkillEffect.Fireball: HitFireball(pos, tint, signature, direction); break;
+                case SkillEffect.ArcaneVolley: HitArcaneVolley(pos, tint, signature, direction); break;
+                case SkillEffect.MultiShot: HitMultiShot(pos, tint, signature, direction); break;
+                case SkillEffect.RainArrows: HitRainArrows(pos, tint, signature, direction); break;
+                case SkillEffect.PierceShot: HitPierceShot(pos, tint, signature, direction); break;
+                case SkillEffect.Shockwave: HitShockwave(pos, tint, signature, direction); break;
+                case SkillEffect.Sentry: HitSentry(pos, tint, signature, direction); break;
+                case SkillEffect.Boomerang: HitBoomerang(pos, tint, signature, direction); break;
+                case SkillEffect.Ricochet: HitRicochet(pos, tint, signature, direction); break;
+                default: Impact(effect, pos, .35f, tint); break;
             }
         }
 
-        public void HostileProjectile(Transform root, float diameter)
-        {
-            if (!root) return;
-            EnsureTextures();
-            var old = root.GetComponent<SpriteRenderer>(); if (old) old.enabled = false;
-            Clip existing; if (attached.TryGetValue(root, out existing)) Retire(existing);
-            Color crimson = new Color(1, .22f, .4f);
-            var primary = Attach(root, "Hostile bullet core", core, diameter * .55f, Warm, 146);
-            var rim = Attach(root, "Hostile bullet rim", ring, diameter * 1.2f, Alpha(crimson, .95f), 145); rim.pulse = .06f;
-            var halo = Attach(root, "Hostile bullet glow", glow, diameter * 2.7f, Alpha(crimson, .7f), 144); halo.pulse = .12f;
-            var tail = Attach(root, "Hostile bullet wake", streak, diameter * 2.8f, Alpha(crimson, .5f), 144, true, new Vector2(-diameter * 1.1f, 0)); tail.scale.y *= diameter * 1.6f;
-            Emitter(halo, Emit.Trace, 18, .03f, Alpha(crimson, .5f));
-            Bundle(root, primary, rim, halo, tail);
-        }
+        public void AttachZone(GameObject root, SkillEffect effect, float radius, float duration) { AttachZone(root, effect, radius, duration, 1); }
 
-        public void AttachZone(GameObject root, SkillEffect effect, float radius, float duration)
+        /// <summary>A lasting area's look. <paramref name="count"/> is how many orbs it carries (Orbit); other zones ignore it.</summary>
+        public void AttachZone(GameObject root, SkillEffect effect, float radius, float duration, int count)
         {
             if (!root) return;
             EnsureTextures();
@@ -237,40 +335,168 @@ namespace PrototypeLab.Roguelike
             Clip existing;
             if (attached.TryGetValue(root.transform, out existing)) return;
             float life = Mathf.Max(.1f, duration);
-            Vector2 center = root.transform.position;
-            if (effect == SkillEffect.Sentry)
+            switch (effect)
             {
-                var body = Attach(root.transform, "Sentry turret", turret[0], 1.7f, Color.white, 113, false); body.frames = turret; body.fps = 9; body.life = life; body.fadePower = 0;
-                var lens = Attach(root.transform, "Sentry optic", glow, .4f, Alpha(SteelLight, .8f), 114, true, new Vector2(-.13f, .14f)); lens.pulse = .18f; lens.life = life; lens.fadePower = 0;
-                Bundle(root.transform, body, lens);
-                return;
+                case SkillEffect.Sentry: ZoneSentry(root.transform, radius, life); break;
+                case SkillEffect.PoisonCloud: ZonePoisonCloud(root.transform, radius, life); break;
+                case SkillEffect.BladeStorm: ZoneBladeStorm(root.transform, radius, life); break;
+                case SkillEffect.Fireball: ZoneFireball(root.transform, radius, life); break;
+                case SkillEffect.HealPulse: ZoneHealPulse(root.transform, radius, life); break;
+                case SkillEffect.Orbit: ZoneOrbit(root.transform, radius, life, Mathf.Max(1, count)); break;
+                case SkillEffect.Mine: ZoneMine(root.transform, radius, life); break;
+                case SkillEffect.Vortex: ZoneVortex(root.transform, radius, life); break;
+                case SkillEffect.WarBanner: ZoneWarBanner(root.transform, radius, life); break;
+                default: DefaultZone(root.transform, effect, radius, life); break;
             }
-            if (effect == SkillEffect.PoisonCloud)
+            if (Grade > 1) GradeZone(root.transform, effect, radius, life);
+        }
+
+        /// <summary>A fighting phantom of <paramref name="caster"/> standing at <paramref name="root"/> until it bursts.</summary>
+        public void AttachDecoy(GameObject root, Transform caster, float radius, float duration, Color tint)
+        {
+            if (!root) return;
+            EnsureTextures();
+            var old = root.GetComponent<SpriteRenderer>(); if (old) old.enabled = false;
+            root.transform.localScale = Vector3.one;
+            Clip existing;
+            if (attached.TryGetValue(root.transform, out existing)) return;
+            ZoneDecoy(root.transform, caster, radius, Mathf.Max(.1f, duration), tint);
+        }
+
+        /// <summary>The wind-up shown while a hero casts. Release happens <paramref name="windup"/> seconds later.</summary>
+        public void Cast(SkillEffect effect, Vector2 pos, float radius, Color tint) { Cast(effect, pos, radius, tint, .45f, 1, null, pos + Vector2.right * 3); }
+
+        public void Cast(SkillEffect effect, Vector2 pos, float radius, Color tint, float windup, int facing, Transform anchor, Vector2 target)
+        {
+            EnsureTextures();
+            var c = new CastInfo { pos = pos, target = target, radius = radius, size = Mathf.Clamp(radius * 1.1f, 1.4f, 3.8f), windup = Mathf.Clamp(windup, .08f, 1.2f),
+                facing = facing < 0 ? -1 : 1, anchor = anchor, tint = tint, light = Color.Lerp(tint, EffectColor(effect), .5f) };
+            switch (effect)
             {
-                var haze = Attach(root.transform, "Poison haze", glow, radius * 2.3f, Alpha(PoisonLight, .3f), 111); haze.pulse = .07f; haze.life = life; haze.fadePower = .7f;
-                var volume = Attach(root.transform, "Poison volume", glow, radius * 1.4f, new Color(.3f, .6f, .2f, .25f), 110); volume.life = life; volume.fadePower = .7f; volume.pulse = .05f;
-                Emitter(volume, Emit.Poison, 16, radius * .8f, new Color(.45f, .8f, .3f, .45f)); Emitter(haze, Emit.Sparkles, 6, radius * .7f, new Color(.8f, 1, .55f));
-                Bundle(root.transform, haze, volume);
-                for (int i = 0; i < 8; i++) Puff(center + Inside(radius * .7f), radius * Range(.45f, .8f), new Color(.5f, .85f, .3f, .5f), new Vector2(Range(-.5f, .5f), Range(.4f, 1)), Range(.6f, 1), 112);
-                return;
+                case SkillEffect.Fireball: CastFireball(c); break;
+                case SkillEffect.Meteor: CastMeteor(c); break;
+                case SkillEffect.IceNova: CastIceNova(c); break;
+                case SkillEffect.PoisonCloud: CastPoisonCloud(c); break;
+                case SkillEffect.ChainLightning: CastChainLightning(c); break;
+                case SkillEffect.ArcaneVolley: CastArcaneVolley(c); break;
+                case SkillEffect.Shockwave: CastShockwave(c); break;
+                case SkillEffect.BladeStorm: CastBladeStorm(c); break;
+                case SkillEffect.DashStrike: CastDashStrike(c); break;
+                case SkillEffect.MultiShot: CastMultiShot(c); break;
+                case SkillEffect.PierceShot: CastPierceShot(c); break;
+                case SkillEffect.RainArrows: CastRainArrows(c); break;
+                case SkillEffect.Sentry: CastSentry(c); break;
+                case SkillEffect.HealPulse: CastHealPulse(c); break;
+                case SkillEffect.ShieldPulse: CastShieldPulse(c); break;
+                case SkillEffect.LifeDrain: CastLifeDrain(c); break;
+                case SkillEffect.Boomerang: CastBoomerang(c); break;
+                case SkillEffect.Ricochet: CastRicochet(c); break;
+                case SkillEffect.HuntMark: CastHuntMark(c); break;
+                case SkillEffect.Hook: CastHook(c); break;
+                case SkillEffect.Quake: CastQuake(c); break;
+                case SkillEffect.Orbit: CastOrbit(c); break;
+                case SkillEffect.Decoy: CastDecoy(c); break;
+                case SkillEffect.Mine: CastMine(c); break;
+                case SkillEffect.Vortex: CastVortex(c); break;
+                case SkillEffect.Curse: CastCurse(c); break;
+                case SkillEffect.WarBanner: CastWarBanner(c); break;
+                case SkillEffect.Bloom: CastBloom(c); break;
             }
-            if (effect == SkillEffect.BladeStorm)
+            if (Grade > 1) GradeCast(effect, c);
+        }
+
+        public void Impact(SkillEffect effect, Vector2 pos, float radius, Color tint) { Impact(effect, pos, radius, tint, 0); }
+
+        /// <summary>A skill's area burst. <paramref name="facing"/> is the caster's direction, or 0 when it does not matter.</summary>
+        public void Impact(SkillEffect effect, Vector2 pos, float radius, Color tint, int facing)
+        {
+            EnsureTextures();
+            switch (effect)
             {
-                var hub = Attach(root.transform, "Blade storm light", glow, radius * 1.3f, Alpha(GoldLight, .55f), 112); hub.pulse = .1f; hub.life = life; hub.fadePower = .8f;
-                var orbit = Attach(root.transform, "Blade storm ring", ring, radius * 2.05f, Alpha(GoldLight, .5f), 113); orbit.spin = -220; orbit.life = life; orbit.fadePower = .8f;
-                var blades = new List<Clip> { orbit };
-                for (int i = 0; i < 3; i++)
-                {
-                    var blade = Attach(root.transform, "Blade storm edge", streak, radius * 2.15f, new Color(1, .9f, .62f, .7f), 114); blade.scale.y *= .38f; blade.angle = i * 120; blade.spin = 760; blade.life = life; blade.fadePower = .8f;
-                    blades.Add(blade);
-                }
-                Emitter(hub, Emit.Sparkles, 26, radius * .9f, GoldLight);
-                Bundle(root.transform, hub, blades.ToArray());
-                return;
+                case SkillEffect.Fireball: ImpactFireball(pos, radius, tint, facing); break;
+                case SkillEffect.Meteor: ImpactMeteor(pos, radius, tint, facing); break;
+                case SkillEffect.IceNova: ImpactIceNova(pos, radius, tint, facing); break;
+                case SkillEffect.PoisonCloud: ImpactPoisonCloud(pos, radius, tint, facing); break;
+                case SkillEffect.ChainLightning: ImpactChainLightning(pos, radius, tint, facing); break;
+                case SkillEffect.ArcaneVolley: ImpactArcaneVolley(pos, radius, tint, facing); break;
+                case SkillEffect.Shockwave: ImpactShockwave(pos, radius, tint, facing); break;
+                case SkillEffect.BladeStorm: ImpactBladeStorm(pos, radius, tint, facing); break;
+                case SkillEffect.DashStrike: ImpactDashStrike(pos, radius, tint, facing); break;
+                case SkillEffect.MultiShot: ImpactMultiShot(pos, radius, tint, facing); break;
+                case SkillEffect.PierceShot: ImpactPierceShot(pos, radius, tint, facing); break;
+                case SkillEffect.RainArrows: ImpactRainArrows(pos, radius, tint, facing); break;
+                case SkillEffect.Sentry: ImpactSentry(pos, radius, tint, facing); break;
+                case SkillEffect.HealPulse: ImpactHealPulse(pos, radius, tint, facing); break;
+                case SkillEffect.ShieldPulse: ImpactShieldPulse(pos, radius, tint, facing); break;
+                case SkillEffect.LifeDrain: ImpactLifeDrain(pos, radius, tint, facing); break;
+                case SkillEffect.Boomerang: ImpactBoomerang(pos, radius, tint, facing); break;
+                case SkillEffect.Ricochet: ImpactRicochet(pos, radius, tint, facing); break;
+                case SkillEffect.HuntMark: ImpactHuntMark(pos, radius, tint, facing); break;
+                case SkillEffect.Hook: ImpactHook(pos, radius, tint, facing); break;
+                case SkillEffect.Quake: ImpactQuake(pos, radius, tint, facing); break;
+                case SkillEffect.Orbit: ImpactOrbit(pos, radius, tint, facing); break;
+                case SkillEffect.Decoy: ImpactDecoy(pos, radius, tint, facing); break;
+                case SkillEffect.Mine: ImpactMine(pos, radius, tint, facing); break;
+                case SkillEffect.Vortex: ImpactVortex(pos, radius, tint, facing); break;
+                case SkillEffect.Curse: ImpactCurse(pos, radius, tint, facing); break;
+                case SkillEffect.WarBanner: ImpactWarBanner(pos, radius, tint, facing); break;
+                case SkillEffect.Bloom: ImpactBloom(pos, radius, tint, facing); break;
+                default: DefaultImpact(effect, pos, radius, tint); break;
             }
-            var field = Attach(root.transform, effect + " field", glow, Mathf.Max(1.5f, radius * 2), Alpha(EffectColor(effect), .5f), 113); field.pulse = .08f; field.life = life; field.fadePower = .8f;
-            var edge = Attach(root.transform, effect + " edge", ring, Mathf.Max(1.5f, radius * 2), Alpha(EffectColor(effect), .6f), 113); edge.spin = 60; edge.life = life; edge.fadePower = .8f;
-            Bundle(root.transform, field, edge);
+            if (Grade > 1) GradeImpact(effect, pos, radius, tint, facing);
+        }
+
+        public void Trail(Vector2 from, Vector2 to, SkillEffect effect, Color tint)
+        {
+            EnsureTextures();
+            if ((to - from).magnitude < .05f && effect != SkillEffect.ChainLightning) return;
+            switch (effect)
+            {
+                case SkillEffect.ChainLightning: TrailChainLightning(from, to, tint); break;
+                case SkillEffect.LifeDrain: TrailLifeDrain(from, to, tint); break;
+                case SkillEffect.Meteor: TrailMeteor(from, to, tint); break;
+                case SkillEffect.DashStrike: TrailDashStrike(from, to, tint); break;
+                case SkillEffect.PierceShot: TrailPierceShot(from, to, tint); break;
+                case SkillEffect.Shockwave: TrailShockwave(from, to, tint); break;
+                case SkillEffect.Ricochet: TrailRicochet(from, to, tint); break;
+                case SkillEffect.HuntMark: TrailHuntMark(from, to, tint); break;
+                case SkillEffect.Hook: TrailHook(from, to, tint); break;
+                case SkillEffect.Curse: TrailCurse(from, to, tint); break;
+                case SkillEffect.Bloom: TrailBloom(from, to, tint); break;
+                default: DefaultTrail(from, to, effect, tint); break;
+            }
+        }
+
+        // ---------------------------------------------------------------- generic fallbacks
+
+        private void DefaultProjectile(Transform root, SkillEffect effect, Color tint)
+        {
+            Color light = Color.Lerp(tint, EffectColor(effect), .5f);
+            var primary = Attach(root, "Energy bolt", core, .36f, Color.Lerp(light, Color.white, .6f), 123); primary.pulse = .06f;
+            var halo = Attach(root, "Energy halo", glow, 1.15f, Alpha(light, .85f), 122); halo.pulse = .1f;
+            Emitter(halo, Emit.Trace, 30, .04f, Alpha(light, .5f));
+            Bundle(root, primary, halo);
+        }
+
+        private void DefaultZone(Transform root, SkillEffect effect, float radius, float life)
+        {
+            var field = Attach(root, effect + " field", glow, Mathf.Max(1.5f, radius * 2), Alpha(EffectColor(effect), .5f), 113); field.pulse = .08f; field.life = life; field.fadePower = .8f;
+            var edge = Attach(root, effect + " edge", ring, Mathf.Max(1.5f, radius * 2), Alpha(EffectColor(effect), .6f), 113); edge.spin = 60; edge.life = life; edge.fadePower = .8f;
+            Bundle(root, field, edge);
+        }
+
+        private void DefaultImpact(SkillEffect effect, Vector2 pos, float radius, Color tint)
+        {
+            Color light = Color.Lerp(tint, EffectColor(effect), .5f); float r = Mathf.Clamp(radius * 1.2f, .85f, 3);
+            Flash(pos, r * 1.6f, light, .15f);
+            Wave(pos, r * 2, Alpha(light, .8f), .3f, 3);
+            for (int i = 0; i < 8; i++) Spark(pos, Direction(Range(0, 360)) * Range(3, 7), light, Range(.2f, .4f), Range(.2f, .4f), 6, 2.5f);
+        }
+
+        private void DefaultTrail(Vector2 from, Vector2 to, SkillEffect effect, Color tint)
+        {
+            Line(from, to, .35f, Alpha(Color.Lerp(tint, EffectColor(effect), .5f), .85f), .3f, 128, 1.05f);
+            Line(from, to, .1f, Color.white, .22f, 129, 1.02f);
         }
 
         // ---------------------------------------------------------------- sword strikes and movement
@@ -383,287 +609,19 @@ namespace PrototypeLab.Roguelike
             var wave = Spawn("Hit ring", ring, pos, .75f, Alpha(tint, .6f), .16f, true, 131); wave.startScale = .2f; wave.endScale = 1; wave.ease = 3;
         }
 
-        // ---------------------------------------------------------------- skill casts and impacts
-
-        public void Cast(SkillEffect effect, Vector2 pos, float radius, Color tint)
+        public void HostileProjectile(Transform root, float diameter)
         {
+            if (!root) return;
             EnsureTextures();
-            float size = Mathf.Clamp(radius * 1.1f, 1.4f, 3.8f);
-            Color accent = EffectColor(effect), light = Color.Lerp(tint, accent, .5f);
-            var bloom = Spawn("Cast bloom", glow, pos, size * 1.4f, Alpha(light, .55f), .45f, true, 124); bloom.fadeIn = .08f; bloom.startScale = .6f; bloom.endScale = 1.25f; bloom.ease = 1; bloom.fadePower = 1.2f; bloom.pulse = .05f;
-            Vector2 ground = pos + new Vector2(0, -.75f);
-            switch (effect)
-            {
-                case SkillEffect.Fireball:
-                    for (int i = 0; i < 3; i++) Flame(pos + Inside(.3f), size * Range(.45f, .6f), new Vector2(Range(-.5f, .5f), Range(1, 1.6f)), Range(.35f, .45f), 126);
-                    Flash(pos, size * .5f, Warm, .15f);
-                    Emitter(bloom, Emit.Embers, 50, .4f, FireLight);
-                    for (int i = 0; i < 6; i++) Spark(pos, Direction(Range(0, 360)) * Range(2, 4), FireLight, Range(.2f, .4f), Range(.3f, .45f), 2, 1.5f);
-                    break;
-                case SkillEffect.IceNova:
-                    Wave(pos, size * 1.8f, Alpha(IceLight, .85f), .5f, 2.5f);
-                    for (int i = 0; i < 8; i++)
-                    {
-                        Vector2 direction = Direction(i * 45 + Range(-10, 10));
-                        var crystal = Spawn("Frost crystal", shard, pos + direction * size * .45f, Range(.18f, .3f), new Color(.85f, .97f, 1, .95f), .45f, true, 127);
-                        crystal.velocity = direction * 1.5f + Vector2.up; crystal.gravity = 4; crystal.spin = Range(-300, 300); crystal.fadePower = 1.6f;
-                    }
-                    Emitter(bloom, Emit.Frost, 24, size * .5f, new Color(.75f, .92f, 1, .45f));
-                    Sparkles(pos, 10, size * .6f, new Color(.85f, .97f, 1));
-                    break;
-                case SkillEffect.ChainLightning:
-                    for (int i = 0; i < 4; i++) Bolt(pos, pos + Direction(Range(0, 360)) * size * Range(.6f, .95f), StormLight, .05f, .18f, 0);
-                    Flash(pos, size * .9f, new Color(.85f, .9f, 1), .12f).flicker = .5f;
-                    bloom.flicker = .5f; Emitter(bloom, Emit.Sparkles, 30, size * .5f, StormLight);
-                    break;
-                case SkillEffect.Meteor:
-                    GroundSigil(ground, size * 2.3f, Alpha(FireLight, .9f), .75f, 35);
-                    GroundGlow(ground, size * 2.4f, Alpha(FireLight, .5f), .75f);
-                    Emitter(bloom, Emit.Embers, 40, size * .7f, new Color(1, .5f, .15f));
-                    break;
-                case SkillEffect.ArcaneVolley:
-                    var seal = Spawn("Arcane seal", sigil, pos, size * 1.5f, Alpha(ArcaneLight, .9f), .5f, true, 125); seal.spin = -120; seal.fadeIn = .06f; seal.startScale = .5f; seal.endScale = 1.1f; seal.fadePower = 1.3f;
-                    Flash(pos, size * .5f, new Color(.9f, .8f, 1), .14f);
-                    Emitter(bloom, Emit.Sparkles, 36, size * .55f, ArcaneLight);
-                    break;
-                case SkillEffect.Shockwave:
-                    GroundWave(ground, size * 2.2f, Alpha(GoldLight, .9f), .4f);
-                    for (int i = 0; i < 6; i++) Puff(ground + new Vector2(Range(-.4f, .4f), .05f), Range(.35f, .6f), DustTone, new Vector2(Range(-3, 3), Range(.5f, 1.3f)), Range(.35f, .55f), 118);
-                    Flash(pos, size * .7f, Warm, .12f);
-                    break;
-                case SkillEffect.BladeStorm:
-                    for (int i = 0; i < 3; i++) { var blade = Spawn("Spinning blade", streak, pos, size * 1.3f, Alpha(GoldLight, .85f), .45f, true, 127); blade.scale.y *= .32f; blade.angle = i * 120; blade.spin = 900; blade.fadeIn = .05f; blade.fadePower = 1.4f; }
-                    Emitter(bloom, Emit.Sparkles, 30, size * .5f, GoldLight);
-                    break;
-                case SkillEffect.DashStrike:
-                    var dash = Spawn("Dash flash", streak, pos, size * 2.6f, new Color(1, 1, 1, .85f), .25f, true, 130); dash.scale.y *= .7f; dash.startScale = .4f; dash.endScale = 1.2f; dash.ease = 3; dash.fadePower = 1.5f;
-                    var dashTint = Spawn("Dash light", streak, pos, size * 2.9f, Alpha(light, .55f), .28f, true, 129); dashTint.scale.y *= 1.3f; dashTint.startScale = .4f; dashTint.endScale = 1.2f; dashTint.ease = 3;
-                    bloom.scale = new Vector3(bloom.scale.x * 1.8f, bloom.scale.y * .55f, 1); bloom.color = Alpha(light, .4f);
-                    for (int i = 0; i < 6; i++) { float y = pos.y + Range(-.8f, .8f); int side = i % 2 == 0 ? 1 : -1; var line = Line(new Vector2(pos.x, y), new Vector2(pos.x + side * Range(1.2f, 2.6f), y), Range(.05f, .12f), i % 3 == 0 ? Color.white : Alpha(light, .85f), Range(.15f, .25f), 128); line.velocity = new Vector2(side * 3, 0); }
-                    break;
-                case SkillEffect.MultiShot:
-                case SkillEffect.PierceShot:
-                case SkillEffect.RainArrows:
-                    Flash(pos, size * .6f, new Color(1, .95f, .8f), .12f);
-                    for (int i = 0; i < 3; i++) { var draw = Line(pos + Direction(Range(0, 360)) * size * .7f, pos, .06f, Alpha(GoldLight, .8f), .16f, 128); draw.startScale = .4f; draw.endScale = 1; draw.ease = 3; }
-                    Emitter(bloom, Emit.Sparkles, 20, size * .4f, GoldLight);
-                    break;
-                case SkillEffect.PoisonCloud:
-                    for (int i = 0; i < 5; i++) Puff(pos + Inside(.3f), size * Range(.4f, .5f), new Color(.5f, .85f, .3f, .5f), new Vector2(Range(-.6f, .6f), Range(.8f, 1.4f)), Range(.5f, .65f), 126);
-                    Bubbles(pos, 6, size * .4f);
-                    Emitter(bloom, Emit.Poison, 14, size * .4f, new Color(.45f, .8f, .3f, .45f));
-                    break;
-                case SkillEffect.HealPulse:
-                    GroundSigil(ground, size * 2.4f, Alpha(LifeLight, .85f), .7f, 25);
-                    Wave(pos, size * 1.6f, Alpha(LifeLight, .7f), .5f, 2);
-                    Star(pos, size * 1.4f, new Color(1, 1, 1, .5f), .3f);
-                    Emitter(bloom, Emit.Motes, 40, size * .6f, new Color(.55f, 1, .75f));
-                    break;
-                case SkillEffect.ShieldPulse:
-                    var barrier = Spawn("Shield lattice", hex, pos, size * 1.7f, Alpha(GoldLight, .85f), .6f, true, 127); barrier.fadeIn = .08f; barrier.startScale = .8f; barrier.endScale = 1.05f; barrier.spin = 15; barrier.pulse = .03f; barrier.fadePower = 1.3f;
-                    GroundSigil(ground, size * 2.1f, Alpha(GoldLight, .8f), .6f, 30);
-                    Wave(pos, size * 1.9f, Alpha(GoldLight, .7f), .45f, 2.5f);
-                    Emitter(bloom, Emit.Sparkles, 24, size * .6f, GoldLight);
-                    break;
-                case SkillEffect.LifeDrain:
-                    for (int i = 0; i < 12; i++)
-                    {
-                        Vector2 offset = Direction(Range(0, 360)) * size * Range(.8f, 1.2f);
-                        var drop = Spawn("Drain wisp", wisp, pos + offset, Range(.15f, .3f), Alpha(LifeLight, .9f), .42f, true, 127);
-                        drop.velocity = -offset / .4f; drop.fadeIn = .05f; drop.fadePower = .8f; drop.endScale = .5f;
-                    }
-                    bloom.color = new Color(.2f, .7f, .4f, .6f);
-                    Emitter(bloom, Emit.Sparkles, 20, size * .4f, LifeLight);
-                    break;
-                case SkillEffect.Sentry:
-                    Wave(pos, size * 1.5f, Alpha(SteelLight, .8f), .3f, 3);
-                    Flash(pos, size * .6f, new Color(.85f, .97f, 1), .12f);
-                    for (int i = 0; i < 6; i++) Spark(pos, Direction(Range(0, 360)) * Range(2, 5), SteelLight, Range(.2f, .4f), Range(.25f, .4f), 6, 2);
-                    for (int i = 0; i < 3; i++) Puff(pos + new Vector2(Range(-.3f, .3f), -.5f), Range(.35f, .55f), DustTone, new Vector2(Range(-1.2f, 1.2f), Range(.5f, 1)), Range(.4f, .55f), 118);
-                    Emitter(bloom, Emit.Sparkles, 20, size * .4f, SteelLight);
-                    break;
-            }
-        }
-
-        public void Impact(SkillEffect effect, Vector2 pos, float radius, Color tint)
-        {
-            EnsureTextures();
-            Color accent = EffectColor(effect), light = Color.Lerp(tint, accent, .5f);
-            float r = effect == SkillEffect.Meteor ? Mathf.Clamp(radius, 1, 4) : Mathf.Clamp(radius * 1.2f, .85f, 3);
-            switch (effect)
-            {
-                case SkillEffect.Fireball:
-                    Explosion(pos, r, 1);
-                    break;
-                case SkillEffect.Meteor:
-                    Explosion(pos, r, 1.5f);
-                    GroundWave(pos + new Vector2(0, -.4f), r * 3.6f, Alpha(FireLight, .9f), .5f);
-                    for (int i = 0; i < 10; i++)
-                    {
-                        var debris = Spawn("Meteor debris", rock[i % 3], pos + Inside(.3f), Range(.15f, .35f), Color.white, Range(.7f, 1.1f), false, 128);
-                        debris.velocity = new Vector2(Range(-7, 7), Range(3, 9)); debris.gravity = 16; debris.spin = Range(-400, 400); debris.fadePower = .5f;
-                    }
-                    for (int i = 0; i < 6; i++) { var puff = Puff(pos + new Vector2(Range(-r, r) * .8f, -.3f), r * Range(.5f, .8f), Soot, new Vector2(Range(-2.5f, 2.5f), Range(.3f, 1)), Range(.7f, 1.1f), 112); puff.age = -Range(0, .08f); }
-                    break;
-                case SkillEffect.IceNova:
-                    Flash(pos, r * 2.6f, new Color(.85f, .95f, 1), .15f);
-                    Wave(pos, r * 2.8f, Alpha(IceLight, .9f), .45f, 3);
-                    Wave(pos, r * 2.2f, new Color(1, 1, 1, .7f), .3f, 2.5f);
-                    GroundWave(pos + new Vector2(0, -.6f), r * 3, Alpha(IceLight, .6f), .5f);
-                    for (int i = 0; i < 14; i++)
-                    {
-                        Vector2 direction = Direction(i * 26 + Range(-12, 12));
-                        var crystal = Spawn("Ice shard", shard, pos + direction * .2f, Range(.2f, .42f), new Color(.85f, .97f, 1, .95f), Range(.4f, .65f), true, 128);
-                        crystal.velocity = direction * r * Range(3, 7) + Vector2.up * 1.5f; crystal.gravity = 4; crystal.drag = 1.5f; crystal.spin = Range(-360, 360); crystal.fadePower = 1.5f;
-                    }
-                    for (int i = 0; i < 8; i++) Puff(pos + Inside(r * .4f), r * Range(.5f, .8f), new Color(.75f, .92f, 1, .45f), Direction(Range(0, 360)) * Range(.5f, 1.5f), Range(.5f, .8f), 112);
-                    Sparkles(pos, 18, r * .9f, new Color(.85f, .97f, 1));
-                    break;
-                case SkillEffect.ChainLightning:
-                    Discharge(pos, r, light);
-                    break;
-                case SkillEffect.ArcaneVolley:
-                    Flash(pos, r * 2.2f, new Color(.92f, .82f, 1), .15f);
-                    var seal = Spawn("Arcane burst seal", sigil, pos, r * 2, Alpha(ArcaneLight, .9f), .35f, true, 129); seal.spin = 400; seal.startScale = .4f; seal.endScale = 1.1f; seal.ease = 3; seal.fadePower = 1.4f;
-                    Wave(pos, r * 2, Alpha(ArcaneLight, .8f), .3f, 3);
-                    Rays(pos, 4, r * .8f, r * 1.4f, ArcaneLight, .2f);
-                    Sparkles(pos, 14, r * .8f, new Color(.85f, .7f, 1));
-                    break;
-                case SkillEffect.Shockwave:
-                    GroundWave(pos + new Vector2(0, -.45f), r * 3.2f, Alpha(GoldLight, .9f), .45f);
-                    Flash(pos, r * 1.4f, Warm, .12f);
-                    for (int i = 0; i < 10; i++) Puff(pos + new Vector2(Range(-.5f, .5f) * r, -.3f), r * Range(.3f, .55f), DustTone, new Vector2(Range(-3, 3) * r, Range(.6f, 1.6f)), Range(.4f, .65f), 118);
-                    for (int i = 0; i < 6; i++) { var pebble = Spawn("Shock pebble", rock[i % 3], pos + new Vector2(Range(-.4f, .4f), -.2f), Range(.08f, .18f), Color.white, Range(.5f, .8f), false, 128); pebble.velocity = new Vector2(Range(-5, 5), Range(3, 7)); pebble.gravity = 15; pebble.spin = Range(-500, 500); pebble.fadePower = .5f; }
-                    Rays(pos, 5, r * .9f, r * 1.6f, GoldLight, .2f);
-                    break;
-                case SkillEffect.BladeStorm:
-                    for (int i = 0; i < 4; i++) { var blade = Spawn("Blade flash", streak, pos, r * 2.4f, Alpha(GoldLight, .9f), .35f, true, 129); blade.scale.y *= .3f; blade.angle = i * 90 + Range(0, 45); blade.spin = 1100; blade.startScale = .5f; blade.endScale = 1.1f; blade.fadePower = 1.4f; }
-                    Flash(pos, r * 1.2f, Warm, .1f);
-                    Wave(pos, r * 2, Alpha(GoldLight, .6f), .25f, 3);
-                    for (int i = 0; i < 10; i++) Spark(pos, Direction(Range(0, 360)) * Range(3, 7), i % 2 == 0 ? Color.white : GoldLight, Range(.25f, .45f), Range(.25f, .4f), 6, 2.5f);
-                    break;
-                case SkillEffect.DashStrike:
-                    var slashLight = Spawn("Dash strike flash", streak, pos, r * 3.6f, new Color(1, 1, 1, .85f), .22f, true, 131); slashLight.scale.y *= r * .55f; slashLight.startScale = .4f; slashLight.endScale = 1.3f; slashLight.ease = 3; slashLight.fadePower = 1.5f;
-                    var slashTint = Spawn("Dash strike light", streak, pos, r * 4, Alpha(light, .5f), .26f, true, 130); slashTint.scale.y *= r * 1.1f; slashTint.startScale = .4f; slashTint.endScale = 1.3f; slashTint.ease = 3;
-                    Wave(pos, r * 2, Alpha(light, .8f), .3f, 3);
-                    for (int i = 0; i < 8; i++) Spark(pos, new Vector2(Range(-8, 8), Range(-2, 2)), i % 2 == 0 ? Color.white : light, Range(.25f, .5f), Range(.2f, .4f), 4, 2.5f);
-                    Flash(pos, r * 1.3f, Warm, .1f);
-                    break;
-                case SkillEffect.MultiShot:
-                case SkillEffect.PierceShot:
-                case SkillEffect.RainArrows:
-                    Flash(pos, r * .9f, Warm, .1f);
-                    for (int i = 0; i < 9; i++) Spark(pos, Direction(Range(0, 360)) * Range(3, 7.5f), i % 2 == 0 ? Color.white : light, Range(.2f, .4f), Range(.2f, .38f), 9, 2.5f);
-                    for (int i = 0; i < 3; i++) Puff(pos + Inside(.2f), Range(.25f, .4f), DustTone, new Vector2(Range(-1, 1), Range(.3f, 1)), Range(.3f, .45f), 118);
-                    Wave(pos, r * 1.1f, Alpha(light, .6f), .18f, 3);
-                    break;
-                case SkillEffect.PoisonCloud:
-                    for (int i = 0; i < 6; i++) { var puff = Puff(pos + Inside(r * .3f), r * Range(.55f, .8f), new Color(.5f, .85f, .3f, .55f), new Vector2(Range(-.8f, .8f), Range(.4f, 1.2f)), Range(.6f, .9f), 112); puff.endScale = 2; }
-                    Bubbles(pos, 8, r * .6f);
-                    Flash(pos, r * 1.8f, PoisonLight, .4f).fadeIn = .05f;
-                    Sparkles(pos, 8, r * .6f, new Color(.8f, 1, .55f));
-                    break;
-                case SkillEffect.HealPulse:
-                    var grace = Flash(pos, r * 2.4f, Alpha(LifeLight, .8f), .5f); grace.fadeIn = .05f; grace.startScale = .5f; grace.endScale = 1.3f;
-                    Wave(pos, r * 2.6f, Alpha(LifeLight, .8f), .45f, 2.5f);
-                    Star(pos, r * 1.8f, new Color(1, 1, 1, .6f), .3f);
-                    GroundSigil(pos + new Vector2(0, -.8f), r * 2.2f, Alpha(LifeLight, .7f), .5f, 40);
-                    for (int i = 0; i < 18; i++)
-                    {
-                        var mote = Spawn("Healing mote", wisp, pos + new Vector2(Range(-r, r) * .7f, Range(-.8f, .2f)), Range(.12f, .26f), new Color(.6f, 1, .8f, .95f), Range(.5f, .9f), true, 131);
-                        mote.velocity = new Vector2(Range(-.4f, .4f), Range(1.2f, 2.6f)); mote.fadeIn = .1f; mote.endScale = .3f; mote.flicker = .3f;
-                    }
-                    break;
-                case SkillEffect.ShieldPulse:
-                    var lattice = Spawn("Shield flash", hex, pos, r * 2.1f, Alpha(GoldLight, .95f), .35f, true, 130); lattice.startScale = .85f; lattice.endScale = 1.25f; lattice.fadePower = 1.6f;
-                    Flash(pos, r * 1.6f, new Color(1, .95f, .75f), .12f);
-                    Wave(pos, r * 2.4f, Alpha(GoldLight, .8f), .3f, 3);
-                    Sparkles(pos, 12, r * .9f, new Color(1, .95f, .7f));
-                    break;
-                case SkillEffect.LifeDrain:
-                    var sink = Flash(pos, r * 2, new Color(.3f, .85f, .5f, .8f), .35f); sink.startScale = 1.2f; sink.endScale = .4f; sink.ease = 1;
-                    Wave(pos, r * 1.8f, Alpha(LifeLight, .7f), .3f, 3);
-                    for (int i = 0; i < 10; i++) { var drop = Spawn("Drained wisp", wisp, pos + Inside(.2f), Range(.12f, .25f), Alpha(LifeLight, .9f), Range(.3f, .5f), true, 129); drop.velocity = Direction(Range(0, 360)) * Range(1, 3); drop.drag = 2; drop.endScale = .3f; }
-                    Sparkles(pos, 10, r * .6f, LifeLight);
-                    break;
-                case SkillEffect.Sentry:
-                    Flash(pos, r * 1.4f, new Color(.75f, .95f, 1), .1f);
-                    for (int i = 0; i < 5; i++) Spark(pos, Direction(Range(0, 360)) * Range(3, 6), i % 2 == 0 ? Color.white : SteelLight, Range(.2f, .35f), Range(.18f, .3f), 7, 3);
-                    for (int i = 0; i < 2; i++) Puff(pos, Range(.2f, .35f), new Color(.6f, .65f, .7f, .4f), new Vector2(Range(-.6f, .6f), Range(.5f, 1)), Range(.3f, .45f), 118);
-                    Wave(pos, r * 1.1f, Alpha(SteelLight, .6f), .18f, 3);
-                    break;
-                default:
-                    Flash(pos, r * 1.6f, light, .15f);
-                    Wave(pos, r * 2, Alpha(light, .8f), .3f, 3);
-                    for (int i = 0; i < 8; i++) Spark(pos, Direction(Range(0, 360)) * Range(3, 7), light, Range(.2f, .4f), Range(.2f, .4f), 6, 2.5f);
-                    break;
-            }
-        }
-
-        public void Trail(Vector2 from, Vector2 to, SkillEffect effect, Color tint)
-        {
-            EnsureTextures();
-            if (effect == SkillEffect.ChainLightning)
-            {
-                Color color = StormLight;
-                Bolt(from, to, color, .085f, .24f, 1);
-                Bolt(from, to, color, .05f, .18f, 0);
-                Flash(from, .7f, new Color(.9f, .93f, 1), .12f).flicker = .5f;
-                Impact(SkillEffect.ChainLightning, to, .7f, color);
-                return;
-            }
-            Vector2 delta = to - from; float length = delta.magnitude; if (length < .05f) return;
-            Vector2 side = new Vector2(-delta.y, delta.x) / length;
-            if (effect == SkillEffect.LifeDrain)
-            {
-                Vector2 previous = from;
-                for (int i = 1; i <= 8; i++)
-                {
-                    float t = i / 8f; Vector2 point = Vector2.Lerp(from, to, t) + side * Mathf.Sin(t * Mathf.PI * 2.2f) * .5f;
-                    var vein = Line(previous, point, .16f, new Color(.4f, .9f, .6f, .4f), .38f, 126, 1.2f); vein.age = -t * .12f; vein.fadePower = 1.3f;
-                    previous = point;
-                }
-                for (int i = 0; i < 16; i++)
-                {
-                    float t = i / 15f; Vector2 point = Vector2.Lerp(from, to, t) + side * Mathf.Sin(t * Mathf.PI * 2.2f) * .5f;
-                    var drop = Spawn("Life stream wisp", wisp, point + Inside(.12f), Range(.18f, .34f), Alpha(LifeLight, .95f), .32f, true, 128);
-                    drop.velocity = delta / length * 4.5f; drop.age = -t * .2f; drop.fadeIn = .05f; drop.endScale = .4f;
-                }
-                var absorb = Flash(to, 1.3f, Alpha(LifeLight, .8f), .5f); absorb.fadeIn = .2f; absorb.age = -.1f;
-                return;
-            }
-            if (effect == SkillEffect.Meteor)
-            {
-                Line(from, to, .5f, Alpha(FireLight, .9f), .3f, 128, 1.05f).fadePower = 1.3f;
-                Line(from, to, .18f, Warm, .22f, 129, 1.02f);
-                for (int i = 0; i < 10; i++) { float t = Range(0, 1); Spark(Vector2.Lerp(from, to, t) + Inside(.25f), delta / length * Range(2, 5) + Inside(1.5f), FireLight, Range(.2f, .4f), Range(.3f, .5f), 3, 1.5f).age = -t * .1f; }
-                for (int i = 0; i < 4; i++) { float t = (i + .5f) / 4; var puff = Flame(Vector2.Lerp(from, to, t) + Inside(.25f), Range(.5f, .8f), delta / length * 1.5f, Range(.3f, .4f), 127); puff.age = -t * .08f; puff.angleOffset = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg + 90; }
-                return;
-            }
-            if (effect == SkillEffect.DashStrike)
-            {
-                Line(from, to, .55f, new Color(1, 1, 1, .9f), .22f, 130, 1.05f).fadePower = 1.5f;
-                Line(from, to, 1, Alpha(Color.Lerp(tint, SteelLight, .5f), .6f), .26f, 129, 1.1f);
-                for (int i = 0; i < 6; i++) { Vector2 a = Vector2.Lerp(from, to, Range(0, .8f)) + side * Range(-.6f, .6f); var line = Line(a, a + delta / length * Range(.8f, 1.6f), Range(.04f, .1f), i % 2 == 0 ? Color.white : Alpha(tint, .8f), Range(.14f, .24f), 128); line.velocity = delta / length * 3; }
-                Sparkles(to, 8, .5f, Color.white);
-                return;
-            }
-            Line(from, to, .35f, Alpha(Color.Lerp(tint, EffectColor(effect), .5f), .85f), .3f, 128, 1.05f);
-            Line(from, to, .1f, Color.white, .22f, 129, 1.02f);
-        }
-
-        public void DescendMeteor(Vector2 pos, float delay)
-        {
-            EnsureTextures();
-            delay = Mathf.Max(.1f, delay);
-            Vector2 start = pos + new Vector2(-3.2f, 7.4f), velocity = (pos - start) / delay;
-            float angle = Mathf.Atan2(velocity.y, velocity.x) * Mathf.Rad2Deg;
-            Vector2 direction = velocity.normalized;
-            var stone = Spawn("Falling meteor", meteorRock, start, 1.5f, Color.white, delay + .02f, false, 127); stone.velocity = velocity; stone.angle = angle + 45; stone.fadePower = 0; stone.spin = 90;
-            var heat = Spawn("Meteor heat", glow, start, 3.2f, Alpha(FireLight, .85f), delay + .02f, true, 126); heat.velocity = velocity; heat.fadePower = 0; heat.pulse = .08f;
-            var tail = Sheet("Meteor flames", flame, start - direction * 1.3f, 1.9f, new Color(1, .8f, .5f, .95f), delay + .02f, 126, 22, true); tail.velocity = velocity; tail.angle = angle + 90; tail.fadePower = 0; tail.pulse = .04f;
-            var tailLight = Line(start - direction * 3.4f, start + direction * .2f, 1.4f, Alpha(FireLight, .6f), delay + .02f, 125, 1); tailLight.velocity = velocity; tailLight.fadePower = 0;
-            Emitter(stone, Emit.Embers, 60, .35f, new Color(1, .55f, .15f)); Emitter(heat, Emit.Smoke, 18, .4f, new Color(.3f, .22f, .2f, .5f));
+            var old = root.GetComponent<SpriteRenderer>(); if (old) old.enabled = false;
+            Clip existing; if (attached.TryGetValue(root, out existing)) Retire(existing);
+            Color crimson = new Color(1, .22f, .4f);
+            var primary = Attach(root, "Hostile bullet core", core, diameter * .55f, Warm, 146);
+            var rim = Attach(root, "Hostile bullet rim", ring, diameter * 1.2f, Alpha(crimson, .95f), 145); rim.pulse = .06f;
+            var halo = Attach(root, "Hostile bullet glow", glow, diameter * 2.7f, Alpha(crimson, .7f), 144); halo.pulse = .12f;
+            var tail = Attach(root, "Hostile bullet wake", streak, diameter * 2.8f, Alpha(crimson, .5f), 144, true, new Vector2(-diameter * 1.1f, 0)); tail.scale.y *= diameter * 1.6f;
+            Emitter(halo, Emit.Trace, 18, .03f, Alpha(crimson, .5f));
+            Bundle(root, primary, rim, halo, tail);
         }
 
         // ---------------------------------------------------------------- floor traps
@@ -786,40 +744,7 @@ namespace PrototypeLab.Roguelike
             }
         }
 
-        // ---------------------------------------------------------------- composite builders
-
-        private void Explosion(Vector2 pos, float r, float intensity)
-        {
-            var flash = Spawn("Explosion flash", glow, pos, r * 3.4f * intensity, new Color(1, 1, 1, .95f), .18f, true, 132); flash.ramp = Ramp(Color.white, FireLight); flash.endScale = 1.5f; flash.ease = 1; flash.fadePower = 1.5f;
-            var heart = Spawn("Explosion core", core, pos, r * 1.2f, Warm, .14f, true, 133); heart.startScale = .3f; heart.endScale = 1.3f; heart.ease = 3; heart.fadePower = 2;
-            int flames = Mathf.RoundToInt(6 * intensity);
-            for (int i = 0; i < flames; i++)
-            {
-                Vector2 direction = Direction(i * 360f / flames + Range(-20, 20));
-                var tongue = Flame(pos + direction * r * .2f, r * Range(.6f, 1) * intensity, direction * r * Range(1.5f, 3) + Vector2.up, Range(.3f, .5f), 130);
-                tongue.alignVelocity = true; tongue.angleOffset = -90; tongue.endScale = 1.4f;
-            }
-            Wave(pos, r * 3 * intensity, new Color(1, .6f, .25f, .9f), .4f, 3.2f);
-            Wave(pos, r * 2.2f, new Color(1, 1, 1, .8f), .25f, 2.5f);
-            int puffs = Mathf.RoundToInt(8 * intensity);
-            for (int i = 0; i < puffs; i++)
-            {
-                Vector2 direction = Direction(Range(0, 360));
-                var puff = Puff(pos + direction * r * .15f, r * Range(.6f, 1.1f) * intensity, Soot, direction * r * Range(.8f, 2) + Vector2.up * 1.2f, Range(.6f, 1), 112);
-                puff.drag = 2; puff.gravity = -.6f; puff.endScale = 2.4f; puff.fadeIn = .08f; puff.age = -Range(0, .06f);
-            }
-            int embers = Mathf.RoundToInt(22 * intensity);
-            for (int i = 0; i < embers; i++) Spark(pos + Inside(.2f), Direction(Range(0, 360)) * r * Range(3, 8) + Vector2.up * 2, i % 3 == 0 ? new Color(1, .9f, .6f) : FireLight, Range(.2f, .45f), Range(.35f, .7f), 7, 2.5f).flicker = .3f;
-            Rays(pos, 6, r * 1.5f, r * 2.6f, new Color(1, .75f, .4f), .2f);
-        }
-
-        private void Discharge(Vector2 pos, float r, Color light)
-        {
-            Flash(pos, r * 2, new Color(.85f, .9f, 1, .95f), .14f).flicker = .5f;
-            for (int i = 0; i < 6; i++) Bolt(pos, pos + Direction(Range(0, 360)) * r * Range(.8f, 1.5f), StormLight, .06f, .2f, 0);
-            for (int i = 0; i < 10; i++) Spark(pos, Direction(Range(0, 360)) * Range(3, 7), i % 2 == 0 ? Color.white : StormLight, Range(.2f, .4f), Range(.2f, .35f), 6, 3);
-            Wave(pos, r * 1.6f, Alpha(Color.Lerp(light, ArcaneLight, .5f), .7f), .25f, 3);
-        }
+        // ---------------------------------------------------------------- shared builders
 
         private void Bolt(Vector2 from, Vector2 to, Color color, float width, float life, int depth)
         {
@@ -866,7 +791,7 @@ namespace PrototypeLab.Roguelike
 
         private Clip GroundSigil(Vector2 pos, float width, Color color, float life, float spin)
         {
-            var seal = Spawn("Ground sigil", sigil, pos, width, color, life, true, 27); seal.scale.y *= .36f; seal.spin = spin; seal.fadeIn = .12f; seal.fadePower = 1.5f; seal.startScale = .85f; seal.endScale = 1.05f; seal.ease = 1;
+            var seal = Spawn("Ground sigil", sigil, pos, width, color, life, true, 27); LayFlat(seal, .36f); seal.spin = spin; seal.fadeIn = .12f; seal.fadePower = 1.5f; seal.startScale = .85f; seal.endScale = 1.05f; seal.ease = 1;
             var halo = Spawn("Sigil halo", glow, pos, width * 1.1f, Alpha(color, .35f), life, true, 26); halo.scale.y *= .36f; halo.fadeIn = .12f; halo.fadePower = 1.5f; halo.pulse = .05f;
             return seal;
         }
@@ -893,6 +818,7 @@ namespace PrototypeLab.Roguelike
 
         private void Sparkles(Vector2 pos, int count, float spread, Color color)
         {
+            count = Budget(count);
             for (int i = 0; i < count; i++)
             {
                 var mote = Spawn("Sparkle", glow, pos + Inside(spread), Range(.08f, .2f), Alpha(color, .95f), Range(.25f, .5f), true, 131);
@@ -932,6 +858,154 @@ namespace PrototypeLab.Roguelike
             return clip;
         }
 
+        /// <summary>A sharp four-point star glint that snaps open and fades.</summary>
+        private Clip Glint(Vector2 pos, float width, Color color, float life, float angle = 0)
+        {
+            var clip = Spawn("Glint", glint, pos, width, color, life, true, 133);
+            clip.angle = angle; clip.startScale = .2f; clip.endScale = 1; clip.ease = 4; clip.fadePower = 1.6f; clip.spin = 40;
+            return clip;
+        }
+
+        /// <summary>Anime impact frame: a ring of tapered speed lines bursting outward from the hit.</summary>
+        private Clip ImpactLines(Vector2 pos, float width, Color color, float life)
+        {
+            var clip = Spawn("Impact lines", burst, pos, width, color, life, true, 132);
+            clip.angle = Range(0, 360); clip.startScale = .55f; clip.endScale = 1.15f; clip.ease = 3; clip.fadePower = 1.4f;
+            return clip;
+        }
+
+        /// <summary>A vertical column of light standing on <paramref name="ground"/> that shoots up and widens.</summary>
+        private Clip Pillar(Vector2 ground, float width, float height, Color color, float life, int order = 128)
+        {
+            var clip = Spawn("Light pillar", pillar, ground, width, color, life, true, order);
+            clip.scale = new Vector3(width / pillar.bounds.size.x, height / pillar.bounds.size.y, 1); clip.root.transform.localScale = clip.scale;
+            clip.axisStart = new Vector2(.35f, .12f); clip.axisEnd = Vector2.one; clip.ease = 4; clip.fadePower = 1.3f;
+            return clip;
+        }
+
+        /// <summary>A mark lying on the ground (squashed for the side view) that holds, then fades.</summary>
+        private Clip Decal(Vector2 ground, Sprite sprite, float width, Color color, float life, bool additive, int order)
+        {
+            var clip = Spawn("Ground mark", sprite, ground, width, color, life, additive, order);
+            clip.scale.y *= .3f; clip.root.transform.localScale = clip.scale;
+            clip.hold = .45f; clip.fadePower = 1.2f; clip.fadeIn = .03f; clip.startScale = .7f; clip.endScale = 1; clip.ease = 6;
+            return clip;
+        }
+
+        private Clip Scorch(Vector2 ground, float width, float life) { return Decal(ground, scorch, width, new Color(.07f, .05f, .05f, .62f), life, false, 24); }
+
+        /// <summary>Dark ground cracks, with a hot glowing copy when <paramref name="glowColor"/> has alpha.</summary>
+        private void Crack(Vector2 ground, float width, Color glowColor, float life)
+        {
+            var dark = Decal(ground, crack, width, new Color(.08f, .06f, .05f, .85f), life, false, 25); dark.angle = Range(-10, 10);
+            if (glowColor.a > 0) { var hot = Decal(ground, crack, width, glowColor, life * .75f, true, 26); hot.angle = dark.angle; hot.fadePower = 1.8f; }
+        }
+
+        /// <summary>Crystal or rock spikes erupting from the ground in a fan, centre first.</summary>
+        private void Spikes(Vector2 ground, int count, float spread, float height, Color color, float life, bool additive, int order = 127)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                float t = count == 1 ? 0 : i / (float)(count - 1) * 2 - 1;
+                float h = height * Range(.6f, 1) * (1 - .45f * Mathf.Abs(t));
+                var s = Spawn("Erupting spike", spike, ground + new Vector2(t * spread + Range(-.1f, .1f), -.05f), h / 3, color, life * Range(.85f, 1.1f), additive, order);
+                s.angle = -t * 24 + Range(-8, 8); s.axisStart = new Vector2(.6f, 0); s.axisEnd = Vector2.one; s.ease = 6; s.hold = .55f; s.fadePower = 1.4f;
+                s.age = -Mathf.Abs(t) * .07f;
+            }
+        }
+
+        /// <summary>Motes spiralling in to <paramref name="pos"/> over <paramref name="life"/> seconds: the charge of a cast.</summary>
+        private void Converge(Vector2 pos, int count, float radius, Color color, float life, float turns = .35f)
+        {
+            count = Budget(count);
+            for (int i = 0; i < count; i++)
+            {
+                bool streakMote = i % 3 == 0;
+                var mote = Spawn("Gathering light", streakMote ? spark : glow, pos, streakMote ? Range(.25f, .45f) : Range(.12f, .26f), Alpha(color, .95f), life * Range(.7f, 1), true, 131);
+                mote.orbitCenter = pos; mote.orbitAngle = Range(0, 360); mote.orbit = (i % 2 == 0 ? 1 : -1) * turns * 360 / life;
+                mote.orbitRadius = radius * Range(.65f, 1.1f); mote.orbitRadiusEnd = 0; mote.orbitPower = 1.6f;
+                mote.alignVelocity = streakMote; mote.fadeIn = life * .25f; mote.hold = .75f; mote.endScale = .45f; mote.ease = 1;
+            }
+        }
+
+        private void Debris(Vector2 pos, int count, float speed, float size, float life, Color tint)
+        {
+            count = Budget(count);
+            for (int i = 0; i < count; i++)
+            {
+                var chip = Spawn("Debris", rock[i % rock.Length], pos + Inside(.25f), size * Range(.5f, 1.2f), tint, life * Range(.7f, 1.1f), false, 128);
+                chip.velocity = new Vector2(Range(-1, 1) * speed, Range(.5f, 1.2f) * speed); chip.gravity = 18; chip.spin = Range(-600, 600); chip.fadePower = .6f; chip.hold = .5f;
+            }
+        }
+
+        private void Shards(Vector2 pos, int count, float speed, float size, Color color, float life)
+        {
+            count = Budget(count);
+            for (int i = 0; i < count; i++)
+            {
+                Vector2 direction = Direction(i * 360f / Mathf.Max(1, count) + Range(-14, 14));
+                var piece = Spawn("Shard", shard, pos + direction * .15f, size * Range(.6f, 1.2f), color, life * Range(.7f, 1), true, 129);
+                piece.velocity = direction * speed * Range(.6f, 1.1f) + Vector2.up * speed * .2f; piece.gravity = 6; piece.drag = 1.2f; piece.spin = Range(-500, 500); piece.fadePower = 1.4f;
+            }
+        }
+
+        private void EmberBurst(Vector2 pos, int count, float speed, Color color, float life, float gravity = 5)
+        {
+            count = Budget(count);
+            for (int i = 0; i < count; i++)
+                Spark(pos + Inside(.2f), Direction(Range(0, 360)) * speed * Range(.35f, 1) + Vector2.up * speed * .25f, i % 4 == 0 ? Color.white : color, Range(.15f, .32f), life * Range(.6f, 1), gravity, 1.6f).flicker = .35f;
+        }
+
+        private Clip Swirl(Vector2 pos, float width, Color color, float life, float spin, int order = 129)
+        {
+            var clip = Spawn("Vortex", swirl, pos, width, color, life, true, order); clip.spin = spin; clip.angle = Range(0, 360); clip.fadeIn = .06f; clip.fadePower = 1.3f; return clip;
+        }
+
+        private Clip Orb(Vector2 pos, float width, Color color, float life, int order = 130)
+        {
+            var clip = Spawn("Energy sphere", orb, pos, width, color, life, true, order); clip.fadePower = 1.2f; return clip;
+        }
+
+        private Clip Crescent(Vector2 pos, float width, Color color, float life, float angle, int order = 131)
+        {
+            var clip = Spawn("Crescent slash", crescent, pos, width, color, life, true, order); clip.angle = angle; clip.startScale = .75f; clip.endScale = 1.12f; clip.ease = 3; clip.fadePower = 1.3f; return clip;
+        }
+
+        private Clip RuneCircle(Vector2 pos, float width, Color color, float life, float spin, bool onGround, int order = 125)
+        {
+            var clip = Spawn("Rune circle", runeRing, pos, width, color, life, true, onGround ? 27 : order);
+            if (onGround) LayFlat(clip, .34f);
+            clip.spin = spin; clip.fadeIn = .08f; clip.startScale = .6f; clip.endScale = 1; clip.ease = 4; clip.fadePower = 1.4f; clip.hold = .4f;
+            return clip;
+        }
+
+        /// <summary>Lays a clip on the ground for the side view. A free clip gets a squashed parent, so its spin and angle turn
+        /// in the ground plane; squashing the clip itself would make a spinning ring tilt and stand up as it turns.</summary>
+        private Clip LayFlat(Clip clip, float squash)
+        {
+            if (!ReferenceEquals(clip.external, null) || clip.pivot) { clip.scale.y *= squash; clip.root.transform.localScale = clip.scale; return clip; }
+            Transform pivot;
+            if (pivots.Count > 0) { pivot = pivots.Pop(); pivot.gameObject.SetActive(true); }
+            else { pivot = new GameObject("Ground plane").transform; pivot.SetParent(transform, false); }
+            pivot.position = new Vector3(clip.position.x, clip.position.y, 0); pivot.localRotation = Quaternion.identity; pivot.localScale = new Vector3(1, squash, 1);
+            clip.root.transform.SetParent(pivot, true); clip.pivot = pivot;
+            clip.root.transform.localScale = clip.scale;
+            return clip;
+        }
+
+        /// <summary>A soft dark halo drawn behind bright light so it still reads on pale skies. It sits just behind the actors
+        /// (they start at 30), so it darkens the backdrop around a caster or a hit without dimming the fighters themselves.</summary>
+        private Clip Underlay(Vector2 pos, float width, float alpha, float life)
+        {
+            var clip = Spawn("Contrast underlay", glow, pos, width, new Color(.02f, .01f, .03f, alpha), life, false, 29); clip.fadeIn = .03f; clip.fadePower = 1.2f; return clip;
+        }
+
+        /// <summary>A full-view wash of light for the biggest hits.</summary>
+        private Clip ScreenFlash(Vector2 center, Color color, float life)
+        {
+            var clip = Spawn("Screen flash", glow, center, 46, color, life, true, 134); clip.ease = 1; clip.fadePower = 2; return clip;
+        }
+
         // ---------------------------------------------------------------- clip construction
 
         private Clip Spawn(string name, Sprite sprite, Vector2 pos, float width, Color color, float life, bool additive, int order)
@@ -943,8 +1017,8 @@ namespace PrototypeLab.Roguelike
             root.transform.position = new Vector3(pos.x, pos.y, 0); root.transform.localRotation = Quaternion.identity;
             renderer.enabled = true; renderer.sprite = sprite; renderer.color = color; renderer.sortingOrder = order; renderer.flipX = false; renderer.flipY = false;
             renderer.sharedMaterial = additive ? Additive : AlphaBlend;
-            var clip = new Clip { root = root, renderer = renderer, position = pos, color = color, life = life, seed = sequence++, scale = Vector3.one * (width / Mathf.Max(.01f, sprite.bounds.size.x)) };
-            root.transform.localScale = clip.scale; clips.Add(clip); return clip;
+            var clip = new Clip { root = root, renderer = renderer, position = pos, color = color, life = life, seed = sequence++, scale = Vector3.one * (width / Mathf.Max(.01f, sprite.bounds.size.x)), fresh = true };
+            root.transform.localScale = clip.scale; clips.Add(clip); spawned.Add(clip); return clip;
         }
 
         private Clip Sheet(string name, Sprite[] frames, Vector2 pos, float width, Color color, float life, int order, float fps, bool loop)
@@ -957,8 +1031,21 @@ namespace PrototypeLab.Roguelike
         {
             var go = new GameObject(name); go.transform.SetParent(root, false); go.transform.localPosition = offset;
             var renderer = go.AddComponent<SpriteRenderer>(); renderer.sprite = sprite; renderer.color = color; renderer.sortingOrder = order; renderer.sharedMaterial = additive ? Additive : AlphaBlend;
-            var clip = new Clip { root = go, renderer = renderer, external = root, offset = offset, color = color, life = Infinite, fadePower = 0, loop = true, seed = sequence++, scale = Vector3.one * (width / Mathf.Max(.01f, sprite.bounds.size.x)) };
-            go.transform.localScale = clip.scale; clips.Add(clip); return clip;
+            var clip = new Clip { root = go, renderer = renderer, external = root, offset = offset, color = color, life = Infinite, fadePower = 0, loop = true, seed = sequence++, scale = Vector3.one * (width / Mathf.Max(.01f, sprite.bounds.size.x)), fresh = true };
+            go.transform.localScale = clip.scale; clips.Add(clip); spawned.Add(clip); return clip;
+        }
+
+        /// <summary>A timed clip that rides on <paramref name="anchor"/> (a caster's hand glow), or a free clip when there is none.</summary>
+        private Clip Anchored(Transform anchor, Vector2 worldPos, string name, Sprite sprite, float width, Color color, float life, int order, bool additive = true)
+        {
+            if (!anchor) return Spawn(name, sprite, worldPos, width, color, life, additive, order);
+            Vector3 local = anchor.InverseTransformPoint(new Vector3(worldPos.x, worldPos.y, 0));
+            var clip = Attach(anchor, name, sprite, width, color, order, additive, local);
+            // Undo the anchor's own scale so widths stay in world units.
+            Vector3 lossy = anchor.lossyScale; clip.scale = new Vector3(clip.scale.x / Mathf.Max(.0001f, Mathf.Abs(lossy.x)), clip.scale.y / Mathf.Max(.0001f, Mathf.Abs(lossy.y)), 1);
+            clip.root.transform.localScale = clip.scale;
+            clip.life = life; clip.fadePower = 1; clip.loop = false;
+            return clip;
         }
 
         private void Bundle(Transform root, Clip primary, params Clip[] layers)
@@ -969,6 +1056,12 @@ namespace PrototypeLab.Roguelike
         private static void Emitter(Clip clip, Emit kind, float rate, float spread, Color color)
         {
             clip.emit = kind; clip.emitRate = rate; clip.emitSpread = spread; clip.emitColor = color;
+        }
+
+        /// <summary>An emitter whose particles are drawn by <paramref name="spawn"/> (called with the clip and a spawn point).</summary>
+        private static void Emitter(Clip clip, float rate, float spread, Action<Clip, Vector2> spawn)
+        {
+            clip.emit = Emit.Custom; clip.emitRate = rate; clip.emitSpread = spread; clip.emitCustom = spawn;
         }
 
         private Clip Line(Vector2 a, Vector2 b, float thickness, Color color, float life, int order, float overlap = 1)
@@ -983,7 +1076,8 @@ namespace PrototypeLab.Roguelike
 
         private void Emission(Clip clip, float dt)
         {
-            clip.emitBank += clip.emitRate * dt;
+            if (clips.Count > HardCap) return;
+            clip.emitBank += clip.emitRate * dt * (clips.Count > SoftCap ? .35f : 1);
             int count = Mathf.Min(6, (int)clip.emitBank); if (count <= 0) return;
             clip.emitBank = Mathf.Min(clip.emitBank - count, 2);
             Vector2 origin = clip.root.transform.position;
@@ -1003,7 +1097,7 @@ namespace PrototypeLab.Roguelike
                         mote.velocity = Direction(Range(0, 360)) * Range(.3f, 1.2f); mote.flicker = .6f; mote.endScale = 0; mote.ease = 1; break;
                     case Emit.Frost:
                         var mist = Puff(pos, Range(.3f, .5f), clip.emitColor, new Vector2(Range(-.5f, .5f), Range(.2f, .6f)), Range(.5f, .8f), 112); mist.endScale = 2;
-                        if (i % 2 == 0) { var glint = Spawn("Frost glint", glow, pos, Range(.06f, .14f), new Color(.85f, .97f, 1, .95f), Range(.25f, .45f), true, 131); glint.velocity = new Vector2(Range(-.4f, .4f), Range(-.8f, -.2f)); glint.flicker = .6f; glint.endScale = .1f; }
+                        if (i % 2 == 0) { var glintMote = Spawn("Frost glint", glow, pos, Range(.06f, .14f), new Color(.85f, .97f, 1, .95f), Range(.25f, .45f), true, 131); glintMote.velocity = new Vector2(Range(-.4f, .4f), Range(-.8f, -.2f)); glintMote.flicker = .6f; glintMote.endScale = .1f; }
                         break;
                     case Emit.Poison:
                         var haze = Puff(pos, Range(.45f, .8f), clip.emitColor, new Vector2(Range(-.4f, .4f), Range(.25f, .7f)), Range(.8f, 1.4f), 112); haze.endScale = 2.2f; haze.fadeIn = .15f; haze.drag = 1.5f;
@@ -1017,6 +1111,9 @@ namespace PrototypeLab.Roguelike
                         trace.endScale = .2f; trace.ease = 1; trace.fadePower = 1.2f; break;
                     case Emit.Flames:
                         Flame(pos, Range(.35f, .6f), new Vector2(Range(-.3f, .3f), Range(.5f, 1.2f)), Range(.25f, .4f), 127); break;
+                    case Emit.Custom:
+                        if (clip.emitCustom != null) clip.emitCustom(clip, pos);
+                        break;
                 }
             }
         }
@@ -1026,12 +1123,27 @@ namespace PrototypeLab.Roguelike
         private float Range(float min, float max) { return min + (float)random.NextDouble() * (max - min); }
         private bool Chance(float probability) { return random.NextDouble() < probability; }
         private Vector2 Inside(float radius) { return radius <= 0 ? Vector2.zero : Direction(Range(0, 360)) * Mathf.Sqrt(Range(0, 1)) * radius; }
+        /// <summary>Optional particle counts shrink while many effects are alive, so stacked skills never stall a frame.</summary>
+        private int Budget(int count)
+        {
+            // Higher skill levels draw denser particles (a third more at level two, two thirds more at three).
+            if (grade > 1 && count > 1) count = Mathf.RoundToInt(count * (1 + (grade - 1) * .34f));
+            if (clips.Count <= 500 || count <= 1) return count;
+            float room = Mathf.Clamp01(1 - (clips.Count - 500) / 900f);
+            return Mathf.Max(1, Mathf.RoundToInt(count * Mathf.Lerp(.25f, 1, room)));
+        }
         private static Vector2 Direction(float degrees) { float a = degrees * Mathf.Deg2Rad; return new Vector2(Mathf.Cos(a), Mathf.Sin(a)); }
         private static Color Alpha(Color color, float alpha) { return new Color(color.r, color.g, color.b, alpha); }
         private static Gradient Ramp(Color from, Color to)
         {
             var gradient = new Gradient();
             gradient.SetKeys(new[] { new GradientColorKey(from, 0), new GradientColorKey(to, 1) }, new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 1) });
+            return gradient;
+        }
+        private static Gradient Ramp(Color from, Color middle, Color to)
+        {
+            var gradient = new Gradient();
+            gradient.SetKeys(new[] { new GradientColorKey(from, 0), new GradientColorKey(middle, .35f), new GradientColorKey(to, 1) }, new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 1) });
             return gradient;
         }
         private static Color EffectColor(SkillEffect effect)
@@ -1046,6 +1158,18 @@ namespace PrototypeLab.Roguelike
                 case SkillEffect.HealPulse: case SkillEffect.LifeDrain: return LifeLight;
                 case SkillEffect.Sentry: return SteelLight;
                 case SkillEffect.DashStrike: return new Color(.6f, .95f, 1);
+                case SkillEffect.Boomerang: return new Color(1, .8f, .42f);
+                case SkillEffect.Ricochet: return new Color(1, .93f, .62f);
+                case SkillEffect.HuntMark: return new Color(1, .38f, .34f);
+                case SkillEffect.Hook: return new Color(.78f, .84f, .95f);
+                case SkillEffect.Quake: return new Color(1, .66f, .34f);
+                case SkillEffect.Orbit: return new Color(.52f, .8f, 1);
+                case SkillEffect.Decoy: return new Color(.72f, .96f, 1);
+                case SkillEffect.Mine: return new Color(1, .46f, .78f);
+                case SkillEffect.Vortex: return new Color(.4f, .92f, .96f);
+                case SkillEffect.Curse: return new Color(.7f, .38f, .95f);
+                case SkillEffect.WarBanner: return new Color(1, .74f, .36f);
+                case SkillEffect.Bloom: return new Color(1, .66f, .84f);
                 default: return GoldLight;
             }
         }
@@ -1262,9 +1386,150 @@ namespace PrototypeLab.Roguelike
                 if (f == 2) { float fd = Mathf.Sqrt(Sq((u - 1.02f) * 1.6f) + Sq(v - .2f)); c = Over(c, new Color(1, .92f, .6f, Gauss(fd, .18f) * .95f)); }
                 return c;
             });
+            BuildActionTextures();
+            BuildFireTextures(); BuildFrostTextures(); BuildStormTextures(); BuildBladeTextures(); BuildArcheryTextures(); BuildGraceTextures();
+            // The companions' newer families build theirs here too, so no first cast pays for them.
+            HuntDiscTextures(); HuntChainTextures(); HuntMarkTextures(); HuntSlugTextures(); EarthTextures(); MysticEnsure(); GradeEnsure();
+            StatusVaporTextures(); StatusGuardTextures();
         }
 
-        private static Sprite Build(string name, int width, int height, Shade shade)
+        // Shapes shared by every family: crescent slashes, impact lines, glints, light pillars, ground marks,
+        // erupting spikes, vortices, petals, snowflakes, energy spheres and a rune ring.
+        private static void BuildActionTextures()
+        {
+            crescent = Build("Crescent", 256, 256, (u, v) =>
+            {
+                float outer = Mathf.Sqrt(u * u + v * v) - .9f, inner = Mathf.Sqrt(Sq(u + .34f) + v * v) - .86f;
+                float d = Mathf.Max(outer, -inner), body = 1 - Smooth(-.02f, .015f, d), depth = Mathf.Max(0, -outer);
+                float rim = Gauss(outer + .03f, .028f) * body, halo = Gauss(Mathf.Max(0, d), .07f) * .4f;
+                float a = body * (.2f + .8f * Mathf.Exp(-depth / .15f)) + rim * .7f + halo;
+                return White(Mathf.Clamp01(a) * (1 - Smooth(.93f, .995f, Mathf.Max(Mathf.Abs(u), Mathf.Abs(v)))));
+            });
+            burst = Build("Impact lines", 512, 512, (u, v) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v); if (r < .16f || r > 1) return Color.clear;
+                const int spokes = 44;
+                float f = Mathf.Repeat(Mathf.Atan2(v, u) / (2 * Mathf.PI), 1) * spokes; int slot = Mathf.FloorToInt(f);
+                float a = 0;
+                for (int k = -1; k <= 1; k++)
+                {
+                    int s = (slot + k + spokes) % spokes; uint h = Hash(s + 17);
+                    if ((h & 3u) == 0) continue;
+                    float center = s + .5f + ((h >> 2 & 255) / 255f - .5f) * .7f, diff = f - center;
+                    diff -= Mathf.Round(diff / spokes) * spokes;
+                    float start = .18f + (h >> 18 & 63) / 63f * .22f, end = .58f + (h >> 10 & 255) / 255f * .4f;
+                    if (r < start || r > end) continue;
+                    float along = (r - start) / (end - start), width = (.006f + (h >> 24 & 15) / 15f * .016f) * Mathf.Sin(along * Mathf.PI) + .001f;
+                    a = Mathf.Max(a, Gauss(diff * 2 * Mathf.PI * r / spokes, width) * Mathf.Pow(Mathf.Sin(along * Mathf.PI), .6f));
+                }
+                return White(a * Window(r));
+            });
+            glint = Build("Glint", 256, 256, (u, v) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v), au = Mathf.Abs(u), av = Mathf.Abs(v);
+                float cross = Gauss(v, .02f + .025f * Mathf.Max(0, 1 - au)) * Mathf.Pow(Mathf.Max(0, 1 - au), 2.2f) + Gauss(u, .02f + .025f * Mathf.Max(0, 1 - av)) * Mathf.Pow(Mathf.Max(0, 1 - av), 2.2f);
+                float du = (u + v) * .7071f, dv = (u - v) * .7071f;
+                float diagonal = (Gauss(dv, .014f) * Mathf.Pow(Mathf.Max(0, 1 - Mathf.Abs(du) / .55f), 3) + Gauss(du, .014f) * Mathf.Pow(Mathf.Max(0, 1 - Mathf.Abs(dv) / .55f), 3)) * .45f;
+                return White(Mathf.Clamp01(cross + diagonal + Gauss(r, .08f) + Gauss(r, .22f) * .35f) * Window(Mathf.Max(au, av)));
+            });
+            pillar = Build("Light pillar", 128, 512, (u, v) =>
+            {
+                float h = (v + 1) * .5f;
+                float column = Gauss(u, .42f) * .5f + Gauss(u, .16f) * .75f + Gauss(u, .05f) * .5f;
+                float rise = Smooth(0, .04f, h) * (1 - Smooth(.3f, 1, h)), bands = .78f + .22f * Mathf.PerlinNoise(u * 7 + 3, h * 1.3f);
+                return White(Mathf.Clamp01(column * rise * bands) * (1 - Smooth(.86f, .99f, Mathf.Abs(u))));
+            }, new Vector2(.5f, 0));
+            crack = Build("Ground crack", 256, 256, (u, v) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v); if (r > 1) return Color.clear;
+                float theta = Mathf.Atan2(v, u), a = Gauss(r, .09f) * .6f + Gauss(r - .12f, .02f) * .5f;
+                for (int k = 0; k < 11; k++)
+                {
+                    uint h = Hash(k + 101);
+                    float length = (k < 7 ? .55f : .3f) + (h >> 8 & 255) / 255f * .4f, start = k < 7 ? 0 : .25f + (h >> 4 & 15) / 15f * .25f;
+                    if (r > length || r < start) continue;
+                    float angle = k * (2 * Mathf.PI / 7) + ((h & 255) / 255f - .5f) * .6f + (k < 7 ? 0 : .45f);
+                    angle += (Mathf.PerlinNoise(r * 4.5f + k * 1.7f, k * 3.1f) - .5f) * 1.2f * r + Mathf.Sin(r * 23 + k) * .04f;
+                    float diff = Mathf.Repeat(theta - angle + Mathf.PI, 2 * Mathf.PI) - Mathf.PI, along = (r - start) / Mathf.Max(.01f, length - start);
+                    a += Gauss(Mathf.Abs(diff) * r, .02f * (1 - along) + .004f) * (1 - Smooth(.75f, 1, along));
+                }
+                return White(Mathf.Clamp01(a) * Window(r));
+            });
+            scorch = Build("Scorch", 256, 256, (u, v) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v), edge = .62f + (Fbm(u * 2.6f + 13, v * 2.6f + 5, 3) - .5f) * .5f;
+                float a = (1 - Smooth(edge - .28f, edge, r)) * (.55f + .45f * Fbm(u * 7 + 1, v * 7 + 2, 2));
+                return White(Mathf.Clamp01(a) * Window(r));
+            });
+            spike = Build("Crystal spike", 64, 192, (u, v) =>
+            {
+                float h = (v + 1) * .5f, half = .9f * Mathf.Pow(1 - h, .9f);
+                float inside = (1 - Smooth(half - .1f, half, Mathf.Abs(u))) * Smooth(0, .05f, h);
+                float ridge = .12f * (1 - h), face = u < ridge ? .97f : .72f;
+                float rim = Gauss(Mathf.Abs(u) - half + .06f, .06f) * .25f, tip = Gauss(1 - h, .12f) * .2f;
+                float l = Mathf.Clamp01(face + rim + tip - h * .08f);
+                return new Color(l, l, Mathf.Clamp01(l * 1.03f), inside);
+            }, new Vector2(.5f, 0));
+            swirl = Build("Vortex", 256, 256, (u, v) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v); if (r > 1) return Color.clear;
+                float arms = Mathf.Pow(.5f + .5f * Mathf.Cos(Mathf.Atan2(v, u) * 3 - Mathf.Log(r + .05f) * 5.5f), 5);
+                float a = arms * Smooth(.06f, .3f, r) * (1 - Smooth(.6f, .97f, r)) * (.6f + .4f * Fbm(u * 3 + 4, v * 3 + 9, 2)) + Gauss(r, .12f) * .3f;
+                return White(Mathf.Clamp01(a) * Window(r));
+            });
+            petal = Build("Petal", 64, 64, (u, v) =>
+            {
+                float half = .48f * Mathf.Sqrt(Mathf.Max(0, 1 - u * u)) * (1 - .35f * u);
+                float inside = 1 - Smooth(half - .1f, half, Mathf.Abs(v));
+                float l = Mathf.Clamp01(.78f + .22f * (1 - Mathf.Abs(v) / Mathf.Max(.05f, half)) + Gauss(v, .035f) * .2f);
+                return new Color(l, l, l, inside * Window(Mathf.Abs(u)));
+            });
+            flake = Build("Snowflake", 64, 64, (u, v) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v), sector = Mathf.Repeat(Mathf.Atan2(v, u) + Mathf.PI / 6, Mathf.PI / 3) - Mathf.PI / 6;
+                float x = r * Mathf.Cos(sector), y = Mathf.Abs(r * Mathf.Sin(sector));
+                float a = Gauss(y, .05f) * (1 - Smooth(.78f, .9f, x));
+                for (int b = 1; b <= 2; b++) { float t = x - b * .3f; if (t > 0) a = Mathf.Max(a, Gauss(y - t * 1.1f, .045f) * (1 - Smooth(.12f, .22f, t))); }
+                return White(Mathf.Clamp01(a + Gauss(r, .14f)) * Window(r));
+            });
+            orb = Build("Energy orb", 128, 128, (u, v) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v);
+                float rim = Gauss(r - .82f, .07f) + Gauss(r - .82f, .2f) * .25f, body = (1 - Smooth(.78f, .86f, r)) * (.12f + .3f * r * r);
+                float shine = Gauss(Mathf.Sqrt(Sq(u + .32f) + Sq(v - .36f)), .12f) * .55f;
+                return White(Mathf.Clamp01(rim + body + shine) * Window(r));
+            });
+            runeRing = Build("Rune ring", 512, 512, (u, v) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v); if (r > 1) return Color.clear;
+                float deg = Mathf.Repeat(Mathf.Atan2(v, u) * Mathf.Rad2Deg, 360);
+                float a = Gauss(r - .955f, .009f) + Gauss(r - .735f, .009f) + Gauss(r - .7f, .005f) * .7f + Gauss(r - .4f, .007f) * .8f + Gauss(r - .16f, .006f) * .6f;
+                if (r > .75f && r < .94f)
+                {
+                    float cell = deg / 12f; int slot = (int)cell; float lx = cell - slot, ly = (r - .75f) / .19f;
+                    uint h = Hash(slot * 31 + 7); float g = 0, w = .075f;
+                    if ((h & 1u) != 0) g = Mathf.Max(g, Gauss(lx - .5f, w) * Band(.15f, .85f, ly));
+                    if ((h & 2u) != 0) g = Mathf.Max(g, Gauss(ly - .5f, w) * Band(.2f, .8f, lx));
+                    if ((h & 4u) != 0) g = Mathf.Max(g, Gauss(ly - .82f, w) * Band(.2f, .8f, lx));
+                    if ((h & 8u) != 0) g = Mathf.Max(g, Gauss(ly - .18f, w) * Band(.25f, .75f, lx));
+                    if ((h & 16u) != 0) g = Mathf.Max(g, Gauss(lx - .2f - (ly - .15f) * .7f, w) * Band(.15f, .85f, ly));
+                    if ((h & 32u) != 0) g = Mathf.Max(g, Gauss(Mathf.Sqrt(Sq(lx - .5f) + Sq(ly - .5f)) - .2f, w * .8f));
+                    a += g * .95f * Band(.1f, .9f, lx);
+                }
+                float seg = 1e9f;
+                for (int i = 0; i < 6; i++)
+                {
+                    float a0 = (90 + i * 120) * Mathf.Deg2Rad, a1 = (90 + (i + 1) * 120) * Mathf.Deg2Rad, turn = i < 3 ? 0 : Mathf.PI / 3;
+                    seg = Mathf.Min(seg, SegmentDistance(u, v, Mathf.Cos(a0 + turn) * .68f, Mathf.Sin(a0 + turn) * .68f, Mathf.Cos(a1 + turn) * .68f, Mathf.Sin(a1 + turn) * .68f));
+                }
+                a += Gauss(seg, .006f) * .85f + (1 - Smooth(.05f, .72f, r)) * .06f;
+                return White(Mathf.Clamp01(a) * Window(r));
+            });
+        }
+
+        private static Sprite Build(string name, int width, int height, Shade shade) { return Build(name, width, height, shade, Vector2.one * .5f); }
+
+        private static Sprite Build(string name, int width, int height, Shade shade, Vector2 pivot)
         {
             var texture = new Texture2D(width, height, TextureFormat.RGBA32, true) { name = "Tower effect " + name, filterMode = FilterMode.Trilinear, wrapMode = TextureWrapMode.Clamp, anisoLevel = 2 };
             var colors = new Color32[width * height];
@@ -1278,7 +1543,7 @@ namespace PrototypeLab.Roguelike
                 }
             }
             texture.SetPixels32(colors); texture.Apply(true, false);
-            return Sprite.Create(texture, new Rect(0, 0, width, height), Vector2.one * .5f, PixelsPerUnit, 0, SpriteMeshType.FullRect);
+            return Sprite.Create(texture, new Rect(0, 0, width, height), pivot, PixelsPerUnit, 0, SpriteMeshType.FullRect);
         }
 
         private static Sprite[] Sheet(string name, int frames, int width, int height, FrameShade shade)
@@ -1294,6 +1559,9 @@ namespace PrototypeLab.Roguelike
         private static float Sq(float x) { return x * x; }
         private static float Gauss(float x, float width) { return Mathf.Exp(-x * x / (width * width)); }
         private static float Smooth(float from, float to, float x) { return Mathf.SmoothStep(0, 1, Mathf.Clamp01((x - from) / (to - from))); }
+        /// <summary>1 between <paramref name="from"/> and <paramref name="to"/>, with short soft shoulders.</summary>
+        private static float Band(float from, float to, float x) { return Smooth(from, from + .06f, x) * (1 - Smooth(to - .06f, to, x)); }
+        private static uint Hash(int x) { uint h = (uint)x * 2654435761u; h ^= h >> 15; h *= 2246822519u; h ^= h >> 13; h *= 3266489917u; h ^= h >> 16; return h; }
         private static float Fbm(float x, float y, int octaves)
         {
             float sum = 0, amplitude = .5f, norm = 0;

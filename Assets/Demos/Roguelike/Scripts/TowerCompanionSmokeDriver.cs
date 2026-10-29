@@ -52,7 +52,9 @@ namespace PrototypeLab.Roguelike
             report.startedUtc = DateTime.UtcNow.ToString("o");
             report.basicCompanions = TowerRun.Definitions.Count;
             report.mode = movementOnly ? "towerCompanionMovementSmoke" : "towerCompanionSmoke";
-            report.expectedCases = movementOnly ? 10 : TowerRun.Definitions.Count * 5 + 20;
+            // One basic attack per companion, one case per companion skill in the catalog, and twenty shared scenarios.
+            int companionSkills = 0; foreach (var augment in TowerRun.Augments) if (augment.OwnerId != "player" && augment.Kind == RewardKind.Skill) companionSkills++;
+            report.expectedCases = movementOnly ? 10 : TowerRun.Definitions.Count + companionSkills + 20;
             report.fixtureAdjustments.Add("Each case starts a fresh seeded run using the companion's own mythology and inserts that companion into the roster; recruitment filtering is covered by model tests.");
             report.fixtureAdjustments.Add("Attack-timing cases disable player movement, jump, dash and attack inputs. Production-spawned targets have 100000 HP and a long stun/cooldown, so enemy attacks cannot affect the observation.");
             report.fixtureAdjustments.Add("Basic attacks run through the normal enabled TowerGame.Update. No fixture calls Fire, StrikeEnemy, DamageEnemy, BeginAllyAttack or ResolveAllyAttack.");
@@ -284,7 +286,10 @@ namespace PrototypeLab.Roguelike
         {
             var target = Setup(id); var state = game.run.GetCompanion(id);
             var actor = game.allies.Find(ally => ally.id == id); actor.cooldown = 999;
-            Place(target, actor.pos + Vector2.right * 1.1f);
+            // Orbs, phantoms, mines and banners gather around the hero (a companion's version works at the front line).
+            var effect = definition.Effect;
+            bool anchored = effect == SkillEffect.Orbit || effect == SkillEffect.Decoy || effect == SkillEffect.Mine || effect == SkillEffect.WarBanner;
+            Place(target, (anchored ? game.hero.pos + Vector2.right * .3f : actor.pos) + Vector2.right * 1.1f);
             game.hero.hp = game.PlayerMaxHealth * .25f;
             float targetBefore = target.hp, heroBefore = game.hero.hp, shieldBefore = game.PlayerShield;
             Require(state.Skills.Count == 0 && game.SkillCasts(id, definition.Id) == 0, "Skill was active before learning: " + definition.Id);

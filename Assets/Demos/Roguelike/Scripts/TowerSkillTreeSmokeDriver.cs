@@ -16,7 +16,7 @@ namespace PrototypeLab.Roguelike
         [Serializable] private sealed class SkillTreeReport
         {
             public string mode = "towerSkillTreeSmoke", finishedUtc;
-            public bool success, runestonePrompt, floorPoints, bossFloorPoints, augmentsResetOnReturn, treeScreen, learnedInVillage, treeInExpedition, foresightCards, pointsSurviveDefeat, savedDataUntouched;
+            public bool success, runestonePrompt, floorPoints, bossFloorPoints, augmentsResetOnReturn, treeScreen, treeScrolls, learnedInVillage, treeInExpedition, foresightCards, pointsSurviveDefeat, savedDataUntouched;
             public int pointsAfterChapter, levelBeforeReturn, levelAfterReturn, spent;
             public float villageDamageBefore, villageDamageAfter;
             public List<string> checks = new List<string>(), screenshots = new List<string>(), errors = new List<string>();
@@ -146,6 +146,20 @@ namespace PrototypeLab.Roguelike
             report.spent = game.campaign.SkillTree.Spent;
             game.treeSelection = "ft_foresight"; yield return Frames(3); yield return Capture("tree-grown");
             report.treeScreen = true; Check("tree screen with " + report.spent + " points spent");
+            // The lower tier lies below the view: the wheel's scroll eases down to the throne and back up to the root.
+            game.campaign.AddSkillPoints(40);
+            foreach (string id in new[] { "or_stair", "or_bell", "or_gate", "cross_heaven", "hv_dawn", "hv_halo", "hv_star", "hv_choir", "uw_dusk", "uw_styx", "uw_soul", "ft_well", "ft_omen", "ft_offering" })
+                Require(game.LearnTreeNode(TowerSkillTree.Get(id)), "Could not learn " + id);
+            SkillNode root = TowerSkillTree.Root, throne = TowerSkillTree.Get("or_throne");
+            Require(game.TreeNodeShown(root) && !game.TreeNodeShown(throne), "The tree did not open on its top with the throne out of view.");
+            game.treeSelection = throne.Id; game.ScrollTreeBy(10000);
+            yield return Until(() => game.TreeNodeShown(throne), 3, "Scrolling down never brought the throne into view.");
+            Require(!game.TreeNodeShown(root), "The root stayed in view at the bottom of the tree.");
+            yield return Frames(3); yield return Capture("tree-deep");
+            game.ScrollTreeBy(-10000);
+            yield return Until(() => game.TreeNodeShown(root), 3, "Scrolling up never brought the root back.");
+            report.treeScrolls = !game.TreeNodeShown(throne); Require(report.treeScrolls, "The throne stayed in view at the top of the tree.");
+            Check("the tree scrolls down to its third crossroads and back");
             game.villagePanel = TowerGame.VillagePanel.None; yield return Frames(3); yield return Capture("village-after-tree");
 
             // The next expedition starts at level one with the tree's bonuses and deals foresight's stat cards first.

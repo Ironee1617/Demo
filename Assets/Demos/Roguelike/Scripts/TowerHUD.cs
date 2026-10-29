@@ -36,7 +36,7 @@ namespace PrototypeLab.Roguelike
             else
             {
                 GUI.enabled=!menu&&!party&&!help&&!shopOpen&&!VillageBlocking&&!run.IsRewardPending&&hero.hp>0&&!run.IsComplete;
-                if(!covered){if(village)DrawVillageHUD();else DrawHUD();}GUI.enabled=!party&&!help&&!StoryOpen;
+                if(!covered){if(village)DrawVillageHUD();else if(practice)DrawPracticeHUD();else DrawHUD();}GUI.enabled=!party&&!help&&!StoryOpen;
                 if(run.IsRewardPending)DrawRewards();else if(shopOpen)DrawShop();
                 else if(villagePanel==VillagePanel.Gate)DrawGatePanel();else if(villagePanel==VillagePanel.Shrine)DrawShrinePanel();
                 else if(villagePanel==VillagePanel.SkillTree)DrawSkillTreePanel();
@@ -76,7 +76,20 @@ namespace PrototypeLab.Roguelike
         private Color TierColor(RewardTier tier){return tier==RewardTier.Silver?silver:tier==RewardTier.Gold?gold:new Color(.5f,.84f,.92f);}
         private string TierName(RewardTier tier){return tier==RewardTier.Silver?"실버":tier==RewardTier.Gold?"골드":"다이아";}
         private string RoleName(CompanionRole role){return role==CompanionRole.Vanguard?"전사":role==CompanionRole.Archer?"궁수":role==CompanionRole.Mage?"마법사":"치유사";}
-        private string CategoryName(RewardOffer offer){return offer.Kind==RewardKind.Oath?"서약 변형":offer.Kind==RewardKind.Recruit?"동료":offer.Kind==RewardKind.Trait?"능력치":offer.IsUpgrade?"스킬 강화":"스킬";}
+        private string CategoryName(RewardOffer offer)
+        {
+            if(offer.Kind!=RewardKind.Skill)return offer.Kind==RewardKind.Oath?"서약 변형":offer.Kind==RewardKind.Recruit?"동료":"능력치";
+            var augment=TowerRun.GetAugment(offer.AugmentId);
+            return (offer.IsUpgrade?"스킬 강화":"스킬")+(augment==null?"":"  ·  "+TowerSkillBuilds.Tag(augment.Effect));
+        }
+        /// <summary>How a skill card moves its style's party resonance: levels now and after, and the tier it reaches.</summary>
+        private string ResonanceStep(RewardOffer offer,out bool reaches)
+        {
+            reaches=false;var augment=TowerRun.GetAugment(offer.AugmentId);if(augment==null||offer.Kind!=RewardKind.Skill)return "";
+            var style=augment.Style;int now=run.StyleLevels(style),after=now+1,tier=TowerSkillBuilds.Tier(now),next=TowerSkillBuilds.Tier(after);
+            reaches=next>tier;int threshold=TowerSkillBuilds.NextThreshold(after);
+            return "「"+TowerSkillBuilds.ResonanceName(style)+"」  "+now+" → "+after+(reaches?"  ·  "+next+"단계 발동":threshold>0?"  ·  "+threshold+"에서 "+(next+1)+"단계":"  ·  최고 단계");
+        }
         internal void OpenParty(string owner){party=true;menu=false;dismissId="";inspectedOwner=owner;detailScroll=Vector2.zero;}
         private Vector2 WorldGui(Vector2 p){var s=view.WorldToScreenPoint(p);return new Vector2((s.x-uiOffset.x)/uiScale,(Screen.height-s.y-uiOffset.y)/uiScale);}
         /// <summary>A small chamfered plate over the world for names, doors and prompts; brighter while in reach.</summary>
@@ -113,6 +126,7 @@ namespace PrototypeLab.Roguelike
                 Title(new Rect(p.x-w*.5f,p.y-16,w,35),n.text,24,c,TextAnchor.MiddleCenter);
             }
             if(village){DrawVillageLabels();return;}
+            if(practice)return;
             if(!intro&&run.IsFloorCleared&&!run.IsRewardPending&&!run.IsComplete)
             {
                 var near=NearestGate();
@@ -283,6 +297,13 @@ namespace PrototypeLab.Roguelike
                     Label(new Rect(x+38,622,324,20),"「"+synergy.Name+"」  "+Mathf.Min(after,3)+" / 3"+(after>=2?"  ·  발동":""),14,after>=2?brass:muted,TextAnchor.MiddleLeft,true);
                     FitLabel(new Rect(x+38,642,324,22),after>=2?synergy.Describe(after):"2명부터  "+synergy.Describe(2),12,10,after>=2?paper:muted);
                 }
+                else if(o.Kind==RewardKind.Skill)
+                {
+                    // Skill cards keep the last line for the build: how this card moves its style's party resonance.
+                    FitLabel(new Rect(x+30,546,338,98),ConciseDescription(o.Description),17,13,new Color(.82f,.83f,.88f));
+                    bool reaches;string step=ResonanceStep(o,out reaches);
+                    FitLabel(new Rect(x+30,646,338,22),step,14,11,reaches?TowerWorld.Gold:Alpha(brass,.85f),TextAnchor.MiddleLeft,reaches);
+                }
                 else FitLabel(new Rect(x+30,552,338,112),ConciseDescription(o.Description),18,16,new Color(.82f,.83f,.88f));
                 if(Button(new Rect(x+28,676,340,44),o.Kind==RewardKind.Recruit?"영입":"선택",c,true,true)){SelectOffer(o.Id);return;}
                 if(spare&&Button(new Rect(x+94,756,208,39),run.CanReroll(i)?"다시 뽑기":"사용 완료",muted,run.CanReroll(i))){run.Reroll(i);Sound(chimeSound,.25f);return;}
@@ -358,10 +379,29 @@ namespace PrototypeLab.Roguelike
                 {if(confirm){Dismiss(definition.Id);inspectedOwner="player";detailScroll=Vector2.zero;return;}dismissId=definition.Id;}
             }
         }
+        private const float ResonanceHeight=224;
+        // The player's page opens with the party's build resonance: learned levels per style and what each tier gives.
+        private float DrawResonance(float y,float width)
+        {
+            Title(new Rect(12,y,width-24,30),"빌드 공명",21,paper,TextAnchor.MiddleLeft);
+            Label(new Rect(12,y+4,width-24,24),"파티가 배운 같은 계열 스킬 레벨 합  ·  3 · 6 · 10",14,muted,TextAnchor.MiddleRight);
+            Divider(new Rect(12,y+33,width-24,8),.5f);y+=44;
+            for(int s=0;s<TowerSkillBuilds.StyleCount;s++)
+            {
+                var style=(SkillStyle)s;int levels=run.StyleLevels(style),tier=TowerSkillBuilds.Tier(levels),next=TowerSkillBuilds.NextThreshold(levels);
+                Color c=StyleColor(style);
+                Diamond(new Vector2(24,y+13),7,c);
+                Label(new Rect(40,y,150,26),TowerSkillBuilds.StyleName(style)+"  "+levels,16,tier>0?c:muted,TextAnchor.MiddleLeft,tier>0);
+                string text=tier>0?tier+"단계  ·  "+TowerSkillBuilds.ResonanceText(style,tier)+(next>0?"  ·  다음 "+next:""):next+"부터  ·  "+TowerSkillBuilds.ResonanceText(style,1);
+                FitLabel(new Rect(170,y,width-190,26),text,15,12,tier>0?paper:Alpha(muted,.85f),TextAnchor.MiddleLeft);
+                y+=34;
+            }
+            return y+10;
+        }
         private void DrawAbilities(Rect viewport,HeroState owner,Color accent)
         {
-            float width=viewport.width-25;float height=OathDetailHeight(owner)+184+owner.Skills.Count*143+owner.Traits.Count*115;
-            var companion=run.GetCompanion(owner.Id);if(companion!=null)height+=224;
+            float width=viewport.width-25;float height=OathDetailHeight(owner)+184+owner.Skills.Count*163+owner.Traits.Count*115;
+            var companion=run.GetCompanion(owner.Id);if(companion!=null)height+=224;else height+=ResonanceHeight;
             detailScroll=BeginScroll(viewport,detailScroll,new Rect(0,0,width,Mathf.Max(viewport.height-2,height)));
             float y=DrawOathDetails(owner,3);
             if(companion!=null)
@@ -378,16 +418,17 @@ namespace PrototypeLab.Roguelike
                 Label(new Rect(18,y+8,width-40,24),myth.Name+"  ·  「"+synergy.Name+"」  "+members+" / 3"+(members>=2?"  발동":""),17,members>=2?brass:paper,TextAnchor.MiddleLeft,true);
                 FitLabel(new Rect(18,y+34,width-40,24),members>=2?synergy.Describe(members):"같은 신화 2명부터  "+synergy.Describe(2),15,12,muted);y+=74;
             }
+            if(companion==null)y=DrawResonance(y,width);
             Title(new Rect(12,y,width-24,30),"스킬  "+owner.Skills.Count,21,paper,TextAnchor.MiddleLeft);Divider(new Rect(12,y+33,width-24,8),.5f);y+=45;
             if(owner.Skills.Count==0){Label(new Rect(12,y,width-24,38),"습득한 스킬 없음",17,muted);y+=44;}
             foreach(var skill in owner.Skills)
             {
-                Slot(new Rect(3,y,width-6,131));
-                Diamond(new Vector2(24,y+26),10,accent);
-                Title(new Rect(40,y+12,width-265,29),skill.Definition.Name+"  "+skill.Level,20,paper);
+                Slot(new Rect(3,y,width-6,151),skill.Awakened?brass:accent,skill.Awakened);
+                Diamond(new Vector2(24,y+26),10,StyleColor(skill.Style));
+                Title(new Rect(40,y+12,width-265,29),skill.Definition.Name+"  Lv."+skill.Level+(skill.Awakened?"  각성":""),20,skill.Awakened?TowerWorld.Gold:paper);
                 float remaining=SkillRemaining(owner.Id,skill.Definition.Id);
                 Label(new Rect(width-224,y+13,202,25),remaining>0?remaining.ToString("0.0")+"초":"준비",15,remaining>0?muted:TowerWorld.Teal,TextAnchor.MiddleRight);
-                FitLabel(new Rect(18,y+49,width-40,78),skill.Description,17,16,new Color(.8f,.82f,.88f));y+=143;
+                FitLabel(new Rect(18,y+47,width-40,100),skill.Description,17,14,new Color(.8f,.82f,.88f));y+=163;
             }
             y+=14;Title(new Rect(12,y,width-24,30),"능력치  "+owner.Traits.Count,21,paper,TextAnchor.MiddleLeft);Divider(new Rect(12,y+33,width-24,8),.5f);y+=44;
             if(owner.Traits.Count==0)Label(new Rect(12,y,width-24,35),"강화한 능력치 없음",17,muted);
@@ -402,9 +443,9 @@ namespace PrototypeLab.Roguelike
         }
         private void DrawMenu()
         {
-            bool expedition=run.IsCampaign&&!village;float top=expedition?136:166;
+            bool expedition=run.IsCampaign&&!village&&!practice;float top=expedition||practice?136:166;
             Fill(Screenful,new Color(.01f,.014f,.03f,.8f));Vignette(new Color(0,0,0,.85f));Grain(Screenful,.04f,true);
-            Card(new Rect(540,top,520,expedition?632:572),brass);
+            Card(new Rect(540,top,520,expedition||practice?632:572),brass);
             Label(new Rect(586,top+44,428,24),"PAUSED",13,brass,TextAnchor.MiddleCenter,true);
             GildedTitle(new Rect(560,top+76,480,60),"숨을 고르는 중",36,TextAnchor.MiddleCenter);
             Divider(new Rect(620,top+146,360,10),.8f,true);
@@ -413,9 +454,10 @@ namespace PrototypeLab.Roguelike
             if(Button(new Rect(600,y,400,48),"조작과 규칙",silver))help=true;y+=64;
             if(Button(new Rect(600,y,400,48),"화면 흔들림  ·  "+(ScreenShakeEnabled?"켜짐":"꺼짐"),muted))ScreenShakeEnabled=!ScreenShakeEnabled;y+=64;
             if(expedition){if(Button(new Rect(600,y,400,48),"원정 포기  ·  마을로",crimson)){EnterVillage();inspectedOwner="player";}y+=64;}
+            if(practice){if(Button(new Rect(600,y,400,48),"연습장 나가기  ·  마을로",silver))LeavePractice();y+=64;}
             if(Button(new Rect(600,y,400,48),"처음 화면",muted)){if(village||run.IsCampaign)EnterVillage();else NewRun();intro=true;inspectedOwner="player";}y+=64;
             if(Button(new Rect(600,y,400,48),"데모 선택",muted))BackToHub();y+=69;
-            Label(new Rect(600,y,400,27),village?TowerCampaign.Village:run.Floor+"층  ·  "+CombatTime(elapsed),16,muted,TextAnchor.MiddleCenter);
+            Label(new Rect(600,y,400,27),village?TowerCampaign.Village:practice?"스킬 연습장  ·  "+TowerThemeCatalog.Get(PracticeTheme).Name:run.Floor+"층  ·  "+CombatTime(elapsed),16,muted,TextAnchor.MiddleCenter);
         }
         private void DrawEnding(bool won)
         {
@@ -455,6 +497,13 @@ namespace PrototypeLab.Roguelike
             string rules=trial?"검격 적중 +1 · 순간 회피 +2\n기본 4충전 후 다음 검격 적중에 연계가 발동합니다. 헛스윙은 충전을 소모하지 않습니다.\n\n회피 시작 0.12초 안에 탄환을 통과하면 순간 회피입니다. 다음 검격의 반격 효과는 3초간 유지됩니다.\n\n여러 서약 변형은 함께 적용되며 충전은 다음 층에도 유지됩니다.\n\n5·10층 보스 · 10층 클리어로 종료\n부서지는 항아리와 상자, 골드는 나오지 않습니다.":
                 "회피 시작 0.12초 안에 탄환을 통과하면 반격을 준비합니다. 3초 안에 맞힌 다음 검격은 피해가 50% 증가합니다.\n\n탑은 열 층마다 한 신화를 가둔 장입니다. 원정을 떠나면 되찾은 신화와 그 장 신화의 신들 가운데 함께 오를 동료를 직접 고릅니다. 30층을 넘으면 둘, 60층을 넘으면 셋을 데려갑니다.\n\n층마다 능력치 증강, 5층마다 보스와 스킬 증강이 나오고 그 장의 마지막 층에는 각성한 보스가 있습니다. 장을 끝내면 마을로 돌아와 다음 열 층이 열리고, 증강은 원정마다 처음부터 다시 쌓습니다. 층을 넘길 때마다 얻는 스킬 포인트는 실패해도 남으며, 마을의 스킬트리(K)에서 영구 능력을 배웁니다.";
             Label(new Rect(808,298,640,360),rules,18,new Color(.8f,.82f,.88f));
+            if(!trial)
+            {
+                // The build guide: styles resonate across the party, statuses let one hero's skill set up another's.
+                Slot(new Rect(84,778,1400,84),.55f);
+                Label(new Rect(104,786,1360,24),"빌드 공명  ·  파티가 배운 근접·원거리·자동·주문·수호 스킬의 레벨 합이 3·6·10에 이르면 그 계열 스킬이 강해집니다 (레벨 3은 각성)",15,brass,TextAnchor.MiddleLeft,true);
+                Label(new Rect(104,814,1360,40),"연계  ·  둔화+번개 초전도 1.5배  ·  화염↔냉기 증기 폭발 1.4배  ·  화상+독 독연 1.5배  ·  기절+근접 무방비 1.35배  ·  표식 +20%  ·  저주는 옆 적에게 번짐",14,new Color(.8f,.82f,.88f),TextAnchor.MiddleLeft);
+            }
             Label(new Rect(808,675,640,65),trial?"적을 모두 처치하면 생명력 18 회복\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회":"5층 갈림길에서 휴식·상점·엘리트 문 · 항아리·상자에서 하트와 골드\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회",18,paper);
         }
     }

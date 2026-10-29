@@ -10,7 +10,9 @@ namespace PrototypeLab.Roguelike
     public enum RewardKind { Recruit, Skill, Trait, Upgrade = Trait, Oath = 3 }
     public enum UpgradeStat { Damage, Haste, Ability }
     public enum HeroStat { Damage, MaxHealth, Armor, MoveSpeed, AttackSpeed, Range, CritChance, LifeSteal, Cooldown, SkillPower, Projectiles, Regeneration, DodgeCooldown, Area, Healing }
-    public enum SkillEffect { Fireball, IceNova, ChainLightning, Meteor, ArcaneVolley, Shockwave, BladeStorm, DashStrike, MultiShot, PierceShot, RainArrows, PoisonCloud, HealPulse, ShieldPulse, LifeDrain, Sentry }
+    // The first sixteen are the original effects; the rest are companions' narrower, stranger tools (see TowerSkillBuilds).
+    public enum SkillEffect { Fireball, IceNova, ChainLightning, Meteor, ArcaneVolley, Shockwave, BladeStorm, DashStrike, MultiShot, PierceShot, RainArrows, PoisonCloud, HealPulse, ShieldPulse, LifeDrain, Sentry,
+        Boomerang, Ricochet, HuntMark, Hook, Quake, Orbit, Decoy, Mine, Vortex, Curse, WarBanner, Bloom }
     public enum FloorType { Normal, Elite, Rest, Shop }
     public enum ShopItem { Augment, Heal, Vitality }
     // Ordinary floors deal stat cards, every fifth floor and elite floor skill cards; shop and oath cards keep both kinds.
@@ -67,6 +69,7 @@ namespace PrototypeLab.Roguelike
         public float Duration { get; private set; }
         public HeroStat Stat { get; private set; }
         public float Value { get; private set; }
+        public SkillStyle Style { get { return TowerSkillBuilds.Style(Effect); } }
         internal AugmentDefinition(string id, string owner, string name, string description, RewardTier tier,
             SkillEffect effect, float cooldown, float power, float radius, int count, float duration)
         {
@@ -101,35 +104,44 @@ namespace PrototypeLab.Roguelike
         public float Cooldown { get { return CooldownAt(Level); } }
         public float Power { get { return PowerAt(Level); } }
         public float Radius { get { return RadiusAt(Level); } }
-        public int Count
-        {
-            get
-            {
-                var effect = Definition.Effect;
-                bool projectile = effect == SkillEffect.Fireball || effect == SkillEffect.ArcaneVolley || effect == SkillEffect.MultiShot ||
-                    effect == SkillEffect.PierceShot || effect == SkillEffect.RainArrows || effect == SkillEffect.Sentry || effect == SkillEffect.Shockwave;
-                return Definition.Count + (projectile ? owner.ProjectileBonus : 0);
-            }
-        }
-        public float Duration { get { return Definition.Duration * (1 + .2f * (Level - 1)); } }
+        public int Count { get { return CountAt(Level); } }
+        public float Duration { get { return DurationAt(Level); } }
         public string Description { get { return Describe(Level); } }
+        public SkillStyle Style { get { return Definition.Style; } }
+        /// <summary>Level three awakens the skill's extra behaviour (see <see cref="TowerSkillBuilds.LevelText"/>).</summary>
+        public bool Awakened { get { return TowerSkillBuilds.Awakened(Level); } }
         internal SkillState(AugmentDefinition definition, HeroState owner, int level = 1)
         { Definition = definition; this.owner = owner; Level = level; }
         internal void Upgrade() { if (Level < 3) Level++; }
-        public float CooldownAt(int level) { return Math.Max(1, Definition.Cooldown * (1 - .15f * (level - 1)) * owner.CooldownMultiplier); }
+        private int Resonance { get { return owner.ResonanceTier(Definition.Style); } }
+        public float CooldownAt(int level)
+        { return Math.Max(1, Definition.Cooldown * TowerSkillBuilds.CooldownScale(level) * TowerSkillBuilds.ResonanceCooldown(Definition.Style, Resonance) * owner.CooldownMultiplier); }
         private float PowerAt(int level)
         {
-            bool support = Definition.Effect == SkillEffect.HealPulse || Definition.Effect == SkillEffect.ShieldPulse;
-            return Definition.Power * (1 + .35f * (level - 1)) * owner.SkillPowerMultiplier * (support ? owner.HealingMultiplier : 1);
+            bool support = TowerSkillBuilds.Support(Definition.Effect);
+            return Definition.Power * TowerSkillBuilds.PowerScale(level) * TowerSkillBuilds.ResonancePower(Definition.Style, Resonance) *
+                owner.SkillPowerMultiplier * (support ? owner.HealingMultiplier : 1);
         }
-        private float RadiusAt(int level) { return Definition.Radius * (1 + .1f * (level - 1)) * owner.AreaMultiplier; }
+        private float RadiusAt(int level)
+        { return Definition.Radius * TowerSkillBuilds.AreaScale(Definition.Effect, level) * TowerSkillBuilds.ResonanceArea(Definition.Style, Resonance) * owner.AreaMultiplier; }
+        private float DurationAt(int level)
+        { return Definition.Duration * TowerSkillBuilds.DurationScale(level) * TowerSkillBuilds.ResonanceDuration(Definition.Style, Resonance); }
+        private int CountAt(int level)
+        {
+            var effect = Definition.Effect; bool projectile = TowerSkillBuilds.Projectile(effect);
+            return Definition.Count + TowerSkillBuilds.ExtraCount(effect, level) + (projectile ? owner.ProjectileBonus + TowerSkillBuilds.ResonanceCount(Definition.Style, Resonance) : 0);
+        }
         internal string Describe(int level)
         {
-            string amount = Definition.Effect == SkillEffect.HealPulse ? "회복" : Definition.Effect == SkillEffect.ShieldPulse ? "보호막" : "피해";
-            return Definition.Description + "\n" + amount + " " + AugmentDefinition.Number(owner.Damage * PowerAt(level)) +
-                " · 범위 " + AugmentDefinition.Number(RadiusAt(level)) + " · 수량 " + Count +
-                (Definition.Duration > 0 ? " · 지속 " + AugmentDefinition.Number(Definition.Duration * (1 + .2f * (level - 1))) + "초" : "") +
-                "\n재사용 " + AugmentDefinition.Number(CooldownAt(level)) + "초";
+            var effect = Definition.Effect;
+            string amount = effect == SkillEffect.HealPulse ? "회복" : effect == SkillEffect.ShieldPulse ? "보호막" : "피해";
+            // A level-two shield pulse raises 15% more than its power.
+            float shown = owner.Damage * PowerAt(level) * (effect == SkillEffect.ShieldPulse && level >= 2 ? 1.15f : 1);
+            return Definition.Description + "\n" + amount + " " + AugmentDefinition.Number(shown) +
+                " · 범위 " + AugmentDefinition.Number(RadiusAt(level)) + " · 수량 " + CountAt(level) +
+                (Definition.Duration > 0 ? " · 지속 " + AugmentDefinition.Number(DurationAt(level)) + "초" : "") +
+                "\n재사용 " + AugmentDefinition.Number(CooldownAt(level)) + "초 · " + TowerSkillBuilds.Tag(effect) +
+                "\n" + TowerSkillBuilds.LevelText(effect, level == 2 ? 2 : 3);
         }
     }
 
@@ -152,6 +164,9 @@ namespace PrototypeLab.Roguelike
         private float vitality;
         // Run-level bonuses that do not come from cards, such as mythology synergies.
         internal Func<HeroStat, float> ExternalBonus;
+        // The party's learned skill levels per build style; a hero outside a run has none.
+        internal Func<SkillStyle, int> StyleLevels;
+        public int ResonanceTier(SkillStyle style) { return StyleLevels == null ? 0 : TowerSkillBuilds.Tier(StyleLevels(style)); }
         private readonly List<SkillState> skills = new List<SkillState>();
         private readonly List<TraitState> traits = new List<TraitState>();
         private readonly ReadOnlyCollection<SkillState> skillView;
@@ -425,6 +440,7 @@ namespace PrototypeLab.Roguelike
             Player = new HeroState("player", "플레이어", 28, 160, 0, 6, .43f, 2.6f);
             Passives = new TowerPassiveState(this);
             Player.ExternalBonus = stat => SynergyBonus(Player, stat) + Passives.StatBonus(Player, stat) + TreeBonus(Player, stat);
+            Player.StyleLevels = StyleLevels;
             companionView = companions.AsReadOnly(); offerView = offers.AsReadOnly(); shopView = shop.AsReadOnly();
             if (oathCompanionId != null)
             {
@@ -482,6 +498,14 @@ namespace PrototypeLab.Roguelike
         public HeroState GetHero(string id) { return id == "player" ? Player : GetCompanion(id); }
         public int MythCount(string mythId)
         { int count = 0; foreach (var companion in companions) if (companion.Definition.MythId == mythId) count++; return count; }
+        /// <summary>Learned skill levels of one build style across the player and every companion: the resonance count.</summary>
+        public int StyleLevels(SkillStyle style)
+        {
+            int levels = 0;
+            foreach (var skill in Player.Skills) if (skill.Style == style) levels += skill.Level;
+            foreach (var companion in companions) foreach (var skill in companion.Skills) if (skill.Style == style) levels += skill.Level;
+            return levels;
+        }
         public IReadOnlyList<MythSynergyState> ActiveSynergies
         {
             get
@@ -606,6 +630,7 @@ namespace PrototypeLab.Roguelike
         {
             var companion = new CompanionState(definition);
             companion.ExternalBonus = stat => SynergyBonus(companion, stat) + Passives.StatBonus(companion, stat) + TreeBonus(companion, stat);
+            companion.StyleLevels = StyleLevels;
             companions.Add(companion);
             if (joined != null) joined(companion);
         }

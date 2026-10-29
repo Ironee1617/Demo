@@ -127,7 +127,7 @@ namespace PrototypeLab.Roguelike
             // Below the fixed header and numbers, the passive, its legend, skills and synergy follow their text's length.
             const float w=440;
             float said=Mathf.Min(60,TextHeight(passive.Description,15,w-44)),lore=Mathf.Min(40,TextHeight(passive.Lore,13,w-44));
-            float skills=288+said+lore+14,h=skills+174;
+            float skills=288+said+lore+14,h=skills+198;
             float x=anchor.xMax+12+w<=1592?anchor.xMax+12:anchor.x-12-w;x=Mathf.Clamp(x,8,1592-w);
             float y=Mathf.Clamp(anchor.y-30,12,888-h);
             Panel(new Rect(x,y,w,h),c);
@@ -151,16 +151,17 @@ namespace PrototypeLab.Roguelike
             Title(new Rect(x+22,y+256,w-44,24),"고유 패시브  ·  "+passive.Name,16,c,TextAnchor.MiddleLeft);
             FitLabel(new Rect(x+22,y+282,w-44,60),passive.Description,15,12,paper);
             FitLabel(new Rect(x+22,y+288+said,w-44,40),passive.Lore,13,11,muted);
-            Label(new Rect(x+22,y+skills,w-44,22),"스킬  ·  증강으로 배우고 강화합니다",14,paper,TextAnchor.MiddleLeft,true);
+            Label(new Rect(x+22,y+skills,w-44,22),"스킬  ·  증강으로 배우고 강화 · 계열은 빌드 공명",14,paper,TextAnchor.MiddleLeft,true);
             int slot=0;
             foreach(var augment in TowerRun.Augments)
             {
                 if(augment.OwnerId!=id||augment.Kind!=RewardKind.Skill)continue;
-                var skill=god.GetSkill(augment.Id);
-                Label(new Rect(x+22+slot%2*198,y+skills+26+slot/2*24,194,22),augment.Name+(skill!=null?"  Lv."+skill.Level:""),14,skill!=null?brass:muted);
-                if(++slot==4)break;
+                var skill=god.GetSkill(augment.Id);Rect cell=new Rect(x+22+slot%2*198,y+skills+26+slot/2*24,194,22);
+                FitLabel(new Rect(cell.x,cell.y,cell.width-40,cell.height),augment.Name+(skill!=null?"  Lv."+skill.Level:""),14,11,skill!=null?brass:muted);
+                Label(new Rect(cell.xMax-42,cell.y,40,cell.height),TowerSkillBuilds.StyleName(augment.Style),12,Alpha(StyleColor(augment.Style),.9f),TextAnchor.MiddleRight);
+                if(++slot==6)break;
             }
-            float box=y+skills+82;
+            float box=y+skills+106;
             Slot(new Rect(x+16,box,w-32,76),brass,members>=2);
             Label(new Rect(x+28,box+6,w-56,22),"「"+synergy.Name+"」  "+myth.Name+"  "+Mathf.Min(members,3)+" / 3"+(members>=2?"  ·  발동":""),14,members>=2?brass:paper,TextAnchor.MiddleLeft,true);
             FitLabel(new Rect(x+28,box+30,w-56,40),members>=2?synergy.Describe(members):"같은 신화 2명부터  "+synergy.Describe(2),13,10,members>=2?paper:muted);

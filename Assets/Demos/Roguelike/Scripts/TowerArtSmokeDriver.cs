@@ -200,7 +200,7 @@ namespace PrototypeLab.Roguelike
         }
         private IEnumerator Effects()
         {
-            NewGallery(); title = "실제 스킬 VFX · 시전 단계 16종";
+            NewGallery(); title = "실제 스킬 VFX · 시전 단계 " + Enum.GetValues(typeof(SkillEffect)).Length + "종";
             var services = new List<TowerVfx>(); var roots = new List<Transform>(); var snapshots = new List<string>(); var positions = new List<Vector2>();
             var colorMethod = typeof(TowerGame).GetMethod("SkillColor", BindingFlags.NonPublic | BindingFlags.Instance);
             var effects = (SkillEffect[])Enum.GetValues(typeof(SkillEffect));
@@ -208,12 +208,13 @@ namespace PrototypeLab.Roguelike
             {
                 var parent = new GameObject(effects[i] + " gallery").transform; parent.SetParent(gallery, false); roots.Add(parent);
                 var service = TowerVfx.Create(parent); services.Add(service);
-                var pos = new Vector2(-9.6f + (i % 4) * 6.4f, 4.5f - (i / 4) * 3.2f); positions.Add(pos);
+                // Seven to a row so all twenty-eight effects stay in the captured view.
+                var pos = new Vector2(-9.6f + (i % 7) * 3.2f, 4.5f - (i / 7) * 3.2f); positions.Add(pos);
                 var color = (Color)colorMethod.Invoke(game, new object[] { effects[i] });
                 service.Cast(effects[i], pos, 1.2f, color); service.Tick(.08f);
                 Require(service.ActiveCount > 0 && Visible(parent) > 0, "Invisible Cast VFX: " + effects[i]);
                 report.visibleEffects++; snapshots.Add(Visuals(parent));
-                Label(new Rect((i % 4) * 400 + 15, 78 + (i / 4) * 200, 370, 24), effects[i].ToString());
+                Label(new Rect((i % 7) * 228 + 10, 78 + (i / 7) * 200, 220, 24), effects[i].ToString());
             }
             yield return Capture("effects-cast");
             for (int i = 0; i < effects.Length; i++)
@@ -225,9 +226,9 @@ namespace PrototypeLab.Roguelike
                 foreach (var r in roots[i].GetComponentsInChildren<Renderer>()) Require(HighResolution(r), "VFX texture is not a filtered high-resolution sprite: " + r.name);
                 report.effectChecks.Add(effects[i] + ": Cast visible / Tick animated / Impact visible");
             }
-            title = "실제 스킬 VFX · 충돌 단계 16종"; yield return Capture("effects-impact");
+            title = "실제 스킬 VFX · 충돌 단계 " + effects.Length + "종"; yield return Capture("effects-impact");
             bool expired = true; foreach (var service in services) { service.Tick(10); expired &= service.ActiveCount == 0; }
-            report.effectsVerified = report.visibleEffects == 16 && report.animatedEffects == 16; report.effectsExpired = expired;
+            report.effectsVerified = report.visibleEffects == effects.Length && report.animatedEffects == effects.Length; report.effectsExpired = expired;
             Require(report.effectsVerified && expired, "VFX visibility, animation or cleanup failed.");
         }
         private static int Visible(Transform parent)

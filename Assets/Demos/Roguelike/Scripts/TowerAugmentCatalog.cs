@@ -75,56 +75,56 @@ namespace PrototypeLab.Roguelike
         private static IReadOnlyList<AugmentDefinition> Build()
         {
             var result = new List<AugmentDefinition>();
-            Skills(result, "michael", "천군의 검무|불멸의 성벽|성검의 파동|낙원의 돌격", SkillEffect.BladeStorm, SkillEffect.ShieldPulse, SkillEffect.Shockwave, SkillEffect.DashStrike);
-            Skills(result, "gabriel", "계시의 화살|복음의 산광|일곱 나팔의 비|천상의 울림", SkillEffect.PierceShot, SkillEffect.MultiShot, SkillEffect.RainArrows, SkillEffect.ChainLightning);
-            Skills(result, "raphael", "토비아의 기적|여행자의 가호|생명의 숨결|치유의 서리", SkillEffect.HealPulse, SkillEffect.ShieldPulse, SkillEffect.LifeDrain, SkillEffect.IceNova);
-            Skills(result, "uriel", "에덴의 화염|정화의 불안개|불꽃의 계시|심판의 낙화", SkillEffect.Fireball, SkillEffect.PoisonCloud, SkillEffect.ArcaneVolley, SkillEffect.Meteor);
-            Skills(result, "metatron", "천상 기록진|세피로트 연사|생명나무 결계|천구의 심판", SkillEffect.Sentry, SkillEffect.ArcaneVolley, SkillEffect.ShieldPulse, SkillEffect.Meteor);
-            Skills(result, "zeus", "올림포스의 벼락|뇌창의 산개|천둥의 포효|크로노스의 종언", SkillEffect.ChainLightning, SkillEffect.MultiShot, SkillEffect.Shockwave, SkillEffect.Meteor);
-            Skills(result, "poseidon", "삼지창의 해일|얼어붙은 심해|파도의 창|대양의 격류", SkillEffect.Shockwave, SkillEffect.IceNova, SkillEffect.PierceShot, SkillEffect.RainArrows);
-            Skills(result, "hades", "명계의 징수|아스포델 안개|저승의 윤무|지하세계의 문", SkillEffect.LifeDrain, SkillEffect.PoisonCloud, SkillEffect.BladeStorm, SkillEffect.Meteor);
-            Skills(result, "athena", "아이기스 전개|팔라스의 돌격|지혜의 투창|승리의 전술", SkillEffect.ShieldPulse, SkillEffect.DashStrike, SkillEffect.PierceShot, SkillEffect.Shockwave);
-            Skills(result, "artemis", "초승달 산탄|은활의 추적|달의 화살비|사냥의 서리", SkillEffect.MultiShot, SkillEffect.PierceShot, SkillEffect.RainArrows, SkillEffect.IceNova);
-            Skills(result, "odin", "궁니르 투척|룬의 사슬|후긴의 감시|라그나로크의 징조", SkillEffect.PierceShot, SkillEffect.ChainLightning, SkillEffect.Sentry, SkillEffect.Meteor);
-            Skills(result, "thor", "묠니르 강타|천둥의 귀환|폭풍 돌격|거인 분쇄", SkillEffect.Shockwave, SkillEffect.ChainLightning, SkillEffect.DashStrike, SkillEffect.Meteor);
-            Skills(result, "loki", "독사의 속삭임|거짓 그림자|환영의 연사|요툰의 냉기", SkillEffect.PoisonCloud, SkillEffect.DashStrike, SkillEffect.ArcaneVolley, SkillEffect.IceNova);
-            Skills(result, "freyja", "폴크방의 자비|황금 목걸이 결계|세이드르의 맥동|발키리의 비", SkillEffect.HealPulse, SkillEffect.ShieldPulse, SkillEffect.LifeDrain, SkillEffect.RainArrows);
-            Skills(result, "tyr", "외팔의 검무|깨지지 않는 서약|펜리르 봉쇄|전신의 판결", SkillEffect.BladeStorm, SkillEffect.ShieldPulse, SkillEffect.DashStrike, SkillEffect.Shockwave);
-            Skills(result, "shiva", "탄다바 검무|다마루의 진동|제삼안의 불꽃|파괴와 재생", SkillEffect.BladeStorm, SkillEffect.Shockwave, SkillEffect.Fireball, SkillEffect.Meteor);
-            Skills(result, "vishnu", "수다르샤나 투척|보존의 결계|차크라의 분열|연꽃의 안식", SkillEffect.PierceShot, SkillEffect.ShieldPulse, SkillEffect.MultiShot, SkillEffect.HealPulse);
-            Skills(result, "brahma", "창조의 만다라|네 지혜의 빛|태초의 고요|우주의 개벽", SkillEffect.Sentry, SkillEffect.ArcaneVolley, SkillEffect.IceNova, SkillEffect.Meteor);
-            Skills(result, "ganesha", "장애물의 봉인|모다카의 축복|지혜의 진동|길잡이의 인장", SkillEffect.ShieldPulse, SkillEffect.HealPulse, SkillEffect.Shockwave, SkillEffect.Sentry);
-            Skills(result, "hanuman", "바람의 도약|금강 곤봉격|원숭이왕의 난무|랑카의 불꽃", SkillEffect.DashStrike, SkillEffect.Shockwave, SkillEffect.BladeStorm, SkillEffect.Fireball);
-            Skills(result, "ra", "태양선의 포화|태양 원반 연사|낮의 수호|정오의 심판", SkillEffect.Fireball, SkillEffect.ArcaneVolley, SkillEffect.ShieldPulse, SkillEffect.Meteor);
-            Skills(result, "osiris", "부활의 씨앗|두아트의 순환|왕권의 보호|나일의 녹무", SkillEffect.HealPulse, SkillEffect.LifeDrain, SkillEffect.ShieldPulse, SkillEffect.PoisonCloud);
-            Skills(result, "isis", "왕좌의 날개|생명의 매듭|헤카의 연사|별빛의 장막", SkillEffect.ShieldPulse, SkillEffect.HealPulse, SkillEffect.ArcaneVolley, SkillEffect.IceNova);
-            Skills(result, "anubis", "심장의 저울|저승길 돌진|방부의 검무|진실의 판결", SkillEffect.LifeDrain, SkillEffect.DashStrike, SkillEffect.BladeStorm, SkillEffect.Shockwave);
-            Skills(result, "horus", "왕의 눈|매의 산개|하늘왕의 비|복수의 섬광", SkillEffect.PierceShot, SkillEffect.MultiShot, SkillEffect.RainArrows, SkillEffect.ChainLightning);
-            Skills(result, "sun_wukong", "여의봉 난무|근두운 돌격|대성의 일격|털끝 분신진", SkillEffect.BladeStorm, SkillEffect.DashStrike, SkillEffect.Shockwave, SkillEffect.Sentry);
-            Skills(result, "nezha", "화첨창의 불꽃|풍화륜 질주|건곤권 산개|혼천릉 회전", SkillEffect.Fireball, SkillEffect.DashStrike, SkillEffect.MultiShot, SkillEffect.BladeStorm);
-            Skills(result, "erlang_shen", "삼첨양인도|천안의 광탄|효천의 추격우|삼안의 뇌광", SkillEffect.PierceShot, SkillEffect.ArcaneVolley, SkillEffect.RainArrows, SkillEffect.ChainLightning);
-            Skills(result, "guan_yu", "청룡의 검무|언월도 대진격|충의의 수호|적토의 돌파", SkillEffect.BladeStorm, SkillEffect.Shockwave, SkillEffect.ShieldPulse, SkillEffect.DashStrike);
-            Skills(result, "nuwa", "황토의 생명|오색석 결계|보천의 오석진|무너진 하늘의 별", SkillEffect.HealPulse, SkillEffect.ShieldPulse, SkillEffect.Sentry, SkillEffect.Meteor);
-            Skills(result, "dangun", "홍익의 가호|백두의 검기|신단수의 숨결|건국의 검무", SkillEffect.ShieldPulse, SkillEffect.Shockwave, SkillEffect.HealPulse, SkillEffect.BladeStorm);
-            Skills(result, "jumong", "해모수의 화살|동명 연사|졸본의 화살비|엄리수의 정적", SkillEffect.PierceShot, SkillEffect.MultiShot, SkillEffect.RainArrows, SkillEffect.IceNova);
-            Skills(result, "hwanung", "뇌공의 천벌|풍백의 격풍|운사의 비구름|천부인의 심판", SkillEffect.ChainLightning, SkillEffect.Shockwave, SkillEffect.PoisonCloud, SkillEffect.Meteor);
-            Skills(result, "princess_bari", "서천의 약수|망자의 인도|무조의 보호|저승강의 고요", SkillEffect.HealPulse, SkillEffect.LifeDrain, SkillEffect.ShieldPulse, SkillEffect.IceNova);
-            Skills(result, "jacheongbi", "오곡의 비|세경의 씨앗|풍요의 들판|생명꽃의 은혜", SkillEffect.RainArrows, SkillEffect.MultiShot, SkillEffect.PoisonCloud, SkillEffect.HealPulse);
-            Skills(result, "bael", "보이지 않는 독무|왕의 은보|첫 인장의 연사|어둠의 헌납", SkillEffect.PoisonCloud, SkillEffect.DashStrike, SkillEffect.ArcaneVolley, SkillEffect.LifeDrain);
-            Skills(result, "agares", "공작의 지진|멈춤의 진언|도망자의 봉인|언어의 마법진", SkillEffect.Shockwave, SkillEffect.IceNova, SkillEffect.ShieldPulse, SkillEffect.Sentry);
-            Skills(result, "vassago", "잃어버린 길의 화살|과거의 잔향우|미래의 사슬|예지의 별탄", SkillEffect.PierceShot, SkillEffect.RainArrows, SkillEffect.ChainLightning, SkillEffect.ArcaneVolley);
-            Skills(result, "paimon", "왕의 지식진|비밀의 교향|충성의 결계|황금 왕관의 명령", SkillEffect.Sentry, SkillEffect.ArcaneVolley, SkillEffect.ShieldPulse, SkillEffect.Meteor);
-            Skills(result, "asmodeus", "욕망의 화염|격노의 칼춤|왕의 맹진|탐욕의 계약", SkillEffect.Fireball, SkillEffect.BladeStorm, SkillEffect.DashStrike, SkillEffect.LifeDrain);
-            Skills(result, "cu_chulainn", "사냥개의 돌진|게이 볼그 투척|리어스트라드|울라의 포효", SkillEffect.DashStrike, SkillEffect.PierceShot, SkillEffect.BladeStorm, SkillEffect.Shockwave);
-            Skills(result, "fionn", "피아나 산개|지혜의 일시|사냥대의 포위우|연어의 지혜", SkillEffect.MultiShot, SkillEffect.PierceShot, SkillEffect.RainArrows, SkillEffect.HealPulse);
-            Skills(result, "lugh", "브류나크의 빛|광명의 연결|태양의 창|발로르의 종언", SkillEffect.PierceShot, SkillEffect.ChainLightning, SkillEffect.Fireball, SkillEffect.Meteor);
-            Skills(result, "morrigan", "까마귀 안개|전장의 징수|바이브의 날개|운명의 검은 비", SkillEffect.PoisonCloud, SkillEffect.LifeDrain, SkillEffect.ArcaneVolley, SkillEffect.RainArrows);
-            Skills(result, "dagda", "되살리는 가마솥|풍요의 성벽|거대한 곤봉|우아이트네의 선율진", SkillEffect.HealPulse, SkillEffect.ShieldPulse, SkillEffect.Shockwave, SkillEffect.Sentry);
-            Skills(result, "zodiac_rat", "자시의 잠행|쥐별의 산개|영리한 함정무|그림자 쌍검무", SkillEffect.DashStrike, SkillEffect.MultiShot, SkillEffect.PoisonCloud, SkillEffect.BladeStorm);
-            Skills(result, "zodiac_ox", "축시의 지축|황소의 방벽|대지의 돌진|혹한의 인내", SkillEffect.Shockwave, SkillEffect.ShieldPulse, SkillEffect.DashStrike, SkillEffect.IceNova);
-            Skills(result, "zodiac_tiger", "인시의 호랑검|맹호의 도약|산군의 포효|사냥의 본능", SkillEffect.BladeStorm, SkillEffect.DashStrike, SkillEffect.Shockwave, SkillEffect.LifeDrain);
-            Skills(result, "zodiac_rabbit", "묘시의 약방|월궁의 가호|달토끼의 서리|옥토의 별탄", SkillEffect.HealPulse, SkillEffect.ShieldPulse, SkillEffect.IceNova, SkillEffect.ArcaneVolley);
-            Skills(result, "zodiac_dragon", "진시의 뇌운|여의주의 염화|용왕의 강우|승천의 심판", SkillEffect.ChainLightning, SkillEffect.Fireball, SkillEffect.RainArrows, SkillEffect.Meteor);
+            Skills(result, "michael", "천군의 검무|불멸의 성벽|성검의 파동|낙원의 돌격|천군의 군기|불꽃 검의 원환", SkillEffect.BladeStorm, SkillEffect.ShieldPulse, SkillEffect.Shockwave, SkillEffect.DashStrike, SkillEffect.WarBanner, SkillEffect.Orbit);
+            Skills(result, "gabriel", "계시의 화살|복음의 산광|일곱 나팔의 비|천상의 울림|계시의 표식|나팔의 메아리탄", SkillEffect.PierceShot, SkillEffect.MultiShot, SkillEffect.RainArrows, SkillEffect.ChainLightning, SkillEffect.HuntMark, SkillEffect.Ricochet);
+            Skills(result, "raphael", "토비아의 기적|여행자의 가호|생명의 숨결|치유의 서리|에덴의 생명꽃|인도하는 빛구슬", SkillEffect.HealPulse, SkillEffect.ShieldPulse, SkillEffect.LifeDrain, SkillEffect.IceNova, SkillEffect.Bloom, SkillEffect.Orbit);
+            Skills(result, "uriel", "에덴의 화염|정화의 불안개|불꽃의 계시|심판의 낙화|심판의 화염 인장|정죄의 낙인", SkillEffect.Fireball, SkillEffect.PoisonCloud, SkillEffect.ArcaneVolley, SkillEffect.Meteor, SkillEffect.Mine, SkillEffect.Curse);
+            Skills(result, "metatron", "천상 기록진|세피로트 연사|생명나무 결계|천구의 심판|천상 기록의 표식|메르카바의 궤도", SkillEffect.Sentry, SkillEffect.ArcaneVolley, SkillEffect.ShieldPulse, SkillEffect.Meteor, SkillEffect.HuntMark, SkillEffect.Orbit);
+            Skills(result, "zeus", "올림포스의 벼락|뇌창의 산개|천둥의 포효|크로노스의 종언|뇌전 도탄|천공의 회오리", SkillEffect.ChainLightning, SkillEffect.MultiShot, SkillEffect.Shockwave, SkillEffect.Meteor, SkillEffect.Ricochet, SkillEffect.Vortex);
+            Skills(result, "poseidon", "삼지창의 해일|얼어붙은 심해|파도의 창|대양의 격류|심해의 소용돌이|삼지창 낚아채기", SkillEffect.Shockwave, SkillEffect.IceNova, SkillEffect.PierceShot, SkillEffect.RainArrows, SkillEffect.Vortex, SkillEffect.Hook);
+            Skills(result, "hades", "명계의 징수|아스포델 안개|저승의 윤무|지하세계의 문|명계의 낙인|저승의 사슬", SkillEffect.LifeDrain, SkillEffect.PoisonCloud, SkillEffect.BladeStorm, SkillEffect.Meteor, SkillEffect.Curse, SkillEffect.Hook);
+            Skills(result, "athena", "아이기스 전개|팔라스의 돌격|지혜의 투창|승리의 전술|승리의 군기|아이기스 투척", SkillEffect.ShieldPulse, SkillEffect.DashStrike, SkillEffect.PierceShot, SkillEffect.Shockwave, SkillEffect.WarBanner, SkillEffect.Boomerang);
+            Skills(result, "artemis", "초승달 산탄|은활의 추적|달의 화살비|사냥의 서리|사냥감의 표식|사냥꾼의 덫", SkillEffect.MultiShot, SkillEffect.PierceShot, SkillEffect.RainArrows, SkillEffect.IceNova, SkillEffect.HuntMark, SkillEffect.Mine);
+            Skills(result, "odin", "궁니르 투척|룬의 사슬|후긴의 감시|라그나로크의 징조|외눈의 응시|룬의 저주", SkillEffect.PierceShot, SkillEffect.ChainLightning, SkillEffect.Sentry, SkillEffect.Meteor, SkillEffect.HuntMark, SkillEffect.Curse);
+            Skills(result, "thor", "묠니르 강타|천둥의 귀환|폭풍 돌격|거인 분쇄|묠니르 귀환|대지 강타", SkillEffect.Shockwave, SkillEffect.ChainLightning, SkillEffect.DashStrike, SkillEffect.Meteor, SkillEffect.Boomerang, SkillEffect.Quake);
+            Skills(result, "loki", "독사의 속삭임|거짓 그림자|환영의 연사|요툰의 냉기|거짓 분신|장난꾸러기의 덫", SkillEffect.PoisonCloud, SkillEffect.DashStrike, SkillEffect.ArcaneVolley, SkillEffect.IceNova, SkillEffect.Decoy, SkillEffect.Mine);
+            Skills(result, "freyja", "폴크방의 자비|황금 목걸이 결계|세이드르의 맥동|발키리의 비|폴크방의 꽃씨|발키리의 깃발", SkillEffect.HealPulse, SkillEffect.ShieldPulse, SkillEffect.LifeDrain, SkillEffect.RainArrows, SkillEffect.Bloom, SkillEffect.WarBanner);
+            Skills(result, "tyr", "외팔의 검무|깨지지 않는 서약|펜리르 봉쇄|전신의 판결|글레이프니르 사슬|전쟁신의 군기", SkillEffect.BladeStorm, SkillEffect.ShieldPulse, SkillEffect.DashStrike, SkillEffect.Shockwave, SkillEffect.Hook, SkillEffect.WarBanner);
+            Skills(result, "shiva", "탄다바 검무|다마루의 진동|제삼안의 불꽃|파괴와 재생|탄다바의 지진|삼지창 윤무", SkillEffect.BladeStorm, SkillEffect.Shockwave, SkillEffect.Fireball, SkillEffect.Meteor, SkillEffect.Quake, SkillEffect.Orbit);
+            Skills(result, "vishnu", "수다르샤나 투척|보존의 결계|차크라의 분열|연꽃의 안식|차크라 귀환|연꽃 씨앗", SkillEffect.PierceShot, SkillEffect.ShieldPulse, SkillEffect.MultiShot, SkillEffect.HealPulse, SkillEffect.Boomerang, SkillEffect.Bloom);
+            Skills(result, "brahma", "창조의 만다라|네 지혜의 빛|태초의 고요|우주의 개벽|네 얼굴의 구체|창조의 소용돌이", SkillEffect.Sentry, SkillEffect.ArcaneVolley, SkillEffect.IceNova, SkillEffect.Meteor, SkillEffect.Orbit, SkillEffect.Vortex);
+            Skills(result, "ganesha", "장애물의 봉인|모다카의 축복|지혜의 진동|길잡이의 인장|길잡이 깃발|장애물의 덫", SkillEffect.ShieldPulse, SkillEffect.HealPulse, SkillEffect.Shockwave, SkillEffect.Sentry, SkillEffect.WarBanner, SkillEffect.Mine);
+            Skills(result, "hanuman", "바람의 도약|금강 곤봉격|원숭이왕의 난무|랑카의 불꽃|산을 드는 일격|거대화 분신", SkillEffect.DashStrike, SkillEffect.Shockwave, SkillEffect.BladeStorm, SkillEffect.Fireball, SkillEffect.Quake, SkillEffect.Decoy);
+            Skills(result, "ra", "태양선의 포화|태양 원반 연사|낮의 수호|정오의 심판|태양 원반 궤도|라의 눈", SkillEffect.Fireball, SkillEffect.ArcaneVolley, SkillEffect.ShieldPulse, SkillEffect.Meteor, SkillEffect.Orbit, SkillEffect.HuntMark);
+            Skills(result, "osiris", "부활의 씨앗|두아트의 순환|왕권의 보호|나일의 녹무|부활의 꽃씨|미라의 저주", SkillEffect.HealPulse, SkillEffect.LifeDrain, SkillEffect.ShieldPulse, SkillEffect.PoisonCloud, SkillEffect.Bloom, SkillEffect.Curse);
+            Skills(result, "isis", "왕좌의 날개|생명의 매듭|헤카의 연사|별빛의 장막|날개의 군기|마법 이름의 구체", SkillEffect.ShieldPulse, SkillEffect.HealPulse, SkillEffect.ArcaneVolley, SkillEffect.IceNova, SkillEffect.WarBanner, SkillEffect.Orbit);
+            Skills(result, "anubis", "심장의 저울|저승길 돌진|방부의 검무|진실의 판결|저승의 갈고리|심장 저울의 저주", SkillEffect.LifeDrain, SkillEffect.DashStrike, SkillEffect.BladeStorm, SkillEffect.Shockwave, SkillEffect.Hook, SkillEffect.Curse);
+            Skills(result, "horus", "왕의 눈|매의 산개|하늘왕의 비|복수의 섬광|호루스의 눈|매의 도탄", SkillEffect.PierceShot, SkillEffect.MultiShot, SkillEffect.RainArrows, SkillEffect.ChainLightning, SkillEffect.HuntMark, SkillEffect.Ricochet);
+            Skills(result, "sun_wukong", "여의봉 난무|근두운 돌격|대성의 일격|털끝 분신진|칠십이변 분신|여의봉 귀환", SkillEffect.BladeStorm, SkillEffect.DashStrike, SkillEffect.Shockwave, SkillEffect.Sentry, SkillEffect.Decoy, SkillEffect.Boomerang);
+            Skills(result, "nezha", "화첨창의 불꽃|풍화륜 질주|건곤권 산개|혼천릉 회전|풍화륜 궤도|건곤권 귀환", SkillEffect.Fireball, SkillEffect.DashStrike, SkillEffect.MultiShot, SkillEffect.BladeStorm, SkillEffect.Orbit, SkillEffect.Boomerang);
+            Skills(result, "erlang_shen", "삼첨양인도|천안의 광탄|효천의 추격우|삼안의 뇌광|제삼안의 표식|효천견 물어오기", SkillEffect.PierceShot, SkillEffect.ArcaneVolley, SkillEffect.RainArrows, SkillEffect.ChainLightning, SkillEffect.HuntMark, SkillEffect.Hook);
+            Skills(result, "guan_yu", "청룡의 검무|언월도 대진격|충의의 수호|적토의 돌파|청룡 군기|언월도 지맥참", SkillEffect.BladeStorm, SkillEffect.Shockwave, SkillEffect.ShieldPulse, SkillEffect.DashStrike, SkillEffect.WarBanner, SkillEffect.Quake);
+            Skills(result, "nuwa", "황토의 생명|오색석 결계|보천의 오석진|무너진 하늘의 별|오색 꽃씨|오색석 봉인진", SkillEffect.HealPulse, SkillEffect.ShieldPulse, SkillEffect.Sentry, SkillEffect.Meteor, SkillEffect.Bloom, SkillEffect.Mine);
+            Skills(result, "dangun", "홍익의 가호|백두의 검기|신단수의 숨결|건국의 검무|백두의 지맥|홍익의 깃발", SkillEffect.ShieldPulse, SkillEffect.Shockwave, SkillEffect.HealPulse, SkillEffect.BladeStorm, SkillEffect.Quake, SkillEffect.WarBanner);
+            Skills(result, "jumong", "해모수의 화살|동명 연사|졸본의 화살비|엄리수의 정적|주몽의 도탄|신궁의 표식", SkillEffect.PierceShot, SkillEffect.MultiShot, SkillEffect.RainArrows, SkillEffect.IceNova, SkillEffect.Ricochet, SkillEffect.HuntMark);
+            Skills(result, "hwanung", "뇌공의 천벌|풍백의 격풍|운사의 비구름|천부인의 심판|풍백의 회오리|삼사의 구체", SkillEffect.ChainLightning, SkillEffect.Shockwave, SkillEffect.PoisonCloud, SkillEffect.Meteor, SkillEffect.Vortex, SkillEffect.Orbit);
+            Skills(result, "princess_bari", "서천의 약수|망자의 인도|무조의 보호|저승강의 고요|서천 꽃밭의 씨앗|저승길 인도", SkillEffect.HealPulse, SkillEffect.LifeDrain, SkillEffect.ShieldPulse, SkillEffect.IceNova, SkillEffect.Bloom, SkillEffect.Hook);
+            Skills(result, "jacheongbi", "오곡의 비|세경의 씨앗|풍요의 들판|생명꽃의 은혜|씨앗 함정|풍년의 낫 귀환", SkillEffect.RainArrows, SkillEffect.MultiShot, SkillEffect.PoisonCloud, SkillEffect.HealPulse, SkillEffect.Mine, SkillEffect.Boomerang);
+            Skills(result, "bael", "보이지 않는 독무|왕의 은보|첫 인장의 연사|어둠의 헌납|첫 왕의 저주|보이지 않는 그림자", SkillEffect.PoisonCloud, SkillEffect.DashStrike, SkillEffect.ArcaneVolley, SkillEffect.LifeDrain, SkillEffect.Curse, SkillEffect.Decoy);
+            Skills(result, "agares", "공작의 지진|멈춤의 진언|도망자의 봉인|언어의 마법진|공작의 대지 균열|도망자 송환", SkillEffect.Shockwave, SkillEffect.IceNova, SkillEffect.ShieldPulse, SkillEffect.Sentry, SkillEffect.Quake, SkillEffect.Hook);
+            Skills(result, "vassago", "잃어버린 길의 화살|과거의 잔향우|미래의 사슬|예지의 별탄|예견된 표식|되튀는 예언", SkillEffect.PierceShot, SkillEffect.RainArrows, SkillEffect.ChainLightning, SkillEffect.ArcaneVolley, SkillEffect.HuntMark, SkillEffect.Ricochet);
+            Skills(result, "paimon", "왕의 지식진|비밀의 교향|충성의 결계|황금 왕관의 명령|왕관의 궤도|군단의 깃발", SkillEffect.Sentry, SkillEffect.ArcaneVolley, SkillEffect.ShieldPulse, SkillEffect.Meteor, SkillEffect.Orbit, SkillEffect.WarBanner);
+            Skills(result, "asmodeus", "욕망의 화염|격노의 칼춤|왕의 맹진|탐욕의 계약|탐욕의 덫|욕망의 낙인", SkillEffect.Fireball, SkillEffect.BladeStorm, SkillEffect.DashStrike, SkillEffect.LifeDrain, SkillEffect.Mine, SkillEffect.Curse);
+            Skills(result, "cu_chulainn", "사냥개의 돌진|게이 볼그 투척|리어스트라드|울라의 포효|사냥개의 사슬|전투 광란의 지진", SkillEffect.DashStrike, SkillEffect.PierceShot, SkillEffect.BladeStorm, SkillEffect.Shockwave, SkillEffect.Hook, SkillEffect.Quake);
+            Skills(result, "fionn", "피아나 산개|지혜의 일시|사냥대의 포위우|연어의 지혜|피아나 도탄|사냥개 브란", SkillEffect.MultiShot, SkillEffect.PierceShot, SkillEffect.RainArrows, SkillEffect.HealPulse, SkillEffect.Ricochet, SkillEffect.Decoy);
+            Skills(result, "lugh", "브류나크의 빛|광명의 연결|태양의 창|발로르의 종언|브류나크 귀환|슬링 도탄", SkillEffect.PierceShot, SkillEffect.ChainLightning, SkillEffect.Fireball, SkillEffect.Meteor, SkillEffect.Boomerang, SkillEffect.Ricochet);
+            Skills(result, "morrigan", "까마귀 안개|전장의 징수|바이브의 날개|운명의 검은 비|까마귀의 저주|죽음 예언의 표식", SkillEffect.PoisonCloud, SkillEffect.LifeDrain, SkillEffect.ArcaneVolley, SkillEffect.RainArrows, SkillEffect.Curse, SkillEffect.HuntMark);
+            Skills(result, "dagda", "되살리는 가마솥|풍요의 성벽|거대한 곤봉|우아이트네의 선율진|하프 선율의 깃발|풍요의 씨앗", SkillEffect.HealPulse, SkillEffect.ShieldPulse, SkillEffect.Shockwave, SkillEffect.Sentry, SkillEffect.WarBanner, SkillEffect.Bloom);
+            Skills(result, "zodiac_rat", "자시의 잠행|쥐별의 산개|영리한 함정무|그림자 쌍검무|쥐덫|쥐떼 분신", SkillEffect.DashStrike, SkillEffect.MultiShot, SkillEffect.PoisonCloud, SkillEffect.BladeStorm, SkillEffect.Mine, SkillEffect.Decoy);
+            Skills(result, "zodiac_ox", "축시의 지축|황소의 방벽|대지의 돌진|혹한의 인내|황소 발구름|코뚜레 사슬", SkillEffect.Shockwave, SkillEffect.ShieldPulse, SkillEffect.DashStrike, SkillEffect.IceNova, SkillEffect.Quake, SkillEffect.Hook);
+            Skills(result, "zodiac_tiger", "인시의 호랑검|맹호의 도약|산군의 포효|사냥의 본능|범의 발톱 낚아채기|사냥감 표식", SkillEffect.BladeStorm, SkillEffect.DashStrike, SkillEffect.Shockwave, SkillEffect.LifeDrain, SkillEffect.Hook, SkillEffect.HuntMark);
+            Skills(result, "zodiac_rabbit", "묘시의 약방|월궁의 가호|달토끼의 서리|옥토의 별탄|달토끼 꽃씨|달무리 구체", SkillEffect.HealPulse, SkillEffect.ShieldPulse, SkillEffect.IceNova, SkillEffect.ArcaneVolley, SkillEffect.Bloom, SkillEffect.Orbit);
+            Skills(result, "zodiac_dragon", "진시의 뇌운|여의주의 염화|용왕의 강우|승천의 심판|용오름|여의주 궤도", SkillEffect.ChainLightning, SkillEffect.Fireball, SkillEffect.RainArrows, SkillEffect.Meteor, SkillEffect.Vortex, SkillEffect.Orbit);
 
             Traits(result, "michael", "천군의 용맹|날개짓의 박자|성검의 권능", HeroStat.Damage, HeroStat.AttackSpeed, HeroStat.SkillPower);
             Traits(result, "gabriel", "전령의 시야|나팔의 박자|계시의 순환", HeroStat.Range, HeroStat.AttackSpeed, HeroStat.Cooldown);
@@ -185,6 +185,11 @@ namespace PrototypeLab.Roguelike
             PlayerSkill(result, "bladestorm", "검의 폭풍", RewardTier.Gold, SkillEffect.BladeStorm, 8, .8f, 3, 4, 1.2f);
             PlayerSkill(result, "meteor", "낙성", RewardTier.Diamond, SkillEffect.Meteor, 12, 3, 4, 1, 0);
             PlayerSkill(result, "dash", "섬광 돌진", RewardTier.Diamond, SkillEffect.DashStrike, 9, 2.3f, 4.5f, 1, 0);
+            // One tool for each weapon build the hero may lean into: a chain for melee, a disc for range, orbs and seals that fight alone.
+            PlayerSkill(result, "hook", "사슬 갈고리", RewardTier.Silver, SkillEffect.Hook, 7, 1.3f, 5.5f, 1, .6f);
+            PlayerSkill(result, "boomerang", "귀환 원반", RewardTier.Silver, SkillEffect.Boomerang, 6, .95f, 6, 1, 0);
+            PlayerSkill(result, "orbit", "수호 구체", RewardTier.Gold, SkillEffect.Orbit, 10, .5f, 1.3f, 2, 5);
+            PlayerSkill(result, "mine", "봉인 지뢰", RewardTier.Gold, SkillEffect.Mine, 9, 1.3f, 1.3f, 2, 8);
 
             // Stat cards arrive on every floor, so each one is a modest step that stacks over the climb.
             PlayerTrait(result, "might", "힘의 인장", RewardTier.Silver, HeroStat.Damage, .08f);
@@ -214,6 +219,14 @@ namespace PrototypeLab.Roguelike
             for (int i = 0; i < effects.Length; i++)
             {
                 SkillEffect effect = effects[i];
+                // The fifth and sixth skills are the narrower, stranger tools; they keep their own modest numbers.
+                if (i >= 4)
+                {
+                    var odd = OddSkill(effect);
+                    result.Add(new AugmentDefinition(owner + ".skill" + (i + 1), owner, titles[i], EffectText(effect), i == 4 ? RewardTier.Silver : RewardTier.Gold,
+                        effect, odd.Cooldown + rank * .15f, odd.Power * signature, odd.Radius + rank * .05f, odd.Count, odd.Duration));
+                    continue;
+                }
                 float cooldown = 4.5f + i * 2.5f + rank * .15f;
                 float power = effect == SkillEffect.BladeStorm || effect == SkillEffect.ArcaneVolley || effect == SkillEffect.MultiShot || effect == SkillEffect.RainArrows ? .65f :
                     effect == SkillEffect.Meteor ? 2.8f : effect == SkillEffect.ShieldPulse ? 1.8f : effect == SkillEffect.HealPulse ? .8f : 1.3f;
@@ -253,8 +266,37 @@ namespace PrototypeLab.Roguelike
                 "여러 화살을 퍼뜨려 발사합니다.", "적을 관통하는 강력한 투사체를 발사합니다.",
                 "표적 지역에 화살비를 내립니다.", "독 구름이 지속적으로 범위 피해를 줍니다.",
                 "플레이어의 생명력을 회복합니다.", "플레이어에게 피해를 흡수하는 보호막을 부여합니다.",
-                "적의 생명력을 흡수해 플레이어를 치유합니다.", "자동 포탑이 일정 시간 투사체를 발사합니다." };
+                "적의 생명력을 흡수해 플레이어를 치유합니다.", "자동 포탑이 일정 시간 투사체를 발사합니다.",
+                "날아갔다 되돌아오는 원반으로 오가며 벱니다.", "적 사이를 튀어 다니는 탄환을 쏩니다.",
+                "적에게 표식을 남겨 파티가 주는 피해를 늘립니다.", "가장 먼 적을 사슬로 끌어와 기절시킵니다.",
+                "앞으로 번지는 땅의 균열이 적을 띄워 기절시킵니다.", "몸 주위를 도는 구체가 닿는 적을 칩니다.",
+                "환영 분신이 곁의 적을 베다가 사라지며 터집니다.", "밟으면 터지는 봉인 지뢰를 앞에 깝니다.",
+                "작은 소용돌이가 적을 모았다가 기절시킵니다.", "적에게 저주를 걸어 지속 피해를 줍니다.",
+                "깃발 곁의 영웅이 더 빠르게 공격합니다.", "적에게 씨앗을 심어 피어날 때 터지고 치유합니다." };
             return text[(int)effect];
         }
+        private struct OddNumbers { public float Cooldown, Power, Radius, Duration; public int Count; }
+        // Narrow on purpose: small areas, single targets or short holds, so each one is a tool for a build rather than a nuke.
+        private static OddNumbers OddSkill(SkillEffect effect)
+        {
+            switch (effect)
+            {
+                case SkillEffect.Boomerang: return Odd(7, .85f, 6, 1, 0);
+                case SkillEffect.Ricochet: return Odd(7.5f, .8f, 4.5f, 3, 0);
+                case SkillEffect.HuntMark: return Odd(9, .5f, 8, 1, 5);
+                case SkillEffect.Hook: return Odd(8, 1.05f, 5.5f, 1, .6f);
+                case SkillEffect.Quake: return Odd(8, .95f, 4.5f, 1, .35f);
+                case SkillEffect.Orbit: return Odd(10, .42f, 1.3f, 2, 5);
+                case SkillEffect.Decoy: return Odd(11, .55f, 1.3f, 1, 4);
+                case SkillEffect.Mine: return Odd(9, 1.15f, 1.3f, 2, 8);
+                case SkillEffect.Vortex: return Odd(10, .3f, 1.8f, 1, 1.6f);
+                case SkillEffect.Curse: return Odd(9, .35f, 7, 1, 4);
+                case SkillEffect.WarBanner: return Odd(12, .25f, 2.6f, 1, 6);
+                case SkillEffect.Bloom: return Odd(9, .9f, 1.6f, 1, 1.2f);
+                default: throw new ArgumentException("Not an odd skill: " + effect);
+            }
+        }
+        private static OddNumbers Odd(float cooldown, float power, float radius, int count, float duration)
+        { return new OddNumbers { Cooldown = cooldown, Power = power, Radius = radius, Count = count, Duration = duration }; }
     }
 }

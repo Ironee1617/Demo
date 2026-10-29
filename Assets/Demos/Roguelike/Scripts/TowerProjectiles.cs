@@ -63,15 +63,20 @@ namespace PrototypeLab.Roguelike
                 if(shot.area>0)
                 {
                     Vector2 center=enemy.pos;float radiusSquared=shot.area*shot.area;
-                    for(int j=enemies.Count-1;j>=0;j--)
+                    // A snapshot: one fall can now take others with it (a seed blooming as its host dies).
+                    var nearbyEnemies=enemies.ToArray();
+                    for(int j=nearbyEnemies.Length-1;j>=0;j--)
                     {
-                        var nearby=enemies[j];
-                        if(CanTarget(nearby,shot.owner)&&(nearby.pos-center).sqrMagnitude<radiusSquared)StrikeEnemy(nearby,shot.damage,shot.owner,Mathf.Sign(shot.velocity.x)*.1f);
+                        var nearby=nearbyEnemies[j];
+                        if(CanTarget(nearby,shot.owner)&&(nearby.pos-center).sqrMagnitude<radiusSquared)
+                        {StrikeEnemy(nearby,shot.damage,shot.owner,Mathf.Sign(shot.velocity.x)*.1f);if(shot.slowDuration>0)nearby.slowTime=Mathf.Max(nearby.slowTime,shot.slowDuration);}
                     }
                     Burst(impact,shot.color,14,shot.area);
                 }
                 else StrikeEnemy(enemy,shot.damage,shot.owner,Mathf.Sign(shot.velocity.x)*.1f);
                 forcedCritical=false;
+                // A returning disc sparks on every body it passes through; it never stops on one.
+                if(shot.home!=null&&vfx!=null)vfx.ProjectileHit(shot.effect,impact,shot.color,true,shot.velocity);
                 if(shot.basic)AfterShotHit(shot,enemy);
                 ChainOathShot(shot,enemy);
                 enemy.slowTime=Mathf.Max(enemy.slowTime,shot.slowDuration);shot.hit.Add(enemy);shot.pierce--;
@@ -79,11 +84,25 @@ namespace PrototypeLab.Roguelike
             }
             projectileContacts.Clear();return consumed;
         }
+        // Skill shots burst at full size and kick the camera; basic and hostile shots keep a small hit.
+        private void ShotImpact(Shot shot)
+        {
+            bool signature=shot.signature&&!shot.hostile;
+            if(vfx!=null){vfx.Grade=signature?shot.level:1;vfx.ProjectileHit(shot.effect,shot.pos,shot.hostile?new Color(1,.3f,.45f):shot.color,signature,shot.velocity);vfx.Grade=1;}
+            if(!signature)return;
+            if(shot.effect==SkillEffect.Fireball&&shot.level>=3)FireField(shot);
+            bool player=shot.owner==run.Player;float weight=player?1:.5f;
+            if(shot.effect==SkillEffect.Fireball){Shake(.14f*weight,.2f);if(player)HitStop(.03f);}
+            else if(shot.effect==SkillEffect.PierceShot||shot.effect==SkillEffect.Shockwave)Shake(.06f*weight,.1f);
+            else if(shot.effect!=SkillEffect.Sentry)Shake(.03f*weight,.08f);
+        }
         private void TickShots(float dt)
         {
             for(int i=shots.Count-1;i>=0;i--)
             {
-                var shot=shots[i];Vector2 previous=shot.pos;bool alive=shot.life>0;
+                var shot=shots[i];Vector2 previous=shot.pos;
+                if(shot.returning)SteerHome(shot);
+                bool alive=shot.life>0;
                 float step=Mathf.Min(dt,Mathf.Max(0,shot.life));shot.life-=dt;shot.pos+=shot.velocity*step;bool hit=false;
                 if(alive&&shot.hostile)
                 {
@@ -94,10 +113,18 @@ namespace PrototypeLab.Roguelike
                     if(CrossesCircle(previous-(previousHeroPosition+body),shot.pos-(heroEnd+body),Vector2.zero,PlayerBulletHitRadius+shot.hitRadius))
                     {TryPrimeDodgeCounter();HurtHero(shot.damage);hit=true;}
                 }
-                else if(alive)hit=HitFriendlyShot(shot,previous);
+                else if(alive)
+                {
+                    practiceStrike=shot.practiceCast;striking=shot.skill;strikeEffect=shot.effect;strikeLevel=shot.level;
+                    hit=HitFriendlyShot(shot,previous);
+                    striking=false;strikeLevel=1;practiceStrike=0;
+                    // A bouncing shot turns to its next enemy instead of ending; a disc turns home at the end of its flight.
+                    if(hit&&shot.bounces>0&&Bounce(shot)){ShotImpact(shot);hit=false;}
+                    if(shot.home!=null&&!shot.returning&&shot.life<=0)TurnHome(shot);
+                }
                 shot.root.transform.position=shot.pos;
                 if(hit||shot.life<=0||shot.pos.x<TowerWorld.Left-5||shot.pos.x>TowerWorld.Right+5||shot.pos.y<-7||shot.pos.y>Mathf.Max(12,world.HighestPlatform+10))
-                {if(hit&&vfx!=null)vfx.Impact(shot.effect,shot.pos,.35f,shot.hostile?new Color(1,.3f,.45f):shot.color);Destroy(shot.root);shots.RemoveAt(i);}
+                {if(hit)ShotImpact(shot);Destroy(shot.root);shots.RemoveAt(i);}
             }
         }
     }

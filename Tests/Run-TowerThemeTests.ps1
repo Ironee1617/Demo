@@ -7,6 +7,7 @@ $testRoot = Join-Path $projectRoot '.validation/TowerModelTests'
 $binary = Join-Path $testRoot 'TowerThemeTests.exe'
 $sources = @(
     'Assets/Demos/Roguelike/Scripts/TowerRun.cs',
+    'Assets/Demos/Roguelike/Scripts/TowerSkillBuilds.cs',
     'Assets/Demos/Roguelike/Scripts/TowerOath.cs',
     'Assets/Demos/Roguelike/Scripts/TowerAugmentCatalog.cs',
     'Assets/Demos/Roguelike/Scripts/TowerPassiveCatalog.cs',

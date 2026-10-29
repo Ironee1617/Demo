@@ -51,7 +51,14 @@ public static class TowerSkillTreeTests
             { int count = 0; foreach (var node in nodes) if (node.Branch == branch) count++; Require(count >= 3, "every branch has nodes: " + branch); }
             int keystones = 0; foreach (var node in nodes) if (node.IsKeystone) keystones++;
             Require(keystones >= 8, "keystones cap the branches: " + keystones);
-            Require(TowerSkillTree.TotalCost >= 250 && TowerSkillTree.TotalCost <= 500, "the whole tree costs a campaign's worth of points: " + TowerSkillTree.TotalCost);
+            Require(TowerSkillTree.TotalCost >= 600 && TowerSkillTree.TotalCost <= 800, "the whole tree costs several campaigns' worth of points: " + TowerSkillTree.TotalCost);
+            // The third crossroads opens the lower half of the tree, and its ranks cost more than those above it.
+            int upper = 0, lower = 0, upperCost = 0, lowerCost = 0;
+            foreach (var node in nodes)
+                if (node.Row > 12) { lower++; lowerCost += node.Cost; } else { upper++; upperCost += node.Cost; }
+            Require(lower >= 50 && nodes[0].Row == 0 && TowerSkillTree.Get("cross_heaven").Row == 13, "a deep lower tier: " + lower);
+            Require(lowerCost / (float)lower > upperCost / (float)upper, "deeper ranks cost more");
+            foreach (var node in nodes) if (node.Branch == SkillBranch.Heaven || node.Branch == SkillBranch.Underworld) Require(node.Row >= 13, "heaven and the underworld lie below: " + node.Id);
         });
         test("cleared floors pay one point, boss and elite floors two, and the scholar perk adds to boss floors", () => {
             Require(TowerSkillTree.PointsFor(1, FloorType.Normal) == 1 && TowerSkillTree.PointsFor(4, FloorType.Normal) == 1, "ordinary floors");
