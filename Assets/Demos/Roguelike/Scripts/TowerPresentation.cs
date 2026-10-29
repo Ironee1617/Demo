@@ -55,7 +55,19 @@ namespace PrototypeLab.Roguelike
             Color color;ColorUtility.TryParseHtmlString("#"+state.Definition.TintHex,out color);
             if(state.Definition.Role==CompanionRole.Vanguard)
             {SlashArc(actor.pos+new Vector2(actor.facing,.8f),actor.facing,color);if((target.pos.x-actor.pos.x)*actor.facing>-.4f)AllyStrike(actor,state,target);}
-            else{Fire(actor.pos+Vector2.up*.78f,target.pos+Vector2.up*.7f,11,state.Damage,false,color,0,state);TagAllyShot(actor,state,target,color);}
+            else{Vector2 to=target.pos+Vector2.up*.7f;Fire(ShotOrigin(actor,to),to,11,state.Damage,false,color,0,state);ThrowWeapon(actor,color);TagAllyShot(actor,state,target,color);}
+        }
+        // A god who hurls the weapon in hand (Zeus's bolt) looses it tip first from the hand, unless the target already stands that close.
+        private Vector2 ShotOrigin(Fighter actor,Vector2 to)
+        {
+            Vector2 from=actor.pos+Vector2.up*.78f;var god=actor.art.PixelGod;
+            if(god==null||!god.ThrowsWeapon)return from;
+            Vector2 tip=god.WeaponTip;return (to.x-tip.x)*actor.facing>.4f?tip:from;
+        }
+        private void ThrowWeapon(Fighter actor,Color color)
+        {
+            var god=actor.art.PixelGod;if(god==null||!god.ThrowsWeapon||shots.Count==0||vfx==null)return;
+            vfx.ThrownWeapon(shots[shots.Count-1].root.transform,god.WeaponSprite,Mathf.Abs(god.transform.lossyScale.y),god.WeaponReach,color);god.ReleaseWeapon();
         }
         private void StartEnemyMotion(Fighter actor,float windup)
         {

@@ -80,6 +80,8 @@ namespace PrototypeLab.Roguelike
             }
         }
         public string CurrentMotion { get { return MotionName; } }
+        /// <summary>The pixel god renderer of a companion, or null for the player and monsters.</summary>
+        public TowerGodPixelArt PixelGod { get { return mythArt!=null?mythArt.Pixel:null; } }
         public float ActionTime { get { return actionTime; } }
         public float ActionDuration { get { return actionDuration; } }
         public float AttackHitTime(float duration){return Mathf.Max(.08f,duration)*(isMonster?.48f:profile.contact);}

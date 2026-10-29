@@ -207,17 +207,26 @@ def portrait(body_cell, front, back, weapon, offhand, layout):
     def at(offset):
         return (origin[0] + offset[0] - GRIP, origin[1] - offset[1] - GRIP)
 
+    def held():
+        out.alpha_composite(rotate_about_grip(weapon, layout['rest']), at(layout['front']))
+        out.alpha_composite(front, at(layout['front']))
+
+    behind = layout['weaponBehind']
     for i in range(0, len(layout['extra']), 2):
         out.alpha_composite(back, at(layout['extra'][i:i + 2]))
-    if offhand is not None and layout['oneHand']:
+    if offhand is not None:
         out.alpha_composite(offhand, at(layout['back']))
-    elif not layout['oneHand']:
-        if offhand is not None:
-            out.alpha_composite(offhand, at(layout['back']))
+    if not layout['oneHand'] and not behind:
         out.alpha_composite(back, at(layout['back']))
+    if behind:
+        held()
     out.alpha_composite(body_cell, (int(round(origin[0] - layout['bodyPivot'][0])), int(origin[1] - layout['bodyPivot'][1])))
-    out.alpha_composite(rotate_about_grip(weapon, layout['rest']), at(layout['front']))
-    out.alpha_composite(front, at(layout['front']))
+    if behind:
+        # The free fist crosses in front of the body while the weapon hand stays behind it.
+        if not layout['oneHand']:
+            out.alpha_composite(back, at(layout['back']))
+    else:
+        held()
     # Every card shows the same window around the body, so the UI draws all gods at
     # Zeus's height; a long bolt or tall crown is cropped instead of shrinking its owner.
     left, top = origin[0] - CARD[0] // 2, origin[1] - CARD[1] + CARD_BELOW
@@ -317,11 +326,13 @@ def build(g):
         arm0 = Image.open(os.path.join(ZEUS_DIR, 'Arm0.png')).convert('RGBA')
         arm1 = Image.open(os.path.join(ZEUS_DIR, 'Arm1.png')).convert('RGBA')
         front, back = Image.new('RGBA', (CELL, CELL)), Image.new('RGBA', (CELL, CELL))
-        front.alpha_composite(arm0, (GRIP - 9, GRIP - 10))
-        back.alpha_composite(arm1, (GRIP - 10, GRIP - 10))
+        # Arm1 is the right hand, hanging upright; the middle of the bolt runs level through the middle
+        # of the fist (Arm1 pixel 10, 12), square across it. Arm0, the left hand, rests in front of the body.
+        front.alpha_composite(arm1, (GRIP - 10, GRIP - 12))
+        back.alpha_composite(arm0, (GRIP - 9, GRIP - 10))
         bolt = Image.open(os.path.join(ZEUS_DIR, 'Weapon.png')).convert('RGBA')
         weapon = Image.new('RGBA', (CELL, CELL))
-        grip = (29, 50)
+        grip = (30, 38)
         weapon.alpha_composite(bolt, (GRIP - grip[0], GRIP - grip[1]))
         tip = grip[1] - bolt.getbbox()[1]
         offhand = None
@@ -343,12 +354,16 @@ def build(g):
         'pivot': [0, 0],
         'top': HEAD_TOP,
         'bob': bob(g),
-        'front': [x + reach for x, reach in zip(FRONT_BY_KIND.get(kind, FRONT_HAND), (wide, 0))],
-        'back': [x + reach for x, reach in zip(BACK_HAND, (-wide, 0))],
-        'rest': REST_ANGLE[kind],
+        'front': list(g.get('front') or [x + reach for x, reach in zip(FRONT_BY_KIND.get(kind, FRONT_HAND), (wide, 0))]),
+        'back': list(g.get('back') or [x + reach for x, reach in zip(BACK_HAND, (-wide, 0))]),
+        'rest': g.get('rest', REST_ANGLE[kind]),
         'reach': tip,
         'offhand': offhand is not None,
         'oneHand': bool(g.get('one_hand')),
+        'weaponBehind': bool(g.get('weapon_behind')),
+        'thrown': bool(g.get('thrown')),
+        'shoulder': list(g.get('shoulder', ())),
+        'arm': g.get('arm', 0),
         'extra': [v for e in EXTRA_HANDS[:g.get('extra_hands', 0)] for v in e],
     }
     cells = [cell_of_body(f) for f in frames]
@@ -363,7 +378,11 @@ def build(g):
     return sheet, layout, frames
 
 
-ZEUS = dict(id='zeus', art=105, kind='throw')
+# Zeus carries his bolt across his lowered right fist, tip forward and turned 20 degrees down, and hurls
+# the bolt itself; the left fist rests at his waist in front of the body. The right fist stays on an
+# 8 px arm from the shoulder at the top of his torso (column 35, row 42) and turns with it.
+ZEUS = dict(id='zeus', art=105, kind='throw', weapon_behind=True, thrown=True, front=(8, 9), back=(-7, 12), rest=-110,
+            shoulder=(4, 13), arm=8)
 
 
 def preview(results, path, scale=4):

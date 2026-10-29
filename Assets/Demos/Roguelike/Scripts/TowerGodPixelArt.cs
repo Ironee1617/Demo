@@ -20,8 +20,8 @@ namespace PrototypeLab.Roguelike
         [Serializable] sealed class Layout
         {
             public string id, kind; public int art;
-            public float[] bodyPivot, front, back, extra; public int[] bob, card;
-            public float top, rest, reach; public bool offhand, oneHand;
+            public float[] bodyPivot, front, back, extra, shoulder; public int[] bob, card;
+            public float top, rest, reach, arm; public bool offhand, oneHand, weaponBehind, thrown;
         }
         sealed class Sheet { public Layout layout; public Sprite[] body; public Sprite front, back, weapon, offhand, card; }
 
@@ -93,12 +93,12 @@ namespace PrototypeLab.Roguelike
 
         Sheet sheet;
         Layout layout;
-        Transform flip, pose, frontPivot, backPivot, weaponPivot, offhandPivot;
+        Transform flip, pose, frontPivot, backPivot, weaponPivot, offhandPivot, fistGrip;
         Transform[] extraPivots;
         SpriteRenderer bodyView, weaponView;
         SpriteRenderer[] views;
-        float gait;
-        bool posed;
+        float gait, weaponAlpha = 1, restArm;
+        bool posed, released;
 
         public int CurrentFrame { get; private set; }
         public string Kind { get { return layout.kind; } }
@@ -107,6 +107,13 @@ namespace PrototypeLab.Roguelike
         public float RenderedHeight { get { return layout.top / PixelsPerUnit * Mathf.Abs(transform.lossyScale.y); } }
         /// <summary>World position of the weapon's far end, for effects that leave the blade or staff.</summary>
         public Vector3 WeaponTip { get { return weaponPivot.TransformPoint(Vector3.up * layout.reach / PixelsPerUnit); } }
+        /// <summary>True for gods whose basic attack hurls the weapon in hand (Zeus's bolt) rather than a spark.</summary>
+        public bool ThrowsWeapon { get { return layout.thrown; } }
+        public Sprite WeaponSprite { get { return sheet.weapon; } }
+        /// <summary>Art pixels from the grip to the weapon's far end.</summary>
+        public float WeaponReach { get { return layout.reach; } }
+        /// <summary>The game threw the weapon: it leaves the hand until this attack's follow-through.</summary>
+        public void ReleaseWeapon() { released = true; }
 
         public void Build(int artIndex)
         {
@@ -126,12 +133,17 @@ namespace PrototypeLab.Roguelike
                 offhandPivot = Child("Off-hand item", pose);
                 list.Add(View(offhandPivot, sheet.offhand, 34));
             }
-            if (!layout.oneHand) list.Add(View(backPivot, sheet.back, 33));
+            // Gods that hold the weapon behind the body (Zeus) bring the free fist across the front instead.
+            bool behind = layout.weaponBehind;
+            if (!layout.oneHand) list.Add(View(backPivot, sheet.back, behind ? 37 : 33));
             bodyView = View(pose, sheet.body[0], 35); list.Add(bodyView);
             frontPivot = Child("Front fist", pose);
             weaponPivot = Child("Weapon", frontPivot);
-            weaponView = View(weaponPivot, sheet.weapon, 36); list.Add(weaponView);
-            list.Add(View(frontPivot, sheet.front, 37));
+            weaponView = View(weaponPivot, sheet.weapon, behind ? 33 : 36); list.Add(weaponView);
+            // A fist on an arm (Zeus) turns about its grip as the arm swings from the shoulder.
+            fistGrip = layout.arm > 0 ? Child("Front fist grip", frontPivot) : frontPivot;
+            if (layout.arm > 0) restArm = Mathf.Atan2(layout.front[1] - layout.shoulder[1], layout.front[0] - layout.shoulder[0]) * Mathf.Rad2Deg;
+            list.Add(View(fistGrip, sheet.front, behind ? 34 : 37));
             views = list.ToArray();
             Pose("Idle", false, 0, 0, 0, 1, Color.white, true, 0, 0, 0, .46f);
         }
@@ -153,6 +165,7 @@ namespace PrototypeLab.Roguelike
         }
 
         static Vector3 Px(float x, float y) { return new Vector3(x / PixelsPerUnit, y / PixelsPerUnit, 0); }
+        static Vector2 Direction(float degrees) { float a = degrees * Mathf.Deg2Rad; return new Vector2(Mathf.Cos(a), Mathf.Sin(a)); }
         static float Ease(float t) { return Mathf.SmoothStep(0, 1, Mathf.Clamp01(t)); }
 
         public void Pose(string motion, bool moving, float time, float progress, float hurt, int facing, Color tint,
@@ -214,7 +227,9 @@ namespace PrototypeLab.Roguelike
                 if (motion == "Cast")
                 {
                     frontAction = Vector2.Lerp(new Vector2(0, 12), new Vector2(5, 9), strike) * windup;
-                    backAction = Vector2.Lerp(new Vector2(3, 11), new Vector2(1, 8), strike) * windup;
+                    // A free fist in front of the body pushes out at the chest instead of crossing the face.
+                    backAction = (layout.weaponBehind ? Vector2.Lerp(new Vector2(2, 2), new Vector2(4, 1), strike)
+                        : Vector2.Lerp(new Vector2(3, 11), new Vector2(1, 8), strike)) * windup;
                     angleAction = Mathf.Lerp(-layout.rest, -layout.rest - 45, strike) * windup;
                 }
                 else Strike(windup, strike, ref frontAction, ref backAction, ref angleAction);
@@ -241,8 +256,17 @@ namespace PrototypeLab.Roguelike
                 angle = Mathf.Lerp(angle, -95, fall);
             }
 
+            // A fist on an arm never leaves the shoulder's reach, and turns as the arm swings.
+            if (layout.arm > 0)
+            {
+                Vector2 shoulder = new Vector2(layout.shoulder[0], layout.shoulder[1] - sink), reachOut = front - shoulder;
+                if (reachOut.magnitude > layout.arm) { reachOut = reachOut.normalized * layout.arm; front = shoulder + reachOut; }
+                if (reachOut.sqrMagnitude > 1)
+                    fistGrip.localRotation = Quaternion.Euler(0, 0, Mathf.DeltaAngle(restArm, Mathf.Atan2(reachOut.y, reachOut.x) * Mathf.Rad2Deg));
+            }
+
             // A weapon raised behind the head passes behind the body instead of across the face.
-            weaponView.sortingOrder = Mathf.DeltaAngle(layout.rest, angle) > 50 ? 34 : 36;
+            weaponView.sortingOrder = layout.weaponBehind ? 33 : Mathf.DeltaAngle(layout.rest, angle) > 50 ? 34 : 36;
             pose.localPosition = Px(body.x, body.y);
             pose.localRotation = Quaternion.Euler(0, 0, tilt);
             frontPivot.localPosition = Px(front.x, front.y);
@@ -254,6 +278,9 @@ namespace PrototypeLab.Roguelike
                 float lift = motion == "Cast" ? 4 * Ease(progress / Mathf.Max(.01f, release)) : 0;
                 extraPivots[i].localPosition = Px(layout.extra[i * 2], layout.extra[i * 2 + 1] - sink + lift + Mathf.Sin(time * 2.2f + i * 2.1f));
             }
+            // A hurled weapon is gone from the hand once the game throws it and forms in it again as the fist returns.
+            if (motion != "Attack" || progress < release * .5f) released = false;
+            weaponAlpha = layout.thrown && released ? Ease((progress - Mathf.Max(.8f, release + .2f)) / .15f) : 1;
             Tint(tint, motion, progress, hurt);
         }
 
@@ -278,6 +305,16 @@ namespace PrototypeLab.Roguelike
                     front = new Vector2(2, 0) * windup;
                     back = Vector2.Lerp(new Vector2(layout.front[0] - layout.back[0] - 5, layout.front[1] - layout.back[1]) * windup, new Vector2(-2, 1), strike);
                     break;
+                case "throw" when layout.thrown && layout.arm > 0:
+                    // An overhand throw on the arm: it lifts up the front and cocks back behind the head with the
+                    // weapon's tip raised to aim, comes back over the top to let go level with the shoulder on the
+                    // release and follows through low. Arm angles about the shoulder: 0 = forward, 90 = up, -90 = down.
+                    float cock = Ease(windup / .55f), drive = Ease((windup - .55f) / .45f);
+                    float sweep = Mathf.Lerp(Mathf.Lerp(restArm, 150, cock), 10, drive) - 50 * strike;
+                    front = new Vector2(layout.shoulder[0] - layout.front[0], layout.shoulder[1] - layout.front[1]) + Direction(sweep) * layout.arm;
+                    angle = Mathf.Lerp((-70 - layout.rest) * cock, -90 - layout.rest, drive);
+                    back = Vector2.Lerp(new Vector2(2, 1) * cock, new Vector2(-1, 0), drive);
+                    break;
                 case "throw":
                     angle = Mathf.Lerp(55 * windup, -70 - layout.rest, strike);
                     front = Vector2.Lerp(new Vector2(-4, 11) * windup, new Vector2(7, 5), strike);
@@ -298,6 +335,7 @@ namespace PrototypeLab.Roguelike
             if (hurt > .10f) color = Color.Lerp(color, new Color(1, .35f, .32f, color.a), .7f);
             if (motion == "Death") color.a *= 1 - Mathf.Clamp01((progress - .65f) / .35f) * .8f;
             foreach (var view in views) view.color = color;
+            if (weaponAlpha < 1) weaponView.color = new Color(color.r, color.g, color.b, color.a * weaponAlpha);
         }
     }
 }

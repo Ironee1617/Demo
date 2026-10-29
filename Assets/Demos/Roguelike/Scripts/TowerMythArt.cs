@@ -29,6 +29,7 @@ namespace PrototypeLab.Roguelike
         TowerGodPixelArt pixel;
         public int CurrentFrameRow { get; private set; }
         public float RenderedHeight { get { return pixel==null?0:pixel.RenderedHeight; } }
+        public TowerGodPixelArt Pixel { get { return pixel; } }
         public static bool IsMythIndex(int artIndex){return artIndex>=FirstArtIndex&&artIndex<FirstArtIndex+CharacterCount;}
         public static string ProfileName(int artIndex){return Names[Ordinal(artIndex)];}
         /// <summary>The mythology a companion belongs to.</summary>
