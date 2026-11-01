@@ -1,0 +1,34 @@
+{
+  "id": "eden",
+  "title": "Garden Dawn",
+  "title_ko": "낙원의 아침",
+  "bpm": 116,
+  "beats": 3,
+  "bars": 58,
+  "note_events": 1416,
+  "production": "myth-v8",
+  "master": {
+    "seconds": 90.0,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.514,
+    "rms_dbfs": -15.347,
+    "loop_seam_delta": 0.005782,
+    "minimum_half_second_rms": 0.020171,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg": {
+    "seconds": 90.0,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.135,
+    "rms_dbfs": -15.333,
+    "loop_seam_delta": 0.00658,
+    "minimum_half_second_rms": 0.020161,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg_bytes": 2371029,
+  "sha256": "df00c8fde35c8d7aa5793bdc94ff1b54df595e42a7523e5b8ca8bb7fe5332424"
+}

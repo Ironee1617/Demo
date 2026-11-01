@@ -356,7 +356,7 @@ def vlq(value):
     return bytes(data)
 
 
-def write_midi(path, score, events):
+def write_midi(path, score, events, programs=None):
     resolution = 480
     tracks = []
     tempo = round(60000000 / score["bpm"])
@@ -373,7 +373,7 @@ def write_midi(path, score, events):
         previous = tick
     meta += vlq(256 * resolution - previous) + b"\xff\x2f\0"
     tracks.append(meta)
-    programs = {0: 81, 1: 33, 2: 30, 3: 89, 4: 10, 5: 81, 6: 30, 9: 0}
+    programs = programs or {0: 81, 1: 33, 2: 30, 3: 89, 4: 10, 5: 81, 6: 30, 9: 0}
     for channel, program in programs.items():
         sequence = []
         for beat, duration, note, velocity, ch in events:
@@ -466,8 +466,8 @@ def render(score, mixer=None):
             for offset in range(0, len(audio), 16384):
                 output.write(audio[offset:offset + 16384])
     unity_meta(ogg)
-    if mixer is None:
-        write_midi(midi_dir / (score["id"] + ".mid"), score, mix.events)
+    if mixer is None or getattr(mix, "write_midi", False):
+        write_midi(midi_dir / (score["id"] + ".mid"), score, mix.events, getattr(mix, "programs", None))
     decoded, rate = sf.read(str(ogg), dtype="float32", always_2d=True)
     report = {"id": score["id"], "title": score["title"], "title_ko": score["title_ko"],
               "bpm": score["bpm"], "bars": 64, "note_events": len(mix.events),

@@ -10,10 +10,12 @@ namespace PrototypeLab.Roguelike
     public enum RewardKind { Recruit, Skill, Trait, Upgrade = Trait, Oath = 3 }
     public enum UpgradeStat { Damage, Haste, Ability }
     public enum HeroStat { Damage, MaxHealth, Armor, MoveSpeed, AttackSpeed, Range, CritChance, LifeSteal, Cooldown, SkillPower, Projectiles, Regeneration, DodgeCooldown, Area, Healing }
-    public enum SkillEffect { Fireball, IceNova, ChainLightning, Meteor, ArcaneVolley, Shockwave, BladeStorm, DashStrike, MultiShot, PierceShot, RainArrows, PoisonCloud, HealPulse, ShieldPulse, LifeDrain, Sentry }
+    // The first sixteen are the original effects; the rest are companions' narrower, stranger tools (see TowerSkillBuilds).
+    public enum SkillEffect { Fireball, IceNova, ChainLightning, Meteor, ArcaneVolley, Shockwave, BladeStorm, DashStrike, MultiShot, PierceShot, RainArrows, PoisonCloud, HealPulse, ShieldPulse, LifeDrain, Sentry,
+        Boomerang, Ricochet, HuntMark, Hook, Quake, Orbit, Decoy, Mine, Vortex, Curse, WarBanner, Bloom }
     public enum FloorType { Normal, Elite, Rest, Shop }
     public enum ShopItem { Augment, Heal, Vitality }
-    // Ordinary floors deal stat cards, every fifth floor skill cards; elite, shop and oath cards keep both kinds.
+    // Ordinary floors deal stat cards, every fifth floor and elite floor skill cards; shop and oath cards keep both kinds.
     public enum RewardDraft { Mixed, Stats, Skills }
 
     public sealed class CompanionDefinition
@@ -67,6 +69,7 @@ namespace PrototypeLab.Roguelike
         public float Duration { get; private set; }
         public HeroStat Stat { get; private set; }
         public float Value { get; private set; }
+        public SkillStyle Style { get { return TowerSkillBuilds.Style(Effect); } }
         internal AugmentDefinition(string id, string owner, string name, string description, RewardTier tier,
             SkillEffect effect, float cooldown, float power, float radius, int count, float duration)
         {
@@ -101,35 +104,44 @@ namespace PrototypeLab.Roguelike
         public float Cooldown { get { return CooldownAt(Level); } }
         public float Power { get { return PowerAt(Level); } }
         public float Radius { get { return RadiusAt(Level); } }
-        public int Count
-        {
-            get
-            {
-                var effect = Definition.Effect;
-                bool projectile = effect == SkillEffect.Fireball || effect == SkillEffect.ArcaneVolley || effect == SkillEffect.MultiShot ||
-                    effect == SkillEffect.PierceShot || effect == SkillEffect.RainArrows || effect == SkillEffect.Sentry || effect == SkillEffect.Shockwave;
-                return Definition.Count + (projectile ? owner.ProjectileBonus : 0);
-            }
-        }
-        public float Duration { get { return Definition.Duration * (1 + .2f * (Level - 1)); } }
+        public int Count { get { return CountAt(Level); } }
+        public float Duration { get { return DurationAt(Level); } }
         public string Description { get { return Describe(Level); } }
+        public SkillStyle Style { get { return Definition.Style; } }
+        /// <summary>Level three awakens the skill's extra behaviour (see <see cref="TowerSkillBuilds.LevelText"/>).</summary>
+        public bool Awakened { get { return TowerSkillBuilds.Awakened(Level); } }
         internal SkillState(AugmentDefinition definition, HeroState owner, int level = 1)
         { Definition = definition; this.owner = owner; Level = level; }
         internal void Upgrade() { if (Level < 3) Level++; }
-        public float CooldownAt(int level) { return Math.Max(1, Definition.Cooldown * (1 - .15f * (level - 1)) * owner.CooldownMultiplier); }
+        private int Resonance { get { return owner.ResonanceTier(Definition.Style); } }
+        public float CooldownAt(int level)
+        { return Math.Max(1, Definition.Cooldown * TowerSkillBuilds.CooldownScale(level) * TowerSkillBuilds.ResonanceCooldown(Definition.Style, Resonance) * owner.CooldownMultiplier); }
         private float PowerAt(int level)
         {
-            bool support = Definition.Effect == SkillEffect.HealPulse || Definition.Effect == SkillEffect.ShieldPulse;
-            return Definition.Power * (1 + .35f * (level - 1)) * owner.SkillPowerMultiplier * (support ? owner.HealingMultiplier : 1);
+            bool support = TowerSkillBuilds.Support(Definition.Effect);
+            return Definition.Power * TowerSkillBuilds.PowerScale(level) * TowerSkillBuilds.ResonancePower(Definition.Style, Resonance) *
+                owner.SkillPowerMultiplier * (support ? owner.HealingMultiplier : 1);
         }
-        private float RadiusAt(int level) { return Definition.Radius * (1 + .1f * (level - 1)) * owner.AreaMultiplier; }
+        private float RadiusAt(int level)
+        { return Definition.Radius * TowerSkillBuilds.AreaScale(Definition.Effect, level) * TowerSkillBuilds.ResonanceArea(Definition.Style, Resonance) * owner.AreaMultiplier; }
+        private float DurationAt(int level)
+        { return Definition.Duration * TowerSkillBuilds.DurationScale(level) * TowerSkillBuilds.ResonanceDuration(Definition.Style, Resonance); }
+        private int CountAt(int level)
+        {
+            var effect = Definition.Effect; bool projectile = TowerSkillBuilds.Projectile(effect);
+            return Definition.Count + TowerSkillBuilds.ExtraCount(effect, level) + (projectile ? owner.ProjectileBonus + TowerSkillBuilds.ResonanceCount(Definition.Style, Resonance) : 0);
+        }
         internal string Describe(int level)
         {
-            string amount = Definition.Effect == SkillEffect.HealPulse ? "회복" : Definition.Effect == SkillEffect.ShieldPulse ? "보호막" : "피해";
-            return Definition.Description + "\n" + amount + " " + AugmentDefinition.Number(owner.Damage * PowerAt(level)) +
-                " · 범위 " + AugmentDefinition.Number(RadiusAt(level)) + " · 수량 " + Count +
-                (Definition.Duration > 0 ? " · 지속 " + AugmentDefinition.Number(Definition.Duration * (1 + .2f * (level - 1))) + "초" : "") +
-                "\n재사용 " + AugmentDefinition.Number(CooldownAt(level)) + "초";
+            var effect = Definition.Effect;
+            string amount = effect == SkillEffect.HealPulse ? "회복" : effect == SkillEffect.ShieldPulse ? "보호막" : "피해";
+            // A level-two shield pulse raises 15% more than its power.
+            float shown = owner.Damage * PowerAt(level) * (effect == SkillEffect.ShieldPulse && level >= 2 ? 1.15f : 1);
+            return Definition.Description + "\n" + amount + " " + AugmentDefinition.Number(shown) +
+                " · 범위 " + AugmentDefinition.Number(RadiusAt(level)) + " · 수량 " + CountAt(level) +
+                (Definition.Duration > 0 ? " · 지속 " + AugmentDefinition.Number(DurationAt(level)) + "초" : "") +
+                "\n재사용 " + AugmentDefinition.Number(CooldownAt(level)) + "초 · " + TowerSkillBuilds.Tag(effect) +
+                "\n" + TowerSkillBuilds.LevelText(effect, level == 2 ? 2 : 3);
         }
     }
 
@@ -152,6 +164,9 @@ namespace PrototypeLab.Roguelike
         private float vitality;
         // Run-level bonuses that do not come from cards, such as mythology synergies.
         internal Func<HeroStat, float> ExternalBonus;
+        // The party's learned skill levels per build style; a hero outside a run has none.
+        internal Func<SkillStyle, int> StyleLevels;
+        public int ResonanceTier(SkillStyle style) { return StyleLevels == null ? 0 : TowerSkillBuilds.Tier(StyleLevels(style)); }
         private readonly List<SkillState> skills = new List<SkillState>();
         private readonly List<TraitState> traits = new List<TraitState>();
         private readonly ReadOnlyCollection<SkillState> skillView;
@@ -333,8 +348,8 @@ namespace PrototypeLab.Roguelike
     {
         // Every cleared floor deals cards; each RewardInterval-th floor deals skills instead of stats and branches.
         public const int MaxCompanions = 3, OfferSlots = 3, DefaultMaxFloor = 90, RewardInterval = 5;
-        // Gold prices; a floor's breakable caches scatter about fifteen gold.
-        public const int AugmentPrice = 50, HealPrice = 20, VitalityPrice = 40;
+        // Gold prices; a floor's breakable caches scatter about fifteen gold and an elite floor pays two floors' worth on top.
+        public const int AugmentPrice = 50, HealPrice = 20, VitalityPrice = 40, EliteBounty = 30;
         public const float RestHealFraction = .5f, ShopHealFraction = .35f, VitalityHealth = 15;
         // A free climb opens with one recruit; these floors grant the second and third. A chapter past them
         // drafts that many companions before its first fight instead.
@@ -364,8 +379,12 @@ namespace PrototypeLab.Roguelike
         public bool IsFloorCleared { get; private set; }
         public bool IsRewardPending { get; private set; }
         public bool IsRecruitOffer { get; private set; }
+        /// <summary>The campaign's opening pick: every free god of the chapter's pool is offered to choose from.</summary>
+        public bool IsCompanionPick { get { return IsRewardPending && IsRecruitOffer && recruitPool != null; } }
         /// <summary>Which augments the pending card set deals: stats, skills or both.</summary>
         public RewardDraft Draft { get; private set; }
+        /// <summary>The pending cards are an elite floor's spoils: gold-or-better skills, or diamond stats once nothing is left to learn.</summary>
+        public bool IsEliteReward { get; private set; }
         /// <summary>Most companions this climb may hold: three, or the slots a campaign chapter drafts.</summary>
         public int CompanionLimit { get; private set; }
         /// <summary>Gods who could still be recruited: the chapter's pool in a campaign draft, else every mythology.</summary>
@@ -397,6 +416,10 @@ namespace PrototypeLab.Roguelike
         public HeroState Player { get; private set; }
         /// <summary>The party's passives: counters, stacks and clocks that last the whole climb.</summary>
         public TowerPassiveState Passives { get; private set; }
+        /// <summary>The village skill tree whose ranks every hero of this climb carries; null outside the campaign.</summary>
+        public TowerSkillTreeState SkillTree { get; private set; }
+        /// <summary>Stat card sets the skill tree still owes before the first fight, dealt once the companions have joined.</summary>
+        public int OpeningAugments { get; private set; }
         public OathState Oath { get; private set; }
         public bool IsOathTrial { get { return Oath != null; } }
         public IReadOnlyList<CompanionState> Companions { get { return companionView; } }
@@ -416,7 +439,8 @@ namespace PrototypeLab.Roguelike
             RunId = Guid.NewGuid().ToString("N");
             Player = new HeroState("player", "플레이어", 28, 160, 0, 6, .43f, 2.6f);
             Passives = new TowerPassiveState(this);
-            Player.ExternalBonus = stat => SynergyBonus(Player, stat) + Passives.StatBonus(Player, stat);
+            Player.ExternalBonus = stat => SynergyBonus(Player, stat) + Passives.StatBonus(Player, stat) + TreeBonus(Player, stat);
+            Player.StyleLevels = StyleLevels;
             companionView = companions.AsReadOnly(); offerView = offers.AsReadOnly(); shopView = shop.AsReadOnly();
             if (oathCompanionId != null)
             {
@@ -426,22 +450,23 @@ namespace PrototypeLab.Roguelike
             else if (startingRecruit) BeginReward(true);
         }
         /// <summary>
-        /// One chapter expedition: floors <see cref="TowerChapter.FirstFloor"/> to <see cref="TowerChapter.LastFloor"/>
-        /// with <paramref name="party"/> already along; <see cref="DraftCompanions"/> opens the campaign's draft.
+        /// One chapter expedition: every expedition climbs from floor 1 through the restored chapters to
+        /// <see cref="TowerChapter.LastFloor"/> with <paramref name="party"/> already along; <see cref="DraftCompanions"/>
+        /// opens the campaign's draft.
         /// </summary>
         internal static TowerRun ForChapter(int seed, TowerChapter chapter, IList<string> party)
         {
             if (chapter == null) throw new ArgumentNullException("chapter");
             if (party == null || party.Count > MaxCompanions) throw new ArgumentOutOfRangeException("party");
             var run = new TowerRun(new Random(seed), chapter.LastFloor, false, null);
-            run.Chapter = chapter; run.Floor = chapter.FirstFloor;
+            run.Chapter = chapter;
             foreach (string id in party) run.Join(id);
             return run;
         }
         /// <summary>
-        /// The campaign's opening draft: <paramref name="party"/> joins at once, then recruit cards drawn from
-        /// <paramref name="pool"/> alone follow one another until <paramref name="slots"/> companions have joined.
-        /// <paramref name="joined"/> sees every companion as it joins, before the next card set is dealt.
+        /// The campaign's opening pick: <paramref name="party"/> joins at once, then every god of
+        /// <paramref name="pool"/> still free is offered together, pick after pick, until <paramref name="slots"/>
+        /// companions have joined. <paramref name="joined"/> sees every companion as it joins, before the next pick opens.
         /// </summary>
         internal void DraftCompanions(IList<string> party, IEnumerable<string> pool, int slots, Action<CompanionState> joined)
         {
@@ -473,6 +498,14 @@ namespace PrototypeLab.Roguelike
         public HeroState GetHero(string id) { return id == "player" ? Player : GetCompanion(id); }
         public int MythCount(string mythId)
         { int count = 0; foreach (var companion in companions) if (companion.Definition.MythId == mythId) count++; return count; }
+        /// <summary>Learned skill levels of one build style across the player and every companion: the resonance count.</summary>
+        public int StyleLevels(SkillStyle style)
+        {
+            int levels = 0;
+            foreach (var skill in Player.Skills) if (skill.Style == style) levels += skill.Level;
+            foreach (var companion in companions) foreach (var skill in companion.Skills) if (skill.Style == style) levels += skill.Level;
+            return levels;
+        }
         public IReadOnlyList<MythSynergyState> ActiveSynergies
         {
             get
@@ -488,7 +521,7 @@ namespace PrototypeLab.Roguelike
             if (IsFloorCleared || IsRewardPending || IsComplete) return false;
             IsFloorCleared = true; ClearedFloors++;
             if (IsOathTrial) { if (Floor < MaxFloor) BeginReward(false); }
-            else if (FloorType == FloorType.Elite) BeginReward(false);
+            else if (FloorType == FloorType.Elite) BeginReward(false, OpenSkills > 0 ? RewardDraft.Skills : RewardDraft.Stats, true);
             else if (FloorType == FloorType.Normal)
             {
                 bool skills = Floor % RewardInterval == 0;
@@ -507,10 +540,11 @@ namespace PrototypeLab.Roguelike
             Floor++; IsFloorCleared = false; FloorType = next; shop.Clear(); ShopTraded = false;
             return true;
         }
-        // A small draft pool may have no god or skill left to deal in place of a card.
+        // A small draft pool may have no god or skill left to deal in place of a card; the campaign's opening
+        // pick already offers every free god.
         public bool CanReroll(int slot)
         {
-            return IsRewardPending && slot >= 0 && slot < offers.Count && !rerolled[slot] &&
+            return IsRewardPending && slot >= 0 && slot < offers.Count && slot < OfferSlots && !rerolled[slot] &&
                 (IsRecruitOffer ? OpenRecruits > offers.Count : Draft != RewardDraft.Skills || OpenSkills > offers.Count);
         }
         public bool Reroll(int slot)
@@ -528,7 +562,7 @@ namespace PrototypeLab.Roguelike
                 var definition = GetDefinition(offer.CompanionId);
                 if (!CanRecruit(definition)) return false;
                 AddCompanion(definition);
-                // A campaign draft deals the next companion's cards straight away.
+                // The campaign's opening pick offers the remaining gods for the next slot straight away.
                 if (DraftOpen) { BeginReward(true); return true; }
             }
             else if (offer.Kind == RewardKind.Oath)
@@ -541,7 +575,7 @@ namespace PrototypeLab.Roguelike
                 var augment = GetAugment(offer.AugmentId);
                 if (hero == null || augment == null || !hero.Apply(augment)) return false;
             }
-            IsRewardPending = false; IsRecruitOffer = false; offers.Clear(); return true;
+            IsRewardPending = false; IsRecruitOffer = false; IsEliteReward = false; offers.Clear(); return true;
         }
         public bool DismissCompanion(string id)
         {
@@ -550,9 +584,11 @@ namespace PrototypeLab.Roguelike
             companions.Remove(companion);
             if (IsRewardPending)
             {
+                // Elite spoils whose last learnable skills left with the companion turn to diamond stats.
+                if (IsEliteReward && Draft == RewardDraft.Skills && OpenSkills == 0) Draft = RewardDraft.Stats;
                 GenerateOffers();
                 // A skill floor whose last learnable skills left with the companion has nothing to deal.
-                if (offers.Count == 0) { IsRewardPending = false; IsRecruitOffer = false; }
+                if (offers.Count == 0) { IsRewardPending = false; IsRecruitOffer = false; IsEliteReward = false; }
             }
             return true;
         }
@@ -580,9 +616,9 @@ namespace PrototypeLab.Roguelike
             shop.Add(new ShopOffer(ShopItem.Heal, "회복의 물약", "최대 생명력의 " + AugmentDefinition.Number(ShopHealFraction * 100) + "%를 회복합니다.", HealPrice));
             shop.Add(new ShopOffer(ShopItem.Vitality, "생명의 정수", "이번 등반 동안 최대 생명력 +" + AugmentDefinition.Number(VitalityHealth) + "\n늘어난 만큼 회복합니다.", VitalityPrice));
         }
-        private void BeginReward(bool recruit, RewardDraft draft = RewardDraft.Mixed)
+        private void BeginReward(bool recruit, RewardDraft draft = RewardDraft.Mixed, bool elite = false)
         {
-            IsRewardPending = true; IsRecruitOffer = recruit; Draft = recruit ? RewardDraft.Mixed : draft;
+            IsRewardPending = true; IsRecruitOffer = recruit; IsEliteReward = elite && !recruit; Draft = recruit ? RewardDraft.Mixed : draft;
             Array.Clear(rerolled, 0, rerolled.Length); GenerateOffers();
         }
         private bool CanRecruit(CompanionDefinition definition)
@@ -593,9 +629,23 @@ namespace PrototypeLab.Roguelike
         private void AddCompanion(CompanionDefinition definition)
         {
             var companion = new CompanionState(definition);
-            companion.ExternalBonus = stat => SynergyBonus(companion, stat) + Passives.StatBonus(companion, stat);
+            companion.ExternalBonus = stat => SynergyBonus(companion, stat) + Passives.StatBonus(companion, stat) + TreeBonus(companion, stat);
+            companion.StyleLevels = StyleLevels;
             companions.Add(companion);
             if (joined != null) joined(companion);
+        }
+        private float TreeBonus(HeroState hero, HeroStat stat) { return SkillTree == null ? 0 : SkillTree.Bonus(hero, stat); }
+        /// <summary>Gives every hero of this climb the tree's ranks and queues its opening stat cards.</summary>
+        internal void UseSkillTree(TowerSkillTreeState tree)
+        { SkillTree = tree; OpeningAugments = tree == null ? 0 : (int)tree.Perk(SkillPerk.OpeningAugment); }
+        /// <summary>
+        /// Deals one of the skill tree's opening stat card sets: only before the first floor is cleared and once no
+        /// other cards (such as the companion pick) are pending.
+        /// </summary>
+        public bool DealOpeningAugment()
+        {
+            if (OpeningAugments <= 0 || IsRewardPending || IsFloorCleared || ClearedFloors > 0) return false;
+            OpeningAugments--; BeginReward(false, RewardDraft.Stats); return true;
         }
         private float SynergyBonus(HeroState hero, HeroStat stat)
         {
@@ -619,11 +669,13 @@ namespace PrototypeLab.Roguelike
         }
         private static RewardTier RollTier(double roll)
         { return roll < .4 ? RewardTier.Silver : roll < .8 ? RewardTier.Gold : RewardTier.Diamond; }
-        // A draft from fewer than three gods or learnable skills shows only as many cards as there are.
+        // A draft from fewer than three gods or learnable skills shows only as many cards as there are; the
+        // campaign's opening pick offers every free god of its pool.
         private void GenerateOffers()
         {
             offers.Clear();
-            int count = IsRecruitOffer ? Math.Min(OfferSlots, OpenRecruits) : Draft == RewardDraft.Skills ? Math.Min(OfferSlots, OpenSkills) : OfferSlots;
+            int count = IsRecruitOffer ? recruitPool != null ? OpenRecruits : Math.Min(OfferSlots, OpenRecruits) :
+                Draft == RewardDraft.Skills ? Math.Min(OfferSlots, OpenSkills) : OfferSlots;
             for (int slot = 0; slot < count; slot++) offers.Add(CreateOffer(slot, null));
         }
         private sealed class Candidate
@@ -637,13 +689,17 @@ namespace PrototypeLab.Roguelike
         {
             Predicate<CompanionDefinition> open = d => InPool(d) && GetCompanion(d.Id) == null && "recruit:" + d.Id != previousAugment &&
                 !offers.Exists(o => o.Slot != slot && o.CompanionId == d.Id);
-            var pool = new List<CompanionDefinition>();
             if (recruitPool != null)
             {
-                // A campaign draft deals evenly from the gods the chapter has opened.
-                foreach (var definition in Definitions) if (open(definition)) pool.Add(definition);
-                return new RewardOffer(nextOfferId++, slot, pool[random.Next(pool.Count)]);
+                // The campaign's opening pick lays out the free gods in chapter order, nothing left to chance.
+                foreach (string id in recruitPool)
+                {
+                    var definition = GetDefinition(id);
+                    if (definition != null && open(definition)) return new RewardOffer(nextOfferId++, slot, definition);
+                }
+                throw new InvalidOperationException("No free god left in the companion pool.");
             }
+            var pool = new List<CompanionDefinition>();
             // Every mythology is open. The first card keeps a synergy route alive for an existing party.
             if (slot == 0 && companions.Count > 0)
                 foreach (var definition in Definitions) if (open(definition) && MythCount(definition.MythId) > 0) pool.Add(definition);
@@ -666,7 +722,9 @@ namespace PrototypeLab.Roguelike
                 if (available.Count > 0)
                     return new RewardOffer(nextOfferId++, slot, available[random.Next(available.Count)], Oath.CompanionId);
             }
-            RewardTier tier = RollTier(random.NextDouble());
+            // Elite spoils skip silver: skills roll gold or diamond in the usual two-to-one ratio, stats are always diamond.
+            double roll = random.NextDouble();
+            RewardTier tier = !IsEliteReward ? RollTier(roll) : Draft == RewardDraft.Stats ? RewardTier.Diamond : RollTier(.4 + roll * .6);
             Predicate<string> dealt = id => id == previousAugment || offers.Exists(o => o.Slot != slot && o.AugmentId == id);
             var candidates = new List<Candidate>();
             // Regular cards no longer recruit; only the oath trial keeps its angels in the mixed pool.
@@ -691,6 +749,8 @@ namespace PrototypeLab.Roguelike
             RewardKind kind = Draft == RewardDraft.Skills ? RewardKind.Skill : RewardKind.Trait;
             Predicate<AugmentDefinition> ofKind = a => Draft == RewardDraft.Mixed || a.Kind == kind;
             var dealable = open.FindAll(a => a.Tier == tier && ofKind(a));
+            // Elite spoils borrow the other high tier before falling back to silver.
+            if (dealable.Count == 0 && IsEliteReward) dealable = open.FindAll(a => a.Tier >= RewardTier.Gold && ofKind(a));
             if (dealable.Count == 0) dealable = open.FindAll(ofKind);
             if (dealable.Count == 0 && Draft != RewardDraft.Skills) dealable = open.FindAll(a => a.Tier == tier);
             if (dealable.Count == 0 && Draft != RewardDraft.Skills) dealable = open;

@@ -1,0 +1,34 @@
+{
+  "id": "asgard",
+  "title": "Frostbound Halls",
+  "title_ko": "서리 묶인 전당",
+  "bpm": 82,
+  "beats": 4,
+  "bars": 32,
+  "note_events": 684,
+  "production": "myth-v8",
+  "master": {
+    "seconds": 93.658526,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.514,
+    "rms_dbfs": -15.31,
+    "loop_seam_delta": 0.076631,
+    "minimum_half_second_rms": 0.029121,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg": {
+    "seconds": 93.658526,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.07,
+    "rms_dbfs": -15.325,
+    "loop_seam_delta": 0.077676,
+    "minimum_half_second_rms": 0.02915,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg_bytes": 2335067,
+  "sha256": "b37bfbe12ed610205ae0573356a69ec766c4172365afec52396013c766ef1b2f"
+}

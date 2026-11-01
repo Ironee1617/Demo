@@ -17,7 +17,7 @@ namespace PrototypeLab.Roguelike
             public string mode = "towerLootSmoke", finishedUtc;
             public bool success, everyThemePlaced, paintedSprites, standOnSupports, fragileBreaksAtOnce, sturdyTakesTwo, heavyBreaksSturdy;
             public bool lootLandsDuringFight, pickupsCollected, fullHealthLeavesHeart, woundedTakesHeart, coinsFlyAfterClear, looseCoinsBanked;
-            public bool shopRefusesWithoutGold, shopSellsForGold, oathTrialHasNoCaches, villageHasNoCaches, savedDataUntouched;
+            public bool peacefulFloorsHaveNoCaches, shopRefusesWithoutGold, shopSellsForGold, oathTrialHasNoCaches, villageHasNoCaches, savedDataUntouched;
             public int themes, caches, cachesBroken, coins, hearts, goldCollected, goldFundedByFixture;
             public float heartHealed;
             public List<string> checks = new List<string>(), screenshots = new List<string>(), errors = new List<string>();
@@ -269,9 +269,13 @@ namespace PrototypeLab.Roguelike
         private IEnumerator Shop()
         {
             game.progress = new TowerProgress();
+            // Rest and shop floors are quiet stops: no caches to break beside the campfire or the merchant.
+            StartFloor(90, 6, FloorType.Rest);
+            bool restEmpty = game.caches.Count == 0;
             StartFloor(91, 6, FloorType.Shop);
-            Require(game.enemies.Count == 0 && game.caches.Count == TowerLoot.PeacefulCaches, "A shop floor did not hold exactly its two caches.");
-            foreach (var cache in game.caches) Require(Mathf.Abs(cache.pos.x - TowerWorld.FeaturePosition.x) >= TowerLoot.FeatureClear, "A cache stands in the merchant's stall.");
+            report.peacefulFloorsHaveNoCaches = restEmpty && game.caches.Count == 0;
+            Require(report.peacefulFloorsHaveNoCaches, "A rest or shop floor placed caches.");
+            Require(game.enemies.Count == 0, "A shop floor held monsters.");
             yield return Until(() => game.run.IsFloorCleared, 2, "The shop floor did not clear on arrival.");
             Place(new Vector2(TowerWorld.FeaturePosition.x, World.GroundAt(TowerWorld.FeaturePosition.x)), 1);
             game.hero.hp = game.PlayerMaxHealth * .4f;
@@ -279,10 +283,8 @@ namespace PrototypeLab.Roguelike
             report.shopRefusesWithoutGold = !game.BuyShopItem(ShopItem.Heal) && game.progress.Gold == 0 && !game.run.ShopTraded;
             Require(report.shopRefusesWithoutGold, "The merchant sold without gold.");
             game.shopOpen = false;
-            // The stall's own caches pay part of the bill; the fixture tops up whatever is missing.
-            while (game.caches.Count > 0) { var cache = game.caches[0]; StandBeside(cache); Slash(); if (game.caches.Contains(cache)) Slash(); }
-            yield return Until(() => CoinsIn(game.pickups) == 0, 6, "The shop floor's coins did not fly to the hero.");
-            if (game.progress.Gold < TowerRun.HealPrice) report.goldFundedByFixture = game.progress.AddGold(TowerRun.HealPrice - game.progress.Gold);
+            // The fixture brings the gold a few battle floors of caches would have paid.
+            report.goldFundedByFixture = game.progress.AddGold(TowerRun.HealPrice);
             Place(new Vector2(TowerWorld.FeaturePosition.x, World.GroundAt(TowerWorld.FeaturePosition.x)), 1);
             game.hero.hp = game.PlayerMaxHealth * .4f;
             Require(game.InteractMerchant() && game.shopOpen, "The merchant did not reopen.");

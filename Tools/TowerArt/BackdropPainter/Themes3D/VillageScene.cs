@@ -90,7 +90,7 @@ public sealed class VillageScene : ThemePainter
 
     PaintedLayer SkyLayer()
     {
-        var spec = new LayerSpec("sky", .95f, 48, 30, -11, 21, -97);
+        var spec = new LayerSpec("sky", .95f, 128, 30, -11, 21, -97);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(2.5f);
         int rock = m.Rock("1e1a30", "3a3050", .8f, .8f, .4f, 1111);
         var peaks = new[] { (3f, 3.2f, 3f), (11f, 2.4f, 2.4f), (17f, 3.6f, 3f), (24f, 2f, 2.6f) };
@@ -142,7 +142,7 @@ public sealed class VillageScene : ThemePainter
 
     PaintedLayer Far()
     {
-        var spec = new LayerSpec("far", .85f, 64, 32, -11, 19, -96);
+        var spec = new LayerSpec("far", .85f, 128, 32, -11, 19, -96);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3);
         int meadow = m.Ground("26324a", "44586a", "3a3036", 1122, "c8a0e0", .03f);
         int lake = m.Water("1a2440", .7f, .15f, 1123);
@@ -325,7 +325,7 @@ public sealed class VillageScene : ThemePainter
 
     PaintedLayer Mid()
     {
-        var spec = new LayerSpec("mid", .65f, 96, 36, -9.5f, 21, -95);
+        var spec = new LayerSpec("mid", .65f, 192, 36, -9.5f, 21, -95);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3.5f);
         int grass = m.Ground("26363e", "4a6860", "4a3a34", 1141, "d0b0f0", .05f);
         int meadow = m.Glyphs(grass, "8af0ff", 2.6f, p =>
@@ -400,7 +400,7 @@ public sealed class VillageScene : ThemePainter
     PaintedLayer Near()
     {
         // Bunting and lanterns strung across the top when the camera climbs.
-        var spec = new LayerSpec("near", .4f, 96, 40, 8.6f, 5, -94);
+        var spec = new LayerSpec("near", .4f, 192, 40, 8.6f, 5, -94);
         var sc = new Scene(spec.Period); var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(4);
         int rope = m.Wood("3a2a1c", "5a4430", .8f, false, 1201);
         int lampWarm = m.Glow("ffb060", 6, "5a3414", .05f, 1202);

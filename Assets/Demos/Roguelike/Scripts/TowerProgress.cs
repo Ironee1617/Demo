@@ -4,7 +4,7 @@ using System.Globalization;
 namespace PrototypeLab.Roguelike
 {
     // Unity-independent account wallet. Save() can be stored directly in PlayerPrefs.
-    // Gold is picked up from the breakable caches on every floor, spent at shop floors and kept after a climb ends.
+    // Gold is picked up from the breakable caches on battle floors, spent at shop floors and kept after a climb ends.
     public sealed class TowerProgress
     {
         // Floor points were the shop currency before gold; an old balance keeps its buying power.

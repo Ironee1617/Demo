@@ -106,7 +106,7 @@ public sealed class AbyssScene : ThemePainter
 
     PaintedLayer SkyLayer()
     {
-        var spec = new LayerSpec("sky", .95f, 48, 30, -11, 21, -97);
+        var spec = new LayerSpec("sky", .95f, 128, 30, -11, 21, -97);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(2.5f);
         int rock = m.Rock("1a1418", "3a3036", .8f, .8f, .5f, 801);
         int land = m.Ground("2a3a22", "4a5a32", "3a2a22", 802);
@@ -133,7 +133,7 @@ public sealed class AbyssScene : ThemePainter
 
     PaintedLayer Far()
     {
-        var spec = new LayerSpec("far", .85f, 64, 32, -11, 19, -96);
+        var spec = new LayerSpec("far", .85f, 128, 32, -11, 19, -96);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3);
         int flesh = Flesh(sc, 811, "240610", "5a1824");
         int tooth = Bone(sc, 812);
@@ -175,7 +175,7 @@ public sealed class AbyssScene : ThemePainter
 
     PaintedLayer Mid()
     {
-        var spec = new LayerSpec("mid", .65f, 96, 36, -9.5f, 21, -95);
+        var spec = new LayerSpec("mid", .65f, 192, 36, -9.5f, 21, -95);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3.5f);
         int flesh = Flesh(sc, 821);
         int dark = Flesh(sc, 822, "1e040c", "4a1020");
@@ -236,7 +236,7 @@ public sealed class AbyssScene : ThemePainter
     PaintedLayer Near()
     {
         // Sinews and tendons hanging from the top when the camera climbs.
-        var spec = new LayerSpec("near", .4f, 96, 40, 8.6f, 5, -94);
+        var spec = new LayerSpec("near", .4f, 192, 40, 8.6f, 5, -94);
         var sc = new Scene(spec.Period); var n = sc.N; var sky = MakeSky(spec.Period); var cam = new Camera(4);
         int sinew = Flesh(sc, 841, "4a0c18", "a03a48");
         var rnd = new Rand(842); var strands = new List<(Vector3 a, Vector3 b, float r)>();

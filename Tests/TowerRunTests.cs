@@ -153,14 +153,14 @@ public static class TowerRunTests
             Check(Math.Abs(counts[1] / 30000f - .4f) < .015f && Math.Abs(counts[2] / 30000f - .2f) < .015f, "gold diamond odds");
             Check(mixed > 7500 && run.OpenSkills == 0, "independent slots and capped skills");
         });
-        Test("catalog contains fifty distinct myth characters and three hundred seventy-three owned augments", () => {
-            Check(TowerRun.Definitions.Count == 50 && TowerRun.Augments.Count == 373, "catalog sizes");
+        Test("catalog contains fifty distinct myth characters and four hundred seventy-seven owned augments", () => {
+            Check(TowerRun.Definitions.Count == 50 && TowerRun.Augments.Count == 477, "catalog sizes");
             var ids = new HashSet<string>(); var art = new HashSet<int>(); var effects = new HashSet<SkillEffect>(); int[] tiers = new int[3];
             foreach (var c in TowerRun.Definitions) {
                 Check(ids.Add(c.Id) && art.Add(c.ArtIndex) && c.ArtIndex >= 100 && c.ArtIndex < 150, "independent supplied character art");
                 tiers[(int)c.Tier]++; int skills = 0, traits = 0;
                 foreach (var a in TowerRun.Augments) if (a.OwnerId == c.Id) { if (a.Kind == RewardKind.Skill) skills++; else traits++; }
-                Check(skills == 4 && traits == 3, "four skills and three traits per companion");
+                Check(skills == 6 && traits == 3, "six skills and three traits per companion");
             }
             Check(tiers[0] == 20 && tiers[1] == 20 && tiers[2] == 10, "two silver two gold and one diamond recruit per myth");
             ids.Clear(); int playerSkills = 0, playerTraits = 0;
@@ -170,7 +170,42 @@ public static class TowerRunTests
                 if (a.Kind == RewardKind.Skill) { effects.Add(a.Effect); Check(a.Cooldown >= 2 && a.Power > 0 && a.Count >= 1, "usable learned skill"); }
                 if (a.OwnerId == "player") { if (a.Kind == RewardKind.Skill) playerSkills++; else playerTraits++; }
             }
-            Check(playerSkills == 8 && playerTraits == 15 && effects.Count == 16, "player content and implemented effect coverage");
+            Check(playerSkills == 12 && playerTraits == 15 && effects.Count == 28, "player content and implemented effect coverage");
+        });
+        Test("every skill level is a clear step and level three awakens with its own card line", () => {
+            foreach (var a in TowerRun.Augments) {
+                if (a.Kind != RewardKind.Skill) continue;
+                var hero = new TowerRun().Player; var skill = new SkillState(a, hero, 1);
+                float power = skill.Power, cooldown = skill.Cooldown, radius = skill.Radius; int count = skill.Count;
+                for (int level = 2; level <= 3; level++) {
+                    var next = new SkillState(a, hero, level);
+                    Check(next.Power >= power * 1.35f && next.Cooldown < cooldown + .0001f && next.Radius > radius && next.Count >= count, "each level is stronger: " + a.Id);
+                    power = next.Power; cooldown = next.Cooldown; radius = next.Radius; count = next.Count;
+                }
+                Check(new SkillState(a, hero, 3).Awakened && !new SkillState(a, hero, 2).Awakened, "level three awakens");
+                Check(skill.Describe(1).Contains("Lv.3 각성") && skill.Describe(2).Contains("Lv.2 · ") && skill.Describe(3).Contains("Lv.3 각성"), "cards name the level's bonus: " + a.Id);
+                Check(skill.Describe(1).Contains(TowerSkillBuilds.StyleName(a.Style)), "cards name the build style: " + a.Id);
+            }
+        });
+        Test("party resonance counts learned levels per style across the player and companions", () => {
+            var run = new TowerRun(5, 100, false); Recruit(run, "michael"); Recruit(run, "tyr");
+            Check(run.StyleLevels(SkillStyle.Melee) == 0 && run.Player.ResonanceTier(SkillStyle.Melee) == 0, "no resonance before skills");
+            Apply(run.Player, "player.shockwave"); Apply(run.GetCompanion("michael"), "michael.skill1"); Apply(run.GetCompanion("tyr"), "tyr.skill1");
+            Check(run.StyleLevels(SkillStyle.Melee) == 3 && run.Player.ResonanceTier(SkillStyle.Melee) == 1 && run.GetCompanion("tyr").ResonanceTier(SkillStyle.Melee) == 1, "three melee levels across heroes reach tier one");
+            var shock = run.Player.GetSkill("player.shockwave"); var alone = new SkillState(shock.Definition, new TowerRun().Player);
+            Close(shock.Power, alone.Power * TowerSkillBuilds.ResonancePower(SkillStyle.Melee, 1), "resonance raises the style's power");
+            Check(run.Player.ResonanceTier(SkillStyle.Ranged) == 0, "other styles stay quiet");
+            Apply(run.Player, "player.shockwave"); Apply(run.Player, "player.shockwave"); Apply(run.GetCompanion("michael"), "michael.skill1");
+            Check(run.StyleLevels(SkillStyle.Melee) == 6 && run.Player.ResonanceTier(SkillStyle.Melee) == 2, "upgrades count toward the next tier");
+            Check(shock.Radius > alone.Radius * TowerSkillBuilds.AreaScale(SkillEffect.Shockwave, 3) * 1.05f, "tier two widens melee skills");
+            foreach (SkillEffect effect in Enum.GetValues(typeof(SkillEffect))) Check(TowerSkillBuilds.LevelText(effect, 2).Length > 6 && TowerSkillBuilds.LevelText(effect, 3).Length > 9, "level text for every effect");
+        });
+        Test("every companion keeps its four original skills and gains two narrower ones of distinct effects", () => {
+            foreach (var c in TowerRun.Definitions) {
+                var fifth = TowerRun.GetAugment(c.Id + ".skill5"); var sixth = TowerRun.GetAugment(c.Id + ".skill6");
+                Check(fifth != null && sixth != null && fifth.Effect != sixth.Effect && (int)fifth.Effect >= (int)SkillEffect.Boomerang && (int)sixth.Effect >= (int)SkillEffect.Boomerang, "two new tools: " + c.Id);
+                Check(fifth.Tier == RewardTier.Silver && sixth.Tier == RewardTier.Gold && fifth.Radius <= 8.5f && sixth.Radius <= 8.5f, "modest new tools: " + c.Id);
+            }
         });
         Test("new players and recruited companions start without learned skills or traits", () => {
             var run = new TowerRun(new ControlledRandom(.1));
@@ -269,7 +304,7 @@ public static class TowerRunTests
             Close(skill.Power, power * 1.12f, "live power scaling"); Close(skill.Cooldown, cooldown * .95f, "live cooldown scaling"); Close(skill.Radius, radius * 1.12f, "live area scaling"); Check(skill.Count == 2, "additional projectile");
             Apply(hero, "player.fireball"); Check(skill.Level == 2 && skill.Cooldown < cooldown * .95f && skill.Power > power * 1.12f, "learned skill upgrade changes performance");
             for (int i = 0; i < 5; i++) Apply(hero, "player.echo");
-            Check(skill.Count == 1 + HeroState.MaxProjectileBonus && hero.ProjectileBonus == HeroState.MaxProjectileBonus && !hero.CanImproveTrait(TowerRun.GetAugment("player.echo")), "extra projectiles stop at their cap");
+            Check(skill.Count == 1 + TowerSkillBuilds.ExtraCount(SkillEffect.Fireball, 2) + HeroState.MaxProjectileBonus && hero.ProjectileBonus == HeroState.MaxProjectileBonus && !hero.CanImproveTrait(TowerRun.GetAugment("player.echo")), "extra projectiles stop at their cap");
         });
         Test("additional projectiles affect projectile skills rather than heals or pulse counts", () => {
             var hero = new TowerRun().Player;
@@ -397,7 +432,7 @@ public static class TowerRunTests
             foreach (var o in run.Offers) Check(o.Kind == RewardKind.Skill && skills.IndexOf(o.AugmentId) < 2, "only the learnable skills, at any rarity");
             Check(!run.CanReroll(0) && !run.Reroll(1), "no spare skill to reroll into");
             Recruit(run, "zeus");
-            Check(run.OpenSkills == 6 && run.DismissCompanion("zeus") && run.Offers.Count == 2 && run.IsRewardPending, "dismissal redeals the remaining skills");
+            Check(run.OpenSkills == 8 && run.DismissCompanion("zeus") && run.Offers.Count == 2 && run.IsRewardPending, "dismissal redeals the remaining skills");
             Check(run.ChooseOffer(run.Offers[0].Id), "take a skill");
             for (int i = 0; i < 2; i++) Apply(run.Player, skills[0]); for (int i = 0; i < 3; i++) Apply(run.Player, skills[1]);
             Check(run.OpenSkills == 0, "every skill capped");
@@ -423,8 +458,8 @@ public static class TowerRunTests
             }
             Check(run.ClearFloor() && run.IsBranchFloor && run.IsRewardPending && run.Draft == RewardDraft.Skills && !run.AdvanceFloor(FloorType.Elite), "branch waits for the skill card");
             Check(run.ChooseOffer(run.Offers[0].Id) && run.AdvanceFloor(FloorType.Elite) && run.Floor == 6 && run.FloorType == FloorType.Elite, "elite floor six");
-            Check(run.ClearFloor() && run.IsRewardPending && !run.IsRecruitOffer && run.Draft == RewardDraft.Mixed && run.Offers.Count == 3, "elite clear grants a mixed card");
-            Check(run.ChooseOffer(run.Offers[0].Id) && !run.IsBranchFloor && !run.AdvanceFloor(FloorType.Rest) && run.AdvanceFloor() && run.FloorType == FloorType.Normal, "elite floors do not branch");
+            Check(run.ClearFloor() && run.IsRewardPending && !run.IsRecruitOffer && run.IsEliteReward && run.Draft == RewardDraft.Skills && run.Offers.Count == 3, "elite clear grants skill spoils");
+            Check(run.ChooseOffer(run.Offers[0].Id) && !run.IsEliteReward && !run.IsBranchFloor && !run.AdvanceFloor(FloorType.Rest) && run.AdvanceFloor() && run.FloorType == FloorType.Normal, "elite floors do not branch");
             while (run.Floor < 10) { run.ClearFloor(); if (run.IsRewardPending) run.ChooseOffer(run.Offers[0].Id); if (run.Floor < 10) run.AdvanceFloor(); }
             Check(run.ClearFloor() && run.ChooseOffer(run.Offers[0].Id) && run.AdvanceFloor(FloorType.Rest) && run.FloorType == FloorType.Rest, "rest floor eleven");
             Check(run.ClearFloor() && !run.IsRewardPending && run.ShopOffers.Count == 0 && run.ClearedFloors == 11, "rest floors clear without cards or stalls");
@@ -432,6 +467,42 @@ public static class TowerRunTests
             Check(final.IsComplete && !final.IsBranchFloor && !final.AdvanceFloor(FloorType.Shop), "the summit never branches");
             var trial = new TowerRun(31, oathCompanionId:"michael"); for (int floor = 1; floor <= 5; floor++) { trial.ClearFloor(); trial.ChooseOffer(trial.Offers[0].Id); if (floor < 5) trial.AdvanceFloor(); }
             Check(!trial.IsBranchFloor && !trial.AdvanceFloor(FloorType.Elite), "oath trial keeps one exit");
+        });
+        Test("elite floors deal gold-or-better skills, borrow silver last and turn to diamond stats once nothing is left to learn", () => {
+            var skills = new List<AugmentDefinition>();
+            foreach (var a in TowerRun.Augments) if (a.OwnerId == "player" && a.Kind == RewardKind.Skill) skills.Add(a);
+            Func<TowerRun, Action<TowerRun>, TowerRun> toElite = (run, fifth) => {
+                for (int floor = 1; floor < 5; floor++) { ToReward(run); Check(run.ChooseOffer(run.Offers[0].Id), "stat floor " + floor); }
+                Check(run.AdvanceFloor() && run.ClearFloor() && run.Floor == 5, "fifth floor"); fifth(run);
+                Check(run.AdvanceFloor(FloorType.Elite) && run.ClearFloor() && run.IsEliteReward && !run.IsRecruitOffer, "elite spoils"); return run;
+            };
+            Action<TowerRun> takeSkill = r => Check(r.ChooseOffer(r.Offers[0].Id), "fifth floor skill");
+            int gold = 0, diamond = 0;
+            for (int seed = 1; seed <= 40; seed++) {
+                var run = toElite(new TowerRun(seed, 100, false), takeSkill);
+                Check(run.Draft == RewardDraft.Skills && run.Offers.Count == 3, "three skill cards " + seed);
+                for (int slot = 0; slot < 3; slot++) Check(run.Reroll(slot), "spoils reroll");
+                foreach (var o in run.Offers) { Check(o.Kind == RewardKind.Skill && o.Tier >= RewardTier.Gold, "gold-or-better skill: " + o.AugmentId); if (o.Tier == RewardTier.Gold) gold++; else diamond++; }
+                Check(run.ChooseOffer(run.Offers[0].Id) && !run.IsEliteReward && run.AdvanceFloor() && run.ClearFloor() && !run.IsEliteReward && run.Draft == RewardDraft.Stats, "spoils end with the elite floor");
+            }
+            Check(gold > diamond && diamond * 4 > gold, "gold and diamond keep their two-to-one odds: " + gold + "/" + diamond);
+            var silver = new TowerRun(7, 100, false);
+            foreach (var a in skills) if (a.Tier >= RewardTier.Gold) for (int i = 0; i < 3; i++) Apply(silver.Player, a.Id);
+            toElite(silver, takeSkill);
+            Check(silver.Draft == RewardDraft.Skills && silver.Offers.Count == 3, "silver skills fill in once every high skill is capped");
+            foreach (var o in silver.Offers) Check(o.Kind == RewardKind.Skill && o.Tier == RewardTier.Silver, "only silver remains: " + o.AugmentId);
+            var learned = new TowerRun(9, 100, false);
+            foreach (var a in skills) for (int i = 0; i < 3; i++) Apply(learned.Player, a.Id);
+            toElite(learned, r => Check(!r.IsRewardPending, "a capped fifth floor deals nothing"));
+            Check(learned.Draft == RewardDraft.Stats && learned.Offers.Count == 3, "diamond stats once nothing is left to learn");
+            for (int slot = 0; slot < 3; slot++) Check(learned.Reroll(slot), "stat spoils reroll");
+            foreach (var o in learned.Offers) Check(o.Kind == RewardKind.Trait && o.Tier == RewardTier.Diamond, "diamond stat: " + o.AugmentId);
+            var party = new TowerRun(11, 100, false);
+            foreach (var a in skills) for (int i = 0; i < 3; i++) Apply(party.Player, a.Id);
+            Recruit(party, "zeus"); toElite(party, takeSkill);
+            Check(party.Draft == RewardDraft.Skills && party.Offers.Count == 3, "the companion's skills are the spoils");
+            Check(party.DismissCompanion("zeus") && party.IsRewardPending && party.IsEliteReward && party.Draft == RewardDraft.Stats && party.Offers.Count == 3, "dismissal turns the spoils to stats");
+            foreach (var o in party.Offers) Check(o.Kind == RewardKind.Trait && o.Tier == RewardTier.Diamond && o.OwnerId == "player", "diamond player stat: " + o.AugmentId);
         });
         Test("shop floors trade once for a card, healing or vitality paid with gold", () => {
             var run = new TowerRun(77, 100, false);

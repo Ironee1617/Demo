@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace PrototypeLab.Roguelike
 {
-    // Breakable caches on every tower floor (TowerLoot) and the hearts and coins they scatter. A sword blow breaks
+    // Breakable caches on the tower's battle floors (TowerLoot) and the hearts and coins they scatter. A sword blow breaks
     // them into shards cut from their own painting; coins wait where they fell while monsters remain and fly to the
     // hero once the floor is cleared. Hearts heal only a wounded hero and otherwise stay on the ground.
     public sealed partial class TowerGame
@@ -87,7 +87,7 @@ namespace PrototypeLab.Roguelike
         private void FlushGold(){if(goldUnsaved)SaveProgress();}
         private void AddGold(int amount)
         {
-            int added=progress.AddGold(amount);if(added<=0)return;
+            int added=progress.AddGold(TreeGold(amount));if(added<=0)return;
             GoldCollected+=added;goldUnsaved=true;
             goldFlashAmount=goldFlash>0?goldFlashAmount+added:added;goldFlash=1.4f;
         }
@@ -211,7 +211,7 @@ namespace PrototypeLab.Roguelike
         {
             if(p.kind==LootKind.Heart)
             {
-                float healed=Mathf.Min(PlayerMaxHealth-hero.hp,TowerLoot.HeartHeal(PlayerMaxHealth));hero.hp+=healed;HeartsCollected++;
+                float healed=Mathf.Min(PlayerMaxHealth-hero.hp,TreeHeartHeal(TowerLoot.HeartHeal(PlayerMaxHealth)));hero.hp+=healed;HeartsCollected++;
                 FloatText(hero.pos+Vector2.up*2,"+"+Mathf.CeilToInt(healed),new Color(1,.45f,.5f));
                 if(vfx!=null)vfx.Cast(SkillEffect.HealPulse,hero.pos+Vector2.up,1.1f,new Color(1,.42f,.48f));
                 Sound(chimeSound,.3f);
@@ -230,14 +230,14 @@ namespace PrototypeLab.Roguelike
         private void DrawGold(Rect r,int size,Color color,string prefix="보유 ")
         {
             string text=prefix+progress.Gold.ToString("N0",CultureInfo.InvariantCulture)+" G";
-            textStyle.fontSize=size;textStyle.fontStyle=FontStyle.Bold;float width=textStyle.CalcSize(new GUIContent(text)).x;
-            Label(r,text,size,color,TextAnchor.MiddleRight,true);
+            titleStyle.fontSize=size;float width=titleStyle.CalcSize(new GUIContent(text)).x;
+            Title(new Rect(r.x+1,r.y+2,r.width,r.height),text,size,new Color(0,0,0,.6f),TextAnchor.MiddleRight);Title(r,text,size,color,TextAnchor.MiddleRight);
             var coin=PickupSprite(LootKind.Coin);float icon=size*1.25f,left=r.xMax-width-icon-6;
             if(coin!=null)GUI.DrawTexture(new Rect(left,r.center.y-icon*.5f,icon,icon),coin.texture,ScaleMode.ScaleToFit,true);
             if(goldFlash>0)
             {
                 float a=Mathf.Clamp01(goldFlash*2),rise=(1.4f-goldFlash)*8;
-                Label(new Rect(left-160,r.y-rise,152,r.height),"+"+goldFlashAmount+" G",size,Alpha(TowerWorld.Gold,a),TextAnchor.MiddleRight,true);
+                Title(new Rect(left-160,r.y-rise,152,r.height),"+"+goldFlashAmount+" G",size,Alpha(TowerWorld.Gold,a),TextAnchor.MiddleRight);
             }
         }
     }

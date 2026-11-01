@@ -69,12 +69,13 @@ static IEnumerable<string> Export(ThemePainter theme, PaintedLayer layer, int in
 {
     var c = layer.Canvas; var s = layer.Spec;
     c.Bleed();
-    // Split the strip into bands of occupied rows; long transparent gaps are not stored.
+    // Split the strip into bands of occupied rows; transparent gaps longer than one world unit are not stored.
     var runs = new List<(int start, int end)>();
+    int gap = (int)MathF.Round(c.Ppu);
     for (int j = 0; j < c.H; j++)
     {
         if (c.RowEmpty(j)) continue;
-        if (runs.Count > 0 && j - runs[^1].end <= 96) runs[^1] = (runs[^1].start, j);
+        if (runs.Count > 0 && j - runs[^1].end <= gap) runs[^1] = (runs[^1].start, j);
         else runs.Add((j, j));
     }
     // Keep heights divisible by four for block compression, growing into transparent rows.

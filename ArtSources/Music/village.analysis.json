@@ -1,0 +1,34 @@
+{
+  "id": "village",
+  "title": "Hearth Lantern",
+  "title_ko": "화롯불 등불",
+  "bpm": 88,
+  "beats": 4,
+  "bars": 34,
+  "note_events": 997,
+  "production": "myth-v8",
+  "master": {
+    "seconds": 92.727279,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.514,
+    "rms_dbfs": -15.531,
+    "loop_seam_delta": 0.080496,
+    "minimum_half_second_rms": 0.005026,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg": {
+    "seconds": 92.727279,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -0.999,
+    "rms_dbfs": -15.503,
+    "loop_seam_delta": 0.079011,
+    "minimum_half_second_rms": 0.005043,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg_bytes": 2324686,
+  "sha256": "1fcc3f769529edf8da317d4c7b91b15f52ff3f5a5a4a0fd31e8e5b88503f3990"
+}

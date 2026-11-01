@@ -61,7 +61,8 @@ namespace PrototypeLab.Roguelike
                 if(SmokeControlled&&!StreamOverride||spawn.pos.x<hero.pos.x+SpawnAhead)SpawnNow(spawn);else pendingSpawns.Add(spawn);
             if(bossFloor)
             {
-                // A chapter's last floor holds its climax: the evil god in the abyss, an awakened guardian elsewhere.
+                // The expedition's last floor holds its chapter's climax: the evil god in the abyss, an awakened guardian
+                // elsewhere. Restored chapters passed on the way up keep their ordinary bosses.
                 bool climax=run.IsCampaign&&run.Floor==run.MaxFloor,final=climax&&run.Theme.FinalBoss!=null;
                 float x=TowerWorld.ExitX-BossStandoff;
                 var definition=final?run.Theme.FinalBoss:run.Theme.Boss;var boss=Spawn(definition.Name,4,true,new Vector2(x,world.GroundAt(x)));

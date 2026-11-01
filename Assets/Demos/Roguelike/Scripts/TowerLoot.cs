@@ -36,17 +36,17 @@ namespace PrototypeLab.Roguelike
     }
 
     /// <summary>
-    /// Unity-independent rules for the breakable caches placed on every tower floor and the hearts and coins they
-    /// scatter. Placement is seeded by the run and floor, so a floor always offers the same caches.
+    /// Unity-independent rules for the breakable caches placed on every battle floor of the tower and the hearts and
+    /// coins they scatter. Placement is seeded by the run and floor, so a floor always offers the same caches.
     /// </summary>
     public static class TowerLoot
     {
         public const int CoinGold = 1, GoldCoinGold = 5;
-        public const int MinCaches = 2, MaxCaches = 4, PeacefulCaches = 2;
+        public const int MinCaches = 2, MaxCaches = 4;
         public const float HeartChance = .3f, GoldCoinChance = .1f, HeartHealFraction = .12f;
         // Caches keep clear of the hero's entry lane, the exits (the three branch doors span the last eleven
-        // units before the floor's exit), the merchant stall or campfire and every trap on the floor.
-        public const float EntryClearX = -8.6f, ExitClear = 2.6f, BranchClear = 11f, FeatureClear = 3.6f, HazardClear = 1.5f;
+        // units before the floor's exit) and every trap on the floor.
+        public const float EntryClearX = -8.6f, ExitClear = 2.6f, BranchClear = 11f, HazardClear = 1.5f;
         public const float MinSpacing = 2.4f, MaxTilt = .2f, Headroom = 1.9f, EdgeMargin = .6f;
         private static readonly TowerCacheDefinition[] all = {
             new TowerCacheDefinition("olympus-amphora", "붉은 그림 암포라", TowerThemeId.Olympus, 1, "c0653a"),
@@ -72,7 +72,7 @@ namespace PrototypeLab.Roguelike
 
         public static IReadOnlyList<TowerCacheDefinition> ForTheme(TowerThemeId theme)
         { var list = new List<TowerCacheDefinition>(); foreach (var d in all) if (d.Theme == theme) list.Add(d); return list.AsReadOnly(); }
-        /// <summary>Every floor of a free climb or chapter holds caches; the oath trial keeps its fixed challenge.</summary>
+        /// <summary>Battle floors of a free climb or chapter hold caches; the oath trial keeps its fixed challenge.</summary>
         public static bool HasCaches(TowerRun run) { return run != null && !run.IsOathTrial; }
         public static int GoldOf(LootKind kind) { return kind == LootKind.Coin ? CoinGold : kind == LootKind.GoldCoin ? GoldCoinGold : 0; }
         public static float HeartHeal(float maxHealth) { return Math.Max(1, maxHealth * HeartHealFraction); }
@@ -91,7 +91,7 @@ namespace PrototypeLab.Roguelike
         }
 
         /// <summary>
-        /// Two to four caches on a battle floor, two on a rest or shop floor, each on a nearly level stretch of ground
+        /// Two to four caches on a battle floor and none on a rest or shop floor, each on a nearly level stretch of ground
         /// or a platform with room above it, kept apart from the others and from the floor's traps. Every cache gets its
         /// own stretch of the floor between the entry and the exit (the doors on a branch floor), so a long floor spreads
         /// them out. <paramref name="keepClear"/> adds positions to avoid like traps.
@@ -101,10 +101,9 @@ namespace PrototypeLab.Roguelike
         {
             var spots = new List<TowerCacheSpot>();
             var kinds = ForTheme(theme);
-            if (layout == null || kinds.Count == 0) return spots;
+            if (layout == null || kinds.Count == 0 || type == FloorType.Rest || type == FloorType.Shop) return spots;
             var random = new Random(unchecked(seed * 486187739 ^ floor * 92821 ^ (int)theme * 7919));
-            bool peaceful = type == FloorType.Rest || type == FloorType.Shop;
-            int count = peaceful ? PeacefulCaches : MinCaches + random.Next(MaxCaches - MinCaches + 1);
+            int count = MinCaches + random.Next(MaxCaches - MinCaches + 1);
             float right = layout.ExitX - (branch ? BranchClear : ExitClear), stretch = (right - EntryClearX) / count;
             for (int k = 0; k < count; k++)
                 for (int attempt = 0; attempt < 48; attempt++)
@@ -122,7 +121,7 @@ namespace PrototypeLab.Roguelike
                     float min = Math.Max(lo, support < 0 ? lo : surface.Left + EdgeMargin), max = Math.Min(hi, support < 0 ? hi : surface.Right - EdgeMargin);
                     if (max <= min) continue;
                     float x = min + (float)random.NextDouble() * (max - min);
-                    if (peaceful && Math.Abs(x - TowerTerrainGenerator.FeatureX) < FeatureClear || Trapped(layout, x, keepClear)) continue;
+                    if (Trapped(layout, x, keepClear)) continue;
                     if (Math.Abs(surface.HeightAt(x - .45f) - surface.HeightAt(x + .45f)) > MaxTilt) continue;
                     float y = surface.HeightAt(x);
                     if (Blocked(layout, support, x, y)) continue;

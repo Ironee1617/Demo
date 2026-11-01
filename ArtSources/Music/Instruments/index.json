@@ -1,0 +1,200 @@
+[
+ {
+  "name": "oboe",
+  "label": "오보에 (녹음 샘플)",
+  "family": "선율",
+  "lead_in": "베다·올림포스"
+ },
+ {
+  "name": "clarinet",
+  "label": "클라리넷 (녹음 샘플)",
+  "family": "선율",
+  "lead_in": "에덴"
+ },
+ {
+  "name": "flute",
+  "label": "플루트 (녹음 샘플)",
+  "family": "선율",
+  "lead_in": "-"
+ },
+ {
+  "name": "bansuri",
+  "label": "반수리 (플루트 녹음 + 글라이드·숨소리)",
+  "family": "선율",
+  "lead_in": "베다"
+ },
+ {
+  "name": "dizi",
+  "label": "디쯔 (플루트 녹음 + 막 버징)",
+  "family": "선율",
+  "lead_in": "중국신화"
+ },
+ {
+  "name": "daegeum",
+  "label": "대금 (저음 플루트 녹음 + 넓은 농현·숨소리)",
+  "family": "선율",
+  "lead_in": "단군신화"
+ },
+ {
+  "name": "erhu",
+  "label": "얼후 대역 (바이올린 녹음 + 글라이드·공명)",
+  "family": "선율",
+  "lead_in": "단군신화·중국신화"
+ },
+ {
+  "name": "fiddle",
+  "label": "피들 (독주 바이올린 녹음)",
+  "family": "선율",
+  "lead_in": "아스가르드"
+ },
+ {
+  "name": "cello",
+  "label": "첼로 (첼로 섹션 녹음)",
+  "family": "선율·저음",
+  "lead_in": "지옥"
+ },
+ {
+  "name": "reed",
+  "label": "갈대 피리 (네이풍 신스 리드)",
+  "family": "선율",
+  "lead_in": "파피루스"
+ },
+ {
+  "name": "harp",
+  "label": "하프 (녹음 샘플)",
+  "family": "반주",
+  "lead_in": "올림포스"
+ },
+ {
+  "name": "piano",
+  "label": "업라이트 피아노 (녹음 샘플)",
+  "family": "선율·반주",
+  "lead_in": "마을·심연·에덴"
+ },
+ {
+  "name": "ep",
+  "label": "일렉트릭 피아노 (FM)",
+  "family": "선율·반주",
+  "lead_in": "마을"
+ },
+ {
+  "name": "glass",
+  "label": "글라스 하모니카",
+  "family": "선율",
+  "lead_in": "심연"
+ },
+ {
+  "name": "polysynth",
+  "label": "폴리신스",
+  "family": "선율",
+  "lead_in": "-"
+ },
+ {
+  "name": "strings",
+  "label": "현 앙상블 (바이올린·첼로 섹션 녹음)",
+  "family": "패드·선율",
+  "lead_in": "단군신화·마을·베다·아스가르드·에덴·올림포스·중국신화·지옥·파피루스"
+ },
+ {
+  "name": "choir",
+  "label": "콰이어 (아-)",
+  "family": "패드",
+  "lead_in": "-"
+ },
+ {
+  "name": "crystal",
+  "label": "글로켄슈필 (녹음 샘플)",
+  "family": "장식",
+  "lead_in": "심연"
+ },
+ {
+  "name": "brass",
+  "label": "브라스 섹션 (VSCO 2 CE 녹음 + 신스 레이어)",
+  "family": "선율·화음",
+  "lead_in": "아스가르드·올림포스·지옥·파피루스"
+ },
+ {
+  "name": "tanpura",
+  "label": "탄푸라 드론",
+  "family": "드론",
+  "lead_in": "-"
+ },
+ {
+  "name": "dark_drone",
+  "label": "어두운 드론",
+  "family": "드론",
+  "lead_in": "-"
+ },
+ {
+  "name": "sub_drone",
+  "label": "서브 드론",
+  "family": "드론",
+  "lead_in": "-"
+ },
+ {
+  "name": "guitar",
+  "label": "디스토션 기타 파워코드 (녹음 샘플)",
+  "family": "반주",
+  "lead_in": "-"
+ },
+ {
+  "name": "clean_guitar",
+  "label": "클린 기타 아르페지오 (녹음 샘플)",
+  "family": "반주",
+  "lead_in": "-"
+ },
+ {
+  "name": "bass",
+  "label": "일렉 베이스 (녹음 샘플)",
+  "family": "저음",
+  "lead_in": "-"
+ },
+ {
+  "name": "drum_kit",
+  "label": "드럼 키트 (녹음 샘플)",
+  "family": "타악",
+  "lead_in": "-"
+ },
+ {
+  "name": "frame_drums",
+  "label": "프레임 드럼 둠·텍 (콩가 녹음)",
+  "family": "타악",
+  "lead_in": "-"
+ },
+ {
+  "name": "taiko",
+  "label": "큰북 (오케스트라 큰북 녹음)",
+  "family": "타악",
+  "lead_in": "-"
+ },
+ {
+  "name": "tabla",
+  "label": "타블라 (합성)",
+  "family": "타악",
+  "lead_in": "-"
+ },
+ {
+  "name": "timpani",
+  "label": "팀파니 (녹음 샘플)",
+  "family": "타악",
+  "lead_in": "-"
+ },
+ {
+  "name": "gong_wood",
+  "label": "징·클라베 (녹음 샘플)",
+  "family": "타악",
+  "lead_in": "-"
+ },
+ {
+  "name": "bell_low",
+  "label": "튜블러 벨 (녹음 샘플)",
+  "family": "타악",
+  "lead_in": "-"
+ },
+ {
+  "name": "wind",
+  "label": "바람",
+  "family": "효과",
+  "lead_in": "-"
+ }
+]

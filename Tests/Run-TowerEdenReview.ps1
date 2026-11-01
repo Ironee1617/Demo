@@ -21,7 +21,7 @@ $process.Refresh()
 $reportPath = Join-Path $ReportDirectory 'eden-report.json'
 if (!(Test-Path -LiteralPath $reportPath) -or (Get-Item -LiteralPath $reportPath).LastWriteTime -lt $startedAt) { throw "Eden review did not write a fresh report. See $log" }
 $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
-if ($process.ExitCode -ne 0 -or !$report.success -or $report.characters -ne 5 -or $report.distinctPoses -ne 80 -or $report.animationFrames -ne 144) {
+if ($process.ExitCode -ne 0 -or !$report.success -or $report.characters -ne 50 -or $report.distinctPoses -ne 550 -or $report.animationFrames -ne 144) {
     $report.errors | Write-Host
     throw "Eden review failed. See $reportPath"
 }

@@ -6,7 +6,9 @@ using UnityEngine;
 
 namespace PrototypeLab.Roguelike
 {
-    // Opt-in review of the actual sprite path and gameplay animation entry points.
+    // Opt-in review (-towerEdenReview) of the pixel god path: every companion, from the Eden angels on,
+    // is drawn by TowerGodPixelArt in the style of chuchuking's Zeus. Checks floor contact, body frames,
+    // weapon timing against damage release, pause, facing, fixed scale and portraits, then records a strip.
     public sealed class TowerEdenReview : MonoBehaviour
     {
         [Serializable] sealed class Report
@@ -15,6 +17,8 @@ namespace PrototypeLab.Roguelike
             public int characters, distinctPoses, animationFrames;
             public List<string> checks = new List<string>(), screenshots = new List<string>(), errors = new List<string>();
         }
+        public const int Characters = 50;
+        static readonly int[] Preview = { 105, 100, 108, 109, 111, 115, 125, 148 };
         readonly Report report = new Report();
         readonly List<TowerActorArt> actors = new List<TowerActorArt>();
         Camera cameraView;
@@ -38,69 +42,80 @@ namespace PrototypeLab.Roguelike
         { if (type == LogType.Error || type == LogType.Exception) report.errors.Add(message + "\n" + trace); }
         static void Require(bool value, string message)
         { if (!value) throw new InvalidOperationException(message); }
+
+        static float Px(float units, Transform owner) { return units * TowerGodPixelArt.PixelsPerUnit / Mathf.Abs(owner.lossyScale.y); }
+
         void ValidateActor(int index)
         {
-            var owner = new GameObject("Eden animation probe");
+            var owner = new GameObject("Pixel god animation probe");
             owner.transform.position = new Vector3(1000, 0, 0);
             owner.transform.localScale = Vector3.one * .82f;
             try
             {
                 var art = TowerActorArt.Create(owner.transform, index);
-                var eden = art.GetComponent<TowerEdenArt>();
-                Require(eden != null && art.GetComponent<TowerMythRig>() == null, "Eden did not select the pixel renderer.");
-                var visited = new HashSet<int> { eden.CurrentFrame };
+                var god = art.GetComponent<TowerGodPixelArt>();
+                Require(god != null, index + ": the companion did not select the pixel god renderer.");
+                var front = god.WeaponPivot.parent;
+                var visited = new HashSet<int> { god.CurrentFrame };
                 Action<bool, bool, float, float, float, int> step = (moving, grounded, vertical, speed, dt, facing) =>
                 {
                     art.SetLocomotion(grounded, vertical, false, speed);
                     art.SetPose(moving, false, false, facing, dt);
-                    visited.Add(eden.CurrentFrame);
-                    Require(Mathf.Abs(eden.Renderer.bounds.min.y - owner.transform.position.y) < .003f,
-                        index + ": the measured pixel baseline left the actor root.");
+                    visited.Add(god.CurrentFrame);
+                    Require(Mathf.Abs(god.Body.transform.position.y - owner.transform.position.y) < .003f,
+                        index + ": the boots left the actor root.");
                 };
-                step(false, true, 0, 0, .5f, 1);
+                for (int i = 0; i < 30; i++) step(false, true, 0, 0, 1f / 15, 1);
                 for (int i = 0; i < 60; i++) step(true, true, 0, 5, 1f / 60, 1);
                 step(false, false, 5, 0, Dt, 1);
-                Require(eden.CurrentFrame == 6, "Rising jump pose missing.");
+                Require(god.CurrentFrame == TowerGodPixelArt.Jump, index + ": rising jump frame missing.");
                 step(false, false, -3, 0, Dt, 1);
-                Require(eden.CurrentFrame == 7, "Falling jump pose missing.");
-                step(false, true, 0, 0, Dt, 1);
-                Require(eden.CurrentFrame == 8, "Landing pose missing.");
-                step(false, true, 0, 0, .2f, 1);
+                Require(god.CurrentFrame == TowerGodPixelArt.Fall, index + ": falling frame missing.");
+                step(false, true, 0, 0, .3f, 1);
+
+                // Attacks: the weapon (or the bow string fist) must move sharply across the damage release.
                 art.PlayAttack(1);
-                step(false, true, 0, 0, art.AttackHitTime(1) - .01f, 1);
-                Require(eden.CurrentFrame == 9, "Attack released before damage contact.");
-                step(false, true, 0, 0, .02f, 1);
-                Require(eden.CurrentFrame == 10, "Attack did not release with damage contact.");
-                step(false, true, 0, 0, .21f, 1);
-                Require(eden.CurrentFrame == 11, "Attack follow-through missing.");
-                step(true, true, 0, 5, .4f, 1);
-                Require(eden.CurrentFrame >= 2 && eden.CurrentFrame <= 5, "Attack did not recover into running.");
+                step(false, true, 0, 0, art.AttackReleaseTime(1) - .01f, 1);
+                float before = god.WeaponPivot.eulerAngles.z; Vector3 frontBefore = front.position;
+                var backFist = god.transform.Find("Pixel god facing/Pixel god pose/Back fist");
+                Vector3 backBefore = backFist != null ? backFist.position : Vector3.zero;
+                step(false, true, 0, 0, .1f, 1);
+                float turned = Mathf.Abs(Mathf.DeltaAngle(before, god.WeaponPivot.eulerAngles.z));
+                float moved = Px(Vector3.Distance(frontBefore, front.position), owner.transform);
+                float drawn = backFist != null ? Px(Vector3.Distance(backBefore, backFist.position), owner.transform) : 0;
+                Require(turned > 25 || moved > 3 || drawn > 3, index + ": the " + god.Kind + " strike does not land on the damage release (" + turned + " deg, " + moved + " px).");
+                step(true, true, 0, 5, 1, 1);
+                Require(god.CurrentFrame >= TowerGodPixelArt.Run && god.CurrentFrame < TowerGodPixelArt.Run + 4, index + ": attack did not recover into running.");
+
+                // Casting lifts the focus overhead before the release.
+                step(false, true, 0, 0, .3f, 1);
+                float rest = front.localPosition.y * TowerGodPixelArt.PixelsPerUnit;
                 art.PlayCast(SkillEffect.HealPulse, 1);
                 step(false, true, 0, 0, art.CastReleaseTime(SkillEffect.HealPulse, 1) - .01f, 1);
-                Require(eden.CurrentFrame == 12, "Support cast released early.");
-                step(false, true, 0, 0, .02f, 1);
-                Require(eden.CurrentFrame == 13, "Support cast release is out of sync.");
-                step(false, true, 0, 0, .5f, 1);
-                art.PlayAttack(1); step(false, true, 0, 0, .2f, 1);
-                art.InterruptAction(); step(true, true, 0, 5, Dt, 1);
-                Require(eden.CurrentFrame >= 2 && eden.CurrentFrame <= 5, "Interrupted attack did not recover.");
-                var sprite = eden.Renderer.sprite;
+                Require(front.localPosition.y * TowerGodPixelArt.PixelsPerUnit - rest > 6, index + ": casting did not raise the focus.");
+                step(false, true, 0, 0, 1, 1);
+
+                // A zero-time update (pause) keeps the pose; facing only mirrors.
+                var sprite = god.Body.sprite; var hand = front.localPosition;
                 step(true, true, 0, 5, 0, -1);
-                Require(sprite == eden.Renderer.sprite && eden.Renderer.flipX, "Pause/facing changed the current pose.");
-                art.SetPose(false, false, true, 1, Dt); visited.Add(eden.CurrentFrame);
-                Require(eden.CurrentFrame == 14, "Hurt pose missing.");
-                art.PlayDeath(); step(false, true, 0, 0, Dt, 1);
-                Require(eden.CurrentFrame == 15, "Defeat pose missing.");
-                Require(visited.Count == TowerEdenArt.FrameCount, "Not all sixteen authored poses were reached: " + index + "/" + visited.Count);
-                var frames = TowerEdenArt.Frames(index);
+                Require(sprite == god.Body.sprite && hand == front.localPosition && god.transform.Find("Pixel god facing").localScale.x < 0,
+                    index + ": pause or facing changed the current pose.");
+                art.SetPose(false, false, true, 1, Dt); visited.Add(god.CurrentFrame);
+                Require(god.CurrentFrame == TowerGodPixelArt.Hurt, index + ": hurt frame missing.");
+                art.PlayDeath(); for (int i = 0; i < 12; i++) art.SetPose(false, false, false, 1, Dt);
+                Require(Mathf.Abs(Mathf.DeltaAngle(0, god.transform.Find("Pixel god facing/Pixel god pose").localEulerAngles.z)) > 60,
+                    index + ": defeat did not topple the body.");
+                Require(visited.Count == TowerGodPixelArt.BodyFrames, "Not every body frame was reached: " + index + "/" + visited.Count);
+
+                var frames = TowerGodPixelArt.Frames(index);
                 for (int i = 0; i < frames.Length; i++)
                 {
-                    Require(frames[i].texture.filterMode == FilterMode.Point, "Pixel sheet is blurred.");
-                    Require(Mathf.Approximately(frames[0].pixelsPerUnit, frames[i].pixelsPerUnit), "An action resized the character.");
+                    Require(frames[i].texture.filterMode == FilterMode.Point, "Pixel sheet is blurred: " + index);
+                    Require(Mathf.Approximately(frames[0].pixelsPerUnit, frames[i].pixelsPerUnit), "An action resized the character: " + index);
                 }
-                Require(TowerMythArt.PortraitSprite(index) == frames[0], "Selection portrait uses stale artwork.");
+                Require(TowerMythArt.PortraitSprite(index) == TowerGodPixelArt.CardSprite(index), "Selection portrait uses stale artwork: " + index);
                 report.characters++; report.distinctPoses += visited.Count;
-                report.checks.Add(art.ProfileName + ": 16 poses, floor, jump/landing, damage/cast timing, recovery, pause, facing, fixed scale, portrait.");
+                report.checks.Add(art.ProfileName + " (" + god.Kind + "): 11 frames, floor, jump/fall, strike on release, cast lift, pause, facing, defeat, portrait.");
             }
             finally { Destroy(owner); }
         }
@@ -109,11 +124,7 @@ namespace PrototypeLab.Roguelike
             Exception failure = null;
             try
             {
-                for (int index = 100; index <= 104; index++) ValidateActor(index);
-                var other = new GameObject("Other mythology preservation");
-                var art = TowerActorArt.Create(other.transform, 105);
-                Require(art.GetComponent<TowerMythRig>() != null && art.GetComponent<TowerEdenArt>() == null, "Non-Eden artwork changed path.");
-                Destroy(other);
+                for (int index = TowerMythArt.FirstArtIndex; index < TowerMythArt.FirstArtIndex + TowerMythArt.CharacterCount; index++) ValidateActor(index);
                 Setup();
             }
             catch (Exception ex) { failure = ex; }
@@ -148,7 +159,7 @@ namespace PrototypeLab.Roguelike
         }
         void Setup()
         {
-            cameraView = new GameObject("Eden pixel review camera").AddComponent<Camera>();
+            cameraView = new GameObject("Pixel god review camera").AddComponent<Camera>();
             cameraView.enabled = false; cameraView.orthographic = true; cameraView.orthographicSize = 1.85f;
             cameraView.aspect = 1280f / 360; cameraView.cullingMask = 1 << 30;
             cameraView.clearFlags = CameraClearFlags.SolidColor; cameraView.backgroundColor = new Color(.035f, .055f, .09f);
@@ -157,11 +168,12 @@ namespace PrototypeLab.Roguelike
             target = new RenderTexture(1280, 360, 0, RenderTextureFormat.ARGB32) { antiAliasing = 1, filterMode = FilterMode.Point };
             target.Create(); cameraView.targetTexture = target;
             pixels = new Texture2D(1280, 360, TextureFormat.RGBA32, false);
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < Preview.Length; i++)
             {
-                var owner = new GameObject("Eden preview " + i);
-                owner.transform.position = new Vector3((i - 2) * 2.5f, 0, 0);
-                var art = TowerActorArt.Create(owner.transform, 100 + i); actors.Add(art);
+                var owner = new GameObject("Pixel god preview " + Preview[i]);
+                owner.transform.position = new Vector3((i - (Preview.Length - 1) * .5f) * 1.6f, 0, 0);
+                owner.transform.localScale = Vector3.one * .82f;
+                var art = TowerActorArt.Create(owner.transform, Preview[i]); actors.Add(art);
                 foreach (Transform child in owner.GetComponentsInChildren<Transform>()) child.gameObject.layer = 30;
             }
             var floor = new GameObject("Visible ground baseline"); floor.layer = 30;
@@ -182,7 +194,8 @@ namespace PrototypeLab.Roguelike
         {
             if (finished) return; finished = true;
             if (failure != null) report.errors.Add(failure.ToString());
-            report.success = report.errors.Count == 0 && report.characters == 5 && report.distinctPoses == 80 && report.animationFrames == 144;
+            report.success = report.errors.Count == 0 && report.characters == Characters
+                && report.distinctPoses == Characters * TowerGodPixelArt.BodyFrames && report.animationFrames == 144;
             File.WriteAllText(Path.Combine(output, "eden-report.json"), JsonUtility.ToJson(report, true));
             Application.Quit(report.success ? 0 : 1);
         }

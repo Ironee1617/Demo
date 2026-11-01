@@ -1,56 +1,49 @@
-"""Build the local listening page and provenance manifest from rendered tracks."""
+"""Build the local listening page and provenance manifest from the rendered mythology pieces."""
 import html
 import hashlib
 import json
 from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).parent))
+from myth_pieces import PIECES  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "ArtSources/Music"
+PRODUCTION = "myth-v8"
 sample_libraries = [
     json.loads((SOURCE / "Samples" / instrument / "manifest.json").read_text(encoding="utf-8"))
-    for instrument in ("Guitar", "Bass", "Drums")
-]
-tracks = json.loads((Path(__file__).parent / "score.json").read_text(encoding="utf-8"))["tracks"]
-names = ["용암지대", "암석지대", "정글지대", "빙결지대", "수상지대", "구름지대", "폐허지대"]
-colors = ["#ff855b", "#b4a7ee", "#9cdb79", "#91daff", "#60d8ce", "#efc977", "#d7a27a"]
-descriptions = [
-    "긴장감 있는 E단조 기타 리프와 위로 치솟는 리드 기타. 묵직한 베이스와 드럼이 용암 성채의 속도감을 받친다.",
-    "하프타임 드럼과 낮은 기타 리프가 암석의 무게를 표현한다. 맑게 뜯는 기타가 짧은 여백을 채운다.",
-    "도리안 선율과 엇박 베이스 위로 기타가 달린다. 리듬 기타와 드럼의 주고받음으로 정글의 움직임을 만든다.",
-    "맑은 클린 기타 도입에서 넓게 펼쳐지는 리드 기타로 이어진다. 차가운 선율에 베이스와 드럼의 온기를 더한다.",
-    "7화음과 엇박 기타가 물결처럼 흐르는 밴드 편곡. 움직이는 베이스 위에서 리드 기타가 선율을 이어간다.",
-    "밝은 장조 선율과 빠른 드럼, 열린 기타 코드로 하늘을 가르는 속도감을 만든다.",
-    "반음의 긴장과 낮은 기타 리프, 깊은 탐 드럼이 폐허의 무게를 만든다. 리드 기타가 어두운 공간을 가로지른다.",
+    for instrument in ("Guitar", "Bass", "Drums", "Brass", "Orchestra")
 ]
 reports = []
 cards = []
 rows = []
-for index, (track, name, color) in enumerate(zip(tracks, names, colors), 1):
-    ident = track["id"]
+for index, piece in enumerate(PIECES, 1):
+    ident = piece["id"]
     report = json.loads((SOURCE / (ident + ".analysis.json")).read_text(encoding="utf-8"))
-    if report.get("production") != "recorded-band-v2":
-        raise ValueError(f"{ident} is not a recorded-band-v2 render. Run render_band.py before packaging.")
+    if report.get("production") != PRODUCTION:
+        raise ValueError(f"{ident} is not a {PRODUCTION} render. Run render_myth.py before packaging.")
     reports.append(report)
     duration = round(report["ogg"]["seconds"])
     label = f"{duration // 60}:{duration % 60:02}"
-    description = html.escape(descriptions[index - 1])
+    meter = {3: "3/4", 4: "4/4", 6: "6/8"}[piece["beats"]]
     audio_url = f"Masters/{ident}.wav?v={hashlib.sha256((SOURCE / 'Masters' / (ident + '.wav')).read_bytes()).hexdigest()[:12]}"
     cards.append(f"""
-    <article style="--accent:{color}">
-      <div class="top"><span class="number">{index:02}</span><span>{name}</span><span class="duration">{label}</span></div>
-      <h2>{html.escape(track['title_ko'])}</h2>
-      <p class="subtitle">{html.escape(track['title'])} <span>· {track['bpm']} BPM</span></p>
-      <p class="description">{description}</p>
-      <audio controls preload="none" aria-label="{name} BGM">
+    <article style="--accent:#{piece['color']}">
+      <div class="top"><span class="number">{index:02}</span><span>{html.escape(piece['theme_ko'])}</span><span class="duration">{label}</span></div>
+      <h2>{html.escape(piece['title_ko'])}</h2>
+      <p class="subtitle">{html.escape(piece['title'])} <span>· {piece['bpm']} BPM · {meter}</span></p>
+      <p class="description">{html.escape(piece['description'])}</p>
+      <audio controls preload="none" aria-label="{html.escape(piece['theme_ko'])} BGM">
         <source src="{audio_url}" type="audio/wav">
       </audio>
       <div class="links"><a href="{audio_url}" download="{ident}.wav">WAV 음원 ↓</a></div>
     </article>""")
-    rows.append(f"| {name} | {track['title_ko']} / {track['title']} | {label} | {track['bpm']} | [WAV](Masters/{ident}.wav) |")
+    rows.append(f"| {piece['theme_ko']} | {piece['title_ko']} / {piece['title']} | {label} | {piece['bpm']} · {meter} | [WAV](Masters/{ident}.wav) |")
 
 page = """<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Towerbound · 테마 BGM</title>
+<title>Towerbound · 신화 테마 BGM</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#10131d;color:#eef1fa;font-family:system-ui,"Malgun Gothic",sans-serif}
 main{max-width:1120px;margin:auto;padding:60px 28px 40px}header{margin-bottom:34px}
@@ -69,15 +62,15 @@ audio{display:block;width:100%;height:40px;border-radius:9px;color-scheme:dark}
 footer{margin-top:30px;color:#77849e;font-size:12px;line-height:1.9}
 @media(max-width:700px){main{padding:30px 18px}.grid{grid-template-columns:1fr}.description{min-height:0}}
 </style></head><body><main><header>
-<div class="eyebrow">TOWERBOUND / BAND ARRANGEMENT</div>
-<h1>일곱 세계, 일곱 개의 리듬.</h1>
-<p class="intro">록맨 X4·5·6에서 떠올린 멜로딕 액션 록의 분위기를 바탕으로 만든 오리지널 연주곡입니다.
-실제 악기를 녹음한 기타·베이스·드럼 샘플을 편곡하고 앰프·공간 효과로 렌더링한 밴드 사운드입니다.
-원작의 멜로디나 음원 샘플은 사용하지 않았습니다.</p>
-<span class="badge">7 TRACKS</span><span class="badge">1:38–1:53 / TRACK</span><span class="badge">STEREO · LOOP READY</span>
+<div class="eyebrow">TOWERBOUND / MYTHOLOGY SUITE</div>
+<h1>열 개의 신화, 열 개의 노래.</h1>
+<p class="intro">올림포스, 아스가르드, 단군, 에덴, 베다, 파피루스, 중국 신화와 지옥·심연·마을을 위해 새로 작곡한 오리지널 연주곡입니다.
+신화마다 선법과 박자, 악기를 달리해 그 세계의 분위기를 담았고, 녹음된 기타·베이스·드럼·브라스 샘플과 플루트·찰현·가야금·하프·피아노·드론·타악 등 합성 음색으로 렌더링했습니다.
+기존 작품의 멜로디나 음원 샘플은 사용하지 않았습니다.</p>
+<span class="badge">10 TRACKS</span><span class="badge">1:30–1:36 / TRACK</span><span class="badge">STEREO · LOOP READY</span>
 </header><section class="grid">""" + "\n".join(cards) + """</section>
 <footer>같은 테마에서는 음악이 이어지고, 테마가 바뀌면 1.25초에 걸쳐 전환됩니다.<br>
-44.1kHz 스테레오 WAV · 녹음된 악기 샘플 기반 밴드 편곡<br>
+44.1kHz 스테레오 WAV · 녹음 샘플(기타·베이스·드럼·브라스)과 합성 음색의 혼합 편곡<br>
 샘플 출처와 라이선스는 <a href="README.md">제작 안내</a>에서 확인할 수 있습니다.</footer>
 </main><script>
 document.querySelectorAll('audio').forEach(player=>player.addEventListener('play',()=>{
@@ -86,60 +79,59 @@ document.querySelectorAll('audio').forEach(player=>player.addEventListener('play
 </script></body></html>"""
 (SOURCE / "listen.html").write_text(page, encoding="utf-8")
 manifest = {
-    "created_date_kst": "2026-10-20", "collection": "Towerbound Original Stage Music",
-    "method": "Original authored notes arranged using recorded guitar, bass and drum samples, rendered offline with amp and spatial processing. Not a live band performance.",
-    "external_samples": sample_libraries, "reference": "Broad melodic action-rock stage atmosphere of Mega Man X4/X5/X6; no soundtrack copying.",
-    "source_score": "Tools/TowerMusic/score.json", "renderer": "Tools/TowerMusic/render_band.py",
+    "created_date_kst": "2026-10-27", "collection": "Towerbound Mythology Suite",
+    "method": "Ten original pieces, one per mythology, authored as mode, form, chords, melodies and section layers (Tools/TowerMusic/myth_pieces.py) and rendered offline by Tools/TowerMusic/render_myth.py with recorded CC0 guitar, bass, drum and brass samples plus synthesized winds, bowed strings, zithers, harp, keyboards, drones and percussion. Not a live performance.",
+    "external_samples": sample_libraries,
+    "reference": "Mood references only (Undertale 'Once Upon a Time', Mega Man X6 'Moonlight'); no audio, samples or melodies from any existing work are used.",
+    "source_score": "Tools/TowerMusic/myth_pieces.py", "renderer": "Tools/TowerMusic/render_myth.py",
     "audio_format": "44.1 kHz stereo; PCM16 WAV masters and Vorbis OGG runtime assets.",
     "qa_scope": "Automated decoded-audio measurements and separate Unity playback smoke. No claim of human auditory review.",
     "tracks": reports,
 }
 (SOURCE / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-readme = """# Towerbound 테마 BGM
+readme = """# Towerbound 신화 테마 BGM
 
-7개 테마용 오리지널 밴드 편곡입니다. 록맨 X4·5·6의 멜로딕 액션 록 분위기를 참고했으며, 원작 음원·샘플·멜로디는 사용하지 않았습니다. 녹음된 기타·베이스·드럼 샘플을 편곡하고 앰프·공간 효과로 렌더링했습니다. 밴드의 실시간 합주 녹음은 아닙니다.
+열 개의 테마(올림포스·아스가르드·단군신화·에덴·베다·파피루스·중국신화·지옥·심연·마을)를 위해 새로 작곡한 오리지널 연주곡입니다. 신화마다 선법·박자·악기를 달리했고, 기존 작품의 멜로디나 음원 샘플은 사용하지 않았습니다. 기타·베이스·드럼 키트·브라스와 피아노·플루트·오보에·클라리넷·바이올린·첼로·현 앙상블·하프·팀파니·글로켄슈필·튜블러 벨·큰북·클라베·콩가·징은 녹음된 CC0 샘플이고, 콰이어·일렉 피아노·갈대 피리·글라스 하모니카·드론·타블라·바람 등은 합성 음색입니다. 실시간 연주 녹음은 아닙니다.
 
 [전체 감상 페이지](listen.html)
 
-| 테마 | 곡명 | 길이 | BPM | 파일 |
-| --- | --- | ---: | ---: | --- |
+| 테마 | 곡명 | 길이 | 템포·박자 | 파일 |
+| --- | --- | ---: | --- | --- |
 """ + "\n".join(rows) + """
 
 ## 파일과 재생
 
-- `Masters/`: 44.1kHz / 16bit / stereo WAV 원본.
+- `Masters/`: 44.1kHz / 16bit / stereo WAV 원본. `Midi/`: 같은 곡의 MIDI 내보내기(섹션 마커 포함).
 - `Samples/`: 녹음된 악기 샘플과 각 라이브러리의 출처·라이선스.
-- 게임용 OGG: `Assets/Demos/Roguelike/Resources/Tower/Music/`.
-- 64마디: 도입 4 → A 16 → B 16 → 브레이크 8 → 솔로 8 → 재현 8 → 턴어라운드 4.
-- 딜레이·잔향을 곡 처음으로 이어서 루프 경계의 공백을 없앴습니다. 일반 감상용 엔딩 페이드가 없는 게임 루프입니다.
+- 게임용 OGG: `Assets/Demos/Roguelike/Resources/Tower/Music/<theme>.ogg`. `TowerMusic.Track`이 테마 id 소문자로 파일을 고릅니다.
+- 모든 곡은 1분 30초 안팎의 게임 루프이며, 잔향을 곡 처음으로 이어 반복 시 공백이 없습니다.
 - `TowerMusic`이 테마에 따라 자동 재생합니다. 같은 테마의 층에서는 위치를 유지하고, 테마가 바뀌면 1.25초 크로스페이드합니다.
 - 음악 기본 볼륨은 `TowerMusic.DefaultVolume = 0.18`; 효과음 소스와 분리되어 있습니다.
-- OGG는 스테레오 스트리밍 / Vorbis 0.85 / 백그라운드 로드 / 샘플레이트 유지로 가져옵니다.
 
 ## 재현
 
-Python에 `Tools/TowerMusic/requirements.txt`를 설치하고 저장소 루트에서 다음을 실행합니다.
+Python 3.12에 `Tools/TowerMusic/requirements.txt`를 설치하고 저장소 루트에서 다음을 실행합니다.
 
 ```text
-python Tools/TowerMusic/render_band.py
+python Tools/TowerMusic/render_myth.py
 python Tools/TowerMusic/package.py
 ```
 
-한 곡만 다시 만들려면 `--theme lava`처럼 지정합니다. 악보는 `Tools/TowerMusic/score.json`에 있으며, 밴드 음색과 믹스는 `render_band.py`, 공통 편곡 구조와 출력 도구는 `render.py`가 정의합니다. 악보의 arrangement_hint는 제작 방향을 기록한 것이므로 모든 문장이 최종 렌더링의 상세 사양을 뜻하지는 않습니다.
+한 곡만 다시 만들려면 `--piece olympus`처럼 지정합니다. 작곡 데이터(선법·형식·화성·선율·편성)는 `Tools/TowerMusic/myth_pieces.py`, 편곡 엔진과 믹스는 `render_myth.py`, 합성 음색은 `myth_voices.py`·`rompler.py`·`render_synth.py`, 기타 앰프·베이스·공간은 `render_guitar.py`, 브라스 샘플 섹션은 `brass.py`가 정의합니다. 이전 7곡 체계의 렌더러(`render_band.py`, `render_synth.py`, `render_guitar.py`, `render_rompler.py`, `score.json`)는 기록용으로 남아 있습니다.
 
 ## 악기 샘플 출처
-
-각 라이브러리의 이름·제작자·원본 주소·라이선스·사용 샘플을 아래에 기록했습니다. 종합 `manifest.json`에도 같은 정보를 포함합니다.
 
 - [기타 샘플 출처](Samples/Guitar/manifest.json)
 - [베이스 샘플 출처](Samples/Bass/manifest.json)
 - [드럼 샘플 출처](Samples/Drums/manifest.json)
+- [브라스 샘플 출처](Samples/Brass/manifest.json)
+- [오케스트라 샘플 출처](Samples/Orchestra/manifest.json) (피아노·목관·현·하프·타악, VSCO 2 CE)
 
 ## 검증
 
-각 `.analysis.json`과 `manifest.json`에 WAV/OGG 길이·피크·RMS·반복 경계·무음 여부·해시를 기록했습니다. 7곡 모두 요청한 90~120초, 스테레오, 유한 샘플, 디지털 클리핑 없음 조건을 통과했습니다. 이 수치 검사는 사람의 청음 평가를 대신하지 않습니다.
+각 `.analysis.json`과 `manifest.json`에 WAV/OGG 길이·피크·RMS·반복 경계·무음 여부·해시를 기록했습니다. 열 곡 모두 80~120초, 스테레오, 유한 샘플, 디지털 클리핑 없음 조건을 통과했습니다. 이 수치 검사는 사람의 청음 평가를 대신하지 않습니다.
 
-Unity 실행 검증은 `Tests/Run-TowerMusicSmoke.ps1`로 수행합니다. 실제 AudioSource 진행, 같은 테마의 층 이동, 테마 전환 크로스페이드, 루프 반복, 중지·재개, 정리, 효과음 독립성을 검사합니다. 검증용 층 전환은 전투 전체를 플레이한 결과가 아닙니다.
+Unity 실행 검증은 `Tests/Run-TowerMusicSmoke.ps1`로 수행합니다. 실제 AudioSource 진행, 같은 테마의 층 이동, 테마 전환 크로스페이드, 테마별 고유 트랙, 루프 반복, 중지·재개, 정리, 효과음 독립성을 검사합니다.
 """
 (SOURCE / "README.md").write_text(readme, encoding="utf-8")
-print("Packaged seven tracks:", SOURCE / "listen.html")
+print("Packaged", len(PIECES), "tracks:", SOURCE / "listen.html")

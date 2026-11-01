@@ -1,0 +1,34 @@
+{
+  "id": "chinese",
+  "title": "Vermilion Peaks",
+  "title_ko": "주작의 봉우리",
+  "bpm": 120,
+  "beats": 4,
+  "bars": 46,
+  "note_events": 1393,
+  "production": "myth-v8",
+  "master": {
+    "seconds": 92.0,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.514,
+    "rms_dbfs": -15.269,
+    "loop_seam_delta": 0.011684,
+    "minimum_half_second_rms": 0.020594,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg": {
+    "seconds": 92.0,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.063,
+    "rms_dbfs": -15.267,
+    "loop_seam_delta": 0.012242,
+    "minimum_half_second_rms": 0.020612,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg_bytes": 2300414,
+  "sha256": "f6d154cdfc69aa135642b8c325399c1d9459206470da054928071d978abeb92c"
+}

@@ -102,7 +102,7 @@ public sealed class OlympusScene : ThemePainter
 
     PaintedLayer SkyLayer()
     {
-        var spec = new LayerSpec("sky", .95f, 48, 30, -11, 21, -97);
+        var spec = new LayerSpec("sky", .95f, 128, 30, -11, 21, -97);
         var sc = new Scene(spec.Period); var n = sc.N; var sky = MakeSky(spec.Period); var cam = new Camera(2.5f);
         int alpine = Alpine(sc, 1.6f);
         var peaks = new[] { (24f, 8.2f, 3.4f), (20f, 5.4f, 2.4f), (28.6f, 4.2f, 2.4f), (4.6f, 4.4f, 3.2f), (11.8f, 2.6f, 2.4f), (15.4f, 1.8f, 2f) };
@@ -123,7 +123,7 @@ public sealed class OlympusScene : ThemePainter
 
     PaintedLayer Far()
     {
-        var spec = new LayerSpec("far", .85f, 64, 32, -11, 18, -96);
+        var spec = new LayerSpec("far", .85f, 128, 32, -11, 18, -96);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3);
         int lime = m.Rock("8c7c74", "dccab6", 1.4f, .9f, .5f, 61, "6d7a4e", .35f);
         int marble = m.Marble("f1e6d4", "a89a88", 1.2f, .5f, 62);
@@ -183,7 +183,7 @@ public sealed class OlympusScene : ThemePainter
 
     PaintedLayer Mid()
     {
-        var spec = new LayerSpec("mid", .65f, 96, 36, -9.5f, 21, -95);
+        var spec = new LayerSpec("mid", .65f, 192, 36, -9.5f, 21, -95);
         var sc = new Scene(spec.Period); var n = sc.N; var m = new Mats(sc); var sky = MakeSky(spec.Period); var cam = new Camera(3.5f);
         int marble = m.Marble("f3eadb", "9c907e", .9f, .5f, 81);
         int shade = m.Marble("d2c6b4", "8a7e70", .9f, .45f, 82);
@@ -270,7 +270,7 @@ public sealed class OlympusScene : ThemePainter
 
     PaintedLayer Near()
     {
-        var spec = new LayerSpec("near", .4f, 96, 40, -9.5f, 5.6f, -94);
+        var spec = new LayerSpec("near", .4f, 192, 40, -9.5f, 5.6f, -94);
         var sc = new Scene(spec.Period); var n = sc.N; var sky = MakeSky(spec.Period); var cam = new Camera(4);
         var sea = sc.AddVolume(new Vector3(0, -9.5f, 0), new Vector3(40, -3.9f, 12), Kit3D.CloudSea(n, -6.4f, 1.9f, 4f, 101, 3.4f));
         sea.Coarse = Kit3D.CloudSeaCoarse(n, -6.4f, 1.9f, 4f, 101, 3.4f); sea.Albedo = R.Rgb("fff0e4"); sea.Steps = 40;

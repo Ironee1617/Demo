@@ -1,5 +1,7 @@
 # Myth model and motion quality
 
+> 2026-10-28: the layered mesh model and rig described here were removed when the companions became chibi pixel gods (`TowerGodPixelArt`); see [신화 동료 치비 도트](Roguelike-God-Pixels.md). This page is kept as a record.
+
 This is the visual design and acceptance reference for the layered companion-model pass. It describes the intended result; runtime reports and captured frames establish which checks have passed. Preserve all fifty existing faces, costumes, palettes and identifying props. Original PNG files and their Unity metadata remain source assets.
 
 ## Model construction

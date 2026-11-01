@@ -1,5 +1,7 @@
 # Myth companion pixel art
 
+**Pixel god update (2026-10-28):** all 50 companions are now chibi pixel gods drawn with `TowerGodPixelArt` after chuchuking's Zeus; see [신화 동료 치비 도트](Roguelike-God-Pixels.md). The atlases, `RigData.json` and the mesh rig described below were removed from the project; this page is the historical record, and the generation sources remain in `ArtSources/Myths`.
+
 **Eden update:** indices 100–104 now use five separate pixel sheets with balanced youthful proportions and authored frame animation through `TowerEdenArt`. See [Eden artwork and animation](Roguelike-Eden-Cute.md). The source-atlas and joint-rig notes below remain applicable to the other 45 companions and document the preserved original Eden source. The mesh animation runner now checks 45 companions; use `Tests/Run-TowerEdenReview.ps1` for Eden's 80 pixel poses.
 
 ## Source and scope

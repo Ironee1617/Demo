@@ -19,7 +19,7 @@ namespace PrototypeLab.Roguelike
             public bool success, movementVerified, jumpVerified, dashVerified, playerAttackVerified;
             public bool realCombatFirstFloorCleared, rerollSingleUseVerified, rerollOtherSlotsPreserved;
             public bool openingRecruitCompanionOnly, mageRecruited, recruitFloorsCompanionOnly, augmentCardsWithoutRecruit, cardsOnEveryBattleFloor, sameMythSynergyActive;
-            public bool branchGuardVerified, branchDoorsVerified, eliteBranchVerified, restBranchVerified, shopBranchVerified, merchantNeedsApproach, shopTradesOnce;
+            public bool branchGuardVerified, branchDoorsVerified, eliteBranchVerified, eliteSpoilsVerified, eliteBountyVerified, restBranchVerified, shopBranchVerified, merchantNeedsApproach, shopTradesOnce;
             public bool fireballLockedBeforeSelection, playerSkillProjectile, companionSkillProjectile, companionSkillRepeatsAfterCooldown;
             public bool fiveHeroStatsAffectRuntime, dismissedSkillsAndEffectsCleared, rehiredCompanionStartsFresh, allSkillEffectsVerified, deathNoResurrection, completed;
             public bool playerAttackTimingVerified, companionCastReleaseTimingVerified;
@@ -68,7 +68,7 @@ namespace PrototypeLab.Roguelike
         private int shopVisits;
         private readonly HashSet<string> selectedGoals = new HashSet<string>();
         private bool probeActive, allowHealthRefill = true, skillsProbed, heroCaptured, dismissed, rehired, branchCaptured;
-        private int cardClears;
+        private int cardClears, eliteGold;
         private TowerGame.Fighter probeTarget;
 
         private static readonly BindingFlags HiddenStatic = BindingFlags.NonPublic | BindingFlags.Static;
@@ -383,7 +383,7 @@ namespace PrototypeLab.Roguelike
             report.fiveHeroStatsAffectRuntime = report.heroStatChanges.Count == 5;
             report.completed = game.run.IsComplete && game.run.Floor == game.run.MaxFloor && game.run.ClearedFloors == game.run.MaxFloor;
             Require(report.openingRecruitCompanionOnly && report.mageRecruited && report.recruitFloorsCompanionOnly && report.augmentCardsWithoutRecruit && report.cardsOnEveryBattleFloor &&
-                report.branchGuardVerified && report.branchDoorsVerified && report.eliteBranchVerified && report.restBranchVerified &&
+                report.branchGuardVerified && report.branchDoorsVerified && report.eliteBranchVerified && report.eliteSpoilsVerified && report.eliteBountyVerified && report.restBranchVerified &&
                 report.shopBranchVerified && report.merchantNeedsApproach && report.shopTradesOnce && report.sameMythSynergyActive &&
                 report.fireballLockedBeforeSelection && report.playerSkillProjectile && report.companionSkillProjectile && report.companionSkillRepeatsAfterCooldown &&
                 report.fiveHeroStatsAffectRuntime && report.dismissedSkillsAndEffectsCleared && report.rehiredCompanionStartsFresh && report.allSkillEffectsVerified && report.deathNoResurrection &&
@@ -559,15 +559,21 @@ namespace PrototypeLab.Roguelike
             return text.ToString();
         }
 
-        // Every battle floor deals cards: stats on ordinary floors, skills on fifth floors and both on elite floors.
+        // Every battle floor deals cards: stats on ordinary floors, skills on fifth floors and gold-or-better skills on elite floors.
         // The 30th and 60th offer companions instead while the party has room.
         private void VerifyCardRule()
         {
             int floor = game.run.Floor; var type = game.run.FloorType;
-            bool card = type == FloorType.Elite || type == FloorType.Normal, skills = type == FloorType.Normal && floor % TowerRun.RewardInterval == 0;
+            bool elite = type == FloorType.Elite, card = elite || type == FloorType.Normal, skills = type == FloorType.Normal && floor % TowerRun.RewardInterval == 0;
             bool recruit = skills && TowerRun.IsRecruitFloor(floor) && game.run.Companions.Count < TowerRun.MaxCompanions;
-            var draft = recruit || type == FloorType.Elite ? RewardDraft.Mixed : skills ? RewardDraft.Skills : RewardDraft.Stats;
-            Require(game.run.IsRewardPending == card && game.run.IsRecruitOffer == recruit && (!card || game.run.Draft == draft), "Floor " + floor + " (" + type + ") broke the card rule.");
+            var draft = recruit ? RewardDraft.Mixed : skills || elite && game.run.OpenSkills > 0 ? RewardDraft.Skills : RewardDraft.Stats;
+            Require(game.run.IsRewardPending == card && game.run.IsRecruitOffer == recruit && game.run.IsEliteReward == elite && (!card || game.run.Draft == draft), "Floor " + floor + " (" + type + ") broke the card rule.");
+            if (elite)
+            {
+                report.eliteSpoilsVerified = true;
+                foreach (var offer in game.run.Offers) report.eliteSpoilsVerified &= offer.Tier >= RewardTier.Gold;
+                Require(report.eliteSpoilsVerified, "Floor " + floor + " elite spoils dealt a silver card.");
+            }
             if (card) { cardClears++; report.cardFloors.Add(floor + (type == FloorType.Elite ? "E" : recruit ? "R" : skills ? "S" : "")); }
         }
 
@@ -607,14 +613,22 @@ namespace PrototypeLab.Roguelike
             StandAt(TowerWorld.GateX(next));
             Require(game.NearestGate() == next, "The hero did not reach the " + next + " exit on floor " + floor + ".");
             if (next == FloorType.Rest) allowHealthRefill = false;
+            bool leavingElite = game.run.FloorType == FloorType.Elite;
             game.NextFloor(next);
             Require(game.run.Floor == floor + 1 && game.run.FloorType == next && !game.run.IsFloorCleared, "Advancing did not open the chosen " + next + " floor.");
+            // The elite bounty's coins reach the wallet, banked on the way out if still in flight.
+            if (leavingElite)
+            {
+                report.eliteBountyVerified = game.progress.Gold == eliteGold + TowerRun.EliteBounty;
+                Require(report.eliteBountyVerified, "The floor " + floor + " elite bounty did not reach the wallet.");
+            }
             if (next == FloorType.Rest || next == FloorType.Shop) { yield return PeacefulFloor(next); yield break; }
             Require(game.enemies.Count > 0, "Advancing did not spawn a new encounter.");
             if (next == FloorType.Elite)
             {
                 report.eliteBranchVerified = game.enemies.TrueForAll(e => e.isElite);
                 Require(report.eliteBranchVerified, "The elite exit spawned ordinary enemies.");
+                eliteGold = game.progress.Gold;
             }
             yield return null;
         }
@@ -758,9 +772,12 @@ namespace PrototypeLab.Roguelike
             var tickShots = typeof(TowerGame).GetMethod("TickShots", flags);
             var tickAreas = typeof(TowerGame).GetMethod("TickSkillAreas", flags);
             var reset = typeof(TowerGame).GetMethod("ResetSkills", flags);
+            // Statuses (burns, curses, seeds) and follow-ups (second waves, landing bursts) tick beside areas and shots.
+            var tickStatuses = typeof(TowerGame).GetMethod("TickSkillStatuses", flags);
+            var tickMoves = typeof(TowerGame).GetMethod("TickSkillMoves", flags);
             var shots = (IList)typeof(TowerGame).GetField("shots", flags).GetValue(game);
             var covered = new HashSet<SkillEffect>();
-            Require(cast != null && tickShots != null && tickAreas != null && reset != null, "Skill fixture entry points are unavailable.");
+            Require(cast != null && tickShots != null && tickAreas != null && reset != null && tickStatuses != null && tickMoves != null, "Skill fixture entry points are unavailable.");
             foreach (var definition in TowerRun.Augments)
             {
                 if (definition.Kind != RewardKind.Skill || !covered.Add(definition.Effect)) continue;
@@ -768,16 +785,22 @@ namespace PrototypeLab.Roguelike
                 shots.Clear(); reset.Invoke(game, null);
                 game.hero.pos = new Vector2(0, TowerWorld.Ground); game.hero.root.transform.position = game.hero.pos;
                 probeTarget.pos = new Vector2(1, TowerWorld.Ground); probeTarget.root.transform.position = probeTarget.pos;
-                probeTarget.hp = probeTarget.maxHp = 1000000; probeTarget.slowTime = 0;
+                probeTarget.hp = probeTarget.maxHp = 1000000; probeTarget.slowTime = probeTarget.stunTime = 0;
+                probeTarget.burnTime = probeTarget.curseTime = probeTarget.seedTime = probeTarget.markTime = 0;
                 game.hero.hp = game.PlayerMaxHealth * .3f;
                 float beforeHp = probeTarget.hp, beforeHero = game.hero.hp, beforeShield = game.PlayerShield, beforeX = game.hero.pos.x;
                 var fixtureSkill = new SkillState(definition, game.run.Player);
                 cast.Invoke(game, new object[] { game.run.Player, fixtureSkill, game.hero, probeTarget });
-                for (int frame = 0; frame < 32; frame++) { tickAreas.Invoke(game, new object[] { .05f }); tickShots.Invoke(game, new object[] { .05f }); }
+                for (int frame = 0; frame < 32; frame++)
+                {
+                    tickAreas.Invoke(game, new object[] { .05f }); tickShots.Invoke(game, new object[] { .05f });
+                    tickStatuses.Invoke(game, new object[] { .05f }); tickMoves.Invoke(game, new object[] { .05f });
+                }
                 bool damaged = probeTarget.hp < beforeHp;
                 bool verified = definition.Effect == SkillEffect.HealPulse ? game.hero.hp > beforeHero : definition.Effect == SkillEffect.ShieldPulse ? game.PlayerShield > beforeShield : damaged;
                 if (definition.Effect == SkillEffect.IceNova || definition.Effect == SkillEffect.PoisonCloud) verified &= probeTarget.slowTime > 0;
-                if (definition.Effect == SkillEffect.LifeDrain) verified &= game.hero.hp > beforeHero;
+                if (definition.Effect == SkillEffect.LifeDrain || definition.Effect == SkillEffect.Bloom) verified &= game.hero.hp > beforeHero;
+                if (definition.Effect == SkillEffect.Hook || definition.Effect == SkillEffect.Quake) verified &= probeTarget.stunTime > 0 || probeTarget.hp <= 0;
                 if (definition.Effect == SkillEffect.DashStrike) verified &= Mathf.Abs(game.hero.pos.x - beforeX) > .01f;
                 Require(verified, "Skill effect produced no expected damage, status, healing or shield: " + definition.Effect);
                 report.effectResults.Add(definition.Effect + ": PASS");

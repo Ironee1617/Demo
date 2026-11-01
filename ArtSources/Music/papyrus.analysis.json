@@ -1,0 +1,34 @@
+{
+  "id": "papyrus",
+  "title": "Sands of Duat",
+  "title_ko": "두아트의 모래",
+  "bpm": 78,
+  "beats": 4,
+  "bars": 30,
+  "note_events": 687,
+  "production": "myth-v8",
+  "master": {
+    "seconds": 92.307687,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.514,
+    "rms_dbfs": -15.238,
+    "loop_seam_delta": 0.012262,
+    "minimum_half_second_rms": 0.036514,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg": {
+    "seconds": 92.307687,
+    "sample_rate": 44100,
+    "channels": 2,
+    "peak_dbfs": -1.137,
+    "rms_dbfs": -15.239,
+    "loop_seam_delta": 0.013284,
+    "minimum_half_second_rms": 0.036502,
+    "finite": true,
+    "clipped_samples": 0
+  },
+  "ogg_bytes": 2320216,
+  "sha256": "f8d829ca82d3ceb2d339ddc11a9ae5457a9f44083925077050c2ff930b8acecc"
+}

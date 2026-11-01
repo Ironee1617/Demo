@@ -159,11 +159,18 @@ namespace PrototypeLab.Roguelike
             }
             return best;
         }
+        // Followers plant their feet harder than they push off.
+        private const float AllyAcceleration=30,AllyBraking=45;
         private void MoveAlly(Fighter actor,float destination,float maxSpeed,float leaderSpeed,float dt)
         {
             float dx=destination-actor.pos.x;
             float desired=Mathf.Clamp(dx*6+leaderSpeed,-maxSpeed,maxSpeed);
-            actor.moveVelocity=Mathf.MoveTowards(actor.moveVelocity,desired,30*dt);
+            // Never close in faster than the distance left after this step can brake to a stop.
+            // A running follower trails its slot by that braking distance, so it eases in when the hero halts.
+            if(desired*dx>0)
+            {float reach=AllyBraking*dt;desired=Mathf.Sign(dx)*Mathf.Min(Mathf.Abs(desired),Mathf.Sqrt(reach*reach+2*AllyBraking*Mathf.Abs(dx))-reach);}
+            bool braking=actor.moveVelocity*desired<0||Mathf.Abs(desired)<Mathf.Abs(actor.moveVelocity);
+            actor.moveVelocity=Mathf.MoveTowards(actor.moveVelocity,desired,(braking?AllyBraking:AllyAcceleration)*dt);
             float step=actor.moveVelocity*dt;
             if(step*dx>0&&Mathf.Abs(step)>Mathf.Abs(dx))
             {step=dx;actor.moveVelocity=leaderSpeed;}
@@ -235,9 +242,10 @@ namespace PrototypeLab.Roguelike
                 if((actionLocked||inRange)&&actor.grounded){actor.moveVelocity=0;actor.followMoving=false;actor.followSource=actor.followGoal=actor.followNext=-2;}
                 else
                 {
-                    // A standing leader lets followers close small gaps so they settle exactly in their slots.
+                    // A standing leader lets followers close small gaps so they settle exactly in their slots;
+                    // they stop only once slowed to a shuffle, so an arrival never freezes mid-stride.
                     if(Mathf.Abs(dx)>.45f||Mathf.Abs(dx)>.2f&&Mathf.Abs(leaderSpeed)<.1f)actor.followMoving=true;
-                    else if(Mathf.Abs(dx)<.12f&&Mathf.Abs(leaderSpeed)<.1f)actor.followMoving=false;
+                    else if(Mathf.Abs(dx)<.12f&&Mathf.Abs(leaderSpeed)<.1f&&Mathf.Abs(actor.moveVelocity)<1)actor.followMoving=false;
                     if(target!=null||followingRoute)actor.followMoving=Mathf.Abs(dx)>.12f;
                     if(actor.followMoving)
                     {

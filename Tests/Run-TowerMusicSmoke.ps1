@@ -2,7 +2,11 @@ param([string]$UnityCli, [ValidateRange(30, 300)][int]$TimeoutSeconds = 180)
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 if (!$UnityCli) { $UnityCli = (Get-Command unity -ErrorAction Stop).Source }
+# Windows PowerShell 5.1 (and 7.0-7.2) pass native arguments without escaping embedded quotes,
+# which splits eval code at its string literals. PowerShell 7.3+ escapes them itself.
+$legacyNativeArguments = (Get-Variable PSNativeCommandArgumentPassing -ValueOnly -ErrorAction SilentlyContinue) -in @($null, 'Legacy')
 function Invoke-Cli([string[]]$Arguments) {
+    if ($legacyNativeArguments) { $Arguments = @($Arguments | ForEach-Object { [regex]::Replace($_, '(\\*)"', '$1$1\"') }) }
     $output = & $UnityCli @Arguments
     $exitCode = $LASTEXITCODE
     $response = $output | ConvertFrom-Json
@@ -42,7 +46,7 @@ try {
     }
     Start-Sleep -Milliseconds 100
     $report = Get-Content -LiteralPath $reportFile -Raw | ConvertFrom-Json
-    if (!$report.success -or @($report.errors).Count -gt 0 -or $report.tracks -ne 7) {
+    if (!$report.success -or @($report.errors).Count -gt 0 -or $report.tracks -ne 10) {
         $report.errors | Write-Host
         throw "Music smoke failed. See $reportFile"
     }

@@ -1,51 +1,52 @@
-# Towerbound 테마 BGM
+# Towerbound 신화 테마 BGM
 
-7개 테마용 오리지널 밴드 편곡입니다. 록맨 X4·5·6의 멜로딕 액션 록 분위기를 참고했으며, 원작 음원·샘플·멜로디는 사용하지 않았습니다. 녹음된 기타·베이스·드럼 샘플을 편곡하고 앰프·공간 효과로 렌더링했습니다. 밴드의 실시간 합주 녹음은 아닙니다.
+열 개의 테마(올림포스·아스가르드·단군신화·에덴·베다·파피루스·중국신화·지옥·심연·마을)를 위해 새로 작곡한 오리지널 연주곡입니다. 신화마다 선법·박자·악기를 달리했고, 기존 작품의 멜로디나 음원 샘플은 사용하지 않았습니다. 기타·베이스·드럼 키트·브라스와 피아노·플루트·오보에·클라리넷·바이올린·첼로·현 앙상블·하프·팀파니·글로켄슈필·튜블러 벨·큰북·클라베·콩가·징은 녹음된 CC0 샘플이고, 콰이어·일렉 피아노·갈대 피리·글라스 하모니카·드론·타블라·바람 등은 합성 음색입니다. 실시간 연주 녹음은 아닙니다.
 
 [전체 감상 페이지](listen.html)
 
-| 테마 | 곡명 | 길이 | BPM | 파일 |
-| --- | --- | ---: | ---: | --- |
-| 용암지대 | 용광 회로 / Molten Circuit | 1:41 | 152 | [WAV](Masters/lava.wav) |
-| 암석지대 | 수정 단층 / Crystal Fault | 1:47 | 144 | [WAV](Masters/rock.wav) |
-| 정글지대 | 수관의 전류 / Canopy Voltage | 1:44 | 148 | [WAV](Masters/jungle.wav) |
-| 빙결지대 | 프리즘 눈보라 / Prism Blizzard | 1:53 | 136 | [WAV](Masters/frozen.wav) |
-| 수상지대 | 조류의 신호 / Tidal Relay | 1:50 | 140 | [WAV](Masters/water.wav) |
-| 구름지대 | 천공의 벡터 / Skyward Vector | 1:38 | 156 | [WAV](Masters/cloud.wav) |
-| 폐허지대 | 매몰된 태양 기관 / Buried Sun Engine | 1:45 | 146 | [WAV](Masters/ruins.wav) |
+| 테마 | 곡명 | 길이 | 템포·박자 | 파일 |
+| --- | --- | ---: | --- | --- |
+| 올림포스 | 대리석의 산 / Mount of Marble | 1:31 | 100 · 4/4 | [WAV](Masters/olympus.wav) |
+| 아스가르드 | 서리 묶인 전당 / Frostbound Halls | 1:34 | 82 · 4/4 | [WAV](Masters/asgard.wav) |
+| 단군신화 | 태백산 신단 / Mountain Shrine | 1:36 | 150 · 6/8 | [WAV](Masters/dangun.wav) |
+| 에덴 | 낙원의 아침 / Garden Dawn | 1:30 | 116 · 3/4 | [WAV](Masters/eden.wav) |
+| 베다 | 인드라의 강 / River of Indra | 1:33 | 108 · 4/4 | [WAV](Masters/veda.wav) |
+| 파피루스 | 두아트의 모래 / Sands of Duat | 1:32 | 78 · 4/4 | [WAV](Masters/papyrus.wav) |
+| 중국신화 | 주작의 봉우리 / Vermilion Peaks | 1:32 | 120 · 4/4 | [WAV](Masters/chinese.wav) |
+| 지옥 | 유황의 합창 / Brimstone Choir | 1:33 | 72 · 4/4 | [WAV](Masters/hell.wav) |
+| 심연 | 허무의 심연 / Nihil Depths | 1:32 | 60 · 4/4 | [WAV](Masters/abyss.wav) |
+| 마을 | 화롯불 등불 / Hearth Lantern | 1:33 | 88 · 4/4 | [WAV](Masters/village.wav) |
 
 ## 파일과 재생
 
-- `Masters/`: 44.1kHz / 16bit / stereo WAV 원본.
+- `Masters/`: 44.1kHz / 16bit / stereo WAV 원본. `Midi/`: 같은 곡의 MIDI 내보내기(섹션 마커 포함).
 - `Samples/`: 녹음된 악기 샘플과 각 라이브러리의 출처·라이선스.
-- 게임용 OGG: `Assets/Demos/Roguelike/Resources/Tower/Music/`.
-- 64마디: 도입 4 → A 16 → B 16 → 브레이크 8 → 솔로 8 → 재현 8 → 턴어라운드 4.
-- 딜레이·잔향을 곡 처음으로 이어서 루프 경계의 공백을 없앴습니다. 일반 감상용 엔딩 페이드가 없는 게임 루프입니다.
+- 게임용 OGG: `Assets/Demos/Roguelike/Resources/Tower/Music/<theme>.ogg`. `TowerMusic.Track`이 테마 id 소문자로 파일을 고릅니다.
+- 모든 곡은 1분 30초 안팎의 게임 루프이며, 잔향을 곡 처음으로 이어 반복 시 공백이 없습니다.
 - `TowerMusic`이 테마에 따라 자동 재생합니다. 같은 테마의 층에서는 위치를 유지하고, 테마가 바뀌면 1.25초 크로스페이드합니다.
 - 음악 기본 볼륨은 `TowerMusic.DefaultVolume = 0.18`; 효과음 소스와 분리되어 있습니다.
-- OGG는 스테레오 스트리밍 / Vorbis 0.85 / 백그라운드 로드 / 샘플레이트 유지로 가져옵니다.
 
 ## 재현
 
-Python에 `Tools/TowerMusic/requirements.txt`를 설치하고 저장소 루트에서 다음을 실행합니다.
+Python 3.12에 `Tools/TowerMusic/requirements.txt`를 설치하고 저장소 루트에서 다음을 실행합니다.
 
 ```text
-python Tools/TowerMusic/render_band.py
+python Tools/TowerMusic/render_myth.py
 python Tools/TowerMusic/package.py
 ```
 
-한 곡만 다시 만들려면 `--theme lava`처럼 지정합니다. 악보는 `Tools/TowerMusic/score.json`에 있으며, 밴드 음색과 믹스는 `render_band.py`, 공통 편곡 구조와 출력 도구는 `render.py`가 정의합니다. 악보의 arrangement_hint는 제작 방향을 기록한 것이므로 모든 문장이 최종 렌더링의 상세 사양을 뜻하지는 않습니다.
+한 곡만 다시 만들려면 `--piece olympus`처럼 지정합니다. 작곡 데이터(선법·형식·화성·선율·편성)는 `Tools/TowerMusic/myth_pieces.py`, 편곡 엔진과 믹스는 `render_myth.py`, 합성 음색은 `myth_voices.py`·`rompler.py`·`render_synth.py`, 기타 앰프·베이스·공간은 `render_guitar.py`, 브라스 샘플 섹션은 `brass.py`가 정의합니다. 이전 7곡 체계의 렌더러(`render_band.py`, `render_synth.py`, `render_guitar.py`, `render_rompler.py`, `score.json`)는 기록용으로 남아 있습니다.
 
 ## 악기 샘플 출처
-
-각 라이브러리의 이름·제작자·원본 주소·라이선스·사용 샘플을 아래에 기록했습니다. 종합 `manifest.json`에도 같은 정보를 포함합니다.
 
 - [기타 샘플 출처](Samples/Guitar/manifest.json)
 - [베이스 샘플 출처](Samples/Bass/manifest.json)
 - [드럼 샘플 출처](Samples/Drums/manifest.json)
+- [브라스 샘플 출처](Samples/Brass/manifest.json)
+- [오케스트라 샘플 출처](Samples/Orchestra/manifest.json) (피아노·목관·현·하프·타악, VSCO 2 CE)
 
 ## 검증
 
-각 `.analysis.json`과 `manifest.json`에 WAV/OGG 길이·피크·RMS·반복 경계·무음 여부·해시를 기록했습니다. 7곡 모두 요청한 90~120초, 스테레오, 유한 샘플, 디지털 클리핑 없음 조건을 통과했습니다. 이 수치 검사는 사람의 청음 평가를 대신하지 않습니다.
+각 `.analysis.json`과 `manifest.json`에 WAV/OGG 길이·피크·RMS·반복 경계·무음 여부·해시를 기록했습니다. 열 곡 모두 80~120초, 스테레오, 유한 샘플, 디지털 클리핑 없음 조건을 통과했습니다. 이 수치 검사는 사람의 청음 평가를 대신하지 않습니다.
 
-Unity 실행 검증은 `Tests/Run-TowerMusicSmoke.ps1`로 수행합니다. 실제 AudioSource 진행, 같은 테마의 층 이동, 테마 전환 크로스페이드, 루프 반복, 중지·재개, 정리, 효과음 독립성을 검사합니다. 검증용 층 전환은 전투 전체를 플레이한 결과가 아닙니다.
+Unity 실행 검증은 `Tests/Run-TowerMusicSmoke.ps1`로 수행합니다. 실제 AudioSource 진행, 같은 테마의 층 이동, 테마 전환 크로스페이드, 테마별 고유 트랙, 루프 반복, 중지·재개, 정리, 효과음 독립성을 검사합니다.
