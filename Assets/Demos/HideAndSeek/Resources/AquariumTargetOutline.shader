@@ -2,7 +2,7 @@ Shader "Aquarium/TargetOutline"
 {
     Properties
     {
-        _OutlineColor ("Outline color", Color) = (1, 0.86, 0.25, 1)
+        _OutlineColor ("Outline color", Color) = (0.45, 1, 0.35, 1)
         _OutlineWidth ("Outline width", Range(0, 0.1)) = 0.035
     }
     SubShader

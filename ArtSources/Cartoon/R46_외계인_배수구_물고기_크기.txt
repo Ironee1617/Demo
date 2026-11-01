@@ -1,0 +1,16 @@
+# R46 — 하늘색 물고기 조금 크게 · 외계인 작게 · 배수구도 작게 (2026-10-29)
+
+## 변경
+- 하늘색 물고기(Species0.asset bodyScale) 0.45 → 0.55.
+- 외계인 자기 모습 `AquariumFishTraits.AlienScale` 0.85 → 0.70 (약 18% 작게). 새 상수 `AlienSizeRatio` = AlienScale / 0.85.
+  - 크기에서 계산되는 것: 몸 충돌·작살 판정·촉수 포식 거리·화면 크기(전부 AlienScale 기준이라 자동).
+  - 0.85 기준으로 측정했던 값을 비율로: 바닥/벽 여유(`AlienFloor/AlienWall`), 배수구 위 떠 있는 높이(`SqueezeHover` .55 → .45), 관 진입 깊이·머리 폭·머리 높이(`AquariumView.SqueezeDepth/SqueezeThin`), 탈출 마무리 높이.
+- 배수구 `AquariumDrainLayout.ModelScale` 0.42 → 0.346(같은 비율). 구멍 반지름 .27 → .225m, 뚜껑·나사 위치·밀어내는 거리 모두 따라 작아짐. 외계인이 비집고 들어가는 정도는 예전과 같음.
+- 네트워크 프로토콜 10 → 11.
+
+## 검증
+- 섀도 컴파일·적용 후 콘솔 오류/경고 0.
+- 모델: 배수구 4개 모두 열린 바닥, 진입 → 10초 뒤 탈출 정상.
+- 크기 비교 렌더 `ArtSources/Cartoon/R46Renders/sizes.png`, `R46_크기_비교.png`.
+- 백업 `ArtSources/Cartoon/Backups/R46_before_alien_drain_fish0_sizes`.
+- 참고: 외계인이 하늘색 물고기(0.55)로 변신하면 그 크기, 기본형은 0.70.

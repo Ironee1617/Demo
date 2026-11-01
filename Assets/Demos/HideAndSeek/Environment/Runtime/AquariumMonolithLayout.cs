@@ -1,9 +1,12 @@
-using System;
+﻿using System;
 
 namespace PrototypeLab.Aquarium
 {
     // Intersected fracture planes form solid angular beds. The same field is used by
     // the mesh, swimmers, projectiles and camera; no ellipsoid or soft-clay blending.
+    // R37: every game turns each cliff about its pivot (AquariumSceneryLayout.Current). The lobes below are the
+    // authored frame; the world queries (Distance, Normal, Overlaps, Constrain, Hit) turn the query point into it,
+    // so collision always matches the turned mesh. Minimum/Maximum stay the authored bounds.
     public static class AquariumMonolithLayout
     {
         public struct FracturePlane
@@ -110,6 +113,7 @@ namespace PrototypeLab.Aquarium
                 Minimum[g]=min;Maximum[g]=max;
             }
         }
+        // p in the authored frame.
         private static float BoundDistance(Point p,int group)
         {
             var min=Minimum[group];var max=Maximum[group];
@@ -118,17 +122,23 @@ namespace PrototypeLab.Aquarium
         }
         public static float Distance(Point p)
         {
-            float d=100;
+            float d=100;var layout=AquariumSceneryLayout.Current;
             for(int group=0;group<Groups.Length;group++)
-                if(BoundDistance(p,group)<d+.6f)d=Math.Min(d,Distance(p,group));
+            {
+                var q=layout.MonolithToLocal(p,group);
+                if(BoundDistance(q,group)<d+.6f)d=Math.Min(d,LocalDistance(q,group));
+            }
             return d;
         }
-        public static float Distance(Point p,int group)
+        public static float Distance(Point p,int group){return LocalDistance(AquariumSceneryLayout.Current.MonolithToLocal(p,group),group);}
+        // The field in the authored frame (the environment builder and the layout's own footprints use this).
+        public static float LocalDistance(Point p,int group)
         {
             float distance=100;
             foreach(var l in Groups[group])
             {
-                float d=FractureDistance(p,l);
+                // R48: a lobe stops testing planes once it cannot come below the current minimum (same result).
+                float d=FractureDistance(p,l,distance+.02f);
                 // Only 2 cm of weathered edge; the broad fracture faces remain planar.
                 distance=Math.Min(distance,d-.02f);
             }
@@ -137,6 +147,14 @@ namespace PrototypeLab.Aquarium
             if(group<EdgeBreaks.Length)foreach(var cut in EdgeBreaks[group])distance=Math.Max(distance,-FractureDistance(p,cut));
             float weather=(Noise(p*.72f)-.5f)*.36f+(Noise(p*2.4f+new Point(7,11,3))-.5f)*.12f+(Noise(p*6.1f)-.5f)*.025f;
             return distance+weather;
+        }
+        private static float FractureDistance(Point p,Lobe l,float limit)
+        {
+            var q=p-l.centre;
+            q.y-=q.x*.13f-q.z*.07f;
+            float d=-100;var planes=l.planes;
+            for(int i=0;i<planes.Length;i++){d=Math.Max(d,Point.Dot(q,planes[i].normal)-planes[i].offset);if(d>=limit)return d;}
+            return d;
         }
         private static float FractureDistance(Point p,Lobe l)
         {
@@ -158,9 +176,19 @@ namespace PrototypeLab.Aquarium
         }
         public static bool Overlaps(Point p,float radius)
         {
+            var layout=AquariumSceneryLayout.Current;
             for(int group=0;group<Groups.Length;group++)
-                if(BoundDistance(p,group)<=radius && Distance(p,group)<radius)return true;
+            {
+                var q=layout.MonolithToLocal(p,group);
+                if(BoundDistance(q,group)<=radius && LocalDistance(q,group)<radius)return true;
+            }
             return false;
+        }
+        // Surface normal in the authored frame.
+        public static Point LocalNormal(Point p,int group)
+        {
+            const float e=.014f;
+            return new Point(LocalDistance(p+new Point(e,0,0),group)-LocalDistance(p-new Point(e,0,0),group),LocalDistance(p+new Point(0,e,0),group)-LocalDistance(p-new Point(0,e,0),group),LocalDistance(p+new Point(0,0,e),group)-LocalDistance(p-new Point(0,0,e),group)).Normalized;
         }
         private static float NormalSample(Point p,int group){return group<0?Distance(p):Distance(p,group);}
         public static Point Normal(Point p,int group=-1)
@@ -188,15 +216,30 @@ namespace PrototypeLab.Aquarium
             // The unpadded field, including weathering and the hit tolerance,
             // fits these bounds. Positive plane padding can grow corners by
             // more than padding, so those rays retain the original march.
-            if(padding==0)
+            // R48: only the stretch of the ray inside some cliff's bounds can touch it, so the march starts where
+            // the ray enters the first box and stops where it leaves the last. Padded rays use the bounds grown by
+            // twice the padding (the field stays above ~.77 of the bound distance outside them; checked against
+            // 575k random rays), unpadded ones the plain bounds as before.
+            float t=0,stop=1;
             {
-                bool candidate=false;
+                float enter=2,exit=-1;var layout=AquariumSceneryLayout.Current;float grow=padding>0?padding*2+.05f:0;
                 for(int group=0;group<Groups.Length;group++)
-                    if(IntersectsBounds(start,ray,Minimum[group],Maximum[group])){candidate=true;break;}
-                if(!candidate)return 2;
+                {
+                    var min=layout.MonolithMinimum[group];var max=layout.MonolithMaximum[group];
+                    if(grow>0){min=new Point(min.x-grow,min.y-grow,min.z-grow);max=new Point(max.x+grow,max.y+grow,max.z+grow);}
+                    float first=0,last=1;const float tolerance=.002f;
+                    if(IntersectsSlab(start.x,ray.x,min.x-tolerance,max.x+tolerance,ref first,ref last)
+                        &&IntersectsSlab(start.y,ray.y,min.y-tolerance,max.y+tolerance,ref first,ref last)
+                        &&IntersectsSlab(start.z,ray.z,min.z-tolerance,max.z+tolerance,ref first,ref last))
+                    {enter=Math.Min(enter,first);exit=Math.Max(exit,last);}
+                }
+                if(padding>=0)
+                {
+                    if(exit<0)return 2;
+                    t=Math.Max(0,enter);stop=Math.Min(1,exit);
+                }
             }
-            float t=0;
-            for(int step=0;step<400&&t<=1;step++)
+            for(int step=0;step<400&&t<=stop;step++)
             {
                 float d=Distance(start+ray*t)-padding;
                 if(d<.0015f)return t;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,13 +16,19 @@ namespace PrototypeLab.Aquarium
         public int id;
         public string name;
         public Team team;
+        public int alien, diver;
     }
 
     // Only the host simulates movement, hits, eating, role changes and victory.
     public sealed class AquariumSession : IDisposable
     {
-        private const int Protocol = 6;
-        [Serializable] private class Hello { public int protocol = Protocol; public string name, password; public Team team; }
+        // 8: players carry their chosen alien (Hello.alien, the "alien" message, Swimmer.alienKind).
+        // R37 (9): snapshots carry the game's scenery seed; host and clients must lay the tank out the same way.
+        // R40 (10): 50 fish with small schooling Fish0; an older build would draw the sky-blue fish at the old size.
+        // R46 (11): smaller alien and drains, bigger sky-blue fish; builds must agree on the sizes.
+        // R47 (12): diver kinds (Hello.diver, the "diver" message, Swimmer.diverKind), abilities and new endings.
+        private const int Protocol = 12;
+        [Serializable] private class Hello { public int protocol = Protocol; public string name, password; public Team team; public int alien, diver; }
         [Serializable] private class Message
         {
             public string kind;
@@ -35,6 +41,7 @@ namespace PrototypeLab.Aquarium
             public string roomName;
             public bool hasPassword;
             public int humans;
+            public int alien, diver;
         }
         private const string Channel = "aquarium.v6";
         private const int PacketLimit = 60000;
@@ -92,11 +99,41 @@ namespace PrototypeLab.Aquarium
 
         // Rounds open with the diver's deck entry (checks that measure from a fixed start turn it off).
         public bool DiveEntry = true;
+        // The alien the local player picked (AquariumAlienKinds); sent when hosting or joining a room.
+        public int PreferredAlien;
+        // R47: the diver the local player picked (AquariumDiverKinds).
+        public int PreferredDiver;
 
-        public void StartPractice(string name, Team team)
+        // Starts a practice round at once (QA drivers and checks use this).
+        public void StartPractice(string name, Team team, int alien = 0)
         {
-            Leave(); Practice = true; LocalId = 1;
-            Model = new AquariumModel(speciesCount: AquariumSpecies.Count) { DiveEntry = DiveEntry }; Model.AddPlayer(1, name, team);
+            OpenPracticeLobby(name, team, alien);
+            Model.StartRound(); State = Model.Snapshot();
+        }
+
+        // AI practice opens its own lobby: pick the role and the alien, then start the round (StartRound).
+        public void OpenPracticeLobby(string name, Team team, int alien) { OpenPracticeLobby(name, team, alien, PreferredDiver); }
+        public void OpenPracticeLobby(string name, Team team, int alien, int diver)
+        {
+            Leave(); Practice = true; LocalId = 1; PreferredAlien = AquariumAlienKinds.Clamp(alien); PreferredDiver = AquariumDiverKinds.Clamp(diver);
+            Model = new AquariumModel(speciesCount: AquariumSpecies.Count, drainSeed: Guid.NewGuid().GetHashCode()) { DiveEntry = DiveEntry };
+            var self = Model.AddPlayer(1, name, team); self.alienKind = PreferredAlien; self.diverKind = PreferredDiver;
+            FillPracticeBots(team);
+            State = Model.Snapshot(); Status = "";
+        }
+
+        // Practice lobby role switch: the AI fills every other seat (one diver unless the player dives).
+        public void PracticeRole(Team team)
+        {
+            if (!Practice || Model == null || Model.Phase != RoundPhase.Lobby) return;
+            Model.SetRole(LocalId, team, true); Model.SetDiver(LocalId, PreferredDiver);
+            Model.Players.RemoveAll(p => p.bot);
+            FillPracticeBots(team);
+            State = Model.Snapshot();
+        }
+
+        private void FillPracticeBots(Team team)
+        {
             int nextId = 2;
             if (team == Team.Hider) Model.AddPlayer(nextId++, "연습 잠수부", Team.Seeker, true);
             while (nextId <= AquariumModel.MaxPlayers)
@@ -104,7 +141,38 @@ namespace PrototypeLab.Aquarium
                 Model.AddPlayer(nextId, "연습 외계인 " + (nextId - 1), Team.Hider, true);
                 nextId++;
             }
-            Model.StartRound(); State = Model.Snapshot(); Status = "";
+            AssignPracticeBotAliens();
+        }
+
+        // The AI aliens take the kinds the player did not pick, so a practice tank shows different aliens.
+        private void AssignPracticeBotAliens()
+        {
+            var local = Model.Player(LocalId);
+            int mine = local != null && local.team == Team.Hider ? local.alienKind : -1, next = 0;
+            foreach (var p in Model.Players)
+            {
+                if (!p.bot || p.team != Team.Hider) continue;
+                if (next % AquariumAlienKinds.Count == mine) next++;
+                p.alienKind = next++ % AquariumAlienKinds.Count;
+            }
+        }
+
+        // The local player's alien, in the lobby (the host rules it like the team).
+        public void SetAlien(int kind)
+        {
+            PreferredAlien = AquariumAlienKinds.Clamp(kind);
+            if (IsSpectator) return;
+            if (Model != null) { Model.SetAlien(LocalId, PreferredAlien); if (Practice && Model.Phase == RoundPhase.Lobby) AssignPracticeBotAliens(); State = Model.Snapshot(); }
+            else if (Connected) Send(NetworkManager.ServerClientId, new Message { kind = "alien", alien = PreferredAlien });
+        }
+
+        // R47: the local player's diver, in the lobby (mirrors SetAlien).
+        public void SetDiver(int kind)
+        {
+            PreferredDiver = AquariumDiverKinds.Clamp(kind);
+            if (IsSpectator) return;
+            if (Model != null) { Model.SetDiver(LocalId, PreferredDiver); State = Model.Snapshot(); }
+            else if (Connected) Send(NetworkManager.ServerClientId, new Message { kind = "diver", diver = PreferredDiver });
         }
 
         public async Task RefreshRooms()
@@ -251,7 +319,7 @@ namespace PrototypeLab.Aquarium
             {
                 NetworkTransport = transport, EnableSceneManagement = false, ConnectionApproval = true,
                 TickRate = 30, ClientConnectionBufferTimeout = 20, ProtocolVersion = Protocol,
-                ConnectionData = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new Hello { name = AquariumModel.CleanName(name), team = team, password = password ?? "" }))
+                ConnectionData = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new Hello { name = AquariumModel.CleanName(name), team = team, password = password ?? "", alien = PreferredAlien, diver = PreferredDiver }))
             };
             network.ConnectionApprovalCallback += Approve;
             network.OnClientConnectedCallback += OnConnected;
@@ -261,7 +329,7 @@ namespace PrototypeLab.Aquarium
 
         private void StartHost(string name, Team team)
         {
-            Model = new AquariumModel(speciesCount: AquariumSpecies.Count) { DiveEntry = DiveEntry }; Model.AddPlayer(1, name, team); LocalId = 1; peers[NetworkManager.ServerClientId] = 1;
+            Model = new AquariumModel(speciesCount: AquariumSpecies.Count, drainSeed: Guid.NewGuid().GetHashCode()) { DiveEntry = DiveEntry }; { var self = Model.AddPlayer(1, name, team); self.alienKind = AquariumAlienKinds.Clamp(PreferredAlien); self.diverKind = AquariumDiverKinds.Clamp(PreferredDiver); } LocalId = 1; peers[NetworkManager.ServerClientId] = 1;
             if (!network.StartHost()) throw new InvalidOperationException("방을 열지 못했습니다. 잠시 후 다시 시도해 주세요.");
             network.CustomMessagingManager.RegisterNamedMessageHandler(Channel, Receive);
             Busy = false; Status = ""; State = Model.Snapshot();
@@ -281,7 +349,7 @@ namespace PrototypeLab.Aquarium
             string reason = "";
             Hello hello = null;
             try { if (request.Payload.Length <= 512) hello = JsonUtility.FromJson<Hello>(Encoding.UTF8.GetString(request.Payload)); } catch { }
-            if (hello == null || hello.protocol != Protocol) reason = "방 목록 기능이 포함된 같은 버전의 데모로 접속해 주세요.";
+            if (hello == null || hello.protocol != Protocol) reason = "같은 게임 규칙 버전의 데모로 접속해 주세요.";
             else if (!string.Equals(roomPassword, hello.password ?? "", StringComparison.Ordinal)) reason = "비밀번호가 맞지 않습니다. 다시 입력해 주세요.";
             else if (Model == null) reason = "방이 종료되었습니다.";
             else if (peers.Count + approved.Count >= AquariumModel.MaxPlayers) reason = "방이 가득 찼습니다. 관전자를 포함해 최대 5명입니다.";
@@ -317,8 +385,8 @@ namespace PrototypeLab.Aquarium
             approved.Remove(client);
             int id = ++nextPlayer;
             while (Model.Player(id) != null || waiting.ContainsKey(id)) id = ++nextPlayer;
-            if (Model.Phase == RoundPhase.Lobby) Model.AddPlayer(id, hello.name, AvailableTeam(hello.team));
-            else waiting[id] = new AquariumObserver { id = id, name = AquariumModel.CleanName(hello.name), team = hello.team };
+            if (Model.Phase == RoundPhase.Lobby) { var added = Model.AddPlayer(id, hello.name, AvailableTeam(hello.team)); if (added != null) { added.alienKind = AquariumAlienKinds.Clamp(hello.alien); added.diverKind = AquariumDiverKinds.Clamp(hello.diver); } }
+            else waiting[id] = new AquariumObserver { id = id, name = AquariumModel.CleanName(hello.name), team = hello.team, alien = AquariumAlienKinds.Clamp(hello.alien), diver = AquariumDiverKinds.Clamp(hello.diver) };
             peers[client] = id;
             UpdateObservers();
             State = Model.Snapshot();
@@ -361,6 +429,8 @@ namespace PrototypeLab.Aquarium
                 if (waiting.ContainsKey(id)) return;
                 if (message.kind == "input") Model.SetInput(id, message.input);
                 else if (message.kind == "role") Model.SetRole(id, message.team, message.ready);
+                else if (message.kind == "alien") Model.SetAlien(id, message.alien);
+                else if (message.kind == "diver") Model.SetDiver(id, message.diver);
             }
             else if (sender == NetworkManager.ServerClientId)
             {
@@ -434,7 +504,7 @@ namespace PrototypeLab.Aquarium
             Model.ReturnToLobby();
             if (Model.Phase != RoundPhase.Lobby) return;
             var entrants = new List<AquariumObserver>(waiting.Values); entrants.Sort((a, b) => a.id.CompareTo(b.id));
-            foreach (var entrant in entrants) Model.AddPlayer(entrant.id, entrant.name, AvailableTeam(entrant.team));
+            foreach (var entrant in entrants) { var added = Model.AddPlayer(entrant.id, entrant.name, AvailableTeam(entrant.team)); if (added != null) { added.alienKind = AquariumAlienKinds.Clamp(entrant.alien); added.diverKind = AquariumDiverKinds.Clamp(entrant.diver); } }
             waiting.Clear(); UpdateObservers(); snapshotTimer = 1;
         }
 

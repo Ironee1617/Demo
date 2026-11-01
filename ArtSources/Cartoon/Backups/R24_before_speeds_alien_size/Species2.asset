@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 93b95e9f8b945604b8b3730a98a200f8, type: 3}
+  m_Name: Species2
+  m_EditorClassIdentifier: Assembly-CSharp::PrototypeLab.Aquarium.AquariumSpecies
+  speciesId: 2
+  normal: {fileID: 4855047398553009584, guid: 29988118bd1a56d49814a0675b75de89, type: 3}
+  feeding: {fileID: 4855047398553009584, guid: 29988118bd1a56d49814a0675b75de89, type: 3}
+  closedFeeding: {fileID: 4855047398553009584, guid: 29988118bd1a56d49814a0675b75de89, type: 3}
+  tint: {r: 1, g: 1, b: 1, a: 1}
+  mouth: {x: 0, y: 0, z: 0.48}
+  feedingMouthRadius: 0.1932
+  bodyScale: 1
+  hullWidth: 1
+  hullLength: 1
+  habit: 0

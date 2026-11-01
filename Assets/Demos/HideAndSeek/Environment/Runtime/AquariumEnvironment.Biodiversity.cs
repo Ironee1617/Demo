@@ -88,10 +88,10 @@ namespace PrototypeLab.Aquarium
             OrganicTube(g,path,radius,tint,tip,bend,sides);
         }
 
-        private static void Seaweed(Geo g,Vector3 at,float height,float phase,System.Random r,AquariumEnvironmentRoot marker)
+        private static void Seaweed(Geo g,Vector3 at,float height,float phase,System.Random r,AquariumEnvironmentRoot marker,int form=-1)
         {
-            int kind=Mathf.Abs(Mathf.RoundToInt(at.x*.71f+at.z*.53f+phase*3.1f))%5;
-            marker.plantForms[kind]++;
+            int kind=form>=0?form%5:Mathf.Abs(Mathf.RoundToInt(at.x*.71f+at.z*.53f+phase*3.1f))%5;
+            if(marker!=null)marker.plantForms[kind]++;
             if(kind==0) // Broad kelp with continuous stipe and paired, curled blades.
             {
                 Color tint=Color.Lerp(C(0x42754e),C(0x8d943e),Range(r,0,1));
@@ -402,7 +402,7 @@ namespace PrototypeLab.Aquarium
                 }
                 OrganicTube(g,path,widths,colours[0],colours[colours.Length-1],weights,12,colours);
             }
-            marker.anemoneColonies++;marker.anemoneForms[kind]++;
+            if(marker!=null){marker.anemoneColonies++;marker.anemoneForms[kind]++;}
         }
 
         private static bool PlantingClear(Vector3 p,float radius)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -36,6 +36,8 @@ namespace PrototypeLab.Aquarium.Editor
             var gunMain = Material("HarpoonGun_Atlas", "HarpoonGun_Cartoon");
             BuildRig("Diver", new[] { diverMain }, false);
             BuildRig("DiverHands", new[] { diverMain }, true);
+            // R52: flat swatches for the paint cut (and the lens paint grown past its edge)
+            AquariumPaintCut.PaintAtlas();
             BuildGun(gunMain);
             AssetDatabase.SaveAssets(); AssetDatabase.Refresh();
             Debug.Log("DIVER_HARPOON_APPLIED");
@@ -128,6 +130,12 @@ namespace PrototypeLab.Aquarium.Editor
             var skin = Child("Deforming surface", go.transform, Vector3.zero).gameObject.AddComponent<SkinnedMeshRenderer>();
             var mesh = ReadMesh(name + ".bin", name + " cartoon surface", bones, go.transform);
             if (mesh.vertexCount != d.vertices) throw new Exception("Vertex count mismatch " + name);
+            CleanGloveUVs(mesh, bones);
+            // R51: a clean, straight glove/sleeve edge with a rolled rubber lip cut into the surface itself.
+            AquariumWristSeam.Seal(mesh, bones, skin.transform);
+            // R52: the paint becomes geometry: the surface is cut along every colour boundary and each piece samples
+            // one flat swatch (crisp edges at any distance, no atlas blur or seam specks)
+            AquariumPaintCut.Cut(mesh);
             skin.sharedMesh = Save(mesh, Equipment + "/" + name + ".asset");
             skin.bones = bones; skin.rootBone = bones[0]; skin.quality = SkinQuality.Bone4; skin.localBounds = new Bounds(Vector3.zero, Vector3.one * 5);
             skin.sharedMaterials = materials.Take(Mathf.Max(1, skin.sharedMesh.subMeshCount)).ToArray(); skin.receiveShadows = false; skin.updateWhenOffscreen = false;
@@ -141,6 +149,78 @@ namespace PrototypeLab.Aquarium.Editor
             rig.clips = d.clips.Select(c => Clip(rig, bones, name, c)).ToArray();
             for (int i = 0; i < bones.Length; i++) { bones[i].localPosition = rig.restPositions[i]; bones[i].localRotation = rig.restRotations[i]; bones[i].localScale = rig.restScales[i]; }
             PrefabUtility.SaveAsPrefabAsset(go, Equipment + "/" + name + ".prefab"); UnityEngine.Object.DestroyImmediate(go);
+        }
+
+        // R49: the painted atlas has a few glove triangles that land on the yellow suit paint or on the blended edge
+        // of a UV island (around the cuffs and between the fingers); on the dark glove they read as torn holes.
+        // Every glove vertex (hand weight > .5) of such a triangle is moved to the nearest clean glove texel.
+        static readonly Color32 GloveColour = new Color32(66, 58, 62, 255);
+        static bool IsGlove(Color32 c) { return Mathf.Abs(c.r - GloveColour.r) + Mathf.Abs(c.g - GloveColour.g) + Mathf.Abs(c.b - GloveColour.b) <= 36; }
+        public static int CleanGloveUVs(Mesh mesh, Transform[] bones)
+        {
+            var image = new Texture2D(2, 2); image.LoadImage(File.ReadAllBytes(Path.Combine(Source, "Diver_Atlas.png")));
+            int W = image.width, H = image.height; var px = image.GetPixels32(); UnityEngine.Object.DestroyImmediate(image);
+            Func<int, int, bool> clean = (x, y) =>
+            {
+                for (int dy = -2; dy <= 2; dy++) for (int dx = -2; dx <= 2; dx++)
+                { int xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= W || yy >= H || !IsGlove(px[yy * W + xx])) return false; }
+                return true;
+            };
+            Func<Vector2, Color32> sample = q => px[Mathf.Clamp((int)(q.y * H), 0, H - 1) * W + Mathf.Clamp((int)(q.x * W), 0, W - 1)];
+            var hands = new List<int>(); for (int i = 0; i < bones.Length; i++) if (bones[i].name == "HandL" || bones[i].name == "HandR") hands.Add(i);
+            var bw = mesh.boneWeights; var uv = mesh.uv; var tris = mesh.triangles;
+            var hand = new float[uv.Length];
+            for (int i = 0; i < uv.Length; i++)
+            {
+                var b = bw[i]; float w = 0;
+                foreach (int h in hands) w += (b.boneIndex0 == h ? b.weight0 : 0) + (b.boneIndex1 == h ? b.weight1 : 0) + (b.boneIndex2 == h ? b.weight2 : 0) + (b.boneIndex3 == h ? b.weight3 : 0);
+                hand[i] = w;
+            }
+            var move = new HashSet<int>();
+            for (int t = 0; t < tris.Length; t += 3)
+            {
+                int a = tris[t], b = tris[t + 1], c = tris[t + 2];
+                if (hand[a] < .5f || hand[b] < .5f || hand[c] < .5f) continue;
+                bool odd = false;
+                for (int s = 0; s < 10 && !odd; s++)
+                {
+                    float u1 = (s * .37f + .05f) % 1, u2 = (s * .61f + .11f) % 1; if (u1 + u2 > 1) { u1 = 1 - u1; u2 = 1 - u2; }
+                    if (!IsGlove(sample(uv[a] + (uv[b] - uv[a]) * u1 + (uv[c] - uv[a]) * u2))) odd = true;
+                }
+                if (!odd) continue;
+                move.Add(a); move.Add(b); move.Add(c);
+            }
+            int moved = 0;
+            foreach (int i in move)
+            {
+                int x0 = Mathf.Clamp((int)(uv[i].x * W), 0, W - 1), y0 = Mathf.Clamp((int)(uv[i].y * H), 0, H - 1);
+                if (clean(x0, y0)) continue;
+                bool found = false;
+                for (int r = 1; r <= 64 && !found; r++)
+                    for (int dy = -r; dy <= r && !found; dy++)
+                        for (int dx = -r; dx <= r && !found; dx++)
+                        {
+                            if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) != r) continue;
+                            int x = x0 + dx, y = y0 + dy; if (x < 2 || y < 2 || x >= W - 2 || y >= H - 2 || !clean(x, y)) continue;
+                            uv[i] = new Vector2((x + .5f) / W, (y + .5f) / H); found = true; moved++;
+                        }
+            }
+            mesh.uv = uv;
+            return moved;
+        }
+        // Applies CleanGloveUVs to the imported diver meshes in place (no full re-import).
+        public static string CleanGloveUVsInPlace()
+        {
+            string report = "";
+            foreach (string name in new[] { "Diver", "DiverHands" })
+            {
+                var rig = AssetDatabase.LoadAssetAtPath<GameObject>(Equipment + "/" + name + ".prefab").GetComponent<AquariumRig>();
+                var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(Equipment + "/" + name + ".asset");
+                int moved = CleanGloveUVs(mesh, rig.skin.bones);
+                EditorUtility.SetDirty(mesh); report += name + ": " + moved + " glove vertices moved; ";
+            }
+            AssetDatabase.SaveAssets();
+            return report;
         }
 
         static AnimationClip Clip(AquariumRig rig, Transform[] bones, string owner, ClipData c)

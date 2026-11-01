@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 namespace PrototypeLab.Aquarium
 {
@@ -7,6 +7,10 @@ namespace PrototypeLab.Aquarium
     {
         private static AquariumSpecies[] catalog;
         private static GameObject alien;
+        // 2026-10-28: this creature's alien form is the player's chosen alien (AquariumAlienKinds);
+        // every kind shares the base rig, clips and shapes, so only the model differs.
+        private GameObject alienPrefab;
+        public int AlienLook { get; private set; }
         private static readonly Dictionary<string,Mesh> transitionMeshes=new Dictionary<string,Mesh>();
         private static readonly Dictionary<Mesh,float> bodyRadii=new Dictionary<Mesh,float>();
         private readonly Dictionary<int,AquariumRig> forms=new Dictionary<int,AquariumRig>();
@@ -30,7 +34,10 @@ namespace PrototypeLab.Aquarium
         private float engulfBorn=float.NegativeInfinity,motionBorn,engulfSwell=1,engulfAppliedSwell=1;
         private float morphTwist;
         private int[] thrashKeys;
+        public bool RevealUsesAlienBlood { get; set; }
         public int Form=>form;
+        // R47: the rig drawn now (the drone's red eyes ride it).
+        public AquariumRig CurrentRig=>current;
         public bool Transitioning=>outgoing!=null;
         public int BoneCount=>current==null?0:current.Bones.Length;
         public Vector3 FeedingMouth=>FeedingAnchor(false);
@@ -68,11 +75,15 @@ namespace PrototypeLab.Aquarium
                 if(current==null)return transform.TransformPoint(anchor);
                 return current.BodyPoint(anchor);
         }
-        public void Initialize(int initial,float seed)
+        public void Initialize(int initial,float seed)=>Initialize(initial,seed,0);
+        public void Initialize(int initial,float seed,int alienLook)
         {
             phase=seed*.317f;properties=new MaterialPropertyBlock();
             if(catalog==null)catalog=Resources.LoadAll<AquariumSpecies>("AquariumCharacters");
             if(alien==null)alien=Resources.Load<GameObject>("AquariumCharacters/Alien");
+            AlienLook=AquariumAlienKinds.Clamp(alienLook);
+            alienPrefab=AlienLook==0?alien:Resources.Load<GameObject>(AquariumAlienKinds.Get(AlienLook).prefab);
+            if(alienPrefab==null)alienPrefab=alien;
             form=initial;current=GetForm(initial);current.gameObject.SetActive(true);
         }
         private static AquariumSpecies Species(int id)
@@ -89,14 +100,16 @@ namespace PrototypeLab.Aquarium
         private AquariumRig GetForm(int id)
         {
             // The cartoon fish opens its existing surface; all mouth stages share one rig.
-            if(alien!=null && alien.GetComponent<AquariumRig>().cartoon && id>=0)id%=100;
+            var alienForm=alienPrefab!=null?alienPrefab:alien;
+            if(alienForm!=null && alienForm.GetComponent<AquariumRig>().cartoon && id>=0)id%=100;
             if(forms.TryGetValue(id,out var rig))return rig;
-            var s=id<0?null:Species(id%100);var prefab=id<0?alien:id>=200?(s.closedFeeding!=null?s.closedFeeding:s.normal):id>=100?s.feeding:s.normal;
+            var s=id<0?null:Species(id%100);var prefab=id<0?alienForm:id>=200?(s.closedFeeding!=null?s.closedFeeding:s.normal):id>=100?s.feeding:s.normal;
             if(prefab==null)throw new System.InvalidOperationException("Missing aquarium form "+id);
             rig=Instantiate(prefab,transform).GetComponent<AquariumRig>();rig.gameObject.SetActive(false);forms.Add(id,rig);return rig;
         }
         public void Present(int target,string motion,float born,float now,float moveSpeed,bool dead=false)
         {
+            if(drainOffset){transform.localPosition=Vector3.zero;drainOffset=false;}
             if(stagedMeal){transform.localPosition=unstagedPosition;transform.localRotation=unstagedRotation;stagedMeal=false;}
             engulfApplied=Vector3.zero;engulfAppliedSwell=1;motionBorn=born;morphTwist=0;
             // A disguised carrier gulps an ally with the fish bite, then the ally struggles inside.
@@ -134,6 +147,7 @@ namespace PrototypeLab.Aquarium
                         var cloud=new GameObject("Disguise release ink");cloud.transform.SetParent(transform.root,false);
                         revealInk=cloud.AddComponent<AquariumInkCloud>();revealInk.Initialize(Mathf.RoundToInt(phase*1000)+41,true,true);
                     }
+                    revealInk.SetEventPalette(RevealUsesAlienBlood?"harpoonAlien":"burp");
                     revealInkAt=now;
                 }
             }
@@ -524,9 +538,19 @@ namespace PrototypeLab.Aquarium
             try
             {
                 var creature=go.AddComponent<AquariumCreature>();creature.Initialize(-1,0);var alienRig=creature.current;
+                // The other playable aliens' models load here too, not when a round spawns them.
+                foreach(var kind in AquariumAlienKinds.All)Resources.Load<GameObject>(kind.prefab);
+                // R48: every alien kind's dead eyes too (each kind is its own mesh).
+                AquariumDeadEyes.Prewarm(alienRig);
+                for(int look=1;look<AquariumAlienKinds.All.Length;look++)
+                {
+                    var other=new GameObject("Alien look cache");other.transform.SetParent(go.transform,false);
+                    var variant=other.AddComponent<AquariumCreature>();variant.Initialize(-1,0,look);AquariumDeadEyes.Prewarm(variant.current);
+                }
                 foreach(var species in catalog)
                 {
                     var normal=creature.GetForm(species.speciesId);var mouth=creature.GetForm(species.speciesId+100);var closed=creature.GetForm(species.speciesId+200);
+                    AquariumDeadEyes.Prewarm(normal);
                     BodyRadius(normal);BodyRadius(alienRig);
                     if(alienRig.cartoon)continue;
                     TransitionMesh(alienRig,normal,false,false);TransitionMesh(normal,alienRig,false,false);
@@ -535,6 +559,33 @@ namespace PrototypeLab.Aquarium
                 }
             }
             finally { if(Application.isPlaying)Destroy(go);else DestroyImmediate(go); }
+        }
+        // R27: return drains (called right after Present, every frame the alien is at a drain).
+        private bool drainOffset;
+        // Screw / lid: the arms reach for a and b (see AlienDrainMotion).
+        public void PresentDrainReach(AlienDrainMotion.Mode mode,Vector3 a,Vector3 b,float weight,float now,float reachAge)
+        {
+            var motion=DrainMotion();if(motion!=null)motion.Set(mode,a,b,weight,now,reachAge);
+        }
+        // Squeeze: the body sinks depth metres into the opening, thinning to it (squeeze < 1) and growing taller,
+        // with a wriggling twist (degrees) while the arms pour into the pipe ahead of it.
+        public void PresentSqueeze(Vector3 mouth,float holeRadius,float depth,float squeeze,float wriggle,float weight,float now)
+        {
+            if(weight<=.001f)return;
+            var parent=transform.parent;
+            transform.localPosition=parent!=null?parent.InverseTransformVector(Vector3.down*depth):Vector3.down*depth;
+            float thin=Mathf.Clamp(squeeze,.3f,1.3f);
+            transform.localScale=Vector3.Scale(transform.localScale,new Vector3(thin,1+.8f*(1/thin-1),thin));
+            transform.localRotation=Quaternion.AngleAxis(wriggle,Vector3.up)*transform.localRotation;
+            drainOffset=true;
+            var motion=DrainMotion();if(motion!=null)motion.SetSqueeze(mouth,holeRadius,depth,weight,now);
+        }
+        private AlienDrainMotion DrainMotion()
+        {
+            if(form>=0 || current==null || outgoing!=null)return null;
+            var motion=current.GetComponent<AlienDrainMotion>();
+            if(motion==null)motion=current.gameObject.AddComponent<AlienDrainMotion>();
+            return motion;
         }
         public void PrepareFeedingForms(int species)
         { if(species>=0){GetForm(species%100+100);GetForm(species%100+200);} }

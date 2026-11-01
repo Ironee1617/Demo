@@ -1,0 +1,139 @@
+﻿using UnityEngine;
+using UnityEngine.Rendering;
+
+namespace PrototypeLab.Aquarium
+{
+    // One ray-marched density volume per meal. No sprites, shell spheres or
+    // frame-rate-dependent particle simulation; snapshot age drives the flow.
+    public sealed class AquariumInkCloud : MonoBehaviour
+    {
+        private static Texture3D noise;
+        private static Material material;
+        private Renderer volume;
+        private MaterialPropertyBlock properties;
+        private Vector3 origin, direction;
+        private bool anchored, yellow, green, concealTransformation, oralJet, capture;
+        private float seed,previousAge=-100;
+        public static bool IsInk(string kind)=>kind=="eat" || kind=="allyEat" || kind=="burp" || kind=="harpoonFish" || kind=="harpoonAlien";
+        // Fish retain their original purple; only alien capture and alien harpoon hits are green.
+        public static bool IsGreen(string kind)=>kind=="allyEat" || kind=="harpoonAlien";
+        public static bool IsYellow(string kind)=>kind!="eat" && kind!="harpoonFish";
+        public static bool IsCapture(string kind)=>kind=="allyEat" || kind=="harpoonAlien";
+
+        public void Initialize(int eventId,string kind)
+        {
+            Initialize(eventId,IsYellow(kind),kind=="harpoonAlien",kind=="burp",IsCapture(kind));
+            SetEventPalette(kind);
+        }
+        public void SetEventPalette(string kind) { yellow=IsYellow(kind);green=IsGreen(kind); }
+
+        public void Initialize(int eventId,bool isYellow,bool wholeBody=false,bool jet=false,bool tentacleCapture=false)
+        {
+            green=false;yellow=isYellow;concealTransformation=wholeBody;oralJet=jet;capture=tentacleCapture;seed=Mathf.Repeat(eventId*0.6180339f,1);
+            Prewarm();
+            var cube=GameObject.CreatePrimitive(PrimitiveType.Cube);cube.name="Continuous ink volume";cube.transform.SetParent(transform,false);
+            var collider=cube.GetComponent<Collider>();if(Application.isPlaying)Destroy(collider);else DestroyImmediate(collider);
+            volume=cube.GetComponent<Renderer>();volume.sharedMaterial=material;volume.shadowCastingMode=ShadowCastingMode.Off;volume.receiveShadows=false;volume.enabled=false;
+            properties=new MaterialPropertyBlock();
+        }
+        public static void Prewarm()
+        {
+            if(material==null)
+            {
+                var shader=Resources.Load<Shader>("AquariumCharacters/UnderwaterInk");
+                material=new Material(shader){name="Underwater pigment density",hideFlags=HideFlags.HideAndDontSave};
+                noise=MakeNoise();material.SetTexture("_VolumeNoise",noise);
+            }
+        }
+
+        // R49: how strong this cloud is right now (0..1), for the diver's view murk when the camera is inside it.
+        private float murkStrength;
+        public float CameraMurk(Vector3 at)
+        {
+            if(volume==null||!volume.enabled)return 0;
+            float r=(transform.InverseTransformPoint(at)*2f).magnitude;
+            return Mathf.Clamp01((1.15f-r)/.45f)*murkStrength;
+        }
+
+        public void Present(float age,float duration,Vector3 mouth,Vector3 forward)
+        {
+            if(age<previousAge-.1f)anchored=false;previousAge=age;
+            volume.enabled=age>=0 && age<duration;if(!volume.enabled)return;
+            if(!anchored){origin=mouth;direction=forward.sqrMagnitude>.01f?forward.normalized:Vector3.forward;anchored=true;}
+            // A brief injection follows the mouth; diluted pigment then drifts independently.
+            float hold=concealTransformation?.80f:.65f;
+            if(age<hold)origin=mouth;
+            // Preserve the initial concentration, then slow the underwater dispersion.
+            float flowAge=age<=1?age:1+(age-1)*.50f;
+            float expand=1-Mathf.Exp(-flowAge*3.5f),drift=Mathf.Max(0,flowAge-hold);
+            Vector3 side=Vector3.Cross(Mathf.Abs(direction.y)>.95f?Vector3.forward:Vector3.up,direction).normalized;
+            transform.position=origin+direction*(.025f+drift*.12f)+Vector3.up*(drift*.22f)+side*(Mathf.Sin(seed*6.28f+flowAge*.8f)*drift*.10f);
+            transform.rotation=Quaternion.LookRotation(direction,Mathf.Abs(direction.y)>.95f?Vector3.right:Vector3.up);
+            transform.localScale=new Vector3(1.10f+expand*1.40f+drift*.36f,1.05f+expand*1.30f+drift*.40f,1.10f+expand*1.35f+drift*.28f)*(concealTransformation?1.7f:1);
+            if(oralJet)
+            {
+                // Start with a narrow directed puff at the actual lower lip,
+                // then let the plume spread after the expelled body clears it.
+                float jet=1-Mathf.Exp(-age*4),bloom=Mathf.Max(0,age-.45f);
+                if(age<.35f)direction=forward.normalized;
+                transform.rotation=Quaternion.LookRotation(direction,Mathf.Abs(direction.y)>.95f?Vector3.right:Vector3.up);
+                transform.localScale=new Vector3(.18f+jet*.55f+bloom*.45f,.18f+jet*.55f+bloom*.45f,.35f+jet*1.65f+bloom*.2f);
+                transform.position=origin+direction*(transform.localScale.z*.42f)+Vector3.up*bloom*.12f;
+            }
+            properties.Clear();properties.SetFloat("_Age",flowAge);properties.SetFloat("_Seed",seed);
+            // R45: a gradual dissolve. The cloud reads as opaque until its density is low, so the fade is applied to
+            // how see-through it looks (inverse of 1 - e^-3d) instead of to the density itself.
+            float fade=Mathf.SmoothStep(0,1,Mathf.InverseLerp(duration*.28f,duration,age));
+            float showing=1-fade;fade=1+Mathf.Log(Mathf.Max(1e-4f,1-showing*(1-Mathf.Exp(-3))))/3;
+            // Keep the held body and the leading end leaving the lip readable.
+            float visibility=concealTransformation?1.25f:capture?.30f:oralJet?.75f:1;
+            // Preserve the fish palette and concentration. The green override is event-specific.
+            float thick=green?1.2f:yellow?1:1.45f;
+            properties.SetFloat("_Density",Mathf.SmoothStep(0,1,age/.14f)*1.65f*thick*Mathf.Exp(-drift*.33f)*(1-fade)*visibility);
+            // R31: no yellow effects; the former yellow events (reveal, burp) use the same green as alien captures.
+            // R43: the green alien blood is darker (was .025/.25/.045 with a .30/.85/.10 edge).
+            properties.SetColor("_Pigment",green||yellow?new Color(.012f,.11f,.02f):new Color(.050f,.014f,.062f));
+            properties.SetColor("_EdgeTint",green||yellow?new Color(.12f,.36f,.05f):new Color(.215f,.095f,.250f));
+            murkStrength=Mathf.Clamp01(Mathf.SmoothStep(0,1,age/.14f)*Mathf.Exp(-drift*.33f)*(1-fade)*(capture?.7f:1));
+            volume.SetPropertyBlock(properties);
+        }
+
+        // R47: the purple alien's ink bomb, a big murky dark-green cloud InkBombRadius across. opacity 1 for divers
+        // (thick, close to opaque), ~.25 for aliens. Fades in fast and dissolves over its last 1.6 s.
+        public void PresentBomb(float age,float duration,Vector3 centre,float radius,float opacity)
+        {
+            volume.enabled=age>=0 && age<duration;if(!volume.enabled)return;
+            float grow=1-Mathf.Exp(-age*5f);
+            transform.position=centre+Vector3.up*(age*.05f);
+            transform.rotation=Quaternion.Euler(0,seed*360,0);
+            transform.localScale=Vector3.one*(radius*2.6f*(.35f+.65f*grow));
+            float fadeIn=Mathf.SmoothStep(0,1,age/.3f),fadeOut=1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(duration-1.6f,duration,age));
+            properties.Clear();properties.SetFloat("_Age",.25f+age*.1f);properties.SetFloat("_Seed",seed);
+            properties.SetFloat("_Density",1.8f*Mathf.Lerp(.45f,1,fadeOut));
+            properties.SetFloat("_Opacity",Mathf.Clamp01(opacity)*fadeIn*fadeOut);properties.SetFloat("_Solid",1);
+            properties.SetColor("_Pigment",new Color(.014f,.065f,.024f));properties.SetColor("_EdgeTint",new Color(.05f,.15f,.06f));
+            volume.SetPropertyBlock(properties);
+        }
+
+        private static Texture3D MakeNoise()
+        {
+            const int size=48;var pixels=new Color32[size*size*size];
+            for(int z=0;z<size;z++)for(int y=0;y<size;y++)for(int x=0;x<size;x++)
+            {
+                float n=Value(x*8f/size,y*8f/size,z*8f/size,8)*.7f+Value(x*16f/size,y*16f/size,z*16f/size,16)*.3f;
+                byte v=(byte)Mathf.Clamp(n*255,0,255);pixels[x+size*(y+size*z)]=new Color32(v,v,v,255);
+            }
+            var texture=new Texture3D(size,size,size,TextureFormat.RGBA32,false){name="Periodic 3D pigment turbulence",wrapMode=TextureWrapMode.Repeat,filterMode=FilterMode.Trilinear,hideFlags=HideFlags.HideAndDontSave};
+            texture.SetPixels32(pixels);texture.Apply(false,true);return texture;
+        }
+        private static float Value(float x,float y,float z,int period)
+        {
+            int ix=Mathf.FloorToInt(x),iy=Mathf.FloorToInt(y),iz=Mathf.FloorToInt(z);x-=ix;y-=iy;z-=iz;x=x*x*(3-2*x);y=y*y*(3-2*y);z=z*z*(3-2*z);
+            return Mathf.Lerp(Mathf.Lerp(Mathf.Lerp(Hash(ix,iy,iz,period),Hash(ix+1,iy,iz,period),x),Mathf.Lerp(Hash(ix,iy+1,iz,period),Hash(ix+1,iy+1,iz,period),x),y),Mathf.Lerp(Mathf.Lerp(Hash(ix,iy,iz+1,period),Hash(ix+1,iy,iz+1,period),x),Mathf.Lerp(Hash(ix,iy+1,iz+1,period),Hash(ix+1,iy+1,iz+1,period),x),y),z);
+        }
+        private static float Hash(int x,int y,int z,int period)
+        {
+            unchecked{uint n=(uint)((x%period)*73856093^(y%period)*19349663^(z%period)*83492791);n=(n^(n>>13))*1274126177;return (n&65535)/65535f;}
+        }
+    }
+}

@@ -1,6 +1,6 @@
-Shader "Aquarium/Underwater Ink Volume"
+﻿Shader "Aquarium/Underwater Ink Volume"
 {
- Properties { _VolumeNoise("3D turbulence",3D)="white"{} _Pigment("Dense pigment",Color)=(.53,.009,.033,1) _EdgeTint("Dilute pigment",Color)=(.86,.035,.095,1) _Age("Flow time",Float)=0 _Seed("Seed",Float)=0 _Density("Concentration",Float)=1 }
+ Properties { _VolumeNoise("3D turbulence",3D)="white"{} _Pigment("Dense pigment",Color)=(.53,.009,.033,1) _EdgeTint("Dilute pigment",Color)=(.86,.035,.095,1) _Age("Flow time",Float)=0 _Seed("Seed",Float)=0 _Density("Concentration",Float)=1 _Opacity("Overall opacity (R47 ink bomb)",Float)=1 _Solid("Opaque core (R47 ink bomb)",Float)=0 }
  SubShader
  {
   Tags { "Queue"="Transparent+10" "RenderType"="Transparent" "IgnoreProjector"="True" }
@@ -15,7 +15,7 @@ Shader "Aquarium/Underwater Ink Volume"
    sampler3D _VolumeNoise;
    UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
    float4 _Pigment,_EdgeTint;
-   float _Age,_Seed,_Density;
+   float _Age,_Seed,_Density,_Opacity,_Solid;
    struct v2f { float4 position:SV_POSITION; float3 world:TEXCOORD0; float4 screen:TEXCOORD1; };
    v2f vert(appdata_base v){v2f o;o.position=UnityObjectToClipPos(v.vertex);o.world=mul(unity_ObjectToWorld,v.vertex).xyz;o.screen=ComputeScreenPos(o.position);return o;}
    float lobe(float3 p,float3 c,float r){float3 q=(p-c)/r;return exp(-dot(q,q)*2.4);}
@@ -72,8 +72,8 @@ Shader "Aquarium/Underwater Ink Volume"
      distance+=stepSize;if(alpha>.985)break;
     }
     // Keep a readable silhouette even through the freshly emitted pigment.
-    float translucency=lerp(.80,.64,smoothstep(.35,2.8,_Age));
-    return float4(color,alpha)*translucency;
+    float translucency=lerp(lerp(.80,.64,smoothstep(.35,2.8,_Age)),.97,_Solid);
+    return float4(color,alpha)*translucency*_Opacity;
    }
    ENDCG
   }

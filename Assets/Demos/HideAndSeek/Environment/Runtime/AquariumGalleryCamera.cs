@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace PrototypeLab.Aquarium
 {
@@ -6,12 +6,30 @@ namespace PrototypeLab.Aquarium
     public sealed class AquariumGalleryCamera : MonoBehaviour
     {
         private Material finish;
+        // R43: 0..1 murk of green alien blood in the local diver's water (set by AquariumGame each frame):
+        // the fog thickens and turns dark green, then clears when it drops back to 0.
+        public static float Murk;
+        // R47: murk of a purple alien's ink bomb around a diver's camera (set by AquariumView each frame).
+        public static float InkBombMurk;
+        public static readonly Color MurkColor = new Color(.025f, .12f, .035f);
+        private static bool murky;
+        private static Color clearFog;
         private void OnPreCull()
         {
             float submerged = Mathf.Clamp01((AquariumModel.WaterHeight+.15f - transform.position.y) * 2);
             float scale=AquariumMapOutline.HorizontalScale;
             RenderSettings.fogDensity = Mathf.Lerp(.003f/scale, .018f/Mathf.Sqrt(scale), submerged);
-            GetComponent<Camera>().backgroundColor = Color.Lerp(AquariumEnvironment.C(0x15232c), AquariumEnvironment.C(0x11515f), submerged);
+            var background = Color.Lerp(AquariumEnvironment.C(0x15232c), AquariumEnvironment.C(0x11515f), submerged);
+            float murk = Application.isPlaying ? Mathf.Clamp01(Mathf.Max(Murk, InkBombMurk)) : 0;
+            if (murk > .001f || murky)
+            {
+                if (!murky) { clearFog = RenderSettings.fogColor; murky = true; }
+                RenderSettings.fogColor = Color.Lerp(clearFog, MurkColor, .95f * murk);
+                RenderSettings.fogDensity *= 1 + 16 * murk;
+                background = Color.Lerp(background, MurkColor, .95f * murk);
+                if (murk <= .001f) { RenderSettings.fogColor = clearFog; murky = false; }
+            }
+            GetComponent<Camera>().backgroundColor = background;
         }
         private void OnRenderImage(RenderTexture source, RenderTexture destination)
         {

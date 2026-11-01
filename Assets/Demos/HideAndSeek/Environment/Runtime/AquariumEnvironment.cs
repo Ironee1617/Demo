@@ -69,7 +69,13 @@ namespace PrototypeLab.Aquarium
             QualitySettings.shadowDistance = Mathf.Max(75,65*AquariumMapOutline.HorizontalScale); QualitySettings.antiAliasing = 4; QualitySettings.pixelLightCount = 4;
         }
 
+        // R37: always built in the authored scenery layout (a game turns and re-plants it at run time,
+        // AquariumSceneryPresentation), whatever layout the tank is in right now.
         public static AquariumEnvironmentRoot Create(Transform parent = null)
+        {
+            using (AquariumSceneryLayout.Baking()) return CreateBaked(parent);
+        }
+        private static AquariumEnvironmentRoot CreateBaked(Transform parent)
         {
             var root = new GameObject("CORAL GALLERY | Environment"); root.transform.SetParent(parent, false);
             var marker = root.AddComponent<AquariumEnvironmentRoot>();
@@ -498,6 +504,13 @@ namespace PrototypeLab.Aquarium
             }
             public GameObject Emit(string name,Transform parent,Material material,bool shadows=true)
             {
+                var mesh=Build(name);
+                var go=new GameObject(name);go.transform.SetParent(parent,false);go.AddComponent<MeshFilter>().sharedMesh=mesh;
+                var renderer=go.AddComponent<MeshRenderer>();renderer.sharedMaterial=material;renderer.shadowCastingMode=shadows?ShadowCastingMode.On:ShadowCastingMode.Off;renderer.receiveShadows=shadows;return go;
+            }
+            // R37: the same mesh without a GameObject (run-time scenery prototypes).
+            public Mesh Build(string name)
+            {
                 var mesh=new Mesh { name=name,indexFormat=IndexFormat.UInt32 };
                 if (name.Contains("weathered cover"))
                 {
@@ -508,8 +521,7 @@ namespace PrototypeLab.Aquarium
                 else { mesh.SetVertices(vertices);mesh.SetColors(colors);mesh.SetUVs(0,uv);mesh.SetUVs(1,data);mesh.SetTriangles(triangles,0); }
                 mesh.RecalculateNormals();SurfaceBasis(mesh);mesh.RecalculateBounds();
                 var bounds=mesh.bounds;bounds.Expand(.7f);mesh.bounds=bounds;
-                var go=new GameObject(name);go.transform.SetParent(parent,false);go.AddComponent<MeshFilter>().sharedMesh=mesh;
-                var renderer=go.AddComponent<MeshRenderer>();renderer.sharedMaterial=material;renderer.shadowCastingMode=shadows?ShadowCastingMode.On:ShadowCastingMode.Off;renderer.receiveShadows=shadows;return go;
+                return mesh;
             }
         }
     }

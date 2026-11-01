@@ -19,3 +19,9 @@ MonoBehaviour:
   tint: {r: 1, g: 1, b: 1, a: 1}
   mouth: {x: 0, y: 0, z: 0.48}
   feedingMouthRadius: 0.21
+  bodyScale: 0.55
+  hullWidth: 1
+  hullLength: 1
+  habit: 5
+  swimSpeed: 0.5
+  ignoresFeed: 0

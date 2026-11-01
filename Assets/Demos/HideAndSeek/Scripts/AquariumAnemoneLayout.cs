@@ -6,9 +6,12 @@ namespace PrototypeLab.Aquarium
     // Baked from AquariumEnvironment.BuildAnemoneGardens (seed 8129): the generated anemone mesh was split
     // into colonies and each colony's base taken (centre of its lowest tentacle ring, sand/ledge height).
     // Colonies closer than ~.4 m are one entry. Re-bake if the anemone gardens are re-authored.
+    // R37: in a game the anemones and the reefs are laid out anew (AquariumSceneryLayout.Current); Points and
+    // Corals follow it, and the authored tables below are the baked layout's.
     public static class AquariumAnemoneLayout
     {
-        public static readonly Point[] Points =
+        public static Point[] Points { get { return AquariumSceneryLayout.Current.AnemoneSpots ?? BakedPoints; } }
+        private static readonly Point[] BakedPoints =
         {
             // Foreground garden around reef rock 1.
             new Point(13.909f, .273f, 5.518f), new Point(10.591f, .249f, 6.813f), new Point(12.165f, .310f, 3.619f), new Point(13.168f, .273f, 7.031f),
@@ -23,7 +26,7 @@ namespace PrototypeLab.Aquarium
         };
         // R26: coral heads (the top of each coral colony) from the same reef build (AquariumEnvironment.Create:
         // reef rocks, planting pockets, shoreline and monumental reefs), clustered the same way.
-        public static readonly Point[] Corals = CoralTable.Points;
+        public static Point[] Corals { get { return AquariumSceneryLayout.Current.CoralSpots ?? CoralTable.Points; } }
         // How far a clownfish hovers around the spot it is visiting (horizontal metres).
         public const float Leash = 1.2f;
         // R26: how far from its home anemone a clownfish roams to other anemones and coral heads.
@@ -39,10 +42,12 @@ namespace PrototypeLab.Aquarium
         // The k-th anemone fish's home: spread over the tank (stride coprime with the colony count).
         public static int HomeFor(int k) { return Points.Length == 0 ? -1 : (k * 11) % Points.Length; }
         private static int[][] territories;
+        private static AquariumSceneryLayout territoryLayout;
         // Other anemones and coral heads within Roam of a home anemone (not across big height gaps).
         public static int[] Territory(int home)
         {
-            if (territories == null) territories = new int[Points.Length][];
+            if (territories == null || territoryLayout != AquariumSceneryLayout.Current || territories.Length != Points.Length)
+            { territories = new int[Points.Length][]; territoryLayout = AquariumSceneryLayout.Current; }
             if (home < 0 || home >= Points.Length) return new int[0];
             if (territories[home] != null) return territories[home];
             var list = new System.Collections.Generic.List<int>(); var h = Points[home];

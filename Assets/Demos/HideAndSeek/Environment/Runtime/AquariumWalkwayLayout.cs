@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace PrototypeLab.Aquarium
@@ -111,6 +111,9 @@ namespace PrototypeLab.Aquarium
         public static float Hit(Point start,Point end,float padding=0)
         {
             var s=new Point(start.x,start.z);var e=new Point(end.x,end.z);var ray=e-s;
+            // R48: SignedDistance is 1-Lipschitz and never above the capsule distance, so when the cached field at the
+            // midpoint keeps the whole segment clear of the padded walls neither test below can hit: answer at once.
+            float bound;if(clearance.TryLowerBound((s+e)*.5f,out bound) && bound-ray.Length*.5f>padding+.001f)return 2;
             float first=2;
             for(int path=0;path<Paths.Length;path++)
             {
@@ -138,9 +141,12 @@ namespace PrototypeLab.Aquarium
                 float t=0,limit=Math.Min(1,first);
                 for(int step=0;step<192 && t<=limit;step++)
                 {
-                    float clearance=SignedDistance(s+ray*t)-padding;
-                    if(clearance<.0005f){first=Math.Min(first,t);break;}
-                    t+=Math.Max(.000001f,clearance/rayLength*.9f);
+                    // R48: where the cached field already proves room, step by that bound (never past the wall).
+                    float known;var at=s+ray*t;
+                    if(clearance.TryLowerBound(at,out known) && known-padding>.05f){t+=(known-padding)/rayLength*.9f;step--;continue;}
+                    float room=SignedDistance(at)-padding;
+                    if(room<.0005f){first=Math.Min(first,t);break;}
+                    t+=Math.Max(.000001f,room/rayLength*.9f);
                 }
             }
             return first;

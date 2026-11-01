@@ -17,6 +17,12 @@ Shader "Aquarium/Natural Granular Sand"
   #include "UnityCG.cginc"
   sampler2D _MainTex,_NormalTex,_ARM,_Caustics;
   float4 _Color;float _WorldScale,_NormalStrength;
+  int _AquariumDrainCount;
+  float4 _AquariumDrain0,_AquariumDrain1,_AquariumDrain2,_AquariumDrain3;
+  void DrainAperture(float3 p,float4 hole) {
+   // Only this sand shader is cut, in both colour and generated shadow passes.
+   if(abs(p.y-hole.y)<.6) clip(length(p.xz-hole.xz)-hole.w);
+  }
   float _AquariumPreviewTime,_AquariumPreviewTimeEnabled;
   struct Input {float3 worldPos;float3 worldNormal;float3 geometricNormal;INTERNAL_DATA};
   void vert(inout appdata_full v,out Input o){UNITY_INITIALIZE_OUTPUT(Input,o);o.geometricNormal=UnityObjectToWorldNormal(v.normal);}
@@ -28,6 +34,10 @@ Shader "Aquarium/Natural Granular Sand"
    return (sin(phase)+.2*sin(phase*2+.4))*.007*mask;
   }
   void surf(Input IN,inout SurfaceOutputStandard o){
+   if(_AquariumDrainCount>0) DrainAperture(IN.worldPos,_AquariumDrain0);
+   if(_AquariumDrainCount>1) DrainAperture(IN.worldPos,_AquariumDrain1);
+   if(_AquariumDrainCount>2) DrainAperture(IN.worldPos,_AquariumDrain2);
+   if(_AquariumDrainCount>3) DrainAperture(IN.worldPos,_AquariumDrain3);
    float2 p=IN.worldPos.xz;
    // Two real grain samples have independent scale/orientation, preventing an obvious
    // repeating stamp. The source is recoloured to match the reference's pale seabed.

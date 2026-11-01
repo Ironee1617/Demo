@@ -1,0 +1,2 @@
+R26 이전 원본: 흰동가리가 자기 말미잘 주변만 맴돌던 R25 버전.
+되돌리려면 이 두 파일을 Assets/Demos/HideAndSeek/Scripts 로 다시 복사하고 Scripts/AquariumCoralTable.cs 를 지우세요.

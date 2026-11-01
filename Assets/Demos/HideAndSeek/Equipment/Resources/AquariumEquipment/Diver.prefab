@@ -611,6 +611,9 @@ MonoBehaviour:
   closedEnvelope: {fileID: 0}
   mouthAnchor: {x: 0, y: -0.025, z: 0.34}
   throatAnchor: {x: 0, y: -0.035, z: 0.045}
+  eyePupils: []
+  eyeAxes: []
+  eyeRadius: 0
   clips:
   - {fileID: 7400000, guid: 3b6420a6425ff7249be8def75f4578a9, type: 2}
   - {fileID: 7400000, guid: bc0794ea598ec4b45853d4e11448d2b6, type: 2}

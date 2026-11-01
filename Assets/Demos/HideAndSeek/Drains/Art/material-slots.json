@@ -1,0 +1,88 @@
+{
+  "meshes": [
+    {
+      "name": "Fixed_Flange",
+      "materials": [
+        "Brushed marine steel",
+        "Machined silver edges"
+      ]
+    },
+    {
+      "name": "Lid",
+      "materials": [
+        "Brushed marine steel",
+        "EPDM seal",
+        "Machined silver edges",
+        "Pipe interior",
+        "Inlaid flow markers"
+      ]
+    },
+    {
+      "name": "Pipe_Shadow_End",
+      "materials": [
+        "EPDM seal"
+      ]
+    },
+    {
+      "name": "Pipe_Throat",
+      "materials": [
+        "Pipe interior",
+        "Brushed marine steel"
+      ]
+    },
+    {
+      "name": "Screw_01",
+      "materials": [
+        "Machined silver edges",
+        "Nickel bronze screws",
+        "Brushed marine steel"
+      ]
+    },
+    {
+      "name": "Screw_02",
+      "materials": [
+        "Machined silver edges",
+        "Nickel bronze screws",
+        "Brushed marine steel"
+      ]
+    },
+    {
+      "name": "Screw_03",
+      "materials": [
+        "Machined silver edges",
+        "Nickel bronze screws",
+        "Brushed marine steel"
+      ]
+    },
+    {
+      "name": "Screw_04",
+      "materials": [
+        "Machined silver edges",
+        "Nickel bronze screws",
+        "Brushed marine steel"
+      ]
+    },
+    {
+      "name": "Screw_05",
+      "materials": [
+        "Machined silver edges",
+        "Nickel bronze screws",
+        "Brushed marine steel"
+      ]
+    },
+    {
+      "name": "Screw_06",
+      "materials": [
+        "Machined silver edges",
+        "Nickel bronze screws",
+        "Brushed marine steel"
+      ]
+    },
+    {
+      "name": "Seal",
+      "materials": [
+        "EPDM seal"
+      ]
+    }
+  ]
+}

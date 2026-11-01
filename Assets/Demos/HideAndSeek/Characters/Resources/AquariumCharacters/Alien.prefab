@@ -650,6 +650,7 @@ GameObject:
   - component: {fileID: 1022981721410564323}
   - component: {fileID: 5271640227373793940}
   - component: {fileID: 8253503207931130562}
+  - component: {fileID: 3305843003722780201}
   m_Layer: 0
   m_Name: Alien
   m_TagString: Untagged
@@ -695,6 +696,9 @@ MonoBehaviour:
   closedEnvelope: {fileID: 0}
   mouthAnchor: {x: 0, y: -0.187, z: 0}
   throatAnchor: {x: 0, y: -0.102, z: 0}
+  eyePupils: []
+  eyeAxes: []
+  eyeRadius: 0
   clips:
   - {fileID: 7400000, guid: 5c54ccb71a186d84fa817ed2a03de49a, type: 2}
   - {fileID: 7400000, guid: e97814cd48b25d14d863aa41fbe1867b, type: 2}
@@ -886,6 +890,20 @@ MonoBehaviour:
   maxSquash: 0.16
   maxBulge: 0.22
   intensity: 1
+--- !u!114 &3305843003722780201
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4795878878415061481}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1d17244d2c32d4f478ec1655f8407e75, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PrototypeLab.Aquarium.AquariumPaintedLids
+  skin: {fileID: 5525863013951726478}
+  restMesh: {fileID: 4300000, guid: 3620f4c8861555d4fa70b046684f93cb, type: 2}
 --- !u!1 &4801185391408171379
 GameObject:
   m_ObjectHideFlags: 0

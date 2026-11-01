@@ -3,12 +3,13 @@ using System;
 namespace PrototypeLab.Aquarium
 {
     // R23/R24: how a fish species lives in the tank.
-    //  Wander: swims alone in random directions (Fish0, blue/yellow tang, clownfish).
+    //  Wander: swims alone in random directions (blue/yellow tang).
     //  Cruise: never stops; a slow, steady patrol with long gentle turns (shark). (R23 "Lurk" slot.)
     //  Glide:  random wandering with wide, slow banking turns (manta ray).
     //  Bottom: lies on the sea floor and seldom moves; short scoots along the sand (flatfish).
     //  Anemone: R25, keeps to its own anemone, hovering over the crown and hiding in it (clownfish).
-    public enum FishHabit { Wander, Cruise, Glide, Bottom, Anemone }
+    //  School: R40, swims in a school of 5-7 behind a wandering leader and flees as one (Fish0).
+    public enum FishHabit { Wander, Cruise, Glide, Bottom, Anemone, School }
 
     // R23: per-species body size and habit, shared by the host model (hulls, harpoon hits, bite
     // reach, fish AI) and the view (rig scale, colliders). Filled from the AquariumSpecies assets
@@ -16,7 +17,9 @@ namespace PrototypeLab.Aquarium
     public static class AquariumFishTraits
     {
         // R24: the alien's own form is a little smaller than Fish0's size reference (hull, hits, view).
-        public const float AlienScale = .85f;
+        // R46: smaller again (.85 -> .70). AlienSizeRatio scales the measurements taken at .85 (floor and wall
+        // clearance, the squeeze over a drain, the drain itself).
+        public const float AlienScale = .70f, AlienSizeRatio = AlienScale / .85f;
         private static float[] scales = { 1 }, widths = { 1 }, lengths = { 1 }, speeds = { 1 };
         private static FishHabit[] habits = { FishHabit.Wander };
         private static bool[] ignoresFeed = { false };

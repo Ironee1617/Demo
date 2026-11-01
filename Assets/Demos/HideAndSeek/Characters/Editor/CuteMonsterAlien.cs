@@ -14,7 +14,7 @@ namespace PrototypeLab.Aquarium.Editor
     //    BellyOpen, Blink_25/50/75/100 + BlinkStep_xx.
     //  * Generates every alien clip slot with the 12 principles (see each Build* comment).
     //  * Replaces Resources/AquariumCharacters/Alien.prefab (the octopus prefab is backed up first).
-    public static class CuteMonsterAlien
+    public static partial class CuteMonsterAlien
     {
         const string Folder = "Assets/Demos/HideAndSeek/Characters/Resources/AquariumCharacters";
         const string PrefabPath = Folder + "/Alien.prefab", OutFolder = Folder + "/CuteMonster";
@@ -33,10 +33,11 @@ namespace PrototypeLab.Aquarium.Editor
             public Vector3 mouth, throat;
         }
         static Vector3 V3(BinaryReader r) => new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
-        static Data Read()
+        static Data Read() => Read(Path.Combine(Source, "CuteMonster.bin"));
+        static Data Read(string file)
         {
             var d = new Data();
-            using (var r = new BinaryReader(File.OpenRead(Path.Combine(Source, "CuteMonster.bin"))))
+            using (var r = new BinaryReader(File.OpenRead(file)))
             {
                 if (new string(r.ReadChars(4)) != "CMON") throw new System.Exception("Not a CuteMonster.bin");
                 r.ReadInt32(); int n = r.ReadInt32(), n0 = r.ReadInt32(), n1 = r.ReadInt32(), nb = r.ReadInt32(), ns = r.ReadInt32();
@@ -84,9 +85,9 @@ namespace PrototypeLab.Aquarium.Editor
             }
             EditorUtility.CopySerialized(value, old); Object.DestroyImmediate(value); EditorUtility.SetDirty(old); return old;
         }
-        static Texture2D ImportTexture(string file, string asset, bool palette)
+        static Texture2D ImportTexture(string file, string asset, bool palette, string sourceFolder = null)
         {
-            string path = OutFolder + "/" + asset; File.Copy(Path.Combine(Source, file), path, true); AssetDatabase.ImportAsset(path);
+            string path = OutFolder + "/" + asset; File.Copy(Path.Combine(sourceFolder ?? Source, file), path, true); AssetDatabase.ImportAsset(path);
             var im = (TextureImporter)AssetImporter.GetAtPath(path);
             im.sRGBTexture = true; im.wrapMode = TextureWrapMode.Clamp;
             if (palette) { im.mipmapEnabled = false; im.filterMode = FilterMode.Bilinear; im.textureCompression = TextureImporterCompression.Uncompressed; im.npotScale = TextureImporterNPOTScale.None; }
@@ -98,9 +99,9 @@ namespace PrototypeLab.Aquarium.Editor
             var m = new Material(Shader.Find("Aquarium/Cartoon Character")) { name = name }; m.mainTexture = tex;
             return SaveAsset(m, OutFolder + "/" + name + ".mat");
         }
-        static Mesh BuildMesh(Data d, Transform[] bones, Transform root)
+        static Mesh BuildMesh(Data d, Transform[] bones, Transform root, string assetPath = null, string meshName = null)
         {
-            var mesh = new Mesh { name = "CuteMonster cartoon surface", indexFormat = IndexFormat.UInt32 };
+            var mesh = new Mesh { name = meshName ?? "CuteMonster cartoon surface", indexFormat = IndexFormat.UInt32 };
             mesh.vertices = d.pos; mesh.normals = d.nrm; mesh.uv = d.uv; mesh.uv2 = d.uv2; mesh.subMeshCount = 2;
             mesh.SetTriangles(d.tri0, 0); mesh.SetTriangles(d.tri1, 1);
             mesh.boneWeights = d.weights; mesh.bindposes = bones.Select(b => b.worldToLocalMatrix * root.localToWorldMatrix).ToArray();
@@ -120,7 +121,7 @@ namespace PrototypeLab.Aquarium.Editor
                 LowerLidColour(mesh);
             }
             mesh.RecalculateBounds(); mesh.RecalculateTangents();
-            return SaveAsset(mesh, OutFolder + "/CuteMonster.asset");
+            return SaveAsset(mesh, assetPath ?? OutFolder + "/CuteMonster.asset");
         }
 
         // ================================================================ EYELID SKIN (R19)

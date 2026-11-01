@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using UnityEngine;
 
 namespace PrototypeLab.Aquarium
@@ -11,6 +11,8 @@ namespace PrototypeLab.Aquarium
         private float targetYaw, targetPitch, targetDistance = 4.2f;
         private float ownYaw, ownPitch, ownDistance, boomLength;
         private Vector3 followPivot;
+        // R49: eased push that keeps the lens outside fish and swimmer hulls.
+        private Vector3 bodyPush;
         private int round = -1, owner;
         private bool snap, savedDeathView, observerView;
         public int FollowId { get; private set; }
@@ -21,6 +23,10 @@ namespace PrototypeLab.Aquarium
         public bool DeathReview { get; private set; }
         // The diver's round opening (deck idle + dive-in) is filmed from outside; the first-person view takes over as it ends.
         public bool Cinematic { get; private set; }
+        // R47: the drone diver is steering its fish drone: a third-person view behind the drone.
+        public bool DroneView { get; private set; }
+        private Vector3 dronePivot;
+        private float diverYaw, diverPitch;
         public float Yaw { get { return yaw; } }
         public float Pitch { get { return pitch; } }
         public AquariumThirdPersonCamera(Camera camera) { this.camera = camera; }
@@ -29,7 +35,7 @@ namespace PrototypeLab.Aquarium
         {
             var local = state == null ? null : Array.Find(state.players, p => p.id == localId);
             if (state == null || localId == 0 || state.phase == RoundPhase.Lobby)
-            { Active = FirstPerson = FreeView = SpectatingDiver = DeathReview = savedDeathView = observerView = false; FollowId = 0; return; }
+            { Active = FirstPerson = FreeView = SpectatingDiver = DeathReview = savedDeathView = observerView = DroneView = false; FollowId = 0; return; }
             bool observing = local == null;
             var observed = observing ? Array.Find(state.players, p => p.id == observingId && p.alive) : null;
             if (!Active || round != state.round || owner != localId || observerView != observing)
@@ -43,6 +49,7 @@ namespace PrototypeLab.Aquarium
             }
             observerView = observing;
             Active = true;
+            // R49: once the round is over everyone (fallen aliens too) gets the free-flying review camera.
             if (state.phase == RoundPhase.Finished)
             {
                 if (!FreeView)
@@ -53,9 +60,22 @@ namespace PrototypeLab.Aquarium
                     pitch = targetPitch = Mathf.DeltaAngle(0, displayed.x);
                     snap = false;
                 }
-                FreeView = true; FirstPerson = SpectatingDiver = DeathReview = false; FollowId = 0; return;
+                FreeView = true; FirstPerson = SpectatingDiver = DeathReview = DroneView = false; FollowId = 0; return;
             }
             FreeView = false;
+            bool drone = !observing && local.alive && local.team == Team.Seeker && local.droneControl;
+            if (drone != DroneView)
+            {
+                if (drone)
+                {
+                    diverYaw = targetYaw; diverPitch = targetPitch;
+                    var f = local.droneFacing.Length > .01f ? local.droneFacing.Normalized : local.facing.Normalized;
+                    targetYaw = Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg; targetPitch = Mathf.Clamp(-Mathf.Asin(Mathf.Clamp(f.y, -1, 1)) * Mathf.Rad2Deg + 8, -65, 65);
+                    dronePivot = new Vector3(local.dronePosition.x, local.dronePosition.y, local.dronePosition.z);
+                }
+                else { targetYaw = yaw = diverYaw; targetPitch = pitch = diverPitch; }
+                DroneView = drone; snap = true;
+            }
             if (observing)
             {
                 DeathReview = savedDeathView = false;
@@ -75,7 +95,7 @@ namespace PrototypeLab.Aquarium
                 float sinceDeath = Mathf.Max(0, state.time - local.diedAt);
                 DeathReview = sinceDeath < AquariumModel.DeathReviewSeconds;
                 if (DeathReview)
-                    targetDistance = Mathf.Lerp(ownDistance, 6, Mathf.SmoothStep(0, 1, sinceDeath / AquariumModel.DeathReviewSeconds));
+                    targetDistance = ownDistance;
                 else target = Array.Find(state.players, p => p.alive && p.team == Team.Seeker) ?? local;
             }
             else
@@ -119,18 +139,24 @@ namespace PrototypeLab.Aquarium
             return ToPoint(world);
         }
 
-        public void MoveFree(float right, float forward, float dt)
+        // R49: the post-game free camera flies: WASD along the view, vertical (Space up, Ctrl/C down) in world up,
+        // fast with Shift, and it stays in the tank's water (glass, rocks, floor, surface).
+        public void MoveFree(float right, float forward, float dt, float vertical = 0, bool fast = false)
         {
             if (!FreeView) return;
-            var move = Quaternion.Euler(pitch, yaw, 0) * new Vector3(right, 0, forward);
+            var rotation = Quaternion.Euler(pitch, yaw, 0);
+            var move = rotation * new Vector3(right, 0, forward) + Vector3.up * vertical;
             if (move.sqrMagnitude < 0.000001f) return;
             if (move.sqrMagnitude > 1) move.Normalize();
-            var position = camera.transform.position + move * (7f * dt);
-            position.x = Mathf.Clamp(position.x, -AquariumModel.HalfWidth - 3, AquariumModel.HalfWidth + 3);
-            position.y = Mathf.Clamp(position.y, AquariumSeabed.Height(position.x,position.z) + 0.2f, AquariumModel.WaterHeight + 5);
-            position.z = Mathf.Clamp(position.z, -AquariumModel.HalfDepth - 3, AquariumModel.HalfDepth + 3);
-            camera.transform.position = position;
+            var position = camera.transform.position + move * ((fast ? 16f : 7f) * dt);
+            camera.transform.position = FreeConstrain(position);
         }
+        private static Vector3 FreeConstrain(Vector3 position)
+        {
+            var p = AquariumModel.Constrain(ToPoint(position), FreeRadius);
+            return new Vector3(p.x, p.y, p.z);
+        }
+        private const float FreeRadius = 0.3f;
 
         public void UpdatePose(AquariumSnapshot state, AquariumView view, float dt)
         {
@@ -155,9 +181,25 @@ namespace PrototypeLab.Aquarium
             }
             var player = Array.Find(state.players, p => p.id == FollowId);
             if (player == null) return;
-            camera.orthographic = false; camera.fieldOfView = 68; camera.nearClipPlane = 0.06f;
+            camera.orthographic = false; camera.fieldOfView = 68; camera.nearClipPlane = FirstPerson ? 0.025f : 0.05f;
             var rotation = Quaternion.Euler(pitch, yaw, 0);
             var centre = view != null ? view.PlayerPosition(player) : new Vector3(player.position.x, player.position.y, player.position.z);
+            if (DroneView)
+            {
+                // R47: follow the (smoothed) drone from behind at a short boom; the diver's gun is hidden.
+                var drone = new Vector3(player.dronePosition.x, player.dronePosition.y, player.dronePosition.z);
+                dronePivot = snap ? drone : Vector3.Lerp(dronePivot, drone, 1 - Mathf.Exp(-dt * 12));
+                var behind = dronePivot + Vector3.up * .35f - rotation * Vector3.forward * 2.4f;
+                float hit = AquariumModel.ObstacleHit(ToPoint(dronePivot), ToPoint(behind), 0.2f);
+                // R49: fish between the drone and the lens shorten the boom too.
+                hit = Mathf.Min(hit, BodyHit(state, dronePivot, behind, 0, 0.7f));
+                if (hit <= 1) behind = Vector3.Lerp(dronePivot, behind, Mathf.Max(0, hit - 0.04f));
+                behind += EaseBodyPush(state, behind, 0, dt);
+                behind.y = Mathf.Max(AquariumSeabed.Height(behind.x, behind.z) + 0.22f, behind.y);
+                camera.transform.SetPositionAndRotation(snap ? behind : Vector3.Lerp(camera.transform.position, behind, 1 - Mathf.Exp(-dt * 18)), rotation); snap = false;
+                view?.CameraOcclusion(0, dronePivot);
+                return;
+            }
             if (FirstPerson && player.team == Team.Seeker && player.entryAt > 0 && state.time < player.entryAt)
             {
                 DiveEntryShot(state, player, centre, view);
@@ -166,7 +208,10 @@ namespace PrototypeLab.Aquarium
             if (FirstPerson)
             {
                 var eye = centre + Vector3.up * 0.15f + rotation * Vector3.forward * 0.4f;
-                camera.transform.SetPositionAndRotation(snap ? eye : Vector3.Lerp(camera.transform.position, eye, 1 - Mathf.Exp(-dt * 22)), rotation); snap = false;
+                var shown = snap ? eye : Vector3.Lerp(camera.transform.position, eye, 1 - Mathf.Exp(-dt * 22));
+                // R49: a fish swimming into the diver's face nudges the eye back out of its hull instead of clipping.
+                shown += EaseBodyPush(state, shown, FollowId, dt, 0.5f);
+                camera.transform.SetPositionAndRotation(shown, rotation); snap = false;
                 view?.CameraOcclusion(FollowId, centre, true);
                 return;
             }
@@ -188,9 +233,16 @@ namespace PrototypeLab.Aquarium
             float rock = AquariumModel.ObstacleHit(ToPoint(pivot), ToPoint(wanted), 0.22f);
             if (rock <= 1) travel = Mathf.Min(travel, Mathf.Max(0, rock - 0.04f));
             float safeLength = delta.magnitude * travel;
-            // The orbit stays centred while the subject eases. Obstructions compress instantly.
-            boomLength = snap || safeLength < boomLength ? safeLength : Mathf.Lerp(boomLength, safeLength, 1 - Mathf.Exp(-dt * 16));
+            // R49: fish and swimmers crossing the boom shorten it too (quickly but eased, so a passing school does not
+            // jerk the camera). Bodies hugging the subject are handled by the push below instead.
+            float bodies = BodyHit(state, followPivot, wanted, FollowId, 0.9f);
+            float bodyLength = bodies <= 1 ? delta.magnitude * Mathf.Max(0, bodies - 0.02f) : delta.magnitude;
+            // The orbit stays centred while the subject eases. Rock compresses instantly.
+            if (snap || safeLength < boomLength) boomLength = Mathf.Min(safeLength, snap ? bodyLength : safeLength);
+            else if (bodyLength < boomLength) boomLength = Mathf.Lerp(boomLength, bodyLength, 1 - Mathf.Exp(-dt * 24));
+            else boomLength = Mathf.Lerp(boomLength, Mathf.Min(safeLength, bodyLength), 1 - Mathf.Exp(-dt * 16));
             var candidate = followPivot + delta.normalized * boomLength;
+            candidate += EaseBodyPush(state, candidate, FollowId, dt);
             candidate.y = Mathf.Max(AquariumSeabed.Height(candidate.x,candidate.z) + 0.22f, candidate.y);
             float blocked = AquariumModel.ObstacleHit(ToPoint(pivot), ToPoint(candidate), 0.2f);
             if (blocked <= 1) candidate = Vector3.Lerp(pivot, candidate, Mathf.Max(0, blocked - 0.04f));
@@ -224,6 +276,8 @@ namespace PrototypeLab.Aquarium
         public Point Aim(AquariumSnapshot state, Swimmer local)
         {
             var forward = camera.transform.forward;
+            // R47: the drone just looks where the camera looks.
+            if (DroneView) return ToPoint(Quaternion.Euler(targetPitch, targetYaw, 0) * Vector3.forward);
             var start = ToPoint(camera.transform.position);
             var end = start + ToPoint(forward) * 40;
             float nearest = AquariumModel.ObstacleHit(start, end);
@@ -243,5 +297,81 @@ namespace PrototypeLab.Aquarium
         }
 
         public static Point ToPoint(Vector3 p) { return new Point(p.x, p.y, p.z); }
+
+        // ---- R49: keeping the lens outside fish and swimmer bodies -----------------------------------------
+        private const float LensRadius = 0.26f;
+        private struct Hull { public Point centre, facing; public float radius, half; }
+        private static readonly System.Collections.Generic.List<Hull> hulls = new System.Collections.Generic.List<Hull>();
+        // Every visible fish / swimmer hull (snapshot positions, AquariumFishTraits / AquariumBodyCollision sizes).
+        private static void CollectHulls(AquariumSnapshot state, int ignoreId)
+        {
+            hulls.Clear();
+            if (state == null) return;
+            if (state.fish != null)
+                foreach (var f in state.fish)
+                    if (!f.eaten && !f.collected && !f.dead)
+                        hulls.Add(new Hull { centre = f.position, facing = f.facing, radius = AquariumFishTraits.HullRadius(f.species), half = AquariumFishTraits.HullHalf(f.species) });
+            if (state.players != null)
+                foreach (var p in state.players)
+                {
+                    // Corpses on a harpoon line are reeled right up to the diver: they are not pushed against.
+                    if (p.id == ignoreId || !p.alive || p.escaped || p.swallowedBy != 0) continue;
+                    bool diver = p.team == Team.Seeker, disguised = !diver && AquariumModel.HasFishDisguise(p, state.time);
+                    hulls.Add(new Hull { centre = p.position, facing = p.facing,
+                        radius = diver ? AquariumBodyCollision.DiverRadius : disguised ? AquariumFishTraits.HullRadius(p.species) : AquariumBodyCollision.AlienRadius,
+                        half = diver ? AquariumBodyCollision.DiverHalf : disguised ? AquariumFishTraits.HullHalf(p.species) : AquariumBodyCollision.AlienHalf });
+                }
+        }
+        // Fraction of a->b where the lens first touches a hull (2 = clear). Bodies that already hold a, or that are
+        // met closer than nearSubject metres from a, are left to the push.
+        private static float BodyHit(AquariumSnapshot state, Vector3 a, Vector3 b, int ignoreId, float nearSubject)
+        {
+            CollectHulls(state, ignoreId);
+            var pa = ToPoint(a); var pb = ToPoint(b); float length = Vector3.Distance(a, b), nearest = 2;
+            if (length < 0.001f) return 2;
+            foreach (var h in hulls)
+            {
+                float reach = h.radius + h.half + LensRadius;
+                if (SegmentDistance(a, b, new Vector3(h.centre.x, h.centre.y, h.centre.z)) > reach) continue;
+                float t = AquariumModel.HullHitTime(pa, pb, h.centre, h.facing, h.radius + LensRadius, h.half);
+                if (t <= 0 || t > 1 || t * length < nearSubject) continue;
+                nearest = Mathf.Min(nearest, t);
+            }
+            return nearest;
+        }
+        // How far 'at' has to move to clear every hull (sum of the separations), capped.
+        private static Vector3 BodyPushRaw(AquariumSnapshot state, Vector3 at, int ignoreId, float cap)
+        {
+            CollectHulls(state, ignoreId);
+            var push = Vector3.zero;
+            foreach (var h in hulls)
+            {
+                var c = new Vector3(h.centre.x, h.centre.y, h.centre.z);
+                var axis = new Vector3(h.facing.x, h.facing.y, h.facing.z);
+                axis = axis.sqrMagnitude > 0.0001f ? axis.normalized * h.half : Vector3.zero;
+                var closest = ClosestOnSegment(c - axis, c + axis, at);
+                var away = at - closest; float need = h.radius + LensRadius, d = away.magnitude;
+                if (d >= need) continue;
+                push += (d > 0.0001f ? away / d : Vector3.up) * (need - d);
+            }
+            return Vector3.ClampMagnitude(push, cap);
+        }
+        private Vector3 EaseBodyPush(AquariumSnapshot state, Vector3 at, int ignoreId, float dt, float cap = 1f)
+        {
+            var wanted = BodyPushRaw(state, at, ignoreId, cap);
+            bodyPush = snap ? wanted : Vector3.Lerp(bodyPush, wanted, 1 - Mathf.Exp(-dt * 18));
+            // Never leave the lens pushed into rock or below the sand.
+            var shifted = at + bodyPush;
+            if (AquariumModel.ObstacleHit(ToPoint(at), ToPoint(shifted), 0.15f) <= 1 || shifted.y < AquariumSeabed.Height(shifted.x, shifted.z) + 0.2f)
+                return Vector3.zero;
+            return bodyPush;
+        }
+        private static Vector3 ClosestOnSegment(Vector3 a, Vector3 b, Vector3 p)
+        {
+            var ab = b - a; float l = ab.sqrMagnitude;
+            if (l < 0.000001f) return a;
+            return a + ab * Mathf.Clamp01(Vector3.Dot(p - a, ab) / l);
+        }
+        private static float SegmentDistance(Vector3 a, Vector3 b, Vector3 p) { return Vector3.Distance(ClosestOnSegment(a, b, p), p); }
     }
 }
