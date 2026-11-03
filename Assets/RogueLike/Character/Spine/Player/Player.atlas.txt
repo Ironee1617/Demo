@@ -1,0 +1,16 @@
+Player.png
+size:256,128
+filter:Linear,Linear
+pma:true
+0
+bounds:2,51,61,75
+1
+bounds:65,51,61,75
+2
+bounds:128,51,61,75
+3
+bounds:191,51,61,75
+arm0
+bounds:2,24,20,25
+leg0
+bounds:2,2,20,20
