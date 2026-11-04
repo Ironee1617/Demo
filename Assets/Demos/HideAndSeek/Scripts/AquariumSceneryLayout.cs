@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace PrototypeLab.Aquarium
@@ -32,7 +32,7 @@ namespace PrototypeLab.Aquarium
     //  * seaweed and anemones are scattered at random over the sand and the cliff ledges, spaced by their spread
     //    so they no longer pile into each other, and kept off the drains, walkways and glass.
     // The baked layout (seed 0) is the authored one; the environment builder always works in it.
-    public sealed class AquariumSceneryLayout
+    public sealed partial class AquariumSceneryLayout
     {
         public readonly int Seed;
         // Degrees about each cliff's pivot / each reef rock's centre (Unity's yaw: +x turns toward -z).
@@ -46,12 +46,18 @@ namespace PrototypeLab.Aquarium
         public Point[] AnemoneSpots { get; private set; }
         public Point[] CoralSpots { get; private set; }
         public bool Baked { get { return Seed == 0; } }
+        // R57: the map this layout belongs to (AquariumMaps). R58: the twin tanks have no cliffs or reef rocks of the
+        // default tank; their own rocks, life and drains come from BuildTwin.
+        public int Map { get; private set; }
         private readonly float[] cos, sin, rockCos, rockSin;
 
         public static readonly Point[] MonolithPivot;
         public static readonly AquariumSceneryLayout BakedLayout;
         private static AquariumSceneryLayout current;
-        public static AquariumSceneryLayout Current { get { return current; } }
+        // R62: a layout worker thread sees the layout it is building (Use) instead of the game's.
+        [ThreadStatic] private static AquariumSceneryLayout threadCurrent;
+        [ThreadStatic] private static bool layoutWorker;
+        public static AquariumSceneryLayout Current { get { return threadCurrent ?? current; } }
         // Bumped whenever Apply switches the layout (presentation and caches compare it).
         public static int Version { get; private set; }
         public static event Action Changed;
@@ -123,16 +129,103 @@ namespace PrototypeLab.Aquarium
         // ---------------------------------------------------------------- switching
         public static void Apply(int seed)
         {
-            if (seed == current.Seed) return;
-            current = seed == 0 ? BakedLayout : Create(seed);
+            int map = AquariumMaps.Current;
+            if (seed == current.Seed && current.Map == map) return;
+            current = AquariumMaps.TwinFamily(map) ? (seed == 0 ? TwinBaked : GetTwin(seed)) : seed == 0 ? BakedLayout : Create(seed);
             Version++;
             if (Changed != null) Changed();
         }
+        // R57: AquariumMaps.Select switched the map: start from its authored layout (the game applies its seed next).
+        public static void MapChanged()
+        {
+            current = AquariumMaps.IsTwin ? TwinBaked : BakedLayout;
+            Version++;
+            if (Changed != null) Changed();
+        }
+        // R73: the authored layout of each twin-family map (the twin tanks, the grotto).
+        private static readonly AquariumSceneryLayout[] twinBaked = new AquariumSceneryLayout[2];
+        public static AquariumSceneryLayout TwinBaked { get { int slot = AquariumMaps.IsGrotto ? 1 : 0; if (twinBaked[slot] == null) twinBaked[slot] = GetTwin(0); return twinBaked[slot]; } }
+        // R58: the twin tanks get their own rocks, plants, corals and anemones (AquariumSceneryLayout.Twin.cs).
+        private static AquariumSceneryLayout CreateTwin(int seed) { return BuildTwin(seed); }
+
+        // R62: twin layouts are laid out on a worker thread ahead of time (the next game's seed is known in the lobby,
+        // the authored one at load), so switching to one is free. The worker answers every map and layout query for
+        // itself (AquariumMaps.UseOnThisThread, threadCurrent); the result is the same as building it here.
+        // R73: keyed by map and seed (the grotto is laid out by the same code).
+        private static readonly Dictionary<long, AquariumSceneryLayout> twinReady = new Dictionary<long, AquariumSceneryLayout>();
+        private static readonly List<long> twinOrder = new List<long>();
+        private static readonly HashSet<long> twinBuilding = new HashSet<long>();
+        private static readonly object twinLock = new object();
+        private static long TwinKey(int map, int seed) { return ((long)map << 32) | (uint)seed; }
+        private static int TwinMapNow { get { return AquariumMaps.IsGrotto ? AquariumMaps.Grotto : AquariumMaps.Twin; } }
+        // The selected map's (the twin tanks when the default tank is selected: the lobby may switch to them).
+        public static void PrepareTwin(int seed) { PrepareTwin(seed, TwinMapNow); }
+        public static void PrepareTwin(int seed, int map)
+        {
+            if (!AquariumMaps.TwinFamily(map)) map = AquariumMaps.Twin;
+            long key = TwinKey(map, seed);
+            lock (twinLock)
+            {
+                if (twinReady.ContainsKey(key) || twinBuilding.Contains(key)) return;
+                twinBuilding.Add(key);
+            }
+            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+            {
+                AquariumSceneryLayout built = null;
+                try { layoutWorker = true; AquariumMaps.UseOnThisThread(map); built = CreateTwin(seed); }
+                catch (Exception) { }
+                finally
+                {
+                    AquariumMaps.UseOnThisThread(-1); layoutWorker = false; threadCurrent = null;
+                    lock (twinLock) { twinBuilding.Remove(key); if (built != null) Keep(key, built); System.Threading.Monitor.PulseAll(twinLock); }
+                    // R64: then the joins of its rocks, on their own worker (the layout is usable meanwhile).
+                    if (built != null) AquariumEnvironment.PrepareSeams(built.TwinRocks);
+                }
+            });
+        }
+        private static void Keep(long key, AquariumSceneryLayout layout)
+        {
+            twinReady[key] = layout; twinOrder.Remove(key); twinOrder.Add(key);
+            // A few recent seeds (and the authored ones, seed 0) are kept.
+            while (twinOrder.Count > 6)
+            {
+                long old = twinOrder.Find(k => (int)k != 0);   // the oldest non-authored one
+                twinOrder.Remove(old); twinReady.Remove(old);
+            }
+        }
+        // Ready (or already shown) without any work on this thread.
+        public static bool TwinReady(int seed)
+        {
+            int map = TwinMapNow;
+            if (current.Seed == seed && current.Map == map) return true;
+            lock (twinLock) return twinReady.ContainsKey(TwinKey(map, seed));
+        }
+        // The layout of this seed: the prepared one, or waits for the worker, or (never prepared) builds it here.
+        private static AquariumSceneryLayout GetTwin(int seed)
+        {
+            lock (twinLock)
+            {
+                AquariumSceneryLayout ready; long key = TwinKey(TwinMapNow, seed);
+                for (int waits = 0; twinBuilding.Contains(key) && waits < 600; waits++) System.Threading.Monitor.Wait(twinLock, 50);
+                if (twinReady.TryGetValue(key, out ready)) return ready;
+            }
+            var built = CreateTwin(seed);
+            lock (twinLock) Keep(TwinKey(TwinMapNow, seed), built);
+            return built;
+        }
         private sealed class Scope : IDisposable
         {
-            private readonly AquariumSceneryLayout previous; private bool done;
-            public Scope(AquariumSceneryLayout use) { previous = current; current = use; }
-            public void Dispose() { if (done) return; done = true; current = previous; }
+            private readonly AquariumSceneryLayout previous; private readonly bool worker; private bool done;
+            public Scope(AquariumSceneryLayout use)
+            {
+                worker = layoutWorker;
+                if (worker) { previous = threadCurrent; threadCurrent = use; } else { previous = current; current = use; }
+            }
+            public void Dispose()
+            {
+                if (done) return; done = true;
+                if (worker) threadCurrent = previous; else current = previous;
+            }
         }
         // Temporarily evaluate the tank in the authored layout (environment building and its checks).
         public static IDisposable Baking() { return new Scope(BakedLayout); }
@@ -409,6 +502,7 @@ namespace PrototypeLab.Aquarium
                 case 1: return .12f + .3f * height;
                 case 2: return .1f + .26f * height;
                 case 3: return .25f + .16f * height;
+                case GrassForm: return .3f + .1f * height;
                 default: return .3f + .19f * height;
             }
         }

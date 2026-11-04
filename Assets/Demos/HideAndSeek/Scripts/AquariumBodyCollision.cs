@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace PrototypeLab.Aquarium
@@ -34,7 +34,7 @@ namespace PrototypeLab.Aquarium
         // R28: players hug the sand and the glass again. Clearances follow the drawn bodies (measured at their
         // scale): the alien's arms reach .5 m below its centre and .62 m to the side; the diver stands upright,
         // feet 1.32 m below the centre and .86 m to the side. Fish keep a small margin around their own hull.
-        public const float AlienFloor = .55f * AquariumFishTraits.AlienSizeRatio, AlienWall = .70f * AquariumFishTraits.AlienSizeRatio, DiverFloor = 1.38f, DiverWall = .95f;
+        public const float AlienFloor = .55f * AquariumFishTraits.AlienSizeRatio, AlienWall = .70f * AquariumFishTraits.AlienSizeRatio, DiverFloor = 1.0f, DiverWall = .62f;   // R73i: the diver fits narrower gaps (was 1.38 / .95)
         public static float FloorPadding(bool diver,bool alien,int species) { return diver?DiverFloor:alien?AlienFloor:AquariumFishTraits.WallRadius(species); }
         public static float WallReach(bool diver,bool alien,int species)
         { return diver?DiverWall:alien?AlienWall:AquariumFishTraits.HullRadius(species)+AquariumFishTraits.HullHalf(species)+.08f; }
@@ -51,6 +51,8 @@ namespace PrototypeLab.Aquarium
                 float top=Math.Max(floorPadding,radius+.16f)+pitch;
                 float foot=(bottom?floorPadding:Math.Max(floorPadding,radius+.10f))+pitch;
                 p.y=Math.Max(AquariumSeabed.Height(p)+foot,Math.Min(AquariumModel.WaterHeight-top,p.y));
+                // R57: the twin map's tunnel roof keeps the whole silhouette under the acrylic as well.
+                if(AquariumMaps.IsTwin)p=AquariumTwinMap.ConstrainRoof(p,Math.Max(top,reach*.8f));
                 if(AquariumMapOutline.Contains(p,reach)&&!AquariumWalkwayLayout.Contains(p,reach))break;
             }
             return p;

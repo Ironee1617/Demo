@@ -77,7 +77,7 @@ namespace PrototypeLab.Aquarium
                 return directionalSwim==1;
             }
         }
-        public bool HasClip(string name){foreach(var c in clips)if(c.name==name || c.name.EndsWith("_"+name))return true;return false;}
+        public bool HasClip(string name){return FindClip(name)!=null;}
         public Vector2 SwimDirection=>swimDirection;
         // localVelocity: x = right, z = forward in the swimmer's own heading frame.
         public void SampleLocomotion(float moveSpeed,float now,float phase,Vector3 localVelocity)
@@ -162,7 +162,19 @@ namespace PrototypeLab.Aquarium
             for(int i=0;i<12;i++)
                 skin.SetBlendShapeWeight(blinkKeys[i],100*(i==11?Mathf.Clamp01(b*12-11):Mathf.Max(0,1-Mathf.Abs(b*12-(i+1)))));
         }
-        public AnimationClip Clip(string name) { foreach(var c in clips) if(c.name==name || c.name.EndsWith("_"+name))return c; throw new System.InvalidOperationException("Missing clip "+name); }
+        public AnimationClip Clip(string name) { var c=FindClip(name); if(c!=null)return c; throw new System.InvalidOperationException("Missing clip "+name); }
+        // R66: the first clip named `name` (or ending in "_" + name), looked up once per name. Reading
+        // AnimationClip.name and building "_" + name made fresh strings for every clip on every call, every frame.
+        private readonly System.Collections.Generic.Dictionary<string,AnimationClip> clipCache=new System.Collections.Generic.Dictionary<string,AnimationClip>();
+        private AnimationClip[] clipCacheFor;
+        private AnimationClip FindClip(string name)
+        {
+            if(clipCacheFor!=clips){clipCache.Clear();clipCacheFor=clips;}
+            if(clipCache.TryGetValue(name,out var cached))return cached;
+            AnimationClip found=null;
+            foreach(var c in clips)if(c.name==name || c.name.EndsWith("_"+name)){found=c;break;}
+            clipCache[name]=found;return found;
+        }
         public void SamplePose(string name,float time,float now)
         {
             BeginTransition(name,now);
@@ -189,15 +201,23 @@ namespace PrototypeLab.Aquarium
             for(int i=1;i<blendShapes.Length && blend<1;i++)skin.SetBlendShapeWeight(i,Mathf.Lerp(blendShapes[i],skin.GetBlendShapeWeight(i),blend));
             if(cartoonKind=="Alien")SetStreamAmount(StreamAmount());
         }
+        private byte[] waveKinds; private Mesh waveKindsFor;
         private void LimitWaveFrames(float gather)
         {
                 float ripple=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.85f,1,gather));
                 float idleRipple=1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.02f,.12f,gather));
+                // R66: which shapes are stream / idle waves is worked out once per mesh (GetBlendShapeName made a
+                // new string for every shape of every alien, every frame).
+                var mesh=skin.sharedMesh;
+                if(waveKinds==null || waveKindsFor!=mesh || waveKinds.Length!=blendShapes.Length)
+                {
+                    waveKinds=new byte[blendShapes.Length];waveKindsFor=mesh;
+                    for(int i=1;i<blendShapes.Length;i++){string name=mesh.GetBlendShapeName(i);waveKinds[i]=(byte)(name.StartsWith("StreamWave")?1:name.StartsWith("IdleWave")?2:0);}
+                }
                 for(int i=1;i<blendShapes.Length;i++)
                 {
-                    string name=skin.sharedMesh.GetBlendShapeName(i);
-                    if(name.StartsWith("StreamWave"))skin.SetBlendShapeWeight(i,skin.GetBlendShapeWeight(i)*ripple);
-                    else if(name.StartsWith("IdleWave"))skin.SetBlendShapeWeight(i,skin.GetBlendShapeWeight(i)*idleRipple);
+                    if(waveKinds[i]==1)skin.SetBlendShapeWeight(i,skin.GetBlendShapeWeight(i)*ripple);
+                    else if(waveKinds[i]==2)skin.SetBlendShapeWeight(i,skin.GetBlendShapeWeight(i)*idleRipple);
                 }
         }
         public void Neutralize(float weight)

@@ -1,15 +1,12 @@
-AquariumEquipment/Diver pose_us=6.45
+AquariumEquipment/Diver pose_us=19.43
 cadence_60_144_difference=0.0122
-AquariumCharacters/Fish0 pose_us=5.14
+AquariumCharacters/Fish0 pose_us=10.26
 cadence_60_144_difference=0.0122
-AquariumCharacters/Alien pose_us=14.70
+AquariumCharacters/Alien pose_us=65.47
 cadence_60_144_difference=0.0122
-diver snapshot_20hz_render_60_speed=2.00..2.00
-fish0 snapshot_20hz_render_60_speed=2.00..2.00
-diver snapshot_20hz_render_144_speed=2.00..2.00
-fish0 snapshot_20hz_render_144_speed=2.00..2.00
-loading_cache_ms=0.29
-first_bite_ms=0.01
-first_ink_ms=0.09
-ink_render_sync_ms=5.03
-OK
+FAIL System.Reflection.TargetParameterCountException: Number of parameters specified does not match the expected number.
+  at System.Reflection.RuntimeMethodInfo.ConvertValues (System.Reflection.Binder binder, System.Object[] args, System.Reflection.ParameterInfo[] pinfo, System.Globalization.CultureInfo culture, System.Reflection.BindingFlags invokeAttr) [0x00016] in <41d29b352f6a475ab1bf7c6628b82790>:0 
+  at System.Reflection.RuntimeMethodInfo.Invoke (System.Object obj, System.Reflection.BindingFlags invokeAttr, System.Reflection.Binder binder, System.Object[] parameters, System.Globalization.CultureInfo culture) [0x00040] in <41d29b352f6a475ab1bf7c6628b82790>:0 
+  at System.Reflection.MethodBase.Invoke (System.Object obj, System.Object[] parameters) [0x00000] in <41d29b352f6a475ab1bf7c6628b82790>:0 
+  at PrototypeLab.Aquarium.Editor.AquariumSwimmingChecks.SnapshotCadence (UnityEngine.Transform parent, System.Text.StringBuilder result) [0x00128] in D:\Demo\Assets\Demos\HideAndSeek\Editor\AquariumSwimmingChecks.cs:121 
+  at PrototypeLab.Aquarium.Editor.AquariumSwimmingChecks.Run () [0x001cd] in D:\Demo\Assets\Demos\HideAndSeek\Editor\AquariumSwimmingChecks.cs:41 

@@ -26,7 +26,7 @@ namespace PrototypeLab.Aquarium
                 passiveName = "먹잘알", passiveText = "뿌린 먹이에 상어, 가오리까지 모든 어종이 몰려듭니다. 작살 사거리 8m.",
                 harpoonRange = 8f, r = .98f, g = .80f, b = .25f },
             new AquariumDiverKind { id = 1, key = "Tracker", name = "추적 잠수부", look = "탐지 고글, 가벼운 장비",
-                activeName = "생체 탐지", activeText = "5초 동안 모든 생명체와 알이 벽 너머까지 빨간 실루엣으로 보입니다. (쿨타임 1분)",
+                activeName = "생체 탐지", activeText = "10초 동안 모든 생명체와 알이 벽 너머까지 빨간 실루엣으로 보입니다. (쿨타임 1분)",
                 passiveName = "스프린트", passiveText = "질주 속도 +10%, 스태미나 80. 작살 사거리 5m.",
                 harpoonRange = 5f, r = .95f, g = .42f, b = .35f, model = "_Tracker" },
             new AquariumDiverKind { id = 2, key = "Drone", name = "드론 잠수부", look = "물고기 드론 조종기",

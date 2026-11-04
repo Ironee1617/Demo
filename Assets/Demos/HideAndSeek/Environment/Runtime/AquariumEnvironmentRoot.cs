@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace PrototypeLab.Aquarium
 {
@@ -7,6 +7,8 @@ namespace PrototypeLab.Aquarium
     {
         public string artVersion = "Coral Gallery 1.8 / sealed reef meshes and living biodiversity";
         public float horizontalLayoutScale = AquariumMapOutline.HorizontalScale;
+        // R57: which map this gallery belongs to (AquariumMaps).
+        public int map;
         public int kelpFronds, coralColonies, bubbleCount;
         public int visitorGalleryBays, monumentalReefs;
         public int anemoneColonies;

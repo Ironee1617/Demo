@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -13,14 +13,8 @@ namespace PrototypeLab.Aquarium
         private static readonly Color Navy = C(0x132c40), Brass = C(0xb49660), Stone = C(0xe7d5ae);
         private static readonly Color[] Corals = { C(0xf6aa4f), C(0xf07479), C(0xa994de), C(0x51bfb1), C(0xdbc787), C(0xea9271) };
 
-        public static AquariumEnvironmentRoot Ensure(Transform parent)
-        {
-            var existing = UnityEngine.Object.FindFirstObjectByType<AquariumEnvironmentRoot>();
-            if (existing != null) { OptimizeRendering(existing); return existing; }
-            var prefab = Resources.Load<GameObject>(ResourcePath);
-            var environment = prefab != null ? UnityEngine.Object.Instantiate(prefab, parent).GetComponent<AquariumEnvironmentRoot>() : Create(parent);
-            OptimizeRendering(environment);return environment;
-        }
+        // R57: the default tank's gallery (EnsureMap picks any map's).
+        public static AquariumEnvironmentRoot Ensure(Transform parent) { return EnsureMap(AquariumMaps.Basic, parent); }
 
         public static void ConfigureCamera(Camera camera)
         {
@@ -33,6 +27,13 @@ namespace PrototypeLab.Aquarium
 
         public static void ConfigureOverview(Camera camera)
         {
+            if(AquariumMaps.IsTwin)
+            {
+                // R57: the twin tanks are longer east to west: a higher, wider establishing view.
+                camera.orthographic=false;camera.fieldOfView=43;
+                camera.transform.position=new Vector3(0,100,-66);camera.transform.LookAt(new Vector3(0,4,1));
+                return;
+            }
             float scale=AquariumMapOutline.HorizontalScale;
             camera.orthographic=false;camera.fieldOfView=43;
             camera.transform.position=new Vector3(0,8.3f+36.7f*scale,-20*scale);
@@ -83,7 +84,7 @@ namespace PrototypeLab.Aquarium
             var caustics = MakeCaustics();
             var sand = ScannedSurface("Lagoon sand / fine carbonate grains", "SandGrain", caustics, .48f, true);
             var rock = ScannedSurface("Reef stone / 4K mineral detail", "Rock", caustics, .55f, false);
-            var coral = LivingMaterial("Living coral / six growth forms",caustics,0,0,.65f);
+            var coral = LivingMaterial("Living coral / six growth forms",caustics,0,0,.65f);PaintedReef(coral);
             var kelp = LivingMaterial("Mixed seaweed / anchored continuous current",caustics,1,0,.05f);
             var anemones = LivingMaterial("Anemones / gently moving soft tentacles",caustics,.42f,1,.1f);
             var architecture = Lit("Gallery • limestone, bronze & oak", caustics, .38f, 0);
@@ -272,17 +273,19 @@ namespace PrototypeLab.Aquarium
             for (int zone = 0; zone < AquariumModel.Rocks.Length; zone++)
             {
                 var stones = new Geo(); var coral = new Geo(); var kelp = new Geo();
+                // R65: the stones are one smooth union (StoneField), meshed at the end; same stones, same random stream.
+                var field = new StoneField { ground = AquariumSeabed.BasicHeight };
                 var centre = AquariumModel.Rocks[zone]; Vector3 p = new Vector3(centre.x, centre.y, centre.z);
                 float radius = AquariumModel.RockRadii[zone];
                 // Main rock uses the same ellipsoid as authority/camera collision; only shallow surface relief varies.
-                stones.Ellipsoid(p, new Vector3(radius, AquariumModel.RockHalfHeight, radius), C(0x647a7d), 15, 10, .28f);
+                field.Add(p, new Vector3(radius, AquariumModel.RockHalfHeight, radius), C(0x647a7d), .28f, 0);
                 for (int seam = 0; seam < 9; seam++)
                 {
                     float a = seam * 2.399f + zone;
                     float vertical = .12f + (seam % 3) * .43f;
                     float spread = Mathf.Sqrt(1 - vertical * vertical * .64f) * radius;
                     Vector3 face = p + new Vector3(Mathf.Cos(a) * spread * .77f, vertical * .9f - .25f, Mathf.Sin(a) * spread * .77f);
-                    stones.Ellipsoid(face, new Vector3(radius * .31f, .4f, radius * .3f), Color.Lerp(C(0x4d626a), C(0x8d9d99), (seam % 3) * .36f), 9, 7, .23f);
+                    field.Add(face, new Vector3(radius * .31f, .4f, radius * .3f), Color.Lerp(C(0x4d626a), C(0x8d9d99), (seam % 3) * .36f), .23f, .45f);
                 }
                 for (int n = 0; n < 20; n++)
                 {
@@ -291,7 +294,7 @@ namespace PrototypeLab.Aquarium
                     Vector3 at = p + new Vector3(Mathf.Cos(a) * rr, 0, Mathf.Sin(a) * rr);
                     at.y = AquariumSeabed.Height(at.x,at.z)+.03f;
                     float size = Range(r, .14f, .34f);
-                    stones.Ellipsoid(at, new Vector3(size, size * .55f, size * .85f), Color.Lerp(C(0x416d72), C(0x99b7a7), Range(r, 0, 1)), 9, 6, .15f);
+                    field.Add(at, new Vector3(size, size * .55f, size * .85f), Color.Lerp(C(0x416d72), C(0x99b7a7), Range(r, 0, 1)), .15f, .3f);
                 }
                 // Coral colonies occupy the actual cover surface and its low rubble skirt.
                 for (int n = 0; n < 19; n++)
@@ -325,12 +328,15 @@ namespace PrototypeLab.Aquarium
                         float direction=n*2.399f+angle;
                         var at=bed+new Vector3(Mathf.Cos(direction),0,Mathf.Sin(direction))*Range(r,.15f,.75f);
                         float size=Range(r,.15f,.3f);
-                        stones.Ellipsoid(at,new Vector3(size,size*.5f,size*.8f),C(0x71958e),8,5,.12f);
+                        field.Add(at,new Vector3(size,size*.5f,size*.8f),C(0x71958e),.12f,.25f);
                         Kelp(kelp,at,Range(r,1.1f,3.5f),direction,r,marker);marker.kelpFronds++;
                         if(n%2==0){CoralColony(coral,at+Vector3.up*.13f,Range(r,.22f,.4f),zone*7+n,r,marker);marker.coralColonies++;}
                     }
                 }
-                stones.Emit("12 • Reef " + (zone + 1).ToString("00") + " / weathered cover", root, rockMat);
+                field.MeshInto(stones, .075f);
+                if (recordedReefStones == null || recordedReefStones.Length != AquariumModel.Rocks.Length) recordedReefStones = new List<ReefStone>[AquariumModel.Rocks.Length];
+                recordedReefStones[zone] = new List<ReefStone>(field.stones);
+                stones.Emit("12 • Reef " + (zone + 1).ToString("00") + " / joined stone", root, rockMat);
                 if(coral.Count>0)coral.Emit("13 • Reef " + (zone + 1).ToString("00") + " / coral colonies", root, coralMat);
                 if(kelp.Count>0)kelp.Emit("14 • Reef " + (zone + 1).ToString("00") + " / living kelp", root, kelpMat);
             }
@@ -404,15 +410,13 @@ namespace PrototypeLab.Aquarium
             ScrollCoral(g,p,radius,c,seed);
         }
 
+        // R63: the default tank's sea stars are the modelled, painted ones (AquariumEnvironment.ReefPaint), draped
+        // over the sand; species and colours follow from the spot, so the layout (and the random stream) is unchanged.
         private static void Starfish(Geo g, Vector3 at, float radius, Color c, float angle)
         {
-            for (int i = 0; i < 10; i++)
-            {
-                float a = angle + i * Mathf.PI / 5, b = angle + (i + 1) * Mathf.PI / 5;
-                var p = at + new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * radius * (i % 2 == 0 ? 1 : .4f);
-                var q = at + new Vector3(Mathf.Cos(b), 0, Mathf.Sin(b)) * radius * (i % 2 == 0 ? .4f : 1);
-                g.Triangle(at + Vector3.up * .05f, q, p, c);
-            }
+            int h = Mathf.Abs(Mathf.RoundToInt(at.x * 73.1f + at.z * 131.7f));
+            var foot = at; foot.y = AquariumSeabed.Height(at.x, at.z) + .004f;
+            SeaStar(g, foot, radius * 1.1f, StarSpecies(h), (h / 7) % StarColourways, angle, h, AquariumSeabed.Height);
         }
 
         private static void BuildAtmosphere(Transform root, Material bubbleMat, Material rayMat, System.Random r, AquariumEnvironmentRoot marker)
@@ -467,6 +471,11 @@ namespace PrototypeLab.Aquarium
             public void V(Vector3 p, Color c, Vector2 tex = default(Vector2), Vector2 payload = default(Vector2)) { vertices.Add(p); colors.Add(c); uv.Add(tex); data.Add(payload); }
             public void Q(int a,int b,int c,int d) { triangles.Add(a);triangles.Add(b);triangles.Add(c);triangles.Add(a);triangles.Add(c);triangles.Add(d); }
             public void Quad(Vector3 a,Vector3 b,Vector3 c,Vector3 d,Color color) { int n=Count;V(a,color,new Vector2(0,0));V(b,color,new Vector2(1,0));V(c,color,new Vector2(1,1));V(d,color,new Vector2(0,1));Q(n,n+1,n+2,n+3); }
+            // R63: read and repaint what a generator just made (PaintCoral, SeaStar).
+            public Vector3 P(int i) { return vertices[i]; }
+            public void SetP(int i,Vector3 p) { vertices[i]=p; }
+            public Color Col(int i) { return colors[i]; }
+            public void SetCol(int i,Color c) { colors[i]=c; }
             public void Triangle(Vector3 a,Vector3 b,Vector3 c,Color color) { int n=Count;V(a,color);V(b,color);V(c,color);triangles.Add(n);triangles.Add(n+1);triangles.Add(n+2); }
             public void Box(Vector3 centre,Vector3 size,Color c,Quaternion rotation)
             {

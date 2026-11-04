@@ -24,6 +24,7 @@ namespace PrototypeLab.Aquarium
             for(int i=0;i<normals.Length;i++)
             {
                 var n=normals[i];var t=Vector3.Cross(Mathf.Abs(n.y)>.95f?Vector3.forward:Vector3.up,n).normalized;
+                if(!(t.sqrMagnitude>.25f))t=Vector3.right;   // R68: never a zero tangent (NaN in the shaders)
                 tangents[i]=new Vector4(t.x,t.y,t.z,1);
             }
             mesh.tangents=tangents;

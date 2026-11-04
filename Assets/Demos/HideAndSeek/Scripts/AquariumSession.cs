@@ -27,7 +27,13 @@ namespace PrototypeLab.Aquarium
         // R40 (10): 50 fish with small schooling Fish0; an older build would draw the sky-blue fish at the old size.
         // R46 (11): smaller alien and drains, bigger sky-blue fish; builds must agree on the sizes.
         // R47 (12): diver kinds (Hello.diver, the "diver" message, Swimmer.diverKind), abilities and new endings.
-        private const int Protocol = 12;
+        // R57 (13): snapshots carry the host's map (AquariumSnapshot.map, AquariumMaps); every machine lays out that map.
+        // R58 (14): the twin tanks' scenery seed now lays out rocks with collision; builds must build the same rocks.
+        // R59 (15): the twin tanks' layouts gained giant formations (collision), so builds must match again.
+        // R60 (16): lobby / after-game chat ("chat" -> "chatline") and the aliens' pings ("ping" -> "pingmark");
+        //          divers wait in the changing room before the dive (AquariumLockerRoom), positions differ.
+        // R72 (21): the lobby role is a wish to be 술래; the host draws the one diver at the start.
+        private const int Protocol = 22; // R73 (22): the grotto map (AquariumMaps.Grotto) and the host's "fill empty seats with AI" switch (snapshot noAI). R69c (20): fewer tunnel structures changed the seeded layout
         [Serializable] private class Hello { public int protocol = Protocol; public string name, password; public Team team; public int alien, diver; }
         [Serializable] private class Message
         {
@@ -42,7 +48,17 @@ namespace PrototypeLab.Aquarium
             public bool hasPassword;
             public int humans;
             public int alien, diver;
+            public string text, name;           // R60: chat
+            public float px, py, pz;            // R60: ping point
         }
+        // R60: chat lines (lobby and after the round, never while playing) and the aliens' pings, newest last.
+        public sealed class ChatLine { public int player; public string name, text; public Team team; public bool spectator; public float at; }
+        public sealed class PingMark { public int player; public string name; public Point at; public float shownAt; public int alienKind; }
+        public readonly List<ChatLine> Chat = new List<ChatLine>();
+        public readonly List<PingMark> Pings = new List<PingMark>();
+        public const int ChatLimit = 80;
+        public bool CanChat { get { return Connected && !Practice && State.phase != RoundPhase.Playing; } }
+        private readonly Dictionary<int, float> chatTimes = new Dictionary<int, float>(), pingTimes = new Dictionary<int, float>();
         private const string Channel = "aquarium.v6";
         private const int PacketLimit = 60000;
         public AquariumModel Model { get; private set; }
@@ -70,7 +86,16 @@ namespace PrototypeLab.Aquarium
         public int HumanCount { get { return Practice ? 1 : Model != null ? peers.Count : remoteHumans; } }
         public AquariumObserver[] Observers { get; private set; } = new AquariumObserver[0];
         public int SpectatorCount { get { return Observers.Length; } }
-        public bool IsSpectator { get { return LocalId != 0 && Array.Exists(Observers, p => p.id == LocalId); } }
+        public bool IsSpectator
+        {
+            get
+            {
+                // R66: a plain loop (the lambda captured `this` and allocated on every one of the many calls per frame).
+                if (LocalId == 0) return false;
+                foreach (var o in Observers) if (o.id == LocalId) return true;
+                return false;
+            }
+        }
         public int SpectatingId
         {
             get
@@ -103,6 +128,8 @@ namespace PrototypeLab.Aquarium
         public int PreferredAlien;
         // R47: the diver the local player picked (AquariumDiverKinds).
         public int PreferredDiver;
+        // R57: the map the local player hosts with (AquariumMaps); the host's pick reaches clients in the snapshot.
+        public int PreferredMap;
 
         // Starts a practice round at once (QA drivers and checks use this).
         public void StartPractice(string name, Team team, int alien = 0)
@@ -117,6 +144,7 @@ namespace PrototypeLab.Aquarium
         {
             Leave(); Practice = true; LocalId = 1; PreferredAlien = AquariumAlienKinds.Clamp(alien); PreferredDiver = AquariumDiverKinds.Clamp(diver);
             Model = new AquariumModel(speciesCount: AquariumSpecies.Count, drainSeed: Guid.NewGuid().GetHashCode()) { DiveEntry = DiveEntry };
+            Model.SetMap(PreferredMap);
             var self = Model.AddPlayer(1, name, team); self.alienKind = PreferredAlien; self.diverKind = PreferredDiver;
             FillPracticeBots(team);
             State = Model.Snapshot(); Status = "";
@@ -173,6 +201,22 @@ namespace PrototypeLab.Aquarium
             if (IsSpectator) return;
             if (Model != null) { Model.SetDiver(LocalId, PreferredDiver); State = Model.Snapshot(); }
             else if (Connected) Send(NetworkManager.ServerClientId, new Message { kind = "diver", diver = PreferredDiver });
+        }
+
+        // R57: the host's map pick (lobby only); clients follow the map in the snapshots.
+        public void SetMap(int map)
+        {
+            PreferredMap = AquariumMaps.Clamp(map);
+            if (Model == null || Model.Phase != RoundPhase.Lobby) return;
+            Model.SetMap(PreferredMap); State = Model.Snapshot(); snapshotTimer = 1;
+        }
+        public int Map { get { return State != null ? AquariumMaps.Clamp(State.map) : AquariumMaps.Clamp(PreferredMap); } }
+        // R73: the host's "fill empty seats with AI" switch (lobby only); clients read it from the snapshots.
+        public bool FillWithAI { get { return State != null ? !State.noAI : Model == null || Model.FillWithAI; } }
+        public void SetFillWithAI(bool on)
+        {
+            if (Model == null || Model.Phase != RoundPhase.Lobby) return;
+            Model.FillWithAI = on; State = Model.Snapshot(); snapshotTimer = 1;
         }
 
         public async Task RefreshRooms()
@@ -329,7 +373,7 @@ namespace PrototypeLab.Aquarium
 
         private void StartHost(string name, Team team)
         {
-            Model = new AquariumModel(speciesCount: AquariumSpecies.Count, drainSeed: Guid.NewGuid().GetHashCode()) { DiveEntry = DiveEntry }; { var self = Model.AddPlayer(1, name, team); self.alienKind = AquariumAlienKinds.Clamp(PreferredAlien); self.diverKind = AquariumDiverKinds.Clamp(PreferredDiver); } LocalId = 1; peers[NetworkManager.ServerClientId] = 1;
+            Model = new AquariumModel(speciesCount: AquariumSpecies.Count, drainSeed: Guid.NewGuid().GetHashCode()) { DiveEntry = DiveEntry }; Model.SetMap(PreferredMap); { var self = Model.AddPlayer(1, name, team); self.alienKind = AquariumAlienKinds.Clamp(PreferredAlien); self.diverKind = AquariumDiverKinds.Clamp(PreferredDiver); } LocalId = 1; peers[NetworkManager.ServerClientId] = 1;
             if (!network.StartHost()) throw new InvalidOperationException("방을 열지 못했습니다. 잠시 후 다시 시도해 주세요.");
             network.CustomMessagingManager.RegisterNamedMessageHandler(Channel, Receive);
             Busy = false; Status = ""; State = Model.Snapshot();
@@ -426,21 +470,26 @@ namespace PrototypeLab.Aquarium
             if (Model != null)
             {
                 int id; if (!peers.TryGetValue(sender, out id)) return;
+                if (message.kind == "chat") { HostChat(id, message.text); return; }   // R60: spectators waiting for the next round chat too
                 if (waiting.ContainsKey(id)) return;
                 if (message.kind == "input") Model.SetInput(id, message.input);
                 else if (message.kind == "role") Model.SetRole(id, message.team, message.ready);
                 else if (message.kind == "alien") Model.SetAlien(id, message.alien);
                 else if (message.kind == "diver") Model.SetDiver(id, message.diver);
+                else if (message.kind == "ping") HostPing(id, new Point(message.px, message.py, message.pz));
             }
             else if (sender == NetworkManager.ServerClientId)
             {
                 if (message.kind == "welcome") LocalId = message.player;
+                if (message.kind == "chatline") { AddChat(message.player, message.name, message.text, message.team, message.ready); return; }
+                if (message.kind == "pingmark") { AddPing(message.player, message.name, new Point(message.px, message.py, message.pz), message.alien); return; }
                 if (message.state != null && (State == null || message.state.sequence > State.sequence))
                 {
                     bool entering = Busy;
                     if (State == null || State.round != message.state.round || State.phase != message.state.phase || message.state.time < State.time)
                         remotePresentationTime = message.state.time - .05f;
                     State = message.state; Observers = message.observers ?? new AquariumObserver[0];
+                    AquariumMaps.Select(State.map);
                     RoomName = message.roomName ?? RoomName; HasPassword = message.hasPassword; remoteHumans = message.humans;
                     ReceivedSnapshots++; Busy = false;
                     if (entering) Status = IsSpectator ? "경기 중인 방에 관전으로 입장했습니다. 다음 판부터 플레이합니다." : "";
@@ -581,9 +630,81 @@ namespace PrototypeLab.Aquarium
         private static async Task CleanupAfter(Task previous, string id, bool host)
         { await previous; await CleanupLobby(id, host); }
 
+        // ---- R60: chat and pings ------------------------------------------------------------------------------
+        public static string CleanChat(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+            var sb = new System.Text.StringBuilder(text.Length);
+            foreach (char c in text) if (!char.IsControl(c)) sb.Append(c);
+            var clean = sb.ToString().Trim();
+            return clean.Length > ChatLimit ? clean.Substring(0, ChatLimit) : clean;
+        }
+        public void SendChat(string text)
+        {
+            text = CleanChat(text);
+            if (text.Length == 0 || !CanChat) return;
+            if (Model != null) HostChat(LocalId, text);
+            else Send(NetworkManager.ServerClientId, new Message { kind = "chat", text = text });
+        }
+        // The host checks the phase and the pace (3 lines in 2 s), names the sender and passes the line to everyone.
+        private void HostChat(int id, string text)
+        {
+            text = CleanChat(text);
+            if (text.Length == 0 || Model == null || Model.Phase == RoundPhase.Playing) return;
+            float now = Time.realtimeSinceStartup, last;
+            if (chatTimes.TryGetValue(id, out last) && now - last < .6f) return;
+            chatTimes[id] = now;
+            var player = Model.Players.Find(p => p.id == id);
+            AquariumObserver observer = null;
+            if (player == null) { waiting.TryGetValue(id, out observer); if (observer == null) observer = Array.Find(Observers, o => o.id == id); }
+            if (player == null && observer == null) return;
+            string name = player != null ? player.name : observer.name; Team team = player != null ? player.team : observer.team;
+            AddChat(id, name, text, team, player == null);
+            var line = new Message { kind = "chatline", player = id, name = name, text = text, team = team, ready = player == null };
+            foreach (var peer in peers) if (peer.Key != NetworkManager.ServerClientId) Send(peer.Key, line);
+        }
+        private void AddChat(int id, string name, string text, Team team, bool spectator)
+        {
+            Chat.Add(new ChatLine { player = id, name = name, text = CleanChat(text), team = team, spectator = spectator, at = Time.realtimeSinceStartup });
+            if (Chat.Count > 60) Chat.RemoveRange(0, Chat.Count - 60);
+        }
+
+        // R60: an alien points at a spot (middle mouse); only the aliens see it. Pointing only, no game effect.
+        public void SendPing(Point at)
+        {
+            if (!Connected || IsSpectator || State.phase != RoundPhase.Playing) return;
+            if (Model != null) HostPing(LocalId, at);
+            else Send(NetworkManager.ServerClientId, new Message { kind = "ping", px = at.x, py = at.y, pz = at.z });
+        }
+        private void HostPing(int id, Point at)
+        {
+            if (Model == null || Model.Phase != RoundPhase.Playing) return;
+            var sender = Model.Players.Find(p => p.id == id);
+            if (sender == null || sender.team != Team.Hider || !sender.alive || sender.bot) return;
+            if (float.IsNaN(at.x) || float.IsNaN(at.y) || float.IsNaN(at.z) || (at - sender.position).Length > 60) return;
+            float now = Time.realtimeSinceStartup, last;
+            if (pingTimes.TryGetValue(id, out last) && now - last < .45f) return;
+            pingTimes[id] = now;
+            var local = Model.Players.Find(p => p.id == LocalId);
+            if (local != null && local.team == Team.Hider) AddPing(id, sender.name, at, sender.alienKind);
+            var mark = new Message { kind = "pingmark", player = id, name = sender.name, px = at.x, py = at.y, pz = at.z, alien = sender.alienKind };
+            foreach (var peer in peers)
+            {
+                if (peer.Key == NetworkManager.ServerClientId) continue;
+                var target = Model.Players.Find(p => p.id == peer.Value);
+                if (target != null && target.team == Team.Hider) Send(peer.Key, mark);
+            }
+        }
+        private void AddPing(int id, string name, Point at, int alien)
+        {
+            Pings.RemoveAll(p => p.player == id);   // one mark per alien: a new ping moves it
+            Pings.Add(new PingMark { player = id, name = name, at = at, shownAt = Time.realtimeSinceStartup, alienKind = alien });
+        }
+
         public void Leave()
         {
             generation++; leaving = true;
+            Chat.Clear(); Pings.Clear(); chatTimes.Clear(); pingTimes.Clear();
             if (!string.IsNullOrEmpty(lobbyId)) cleanupOperation = CleanupAfter(cleanupOperation, lobbyId, ownsLobby);
             lobbyId = ""; ownsLobby = false; roomPassword = ""; publishedPhase = "";
             RoomName = ""; HasPassword = heartbeatPending = directoryPending = false;

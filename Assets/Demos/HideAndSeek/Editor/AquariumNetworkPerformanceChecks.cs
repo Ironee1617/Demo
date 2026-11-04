@@ -74,7 +74,7 @@ namespace PrototypeLab.Aquarium.Editor
             try
             {
                 session.StartPractice("네트워크 검사", Team.Seeker);
-                Require((int)type.GetField("Protocol", BindingFlags.Static | BindingFlags.NonPublic).GetRawConstantValue() == 12,
+                Require((int)type.GetField("Protocol", BindingFlags.Static | BindingFlags.NonPublic).GetRawConstantValue() == 20,
                     "Network protocol must remain compatible with v6 clients");
                 var createMessage = (Func<string, int, object>)Delegate.CreateDelegate(typeof(Func<string, int, object>),
                     session, type.GetMethod("StateMessage", Private));

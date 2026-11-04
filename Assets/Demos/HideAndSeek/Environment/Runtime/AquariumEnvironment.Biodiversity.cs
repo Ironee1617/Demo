@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -170,18 +170,14 @@ namespace PrototypeLab.Aquarium
 
         private static void CoralColony(Geo g,Vector3 at,float scale,int seed,System.Random r,AquariumEnvironmentRoot marker)
         {
-            int kind=Math.Abs(seed)%6;marker.coralForms[kind]++;
+            int kind=Math.Abs(seed)%6;if(marker!=null)marker.coralForms[kind]++;
             Color[] palette={C(0xddab6f),C(0xae818f),C(0xb57e5e),C(0x7eaa94),C(0xc58aab),C(0x7b92b3)};
             Color tint=palette[(seed/3+kind)%palette.Length];
-            switch(kind)
-            {
-                case 0: Staghorn(g,at,Vector3.up*scale*.95f,scale*.075f,3,tint,r);break;
-                case 1: ScrollCoral(g,at,scale*1.18f,tint,seed);break;
-                case 2: SeaFan(g,at,scale,tint,seed);break;
-                case 3: BrainCoral(g,at,scale,tint,seed);break;
-                case 4: FingerCoral(g,at,scale,tint,seed);break;
-                default: TubeSponge(g,at,scale,tint,seed);break;
-            }
+            // R63: the same shapes (and the same random stream), then painted: a two-tone tropical colourway per
+            // colony and the pattern code the reef shader draws (polyps, ridges, grooves, bands).
+            int first=g.Count;
+            CoralForm(g,at,scale,kind,seed,tint,r);
+            PaintCoral(g,first,at,kind,Math.Abs(seed*7+kind*3),tint);
         }
         private static void Staghorn(Geo g,Vector3 at,Vector3 branch,float radius,int depth,Color tint,System.Random r)
         {
@@ -414,6 +410,7 @@ namespace PrototypeLab.Aquarium
         private static void BuildAnemoneGardens(Transform root,Material rockMaterial,Material kelpMaterial,Material softMaterial,AquariumEnvironmentRoot marker)
         {
             var r=new System.Random(8129);var soft=new Geo();var plants=new Geo();var rubble=new Geo();
+            var rubbleField=new StoneField{ground=AquariumSeabed.BasicHeight}; // R65: the crevice stones joined
             // A legible foreground garden around existing cover, plus smaller ledge colonies.
             var reef=AquariumModel.Rocks[1];var centre=new Vector3(reef.x,reef.y,reef.z);
             for(int n=0;n<5;n++)
@@ -425,7 +422,7 @@ namespace PrototypeLab.Aquarium
                 {
                     float angle=a+stone*2.3f;var foot=at+new Vector3(Mathf.Cos(angle),0,Mathf.Sin(angle))*size*.27f;
                     foot.y-=.025f;
-                    rubble.Ellipsoid(foot,new Vector3(size*.31f,size*.14f,size*.26f),C(0x7f8b7c),10,7,.24f);
+                    rubbleField.Add(foot,new Vector3(size*.31f,size*.14f,size*.26f),C(0x7f8b7c),.24f,size*.22f);
                 }
                 LivingAnemone(soft,at,size,n%2,n+17,marker);
                 if(n==0){marker.anemonePreviewPoint=at;marker.biodiversityPreviewPoint=centre;}
@@ -446,6 +443,7 @@ namespace PrototypeLab.Aquarium
                 }
             }
             if(soft.Count>0)soft.Emit("34 • Living anemones / rose flowing and mint rounded crowns",root,softMaterial);
+            rubbleField.MeshInto(rubble,.035f);
             if(rubble.Count>0)rubble.Emit("36 • Anemone holdfast / irregular crevice stones",root,rockMaterial);
             if(plants.Count>0)plants.Emit("35 • Foreground garden / mixed seaweed silhouettes",root,kelpMaterial);
         }

@@ -29,6 +29,8 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _Fluoro: 0.55
+    - _Pattern: 1
     - _PolypDetail: 0.65
     - _Smoothness: 0.19
     - _Soft: 0

@@ -38,6 +38,9 @@ namespace PrototypeLab.Aquarium
         public int id;
         public string name;
         public Team team;
+        // R72: in the waiting room team is the player's wish (Seeker = wants to be 술래); the host keeps it here while a
+        // round runs (team then holds the role it drew) and puts it back on the way to the waiting room.
+        [NonSerialized] public Team lobbyTeam;
         public bool ready, alive = true, bot, filled;
         public Point position, velocity, facing = new Point(0, 1);
         public Point swallowedFrom;
@@ -175,6 +178,10 @@ namespace PrototypeLab.Aquarium
         public AquariumDrainPlacement[] drains;
         // R37: the game's scenery layout (AquariumSceneryLayout); 0 = the authored one.
         public int scenerySeed;
+        // R57: the map the host picked (AquariumMaps); 0 = the default tank.
+        public int map;
+        // R73: the host turned off filling the empty alien seats with AI.
+        public bool noAI;
     }
 
     [Serializable]
@@ -208,7 +215,10 @@ namespace PrototypeLab.Aquarium
         // R29: a successful disguise can be taken again only after this; dropping it (C) is always allowed.
         public const float MorphCooldown = 10f;
         // Hunger is a 100-point gauge, draining at one point per second.
-        public const float FeedingHungerFraction = .75f, MealRecovery = 50f, InjurySeconds = 5f, LayEggSeconds = 3f, CollectSeconds = 1.25f;
+        public const float FeedingHungerFraction = .8f, MealRecovery = 50f, InjurySeconds = 5f, LayEggSeconds = 3f, CollectSeconds = 1.25f;
+        // R73: fish can be eaten only once hunger drops below 80% (80 of 100); below 20% the HUD warns.
+        public static bool Full(Swimmer p, float time) { return HungerLeft(p, time) >= FeedingHungerFraction * HungerMax(p); }
+        public const float StarvingFraction = .2f;
         public static float HungerLeft(Swimmer p, float time) { float max = HungerMax(p); return Math.Max(0, Math.Min(max, max - (time - p.lastMealAt))); }
         // R47: aliens can eat at any time.
         public static bool HungryEnough(Swimmer p, float time) { return true; }
@@ -227,7 +237,10 @@ namespace PrototypeLab.Aquarium
         public const float EggSinkSpeed = 1.2f, EggRadius = 0.4f;
         public const float HalfWidth = 15f * AquariumMapOutline.HorizontalScale, HalfDepth = 10f * AquariumMapOutline.HorizontalScale, WaterHeight = 12f, Floor = 0.15f, RockHalfHeight = 1.4f;
         public static readonly float[] RockRadii = { 1.15f, 1.35f, 0.8f, 1.05f, 0.85f, 1.0f, 1.05f, 0.85f, 0.9f, 0.85f, 0.75f };
-        public static readonly Point[] Rocks = FitReefs(new[] { new Point(-6, 0.9f, -2), new Point(5, 0.9f, 2.3f), new Point(1, 0.9f, -5), new Point(-10, 0.9f, 3.8f), new Point(-10.1f, 0.9f, -2.5f), new Point(9, 0.9f, -2.8f), new Point(10.5f, 0.9f, 3.8f), new Point(-3, 0.9f, 5.8f), new Point(7, 0.9f, -5.8f), new Point(-8, 0.9f, 5.8f), new Point(1.5f, 0.9f, 4.0f) });
+        // R57: the reef rocks of the default tank; the twin tanks have none (AquariumMaps).
+        public static Point[] Rocks { get { return AquariumMaps.IsTwin ? NoRocks : BasicRocks; } }
+        private static readonly Point[] NoRocks = new Point[0];
+        private static readonly Point[] BasicRocks = FitReefs(new[] { new Point(-6, 0.9f, -2), new Point(5, 0.9f, 2.3f), new Point(1, 0.9f, -5), new Point(-10, 0.9f, 3.8f), new Point(-10.1f, 0.9f, -2.5f), new Point(9, 0.9f, -2.8f), new Point(10.5f, 0.9f, 3.8f), new Point(-3, 0.9f, 5.8f), new Point(7, 0.9f, -5.8f), new Point(-8, 0.9f, 5.8f), new Point(1.5f, 0.9f, 4.0f) });
         public readonly List<Swimmer> Players = new List<Swimmer>();
         public readonly List<Prey> Fish = new List<Prey>();
         public readonly List<Harpoon> Harpoons = new List<Harpoon>();
@@ -263,14 +276,37 @@ namespace PrototypeLab.Aquarium
             random = new Random(seed);
             drainRandom = new Random(drainSeed ?? unchecked(seed ^ 0x4d63a27));
             shuffleScenery = drainSeed.HasValue;
+            AquariumMaps.Select(Map); // R57: a new model starts on the default tank (the host may pick another in the lobby)
             if (shuffleScenery) NewScenery();
             ResetFish();
             AquariumBotNav.Prewarm(); // R48: bot paths are ready before the first round.
         }
+        // R57: the map of this model's games (AquariumMaps), picked by the host in the lobby.
+        public int Map { get; private set; }
+        // R73: fill the empty alien seats (up to 4) with AI at the start; off = only the people in the room.
+        public bool FillWithAI = true;
+        public void SetMap(int map)
+        {
+            map = AquariumMaps.Clamp(map);
+            if (Phase != RoundPhase.Lobby || map == Map) return;
+            Map = map; UseMap();
+            for (int i = 0; i < Players.Count; i++) Players[i].position = Constrain(AquariumMaps.Layout(-9 + i * 2.4f, 2, 0), Players[i].team == Team.Seeker ? .5f : .4f);
+            ResetFish();
+        }
+        // Make every static map query (outline, sand, entry, scenery, bot grid) answer for this model's map.
+        private void UseMap()
+        {
+            AquariumMaps.Select(Map);
+            // R62: a twin layout not laid out yet is prepared off the main thread (shown and applied once ready).
+            if (shuffleScenery) { if (AquariumMaps.IsTwin && !AquariumSceneryLayout.TwinReady(ScenerySeed)) AquariumSceneryLayout.PrepareTwin(ScenerySeed); else AquariumSceneryLayout.Apply(ScenerySeed); }
+            AquariumBotNav.Prewarm();
+        }
         private void NewScenery()
         {
             ScenerySeed = 1 + drainRandom.Next(int.MaxValue - 1);
-            AquariumSceneryLayout.Apply(ScenerySeed);
+            // R62: the next game's twin layout is laid out on a worker thread (the lobby applies it once ready).
+            AquariumSceneryLayout.PrepareTwin(ScenerySeed);
+            if (!AquariumMaps.IsTwin) AquariumSceneryLayout.Apply(ScenerySeed);
             AquariumBotNav.Prewarm();
         }
 
@@ -281,7 +317,7 @@ namespace PrototypeLab.Aquarium
         {
             if (Phase != RoundPhase.Lobby || Players.Count >= MaxPlayers || Player(id) != null) return null;
             var p = new Swimmer { id = id, name = CleanName(name), team = team, bot = bot, ready = bot || id == 1, alienKind = bot ? AquariumAlienKinds.ForBot(id) : 0 };
-            p.position = Constrain(AquariumMapOutline.LayoutPoint(-9 + Players.Count * 2.4f, 2, 0), p.team == Team.Seeker ? .5f : .4f);
+            p.position = Constrain(AquariumMaps.Layout(-9 + Players.Count * 2.4f, 2, 0), p.team == Team.Seeker ? .5f : .4f);
             Players.Add(p);
             return p;
         }
@@ -304,6 +340,7 @@ namespace PrototypeLab.Aquarium
             CheckWinner();
         }
 
+        private readonly System.Random roleRandom = new System.Random(Guid.NewGuid().GetHashCode());
         public void SetRole(int id, Team team, bool ready)
         {
             var p = Player(id);
@@ -315,9 +352,6 @@ namespace PrototypeLab.Aquarium
         public string StartProblem()
         {
             if (Players.Count < 2) return "최소 2명이 필요합니다.";
-            if (!Players.Exists(p => p.team == Team.Hider)) return "숨는 물고기가 1명 이상 필요합니다.";
-            if (!Players.Exists(p => p.team == Team.Seeker)) return "술래가 1명 이상 필요합니다.";
-            if (Players.FindAll(p => p.team == Team.Seeker).Count > 1) return "잠수부는 1명만 선택할 수 있습니다.";
             if (Players.Exists(p => !p.ready)) return "모든 참가자가 준비를 눌러 주세요.";
             return "";
         }
@@ -325,13 +359,20 @@ namespace PrototypeLab.Aquarium
         public bool StartRound()
         {
             if (Phase != RoundPhase.Lobby || StartProblem().Length != 0) return false;
+            // R72: one 술래 (the diver), drawn at random from those who asked for it, else from everyone; the rest hide.
+            var wanting = Players.FindAll(p => p.team == Team.Seeker);
+            var pool = wanting.Count > 0 ? wanting : Players.FindAll(p => !p.bot || Players.TrueForAll(q => q.bot));
+            if (pool.Count == 0) pool = new List<Swimmer>(Players);
+            var drawn = pool[roleRandom.Next(pool.Count)];
+            foreach (var p in Players) { p.lobbyTeam = p.team; p.team = p == drawn ? Team.Seeker : Team.Hider; }
             int fillId = 1000;
-            while (Players.FindAll(p => p.team == Team.Hider).Count < 4)
+            while (FillWithAI && Players.FindAll(p => p.team == Team.Hider).Count < 4)
             {
                 while (Player(fillId) != null) fillId++;
                 var fill = AddPlayer(fillId++, "AI 외계인 " + (Players.FindAll(p => p.team == Team.Hider).Count + 1), Team.Hider, true);
                 fill.filled = true;
             }
+            AquariumMaps.Select(Map);
             if (shuffleScenery) { AquariumSceneryLayout.Apply(ScenerySeed); AquariumBotNav.Prewarm(); }
             drains = AquariumDrainLayout.Create(drainRandom);
             Round++;
@@ -349,14 +390,22 @@ namespace PrototypeLab.Aquarium
                 p.stamina = StaminaMax(p); p.lastMealAt = HuntAt; p.personalEaten = p.score = p.exposureScore = 0;
                 p.kills = 0; p.eggsLaid = 0; p.nextScan = p.scanUntil = p.morphLockedUntil = p.exposureSeconds = 0; p.deathReason = "";
                 p.velocity = new Point(); p.diedAt = 0; p.deathSpecies = -1;
-                p.position = Constrain(p.team == Team.Hider ? AquariumMapOutline.LayoutPoint(-8 + hider++ * 2, 2, -1) : AquariumMapOutline.LayoutPoint(10, 2, -4 + seeker++ * 2), p.team == Team.Seeker ? .5f : .4f);
+                p.position = Constrain(p.team == Team.Hider ? HiderStart(hider++) : AquariumMaps.Layout(10, 2, -4 + seeker++ * 2), p.team == Team.Seeker ? .5f : .4f);
                 p.facing = new Point(p.team == Team.Hider ? 1 : -1, 0); ResetAbilities(p);
                 if (DiveEntry && p.team == Team.Seeker)
                 {
-                    p.entryAt = HuntAt; p.position = AquariumDiveEntry.At(0, seeker - 1); p.facing = AquariumDiveEntry.Facing;
+                    // R60: the diver waits in the changing room until the cut to the dive deck (AquariumLockerRoom).
+                    p.entryAt = HuntAt; p.position = AquariumLockerRoom.Spawn(seeker - 1); p.facing = AquariumLockerRoom.Facing;
                 }
             }
             return true;
+        }
+
+        // R57: in the twin tanks the aliens start spread over both tanks (the default tank keeps its row).
+        private static Point HiderStart(int index)
+        {
+            if (!AquariumMaps.IsTwin) return AquariumMaps.Layout(-8 + index * 2, 2, -1);
+            return AquariumMaps.Layout((index % 2 == 0 ? -7.5f : 7.5f) + (index / 2) * 2.2f - 1, 2, index % 3 - 1.5f);
         }
 
         public void ReturnToLobby()
@@ -366,6 +415,7 @@ namespace PrototypeLab.Aquarium
             Phase = RoundPhase.Lobby; Winner = -1; WinReason = WinReason.None; ReviewEndsAt = FinishedAt = 0;
             Harpoons.Clear(); Effects.Clear(); Eggs.Clear(); inputs.Clear(); inputTimes.Clear();
             Players.RemoveAll(p => p.filled);
+            foreach (var p in Players) p.team = p.lobbyTeam;   // R72: back to each player's wish
             // R37: the next game gets new scenery.
             if (shuffleScenery) NewScenery();
             foreach (var p in Players)
@@ -413,7 +463,7 @@ namespace PrototypeLab.Aquarium
                 for (int k = 0; k < SchoolsPerSpecies || loners.Count == 0 && Fish.Count + SchoolMin <= total; k++)
                 {
                     float wall = AquariumFishTraits.WallRadius(species);
-                    var center = AquariumMapOutline.LayoutPoint(Range(-11, 11), Range(1.8f, WaterHeight - 1.8f), Range(-6, 6));
+                    var center = AquariumMaps.Layout(Range(-11, 11), Range(1.8f, WaterHeight - 1.8f), Range(-6, 6));
                     var facing = new Point(Range(-1, 1), Range(-0.15f, 0.15f), Range(-1, 1)).Normalized;
                     var members = new List<Prey>(); int size = SchoolMin + random.Next(SchoolMax - SchoolMin + 1);
                     var slots = SchoolSlots(size, AquariumFishTraits.Scale(species));
@@ -428,7 +478,7 @@ namespace PrototypeLab.Aquarium
             for (int i = 0; loners.Count > 0 && (Fish.Count < total || i < loners.Count * 2); i++)
             {
                 int species = loners[i % loners.Count]; var habit = AquariumFishTraits.Habit(species);
-                var at = AquariumMapOutline.LayoutPoint(Range(-12, 12), Range(1.2f, WaterHeight-1.2f), Range(-7, 7));
+                var at = AquariumMaps.Layout(Range(-12, 12), Range(1.2f, WaterHeight-1.2f), Range(-7, 7));
                 var facing = new Point(Range(-1, 1), Range(-0.25f, 0.25f), Range(-1, 1)).Normalized;
                 // R23: a flatfish starts lying flat on the sand.
                 if (habit == FishHabit.Bottom) { at.y = AquariumSeabed.Height(at) + AquariumFishTraits.BottomRest(species); facing = Flat(facing); }
@@ -484,6 +534,7 @@ namespace PrototypeLab.Aquarium
         public void Tick(float dt)
         {
             if (!Finite(dt) || dt <= 0 || dt > 0.1f) return;
+            if (AquariumMaps.Current != Map) UseMap();
             Time += dt;
             if (Phase == RoundPhase.Finished) return;
             Effects.RemoveAll(e => Time >= e.born + e.duration);
@@ -536,7 +587,8 @@ namespace PrototypeLab.Aquarium
                     if (Time >= p.layEndsAt) { p.layEndsAt = 0; LayEgg(p); }
                     continue;
                 }
-                if (p.entryAt > 0 && Time < p.entryAt) { TickDiveEntry(p, dt); continue; }
+                if (p.entryAt > 0 && Time < p.entryAt)
+                { if (Time < p.entryAt - AquariumDiveEntry.Seconds) TickLocker(p, dt); else TickDiveEntry(p, dt); continue; }
                 // R27: an alien squeezing into a drain is held over the mouth; F backs it out.
                 if (p.drainTask == DrainTask.Enter && DrainTaskValid(p))
                 {
@@ -601,7 +653,8 @@ namespace PrototypeLab.Aquarium
                     if (p.team == Team.Hider) Bite(p); else Shoot(p);
                 }
                 if (input.feed && p.team == Team.Seeker && Time >= p.nextFeed) Feed(p);
-                if (input.layEgg && p.team == Team.Hider && Time >= HuntAt && Time >= p.stunnedUntil && EggsReady(p) > 0)
+                // R68: an egg is laid only in the true alien form (species -1), never while disguised as a fish.
+                if (input.layEgg && p.team == Team.Hider && p.species < 0 && Time >= HuntAt && Time >= p.stunnedUntil && EggsReady(p) > 0)
                 { p.layStartedAt = Time; p.layEndsAt = Time + LayEggSeconds; p.velocity = new Point(); }
                 if (input.interact) DrainInteract(p, input);
                 if (input.ability) UseAbility(p, input);
@@ -630,7 +683,7 @@ namespace PrototypeLab.Aquarium
 
         private SwimInput BotInput(Swimmer p)
         {
-            Point target = AquariumMapOutline.LayoutPoint((float)Math.Sin(Time * 0.23f) * 10, 3 + (float)Math.Sin(Time * 0.3f) * 1.5f, (float)Math.Cos(Time * 0.31f) * 6);
+            Point target = AquariumMaps.Layout((float)Math.Sin(Time * 0.23f) * 10, 3 + (float)Math.Sin(Time * 0.3f) * 1.5f, (float)Math.Cos(Time * 0.31f) * 6);
             float closest = float.MaxValue;
             if (p.team == Team.Hider)
             {
@@ -647,13 +700,14 @@ namespace PrototypeLab.Aquarium
             }
             var direction = (target - p.position).Normalized;
             return new SwimInput { x = direction.x * 0.7f, y = direction.y * 0.7f, z = direction.z * 0.7f, aimX = direction.x, aimY = direction.y, aimZ = direction.z,
-                action = p.team == Team.Hider ? closest < 1.72f : closest < HarpoonRange, morph = p.species < 0,
+                action = p.team == Team.Hider ? closest < 1.72f : closest < HarpoonRange, morph = p.species < 0 && !(p.team == Team.Hider && EggsReady(p) > 0),
                 feed = p.team == Team.Seeker && Fish.Exists(f => !f.dead && !f.eaten && (f.position - p.position).Length < FeedRadius),
-                layEgg = p.team == Team.Hider && EggsReady(p) > 0,
+                layEgg = p.team == Team.Hider && p.species < 0 && EggsReady(p) > 0,   // R68: alien form only
                 scan = p.team == Team.Seeker && closest > 8 };
         }
 
         // Both the local outline and authoritative action use this angular-first selector.
+        public const float MorphReach = 4.5f;
         public static MorphTarget FindMorphTarget(IList<Prey> fish, IList<Swimmer> players, Swimmer caster, Point aim, float time)
         {
             if (caster == null || !caster.alive || caster.team != Team.Hider || caster.swallowedBy != 0 || !ValidComponent(aim.x) || !ValidComponent(aim.y) || !ValidComponent(aim.z) || aim.Length < 0.1f) return null;
@@ -683,7 +737,8 @@ namespace PrototypeLab.Aquarium
         {
             var delta = position - caster.position; distance = delta.Length;
             alignment = distance < 0.0001f ? 1 : Point.Dot(delta / distance, aim);
-            return distance <= 2.8f && alignment >= 0.8f && ObstacleHit(caster.position, position) > 1;
+            // R73d: a wider reach for the disguise (4.5 m, within about 44 degrees of the aim; it was 2.8 m and 37 degrees).
+            return distance <= MorphReach && alignment >= 0.72f && ObstacleHit(caster.position, position) > 1;
         }
 
         private static void ConsiderMorphTarget(Swimmer caster, Point aim, int id, int species, bool player, Point position,
@@ -753,7 +808,8 @@ namespace PrototypeLab.Aquarium
         private void Bite(Swimmer p)
         {
             if (Time < HuntAt) return;
-            // Feeding is available at 75 or less; each meal restores 50.
+            // R73: fish are eaten only below 80% hunger (Full); each meal restores 50. Allies can still be carried.
+            bool full = Full(p, Time);
             p.nextAction = Time + 0.65f;
             if (Players.Exists(h => h.swallowedBy == p.id)) return;
             Swimmer friend = null; Prey prey = null; float distance = 1.78f;
@@ -761,8 +817,9 @@ namespace PrototypeLab.Aquarium
             foreach (var h in Players)
                 if (h.id != p.id && h.team == Team.Hider && h.alive && h.swallowedBy == 0 && HasFishDisguise(h, Time) && !Players.Exists(c => c.swallowedBy == h.id) && InBite(p, h.position, distance, BiteBonus(p, h.species)))
                 { friend = h; distance = (h.position - p.position).Length - BiteBonus(p, h.species); }
-            foreach (var f in Fish) if (!f.eaten && !f.dead && InBite(p, f.position, distance, BiteBonus(p, f.species)))
+            if (!full) foreach (var f in Fish) if (!f.eaten && !f.dead && InBite(p, f.position, distance, BiteBonus(p, f.species)))
             { prey = f; friend = null; distance = (f.position - p.position).Length - BiteBonus(p, f.species); }
+            if (full && friend == null) { p.nextAction = Time + 0.25f; return; }   // R73: not hungry yet, no bite
             Effect("bite", p.position + p.facing * 0.8f, p.facing, 0.3f);
             if (friend != null)
             {
@@ -892,6 +949,8 @@ namespace PrototypeLab.Aquarium
                 else if (habit == FishHabit.Glide) f.steering = (f.facing + new Point(Range(-0.6f, 0.6f), Range(-0.12f, 0.12f), Range(-0.6f, 0.6f))).Normalized;
                 else f.steering = (f.facing + new Point(Range(-0.8f, 0.8f), Range(-0.3f, 0.3f), Range(-0.8f, 0.8f))).Normalized;
                 f.turnAt = Time + (habit == FishHabit.Cruise ? Range(3f, 7f) : habit == FishHabit.Glide ? Range(2.5f, 6f) : Range(1.4f, 4.5f));
+                // R57: in the twin tanks a wanderer now and then makes for the tunnel and keeps on through it.
+                if (AquariumMaps.IsTwin && !bottom) f.steering = AquariumTwinMap.Wander(f.position, f.steering, (float)random.NextDouble());
             }
             Point heading = f.steering.Length > .0001f ? f.steering : f.facing;
             WaterEffect food = null; float foodDistance = FeedRadius; bool fleeing = false;
@@ -1010,7 +1069,7 @@ namespace PrototypeLab.Aquarium
         // turn quickly for a moment. When wedged, head for the middle of the tank instead.
         private void SteerOffWall(Prey f, Point push, bool bottom)
         {
-            var middle = AquariumMapOutline.LayoutPoint(0, f.position.y, 0) - f.position; middle.y = 0;
+            var middle = AquariumMaps.Middle(f.position) - f.position; middle.y = 0;
             var normal = push.Length > .002f && f.stuckFor <= .4f ? push.Normalized : (middle.Length > .01f ? middle.Normalized : new Point(0, 0, 1));
             var bounce = f.facing - normal * (2 * Point.Dot(f.facing, normal));
             var turn = bounce + normal * .8f + new Point(Range(-.35f, .35f), bottom ? 0 : Range(-.15f, .15f), Range(-.35f, .35f));
@@ -1132,7 +1191,11 @@ namespace PrototypeLab.Aquarium
         {
             if (p.feedsLeft <= 0) return;
             p.feedsLeft--; p.nextFeed = Time + FeedCooldown;
-            Effect("feed", Constrain(p.position + p.facing * 1.2f, 0.35f), p.facing, FeedDuration, p.id);
+            // R73d: thrown well out in front (3.2 m, it was 1.2 m: in the third-person view that was on the diver's own
+            // body), stopping short of anything solid in the way.
+            var ahead = p.position + p.facing * 3.2f; float blocked = SolidHit(p.position, ahead, .3f);
+            if (blocked <= 1) ahead = p.position + (ahead - p.position) * Math.Max(0, blocked - .08f);
+            Effect("feed", Constrain(ahead, 0.35f), p.facing, FeedDuration, p.id);
         }
 
         // R25: every EggFoodRequired fish eaten earns one egg. It can be laid with nobody dead; its
@@ -1285,11 +1348,11 @@ namespace PrototypeLab.Aquarium
                 float first = 2f; Swimmer hitPlayer = null; Prey hitFish = null; RevivalEgg hitEgg = null;
                 // Segment collision prevents fast harpoons crossing thin targets between ticks.
                 foreach (var p in Players) if (p.id != h.owner && p.team == Team.Hider && p.alive && p.swallowedBy == 0)
-                { var t = PlayerHitTime(start, end, p, Time); if (t < first) { first = t; hitPlayer = p; hitFish = null; } }
+                { var t = PlayerHitTime(start, end, p, Time, drains); if (t < first) { first = t; hitPlayer = p; hitFish = null; } }
                 // R49: a starved alien's body can be speared and reeled in too.
                 Swimmer hitCorpse = null;
                 foreach (var p in Players) if (p.team == Team.Hider && StarvedCorpse(p))
-                { var t = PlayerHitTime(start, end, p, Time); if (t < first) { first = t; hitCorpse = p; hitPlayer = null; hitFish = null; } }
+                { var t = PlayerHitTime(start, end, p, Time, drains); if (t < first) { first = t; hitCorpse = p; hitPlayer = null; hitFish = null; } }
                 foreach (var f in Fish) if (!f.eaten && !f.dead)
                 { var t = FishHitTime(start, end, f); if (t < first) { first = t; hitFish = f; hitPlayer = null; hitCorpse = null; } }
                 foreach (var egg in Eggs)
@@ -1423,11 +1486,18 @@ namespace PrototypeLab.Aquarium
         // the alien's own form is AlienScale. Shared by the host and the aiming camera.
         public static float FishHitTime(Point a, Point b, Prey f)
         { return HullHitTime(a, b, f.position, f.facing, HitCore * .42f / AquariumBodyCollision.FishRadius * AquariumFishTraits.HullRadius(f.species), AquariumFishTraits.HullHalf(f.species)); }
-        public static float PlayerHitTime(Point a, Point b, Swimmer p, float time)
+        // R73: an alien in its own form is hit on its head (a sphere round the widest part, .2 m over the pivot) or
+        // its lower body, about the size it is drawn (it was one .27 m ball at the pivot). Squeezing into a drain
+        // (drains given), only its head is out, wedged in the mouth: the hit follows the head there instead of the
+        // pivot hovering above it.
+        public static float PlayerHitTime(Point a, Point b, Swimmer p, float time, AquariumDrainPlacement[] drains = null)
         {
-            return HasFishDisguise(p, time)
-                ? HullHitTime(a, b, p.position, p.facing, HitCore * .48f / AquariumBodyCollision.FishRadius * AquariumFishTraits.HullRadius(p.species), AquariumFishTraits.HullHalf(p.species))
-                : HitTime(a, b, p.position, HitCore * .48f * AquariumFishTraits.AlienScale);
+            if (HasFishDisguise(p, time))
+                return HullHitTime(a, b, p.position, p.facing, HitCore * .48f / AquariumBodyCollision.FishRadius * AquariumFishTraits.HullRadius(p.species), AquariumFishTraits.HullHalf(p.species));
+            float r = AquariumFishTraits.AlienSizeRatio;
+            if (p.drainTask == DrainTask.Enter && drains != null && p.drainIndex >= 0 && p.drainIndex < drains.Length)
+                return HitTime(a, b, AquariumDrainLayout.Mouth(drains[p.drainIndex]) + new Point(0, .12f * r, 0), .38f * r);
+            return Math.Min(HitTime(a, b, p.position + new Point(0, .2f * r, 0), .38f * r), HitTime(a, b, p.position - new Point(0, .16f * r, 0), .34f * r));
         }
         // R23: a long body (shark) is hit along its length, not only near its centre.
         public static float HullHitTime(Point a, Point b, Point centre, Point facing, float radius, float half)
@@ -1456,18 +1526,18 @@ namespace PrototypeLab.Aquarium
             for (int i = 0; i < rocks.Length; i++)
             {
                 var original=AquariumMapOutline.LayoutPoint(rocks[i].x,rocks[i].y,rocks[i].z);float clearance=radii[i]+.85f;
-                var p=AquariumMapOutline.Clamp(original,clearance);
-                if(!AquariumWalkwayLayout.Contains(p,clearance)){p.y+=AquariumSeabed.Height(p)-Floor;rocks[i]=p;continue;}
+                var p=AquariumMapOutline.BasicClamp(original,clearance);
+                if(!(AquariumWalkwayLayout.BasicSignedDistance(p,-1)<clearance)){p.y+=AquariumSeabed.BasicHeight(p.x,p.z)-Floor;rocks[i]=p;continue;}
                 float best=float.MaxValue;
                 for(float x=-HalfWidth;x<=HalfWidth;x+=.25f)for(float z=-HalfDepth;z<=HalfDepth;z+=.25f)
                 {
                     var candidate=new Point(x,original.y,z);float distance=(candidate-original).Length;
-                    if(distance>=best||!AquariumMapOutline.Contains(candidate,clearance)||AquariumWalkwayLayout.Contains(candidate,clearance))continue;
+                    if(distance>=best||!AquariumMapOutline.BasicContains(candidate,clearance)||AquariumWalkwayLayout.BasicSignedDistance(candidate,-1)<clearance)continue;
                     bool overlaps=false;
                     for(int j=0;j<i;j++)if((candidate-rocks[j]).Length<radii[i]+radii[j]+.3f){overlaps=true;break;}
                     if(!overlaps){best=distance;p=candidate;}
                 }
-                p.y+=AquariumSeabed.Height(p)-Floor;rocks[i]=p;
+                p.y+=AquariumSeabed.BasicHeight(p.x,p.z)-Floor;rocks[i]=p;
             }
             return rocks;
         }
@@ -1483,6 +1553,8 @@ namespace PrototypeLab.Aquarium
             {
             p = AquariumWalkwayLayout.Constrain(ConstrainPerimeter(p, radius),radius);
             p.y = Math.Max(AquariumSeabed.Height(p) + radius, Math.Min(WaterHeight - radius, p.y));
+            // R57: the twin map's tunnel roof and the front walls over its mouths.
+            if (AquariumMaps.IsTwin) p = AquariumTwinMap.ConstrainRoof(p, radius);
             for (int i = 0; i < Rocks.Length; i++)
             {
                 var delta = ScaleRock(p - Rocks[i], i, radius);
@@ -1525,6 +1597,7 @@ namespace PrototypeLab.Aquarium
         private static bool FreeSpace(Point p,float radius)
         {
             if(p.y<AquariumSeabed.Height(p)+radius-.001f||p.y>WaterHeight-radius+.001f||!InsideTank(p,radius)||AquariumWalkwayLayout.Contains(p,radius)||AquariumMonolithLayout.Overlaps(p,radius))return false;
+            if(AquariumMaps.IsTwin&&AquariumTwinMap.AboveRoof(p,radius))return false;
             for(int i=0;i<Rocks.Length;i++)if(ScaleRock(p-Rocks[i],i,radius).Length<1)return false;
             return true;
         }
@@ -1536,6 +1609,7 @@ namespace PrototypeLab.Aquarium
         public static float ObstacleHit(Point start, Point end, float padding = 0)
         {
             float hit = Math.Min(AquariumMonolithLayout.Hit(start,end,padding),AquariumSeabed.Hit(start,end,padding));
+            if (AquariumMaps.IsTwin) hit = Math.Min(hit, AquariumTwinMap.RoofHit(start,end,padding));
             for (int i = 0; i < Rocks.Length; i++)
                 hit = Math.Min(hit, HitTime(ScaleRock(start - Rocks[i], i, padding), ScaleRock(end - Rocks[i], i, padding), new Point(), 1));
             return hit;
@@ -1548,6 +1622,7 @@ namespace PrototypeLab.Aquarium
         public static bool SolidClear(Point start,Point end,float padding=0)
         {
             if (AquariumSeabed.Hit(start,end,padding) <= 1 || AquariumWalkwayLayout.Hit(start,end,padding) <= 1) return false;
+            if (AquariumMaps.IsTwin && AquariumTwinMap.RoofHit(start,end,padding) <= 1) return false;
             for (int i = 0; i < Rocks.Length; i++)
                 if (HitTime(ScaleRock(start - Rocks[i], i, padding), ScaleRock(end - Rocks[i], i, padding), new Point(), 1) <= 1) return false;
             return AquariumMonolithLayout.Hit(start,end,padding) > 1;
@@ -1576,7 +1651,7 @@ namespace PrototypeLab.Aquarium
             }
             return new AquariumSnapshot { sequence = ++sequence, round = Round, time = Time, huntAt = HuntAt, endsAt = EndsAt, winner = Winner, phase = Phase,
                 winReason = WinReason, reviewEndsAt = ReviewEndsAt, finishedAt = FinishedAt, target = Fish.Count - killed, killed = killed,
-                remaining = Fish.Count - killed - eaten, eaten = eaten, players = Players.ToArray(), fish = Fish.ToArray(), harpoons = Harpoons.ToArray(), effects = Effects.ToArray(), eggs = Eggs.ToArray(), drains = (AquariumDrainPlacement[])drains.Clone(), scenerySeed = ScenerySeed };
+                remaining = Fish.Count - killed - eaten, eaten = eaten, players = Players.ToArray(), fish = Fish.ToArray(), harpoons = Harpoons.ToArray(), effects = Effects.ToArray(), eggs = Eggs.ToArray(), drains = (AquariumDrainPlacement[])drains.Clone(), scenerySeed = ScenerySeed, map = Map, noAI = !FillWithAI };
         }
     }
 }

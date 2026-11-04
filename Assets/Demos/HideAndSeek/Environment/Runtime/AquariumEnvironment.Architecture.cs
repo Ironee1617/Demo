@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -148,7 +148,8 @@ namespace PrototypeLab.Aquarium
                 lamps.Cylinder(p+Vector3.up*.85f,p+Vector3.up*.91f,.045f,.045f,C(0xffde9b),10);
             }
             // Cantilever brackets leave the entry water column completely open.
-            foreach(float x in new[]{-2.6f,0f,2.6f})
+            // R73e: the tube tank's dive room brings its own braces (AquariumEnvironment.Tube.cs).
+            if(!AquariumMaps.IsGrotto)foreach(float x in new[]{-2.6f,0f,2.6f})
             {
                 hardware.Cylinder(EntryAt(x,.08f,5.65f),EntryAt(x,2.7f,7.00f),.065f,.065f,Navy,10);
                 hardware.Box(EntryAt(x,.02f,5.64f),new Vector3(.26f,.42f,.1f),Brass,rotation);
@@ -182,7 +183,7 @@ namespace PrototypeLab.Aquarium
             }
             hardware.Box(EntryAt(2.42f,-2.42f,7.73f),new Vector3(1.38f,.07f,.08f),Navy,rotation);
             hardware.Box(EntryAt(.0f,-3.35f,7.69f),new Vector3(2.05f,.58f,.12f),Navy,rotation);
-            Label(root,"DIVE  /  01",EntryAt(0,-3.27f,7.73f),Quaternion.LookRotation(-inward),.035f,C(0xead5a3));
+            if(!AquariumMaps.IsGrotto)Label(root,AquariumMaps.IsTwin?"입수대  01":"DIVE  /  01",EntryAt(0,-3.27f,7.73f),Quaternion.LookRotation(-inward),.035f,C(0xead5a3));
             deck.Emit("23 • North dive preparation deck / fitted teak and entry pad",root,stone);
             hardware.Emit("24 • North dive ladder, brackets and preparation equipment",root,stone);
             lamps.Emit("25 • Dive entry guide lights",root,light,false);

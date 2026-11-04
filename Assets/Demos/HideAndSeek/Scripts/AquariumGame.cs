@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Profiling;
@@ -51,12 +51,18 @@ namespace PrototypeLab.Aquarium
 
         private void Awake()
         {
-            Application.runInBackground = true; Application.targetFrameRate = 60;
+            Application.runInBackground = true;
+            // R66: cap at the monitor's refresh rate (144 on a 144 Hz screen) instead of 60, so presets without vSync can pass 100 fps.
+            Application.targetFrameRate = Mathf.Max(60, Mathf.CeilToInt((float)Screen.currentResolution.refreshRateRatio.value));
+            useGUILayout = false;   // R66: no GUILayout anywhere, so skip the extra layout pass of OnGUI every frame
+            WarmShaders();          // R66 (AquariumGameR66.cs)
+            LoadGraphicsChoice();   // R66: the pause menu's picture option
             session = new AquariumSession(); view = new AquariumView(transform); backdrop = new AquariumModel(speciesCount: AquariumSpecies.Count);
             followCamera = new AquariumThirdPersonCamera(view.Camera);
             playerName = PlayerPrefs.GetString("Aquarium.Name", "Diver");
             selectedAlien = AquariumAlienKinds.Clamp(PlayerPrefs.GetInt("Aquarium.Alien", 0));
             selectedDiver = AquariumDiverKinds.Clamp(PlayerPrefs.GetInt("Aquarium.Diver", 0)); session.PreferredDiver = selectedDiver;
+            session.PreferredMap = AquariumMaps.Clamp(PlayerPrefs.GetInt("Aquarium.Map", 0));
             audioSource = gameObject.AddComponent<AudioSource>(); audioSource.volume = 0.24f; audioSource.spatialBlend = 0;
             feedAudioSource = gameObject.AddComponent<AudioSource>(); feedAudioSource.volume = 0.38f; feedAudioSource.spatialBlend = 0;
             sounds["eat"] = Tone("eat", 700, 1150, 0.13f); sounds["shot"] = Tone("shot", 180, 55, 0.12f);
@@ -71,6 +77,7 @@ namespace PrototypeLab.Aquarium
             // R47: the diver's lid-open alarm.
             sounds["alarm"] = Tone("alarm", 980, 600, 0.55f);
             sounds["feed"] = FeedSound(); sounds["splash"] = SplashSound();
+            LoadSoundSet();   // R73: the synthesised WAV set replaces the tones above when present
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             smoke = gameObject.AddComponent<AquariumSmokeDriver>();
             smoke.Initialize(session, view, followCamera); automated = smoke.enabled;
@@ -121,17 +128,17 @@ namespace PrototypeLab.Aquarium
         {
             if (session.State == null) return null;
             if (session.IsSpectator)
-                return Array.Find(session.State.players, p => p.id == session.SpectatingId)
-                    ?? Array.Find(session.State.players, p => p.alive && p.team == Team.Seeker)
-                    ?? Array.Find(session.State.players, p => p.alive);
-            return Array.Find(session.State.players, p => p.id == session.LocalId);
+                return PlayerById(session.State.players, session.SpectatingId)
+                    ?? FirstAliveSeeker(session.State.players)
+                    ?? FirstAlive(session.State.players);
+            return PlayerById(session.State.players, session.LocalId);
         }
 
         private Swimmer SoundListener()
         {
             var listener = Local();
             if (listener != null && !listener.alive && session.State.time - listener.diedAt >= AquariumModel.DeathReviewSeconds)
-                listener = Array.Find(session.State.players, s => s.alive && s.team == Team.Seeker) ?? listener;
+                listener = FirstAliveSeeker(session.State.players) ?? listener;
             return listener;
         }
 
@@ -148,25 +155,30 @@ namespace PrototypeLab.Aquarium
 
         private void Update()
         {
-            if (Input.GetKeyDown(KeyCode.Escape))
-            { if (roomDialog != RoomDialog.None) CloseRoomDialog(true); else if (showRules) showRules = false; else if (session.Connected) pause = !pause; }
+            ApplyGraphicsChoice();   // R66
+            if (Input.GetKeyDown(KeyCode.Escape) && chatTyping) { chatBlur = true; }   // R60: Esc closes the chat line first
+            else if (Input.GetKeyDown(KeyCode.Escape))
+            { if (roomDialog != RoomDialog.None) CloseRoomDialog(true); else if (showRules) showRules = false; else if (session.Connected) { if (session.State.phase != RoundPhase.Lobby) pause = !pause; } else menuPanel = MenuPanel.None; }   // R73: no pause menu in the lobby
             UpdateRoomMenuState();
+            ControlsGuideInput();   // R70b: K shows / hides the controls guide
             var p = Local();
             followCamera.Prepare(session.State, session.LocalId, session.SpectatingId);
             bool playing = session.Connected && session.State.phase == RoundPhase.Playing;
             bool reviewing = session.Connected && session.State.phase == RoundPhase.Finished && session.State.time < session.State.reviewEndsAt;
             bool wasLocked = Cursor.lockState == CursorLockMode.Locked;
-            bool captureMouse = ((playing && !session.IsSpectator) || reviewing) && !pause && !showRules && !tutorialDone && Application.isFocused && !automated;
+            if (session.Connected) EnsureLockerRoom();   // R60
+            bool captureMouse = ((playing && !session.IsSpectator) || reviewing) && !chatTyping && !pause && !showRules && !tutorialDone && Application.isFocused && !automated;
             if (!automated) { Cursor.lockState = captureMouse ? CursorLockMode.Locked : CursorLockMode.None; Cursor.visible = !captureMouse; }
             if (captureMouse && wasLocked)
                 followCamera.Look(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"), Input.mouseScrollDelta.y);
-            if (reviewing && captureMouse && wasLocked)
+            if (reviewing && captureMouse && wasLocked && !chatTyping)
                 followCamera.MoveFree(DiverAxis(KeyCode.D, KeyCode.RightArrow, KeyCode.A, KeyCode.LeftArrow), DiverAxis(KeyCode.W, KeyCode.UpArrow, KeyCode.S, KeyCode.DownArrow), Time.unscaledDeltaTime,
                     (Input.GetKey(KeyCode.Space) ? 1 : 0) - (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) || Input.GetKey(KeyCode.C) ? 1 : 0),
                     Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
             if (playing && p != null && !automated && !session.IsSpectator)
             {
                 bool control = captureMouse && wasLocked && p.alive && p.swallowedBy == 0;
+                PingInput(p, control);   // R60: middle mouse, aliens only
                 // R44: E is the alien's one key for eating and for drain work: a usable drain part under the
                 // crosshair, or a drain job in hand (let go / back out), takes the press; otherwise it bites.
                 bool drainKey = p.team == Team.Hider && (p.drainTask != DrainTask.None || drainTarget != null && drainTarget.usable);
@@ -181,12 +193,11 @@ namespace PrototypeLab.Aquarium
                 pendingEgg |= control && p.team == Team.Hider && Input.GetKeyDown(KeyCode.R);
                 // R25: C drops the disguise.
                 pendingUnmorph |= control && p.team == Team.Hider && Input.GetKeyDown(KeyCode.C);
-                // R41: squeezing into a drain backs out on E (R44; was F), on C, or on a fresh press of any swim key.
-                if (control && p.team == Team.Hider && p.drainTask == DrainTask.Enter
-                    && (Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.C) || SwimKeyDown()))
+                // R41: squeezing into a drain backs out. R73f: on C only (not E, not the swim keys).
+                if (control && p.team == Team.Hider && p.drainTask == DrainTask.Enter && Input.GetKeyDown(KeyCode.C))
                 { pendingInteract = true; pendingInteractDrain = pendingInteractPart = -1; }
                 // R27: E at a drain (R44: the alien too, was F): start on the part under the crosshair, or let go.
-                if (control && Input.GetKeyDown(KeyCode.E) && (p.team == Team.Hider ? drainKey : drainTarget != null || p.drainTask != DrainTask.None))
+                if (control && Input.GetKeyDown(KeyCode.E) && !(p.team == Team.Hider && p.drainTask == DrainTask.Enter) && (p.team == Team.Hider ? drainKey : drainTarget != null || p.drainTask != DrainTask.None))
                 {
                     pendingInteract = true;
                     pendingInteractDrain = drainTarget != null ? drainTarget.drain : -1; pendingInteractPart = drainTarget != null ? drainTarget.part : -1;
@@ -197,9 +208,11 @@ namespace PrototypeLab.Aquarium
                     inputTimer %= 1f / 30f;
                     var aim = followCamera.Aim(session.State, p);
                     var move = !control ? new Point() : followCamera.Movement(DiverAxis(KeyCode.D, KeyCode.RightArrow, KeyCode.A, KeyCode.LeftArrow), DiverAxis(KeyCode.W, KeyCode.UpArrow, KeyCode.S, KeyCode.DownArrow));
+                    bool inLocker = AquariumLockerRoom.Waiting(p, session.State.time);   // R60: walking on the changing-room floor
+                    if (control && inLocker) move = LockerMove();
                     if (control)
                     {
-                        move.y += (Input.GetKey(KeyCode.Space) ? 1 : 0) - (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) ? 1 : 0);
+                        if (!inLocker) move.y += (Input.GetKey(KeyCode.Space) ? 1 : 0) - (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) ? 1 : 0);
                         if (move.Length > 1) move = move.Normalized;
                     }
                     session.Input(new SwimInput
@@ -219,10 +232,14 @@ namespace PrototypeLab.Aquarium
             else { pendingAction = pendingMorph = pendingFeed = pendingAbility = pendingEgg = pendingUnmorph = pendingInteract = false; }
             using(sessionMarker.Auto())session.Update(Time.unscaledDeltaTime);
             UpdateAlienPreview();
+            bool menuShown = UpdateMenuStage();   // R71: the chase on the reef behind the main menu
             if (!session.Connected)
             {
-                backdrop.Tick(Mathf.Min(Time.unscaledDeltaTime, 0.1f));
-                using(drawMarker.Auto())view.Draw(backdrop.Snapshot(), 0, Time.unscaledDeltaTime);
+                if (!menuShown)
+                {
+                    backdrop.Tick(Mathf.Min(Time.unscaledDeltaTime, 0.1f));
+                    using(drawMarker.Auto())view.Draw(backdrop.Snapshot(), 0, Time.unscaledDeltaTime);
+                }
                 AquariumGalleryCamera.Murk = 0;
             }
             else
@@ -260,7 +277,7 @@ namespace PrototypeLab.Aquarium
                 previousPhase = session.State.phase;
             }
             UpdateFeedSound();
-            TrackR47Effects(); UpdateTutorial();
+            TrackR47Effects(); UpdateTutorial(); UpdateHungerWarning(); UpdateScrewSound(); UpdatePingArrows();   // R73h
         }
 
         private static bool DrainSound(string kind)
@@ -299,7 +316,7 @@ namespace PrototypeLab.Aquarium
 
         private void OnApplicationFocus(bool focused)
         {
-            if (!focused && !automated && session != null && session.Connected) pause = true;
+            if (!focused && !automated && session != null && session.Connected && session.State.phase != RoundPhase.Lobby) pause = true;
         }
 
         // R29: a Subnautica-like HUD. Translucent deep-sea glass cards with a thin cyan rim, ring gauges,
@@ -379,7 +396,7 @@ namespace PrototypeLab.Aquarium
         // A light keycap with the key in dark ink; returns its width.
         private float Key(float x, float y, string key)
         {
-            float w = Mathf.Max(24, 12 + keyInk.CalcSize(new GUIContent(key)).x);
+            float w = Mathf.Max(24, 12 + Measure(keyInk, key).x);
             var rect = new Rect(x, y, w, 22);
             Shape(rect, new Color(0.86f, 0.97f, 1f, 0.94f), 5);
             GUI.Label(rect, key, keyInk);
@@ -460,18 +477,11 @@ namespace PrototypeLab.Aquarium
             float w = width * Mathf.Clamp01(ratio);
             if (w > .5f) Shape(new Rect(x, y, Mathf.Max(height, w), height), color, height / 2);
         }
-        private void Icon(float x, float y, HudIcon icon, Color color, float size)
-        {
-            var matrix = GUI.matrix;
-            GUI.matrix = matrix * Matrix4x4.TRS(new Vector3(x, y, 0), Quaternion.identity, new Vector3(size / 24f, size / 24f, 1));
-            Icon(0, 0, icon, color);
-            GUI.matrix = matrix;
-        }
         // An interaction prompt under the reticle: [key] text in a glass pill.
         private void Prompt(float cx, float y, string key, string text, Color rim)
         {
-            float textW = promptText.CalcSize(new GUIContent(text)).x;
-            float keyW = key.Length > 0 ? Mathf.Max(24, 12 + keyInk.CalcSize(new GUIContent(key)).x) + 8 : 0;
+            float textW = Measure(promptText, text).x;
+            float keyW = key.Length > 0 ? Mathf.Max(24, 12 + Measure(keyInk, key).x) + 8 : 0;
             float w = 28 + keyW + textW; var rect = new Rect(cx - w / 2, y, w, 30);
             Pill(rect, rim);
             float x = rect.x + 14;
@@ -484,8 +494,8 @@ namespace PrototypeLab.Aquarium
         private const float PromptStep = 38;
         private void KeyPrompt(float cx, float y, string key, string text, Color accent)
         {
-            float textW = promptText.CalcSize(new GUIContent(text)).x;
-            float capW = Mathf.Max(30, 16 + keyInk.CalcSize(new GUIContent(key)).x), capH = 30;
+            float textW = Measure(promptText, text).x;
+            float capW = Mathf.Max(30, 16 + Measure(keyInk, key).x), capH = 30;
             float w = capW + 10 + textW, x = cx - w / 2;
             Shape(new Rect(x + capW + 2, y + 3, textW + 16, capH - 6), new Color(0, 0.03f, 0.06f, .55f), (capH - 6) / 2);
             Shape(new Rect(x, y + 3, capW, capH - 1), new Color(0.32f, 0.42f, 0.48f, .95f), 7);
@@ -511,19 +521,31 @@ namespace PrototypeLab.Aquarium
             float width = Screen.width / scale, height = Screen.height / scale;
             GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1));
             if (showRules || roomDialog != RoomDialog.None) GUI.enabled = false;
-            if (!session.Connected) Menu(width, height);
+            if (!session.Connected) MainMenu(width, height);   // R71 (the old boxed Menu is no longer drawn)
             else if (session.State.phase == RoundPhase.Lobby) Lobby(width, height);
-            else PlayHUD(width, height);
+            else
+            {
+                PlayHUD(width, height);
+                // R60: pings (aliens), the changing-room hint and the cut to the deck; chat after the round
+                var hudState = session.State; var hudLocal = Local();
+                if (hudState.phase == RoundPhase.Playing && hudLocal != null) { PingMarkers(hudState, hudLocal, width, height); LockerHint(hudState, hudLocal, width); }
+                if (hudState.phase == RoundPhase.Finished) FinishedChat(width, height, hudState.time < hudState.reviewEndsAt);
+                LockerFade(width, height);
+            }
+            if (!session.CanChat && chatTyping) { chatTyping = false; GUI.FocusControl(null); }
+            if (pause && session.Connected && session.State.phase == RoundPhase.Lobby) pause = false;   // R73: the lobby has no pause menu
             if (pause && session.Connected)
             {
                 Panel(new Rect(0, 0, width, height), new Color(0, 0.03f, 0.06f, 0.6f));
-                float x = width / 2 - 200, y = height / 2 - 146; Card(new Rect(x, y, 400, 292), true, 16);
+                float x = width / 2 - 200, y = height / 2 - 175; Card(new Rect(x, y, 400, 350), true, 16);
                 Label(x + 24, y + 22, 352, 35, "수조 메뉴", heading);
                 Shape(new Rect(x + 24, y + 58, 40, 3), cyan, 1.5f);
                 Label(x + 24, y + 66, 352, 30, "경기는 계속 진행됩니다.", small);
                 if (Button(x + 24, y + 104, 352, "계속 헤엄치기", true)) pause = false;
                 if (Button(x + 24, y + 162, 352, "조작과 규칙")) showRules = true;
-                if (Button(x + 24, y + 220, 352, session.IsHost && !session.Practice ? "방 종료하고 나가기" : "나가기")) Leave();
+                // R66: the picture option (AquariumGameR66.cs): full quality, or a faster picture for more frames.
+                if (Button(x + 24, y + 220, 352, fastGraphics ? "그래픽: 빠르게 (프레임 우선)" : "그래픽: 최고 품질")) SetFastGraphics(!fastGraphics);
+                if (Button(x + 24, y + 278, 352, session.IsHost && !session.Practice ? "방 종료하고 나가기" : "나가기")) Leave();
             }
             GUI.enabled = true;
             if (showRules) Rules(width, height);
@@ -555,12 +577,15 @@ namespace PrototypeLab.Aquarium
             if (joinCode.Length == 0) Label(x + 44, y + 479, 219, 25, "친구의 방 코드 입력", small);
             GUI.enabled = usable && joinCode.Trim().Length >= 4;
             if (Button(x + 297, y + 468, 145, "코드로 참가")) OpenRoomDialog(RoomDialog.CodeJoin);
+            // R70b: the three tutorials start from the main menu (they were in the practice waiting room).
+            GUI.enabled = usable;
+            TutorialButtons(x + 30, y + 522, 412);
             GUI.enabled = !showRules && roomDialog == RoomDialog.None;
             string status = string.IsNullOrEmpty(roomDialogError) ? session.Status : roomDialogError;
-            Label(x + 30, y + 532, 412, 68, string.IsNullOrEmpty(status)
-                ? "온라인 2–5인, 빈자리는 AI가 채웁니다." : status, small);
-            if (session.Busy && Button(new Rect(x + 318, y + 605, 124, 30), "연결 취소")) CloseRoomDialog(true);
-            else if (!session.Busy && Button(new Rect(x + 30, y + 605, 412, 30), "조작과 규칙")) showRules = true;
+            Label(x + 30, y + 578, 412, 32, string.IsNullOrEmpty(status)
+                ? "온라인 2–5인, 빈자리는 AI로 채우거나 비워 둘 수 있습니다." : status, small);
+            if (session.Busy && Button(new Rect(x + 318, y + 612, 124, 28), "연결 취소")) CloseRoomDialog(true);
+            else if (!session.Busy && Button(new Rect(x + 30, y + 612, 412, 28), "조작과 규칙")) showRules = true;
             DrawRoomList(548, y, width - 596, 650, usable);
         }
 
@@ -629,7 +654,7 @@ namespace PrototypeLab.Aquarium
             if (!session.Connected && wasConnected) roomsRequested = false;
             wasConnected = session.Connected;
             if (!automated && !session.Connected && !session.Busy && !session.RoomsBusy && !roomSubmitting
-                && !roomRequestPending && roomDialog == RoomDialog.None && !showRules
+                && !roomRequestPending && roomDialog == RoomDialog.None && !showRules && menuPanel == MenuPanel.Find
                 && (!roomsRequested || Time.unscaledTime >= nextRoomsRefreshAt)) RefreshRoomList();
             if (!roomRequestPending) return;
             if (session.Connected) { CloseRoomDialog(false); return; }
@@ -690,9 +715,9 @@ namespace PrototypeLab.Aquarium
             int request = ++roomRequestVersion; roomSubmitting = roomRequestPending = true;
             try
             {
-                if (kind == RoomDialog.Create) await session.CreateRoom(roomName, password, playerName, selectedTeam);
-                else if (kind == RoomDialog.RoomJoin) await session.JoinRoom(lobbyId, password, playerName, selectedTeam);
-                else await session.OpenInternet(false, joinCode, playerName, selectedTeam, password);
+                if (kind == RoomDialog.Create) await session.CreateRoom(roomName, password, playerName, Team.Hider);   // R72: online you ask to be 술래 in the room
+                else if (kind == RoomDialog.RoomJoin) await session.JoinRoom(lobbyId, password, playerName, Team.Hider);
+                else await session.OpenInternet(false, joinCode, playerName, Team.Hider, password);
             }
             catch (Exception)
             { if (request == roomRequestVersion) roomDialogError = "접속하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요."; }
@@ -703,6 +728,9 @@ namespace PrototypeLab.Aquarium
         // 2026-10-28 lobby: the room and its players on the left, the alien pick on the right (a live 3D row of
         // every alien, cards, and the picked one's ability slot). AI practice opens the same lobby: the AI fills
         // the other seats, and the start button begins the round.
+        // R70b: every player row has a portrait in a team-coloured frame (diver orange, alien green); the next
+        // game's map is a large card under the list (where the tutorials were; they moved to the main menu);
+        // the fish guide button sits where the role switch was (the switch is a tab on the right panel now).
         private void Lobby(float width, float height)
         {
             const float total = 1184, leftWidth = 448, panelHeight = 640;
@@ -713,72 +741,75 @@ namespace PrototypeLab.Aquarium
             if (practice)
             {
                 Label(x + 28, y + 18, leftWidth - 56, 34, "AI 연습 대기실", heading);
-                Label(x + 28, y + 54, leftWidth - 56, 23, "혼자 연습, 빈자리는 AI가 채웁니다", small);
+                Label(x + 28, y + 54, leftWidth - 56, 23, "AI가 다른 자리를 채웁니다. 역할과 캐릭터, 맵을 고르고 시작하세요.", small);
             }
             else
             {
-                Label(x + 28, y + 18, leftWidth - 56, 34, string.IsNullOrEmpty(session.RoomName) ? "입수 준비" : session.RoomName, string.IsNullOrEmpty(session.RoomName) ? heading : body);
-                Label(x + 28, y + 54, leftWidth - 56, 23, (session.HasPassword ? "비밀번호 방" : "공개 방") + ",  플레이어 " + session.HumanCount + "명,  관전자 " + session.SpectatorCount + "명", small);
-                Label(x + 28, y + 84, 250, 20, "친구에게 보낼 방 코드", caption);
-                Shape(new Rect(x + 24, y + 102, 236, 46), new Color(0.01f, 0.06f, 0.1f, 0.7f), 10);
-                Label(x + 38, y + 104, 220, 42, session.Code, number);
-                if (Button(x + leftWidth - 168, y + 100, 140, "코드 복사")) { GUIUtility.systemCopyBuffer = session.Code; notice = "방 코드를 복사했습니다."; }
+                Label(x + 28, y + 18, leftWidth - 300, 34, string.IsNullOrEmpty(session.RoomName) ? "입수 준비" : session.RoomName, string.IsNullOrEmpty(session.RoomName) ? heading : body);
+                FillAISwitch(new Rect(x + leftWidth - 212, y + 74, 188, 26));   // R73
+                Label(x + 28, y + 76, leftWidth - 250, 23, (session.HasPassword ? "비밀번호 방" : "공개 방") + ",  플레이어 " + session.HumanCount + "명,  관전자 " + session.SpectatorCount + "명", small);
+                Label(x + leftWidth - 252, y + 12, 160, 18, "친구에게 보낼 방 코드", caption);
+                Shape(new Rect(x + leftWidth - 256, y + 30, 166, 40), new Color(0.01f, 0.06f, 0.1f, 0.7f), 10);
+                Label(x + leftWidth - 246, y + 30, 156, 40, session.Code, number);
+                if (Button(new Rect(x + leftWidth - 82, y + 32, 58, 36), "복사")) { GUIUtility.systemCopyBuffer = session.Code; notice = "방 코드를 복사했습니다."; }
             }
-            float listTop = practice ? y + 92 : y + 158;
+            float listTop = practice ? y + 88 : y + 104;
             Separator(x + 28, listTop, leftWidth - 56);
-            Label(x + 28, listTop + 12, 180, 22, "참가자", caption);
-            Label(x + 196, listTop + 12, 120, 22, "역할 / 캐릭터", caption);
-            Label(x + leftWidth - 100, listTop + 12, 80, 22, "상태", caption);
-            int row = 0;
+            Label(x + 28, listTop + 10, 150, 22, "참가자", caption);
+            Label(x + 184, listTop + 10, 150, 22, "역할 / 캐릭터", caption);
+            Label(x + leftWidth - 100, listTop + 10, 80, 22, "상태", caption);
+            int row = 0; float rowH = practice ? 46 : 40, first = listTop + 32;
             foreach (var p in session.State.players)
             {
-                float ry = listTop + 40 + row++ * 44;
-                Shape(new Rect(x + 20, ry - 4, leftWidth - 40, 40), p.id == session.LocalId ? new Color(0.12f, 0.33f, 0.4f, 0.6f) : row % 2 == 1 ? new Color(0.08f, 0.22f, 0.29f, 0.5f) : new Color(0.06f, 0.17f, 0.23f, 0.4f), 9);
+                float ry = first + row++ * rowH;
+                var team = TeamColor(p.team);
+                var back = new Rect(x + 20, ry, leftWidth - 40, rowH - 4);
+                Shape(back, p.id == session.LocalId ? new Color(0.12f, 0.33f, 0.4f, 0.6f) : row % 2 == 1 ? new Color(0.08f, 0.22f, 0.29f, 0.5f) : new Color(0.06f, 0.17f, 0.23f, 0.4f), 9);
+                Shape(new Rect(back.x, back.y + 5, 3, back.height - 10), team, 1.5f);   // team stripe
                 string who = p.name + (p.id == session.LocalId ? "  (나)" : "") + (!practice && p.id == 1 ? "  방장" : "") + (p.bot ? "  AI" : "");
-                Label(x + 30, ry + 4, 160, 30, who, roomNameText);
-                if (p.team == Team.Hider)
-                {
-                    var kind = AquariumAlienKinds.Get(p.alienKind);
-                    Shape(new Rect(x + 196, ry + 12, 12, 12), new Color(kind.r, kind.g, kind.b), 6);
-                    Label(x + 214, ry + 6, 150, 28, kind.name, Tinted(small, new Color(kind.r, kind.g, kind.b)));
-                }
-                else
-                {
-                    var diver = AquariumDiverKinds.Get(p.diverKind);
-                    Shape(new Rect(x + 196, ry + 12, 12, 12), new Color(diver.r, diver.g, diver.b), 3);
-                    Label(x + 214, ry + 6, 150, 28, diver.name, Tinted(small, new Color(diver.r, diver.g, diver.b)));
-                }
-                Shape(new Rect(x + leftWidth - 100, ry + 15, 8, 8), p.ready ? cyan : new Color(muted.r, muted.g, muted.b, .5f), 4);
-                Label(x + leftWidth - 86, ry + 6, 72, 28, p.ready ? "준비 완료" : "준비 중", small);
+                Label(x + 32, ry + (rowH - 4) / 2 - 14, 146, 28, who, roomNameText);
+                float size = rowH - 8;
+                PortraitFrame(new Rect(x + 184, ry, size, size), p);
+                float tx = x + 184 + size + 8;
+                string kindName; Color kindColor;
+                if (p.team == Team.Hider) { var kind = AquariumAlienKinds.Get(p.alienKind); kindName = kind.name; kindColor = new Color(kind.r, kind.g, kind.b); }
+                else { var diver = AquariumDiverKinds.Get(p.diverKind); kindName = diver.name; kindColor = new Color(diver.r, diver.g, diver.b); }
+                Label(tx, ry + (rowH - 4) / 2 - 19, 130, 20, kindName, Tinted(small, Color.Lerp(kindColor, Color.white, .25f)));
+                Label(tx, ry + (rowH - 4) / 2 + 2, 130, 16, p.team == Team.Seeker ? (practice ? "잠수부" : "술래 희망") : "외계인", Tinted(caption, team));
+                Shape(new Rect(x + leftWidth - 100, ry + (rowH - 4) / 2 - 4, 8, 8), p.ready ? cyan : new Color(muted.r, muted.g, muted.b, .5f), 4);
+                Label(x + leftWidth - 86, ry + (rowH - 4) / 2 - 13, 72, 26, p.ready ? "준비 완료" : "준비 중", small);
             }
-            float controls = y + panelHeight - 132;
+            float controls = y + panelHeight - 100;
+            float listEnd = first + row * rowH + 4;
+            // R70b: the map card under the list (large in practice; online it shares the space with the chat).
+            float mapHeight = practice ? Mathf.Max(96, controls - 10 - listEnd) : 74;
+            LobbyMapCard(new Rect(x + 20, listEnd, leftWidth - 40, mapHeight));
+            // R60: the room chat fills the space between the map and the buttons (the controls are in the rules).
+            if (!practice) LobbyChat(x + 20, listEnd + mapHeight + 8, leftWidth - 40, controls - 8);
+            // R70b: the fish guide where the role switch was; the switch is on the right panel (CharacterPanel).
+            if (Button(x + 28, controls, 190, lobbyTab == 1 ? "✓ 어종 도감" : "어종 도감", lobbyTab == 1)) lobbyTab = lobbyTab == 1 ? 0 : 1;
             if (local != null)
             {
-                float guide = listTop + 40 + row * 44 + 14;
-                if (practice) TutorialButtons(x + 28, guide - 6, leftWidth - 56);
-                else if (controls - guide > 70)
-                {
-                    Label(x + 28, guide, leftWidth - 56, 22, local.team == Team.Hider ? "외계인 조작" : "잠수부 조작", small);
-                    Label(x + 28, guide + 24, leftWidth - 56, controls - guide - 30, local.team == Team.Hider
-                        ? "물고기 사이에 숨어 살아남기\nQ 위장   E 포식/배수구   R 산란   C 해제   F 능력"
-                        : "외계인을 찾아 작살로 잡기\n클릭 작살   F 먹이(3회)   R 능력   E 뚜껑 덮기", body);
-                }
-                Team other = local.team == Team.Hider ? Team.Seeker : Team.Hider;
-                if (Button(x + 28, controls, 190, other == Team.Seeker ? "잠수부로 바꾸기" : "외계인으로 바꾸기"))
-                {
-                    notice = ""; selectedTeam = other;
-                    if (practice) session.PracticeRole(other); else session.Role(other, false);
-                }
                 if (session.IsHost)
                 { if (Button(x + 230, controls, 190, "게임 시작", true)) { lastEffect = 0; notice = session.StartRound(); } }
                 else if (Button(x + 230, controls, 190, local.ready ? "준비 취소" : "준비 완료", !local.ready)) session.Role(local.team, !local.ready);
             }
-            if (Button(x + 28, controls + 52, 392, practice ? "메인으로" : "방 나가기")) Leave();
-            string lobbyNotice = !string.IsNullOrEmpty(notice) ? notice : session.Status;
-            Label(x + 28, controls + 100, leftWidth - 56, 30, string.IsNullOrEmpty(lobbyNotice)
-                ? (practice ? "역할과 외계인을 고르고 게임 시작을 누르세요." : "잠수부 1명 + 외계인 1명 이상, 전원 준비 후 시작") : lobbyNotice, small);
+            if (Button(x + 28, controls + 50, 190, "방 나가기")) Leave();
+            if (Button(x + 230, controls + 50, 190, "조작과 규칙")) showRules = true;
             CharacterPanel(x + leftWidth + 16, y, total - leftWidth - 16, panelHeight, local);
-            TipPill(width / 2, y + panelHeight + 10, total);
+            // The notice (or the next step) in the pill under the panels; tips while there is nothing to say.
+            string lobbyNotice = !string.IsNullOrEmpty(notice) ? notice : session.Status;
+            if (string.IsNullOrEmpty(lobbyNotice) && !practice)
+                lobbyNotice = session.IsHost ? "2명 이상, 전원 준비 후 시작. 술래는 희망자 중 무작위 (없으면 전원 중)" : "전원 준비 후 시작. 술래는 희망자 중 무작위 (없으면 전원 중)";
+            if (string.IsNullOrEmpty(lobbyNotice)) TipPill(width / 2, y + panelHeight + 10, total);
+            else NoticePill(width / 2, y + panelHeight + 10, total, lobbyNotice);
+        }
+        private void NoticePill(float cx, float y, float maxWidth, string text)
+        {
+            float w = Mathf.Min(maxWidth, Measure(promptText, text).x + 40);
+            var rect = new Rect(cx - w / 2, y, w, 30);
+            Pill(rect, new Color(cyan.r, cyan.g, cyan.b, .6f));
+            GUI.Label(new Rect(rect.x + 20, y, w - 30, 30), text, promptText);
         }
 
         private void AlienSelect(float x, float y, float width, float height, Swimmer local)
@@ -789,7 +820,7 @@ namespace PrototypeLab.Aquarium
             Label(x + 24, y + 18, 300, 34, "외계인 선택", heading);
             Label(x + 24, y + 54, width - 48, 23, local == null ? "관전 중에는 고를 수 없습니다."
                 : local.team == Team.Seeker ? "지금은 잠수부로 참가합니다, 외계인으로 바꾸면 고른 캐릭터로 플레이해요."
-                : "캐릭터를 눌러 고르세요, 외계인마다 F 능력과 패시브가 다릅니다.", small);
+                : "캐릭터를 눌러 고르세요, 다른 사람과 같은 외계인도 고를 수 있어요.", small);
             float stageWidth = width - 48, stageHeight = stageWidth / AquariumAlienPreview.Aspect;
             var stage = new Rect(x + 24, y + 86, stageWidth, stageHeight);
             if (alienPreview != null && alienPreview.Texture != null) GUI.DrawTexture(stage, alienPreview.Texture, ScaleMode.StretchToFill, false);
@@ -815,17 +846,22 @@ namespace PrototypeLab.Aquarium
                 Shape(card, chosen ? new Color(0.12f, 0.3f, 0.38f, 0.85f) : hover ? new Color(0.1f, 0.25f, 0.32f, 0.8f) : new Color(0.06f, 0.17f, 0.23f, 0.7f), 10);
                 Shape(card, chosen ? color : new Color(color.r, color.g, color.b, .45f), 10, chosen ? 2f : 1.2f);
                 Label(card.x + 12, card.y + 13, card.width - 18, 28, (chosen ? "✓ " : "") + kind.name, chosen ? Tinted(body, color) : body);
+                int others = OthersWithAlien(kind.id);   // R73: duplicates are allowed, the card counts the others
+                if (others > 0) { var tag = new Rect(card.xMax - 40, card.y + 4, 36, 18); Shape(tag, new Color(color.r, color.g, color.b, .35f), 9); GUI.Label(tag, "+" + others, Tinted(smallCentred, Color.white)); }
                 if (canPick && GUI.Button(card, GUIContent.none, GUIStyle.none)) PickAlien(kind.id);
             }
-            // The picked alien's ability slot.
-            float infoY = cardY + 64;
-            Separator(x + 24, infoY, stageWidth);
-            Label(x + 24, infoY + 14, 260, 30, picked.name, Tinted(heading, pickedColor));
-            Label(x + 24, infoY + 46, 300, 24, picked.look, small);
-            var ability = new Rect(x + 300, infoY + 12, stageWidth - 276, height - (infoY - y) - 28);
-            Card(ability, new Color(picked.r, picked.g, picked.b, .6f), false, 12);
-            Label(ability.x + 16, ability.y + 10, ability.width - 28, 24, picked.abilityName, Tinted(body, pickedColor));
-            Label(ability.x + 16, ability.y + 38, ability.width - 28, ability.height - 46, picked.abilityText, small);
+            // The picked alien's abilities. R70b: no name block (the card above says it); the F ability and the
+            // passive get one box each across the full width (the green alien's single passive takes it all).
+            float infoY = cardY + 66, boxH = height - (infoY - y) - 24;
+            var parts = AlienAbilityParts(picked);
+            var rim = new Color(picked.r, picked.g, picked.b, .6f);
+            if (parts[0].Length == 0) AbilityBox(new Rect(x + 24, infoY, stageWidth, boxH), rim, parts[2], parts[3], pickedColor);
+            else
+            {
+                float half = (stageWidth - 12) / 2;
+                AbilityBox(new Rect(x + 24, infoY, half, boxH), rim, parts[0], parts[1], pickedColor);
+                AbilityBox(new Rect(x + 36 + half, infoY, half, boxH), Rim, parts[2], parts[3], Color.white);
+            }
         }
 
         private void PickAlien(int kind)
@@ -921,6 +957,7 @@ namespace PrototypeLab.Aquarium
             if (state.phase == RoundPhase.Finished) { FinishedHUD(width, height); return; }
             var p = Local(); if (p == null) return;
             MurkOverlay(width, height);
+            HungerBorder(state, p, width, height);   // R73
             if (!session.IsSpectator && p.alive && p.team == Team.Hider && state.time < p.injuredUntil)
                 DamageBorder(width, height, p.injuredUntil - state.time);
             EscapeMarkers(state, p, width, height);
@@ -932,7 +969,7 @@ namespace PrototypeLab.Aquarium
                 Card(new Rect(24, 20, 236, 72));
                 Label(40, 28, 200, 16, "포식 목표", caption);
                 Icon(40, 47, HudIcon.Fish, cyan, 20);
-                Label(68, 41, 172, 30, state.eaten + " / " + state.target, heading);
+                Label(68, 41, 172, 30, Cat(Int(state.eaten), " / ", Int(state.target)), heading);
                 Meter(40, 76, 204, state.target == 0 ? 1 : (float)state.eaten / state.target, cyan, 5);
             }
             if (state.eggs != null && state.eggs.Length > 0)
@@ -942,7 +979,7 @@ namespace PrototypeLab.Aquarium
                 Card(new Rect(24, eggY, 236, 40));
                 Icon(40, eggY + 9, HudIcon.Egg, cyan, 20);
                 // R25: a laid egg counts down from laying; afterwards it waits to revive a fallen ally.
-                Label(68, eggY + 6, 176, 28, state.eggs.Length + "개   " + (nearest > 0 ? Mathf.CeilToInt(nearest) + "s" : "부화 가능"), body);
+                Label(68, eggY + 6, 176, 28, Cat(Int(state.eggs.Length), "개   ", nearest > 0 ? Cat(Int(Mathf.CeilToInt(nearest)), "s") : "부화 가능"), body);
                 EggMeter(state, eggY);
             }
             // Top centre: compass strip and the round clock.
@@ -952,7 +989,7 @@ namespace PrototypeLab.Aquarium
             var clock = new Rect(width / 2 - 58, 52, 116, 32);
             Pill(clock, seconds <= 60 && state.time >= state.huntAt ? new Color(Warm.r, Warm.g, Warm.b, .7f) : Rim);
             Icon(clock.x + 14, clock.y + 8, HudIcon.Clock, seconds <= 60 && state.time >= state.huntAt ? Warm : cyan, 16);
-            Label(clock.x + 38, clock.y, 76, 32, string.Format("{0:00}:{1:00}", (int)seconds / 60, (int)seconds % 60), timerText);
+            Label(clock.x + 38, clock.y, 76, 32, Clock((int)seconds), timerText);
             // Top right: role and condition.
             bool trouble = !session.IsSpectator && (p.injuredUntil > state.time || p.stunnedUntil > state.time || p.swallowedBy != 0);
             Card(new Rect(width - 260, 20, 236, 72), trouble ? new Color(Warm.r, Warm.g, Warm.b, .6f) : Rim);
@@ -960,11 +997,11 @@ namespace PrototypeLab.Aquarium
             Label(width - 244, 41, 204, 30, session.IsSpectator ? "관전 중" : p.team == Team.Hider ? AquariumAlienKinds.Get(p.alienKind).name : TeamName(p.team), heading);
             string condition = session.IsSpectator ? (p.name.Length > 14 ? p.name.Substring(0, 14) + "…" : p.name) : p.escaped ? "탈출 성공, 관전 중" : !p.alive ? "사망, 관전 중"
                 : p.drainTask == DrainTask.Enter ? "배수구 진입 중"
-                : p.swallowedBy != 0 ? "탈출 " + Mathf.CeilToInt(Mathf.Max(0, p.releaseAt - state.time)) + "s"
-                : p.layEndsAt > state.time ? "산란 중 " + (p.layEndsAt - state.time).ToString("0.0") + "s"
-                : p.injuredUntil > state.time ? "부상, 속도 −20% " + (p.injuredUntil - state.time).ToString("0.0") + "s"
-                : p.stunnedUntil > state.time ? "경직 " + (p.stunnedUntil - state.time).ToString("0.0") + "s"
-                : p.morphLockedUntil > state.time ? "위장 제한 " + (p.morphLockedUntil - state.time).ToString("0.0") + "s"
+                : p.swallowedBy != 0 ? Cat("탈출 ", Int(Mathf.CeilToInt(Mathf.Max(0, p.releaseAt - state.time))), "s")
+                : p.layEndsAt > state.time ? Cat("산란 중 ", Tenths(p.layEndsAt - state.time), "s")
+                : p.injuredUntil > state.time ? Cat("부상, 속도 −20% ", Tenths(p.injuredUntil - state.time), "s")
+                : p.stunnedUntil > state.time ? Cat("경직 ", Tenths(p.stunnedUntil - state.time), "s")
+                : p.morphLockedUntil > state.time ? Cat("위장 제한 ", Tenths(p.morphLockedUntil - state.time), "s")
                 : p.team == Team.Seeker ? "추적 중" : p.species < 0 ? "기본형" : "위장 중";
             Label(width - 244, 69, 204, 20, condition, trouble ? alert : small);
             if (Button(new Rect(width - 112, height - 40, 88, 28), "Esc  메뉴")) pause = true;
@@ -1008,23 +1045,21 @@ namespace PrototypeLab.Aquarium
             {
                 DiverSlots(state, p, actionsX, actionsY, slotW, gap);
             }
-            string controls = "WASD 이동   Space 상승   Ctrl 하강   Shift 질주" + (p.team == Team.Hider ? "   E 배수구   F 능력" : "   E 배수구 뚜껑   R 능력");
-            float controlsW = hint.CalcSize(new GUIContent(controls)).x + 28;
-            Shape(new Rect(width / 2 - controlsW / 2, height - 34, controlsW, 22), new Color(Glass.r, Glass.g, Glass.b, .45f), 11);
-            Label(width / 2 - controlsW / 2, height - 34, controlsW, 22, controls, hint);
+            // R70b: the controls guide on the right edge (K shows / hides it) instead of the bar along the bottom.
+            if (p.alive && !p.escaped) ControlsGuide(p, width, height);
             if (p.team == Team.Hider && p.alive && p.layEndsAt > state.time)
             {
                 float left = p.layEndsAt - state.time;
                 Shape(new Rect(width / 2 - 34, height / 2 + 54, 68, 68), Disc, 34);
                 Ring(width / 2, height / 2 + 88, 68, 5, 1 - left / AquariumModel.LayEggSeconds, cyan);
-                Label(width / 2 - 34, height / 2 + 74, 68, 28, left.ToString("0.0"), centred);
+                Label(width / 2 - 34, height / 2 + 74, 68, 28, Tenths(left), centred);
                 Prompt(width / 2, height / 2 + 130, "", "알을 낳는 중");
             }
             if (state.phase == RoundPhase.Playing && state.time < state.huntAt)
             {
                 var count = new Rect(width / 2 - 136, 96, 272, 46);
                 Card(count);
-                Label(count.x, count.y, count.width, count.height, (p.team == Team.Hider ? "숨을 시간  " : "시작 대기  ") + Mathf.CeilToInt(state.huntAt - state.time) + "s", centred);
+                Label(count.x, count.y, count.width, count.height, Cat(p.team == Team.Hider ? "숨을 시간  " : "시작 대기  ", Int(Mathf.CeilToInt(state.huntAt - state.time)), "s"), centred);
             }
             if (!pause && p.alive && p.swallowedBy == 0)
             {
@@ -1039,7 +1074,8 @@ namespace PrototypeLab.Aquarium
                 bool otherPart = drainTarget != null && !SameDrainJob(p, drainTarget);
                 if (otherPart) { DrainPreview(state, p); promptY = DrainPrompt(mx, promptY, p); }
                 // R41/R49: a drain job in hand: E lets go (backs out of the hole), unless E is aimed at another usable part.
-                if (p.drainTask != DrainTask.None && !(otherPart && drainTarget.usable)) KeyPrompt(mx, promptY, "E", "그만두기", Warm);
+                if (p.drainTask == DrainTask.Enter) KeyPrompt(mx, promptY, "C", "그만두기", Warm);   // R73f: backing out of the hole is C only
+                else if (p.drainTask != DrainTask.None && !(otherPart && drainTarget.usable)) KeyPrompt(mx, promptY, "E", "그만두기", Warm);
             }
             if (!pause && p.alive && p.drainTask != DrainTask.None) DrainGauge(state, p, width, height);
             R47Overlay(state, p, width, height);
@@ -1068,24 +1104,15 @@ namespace PrototypeLab.Aquarium
             Shape(rect, Disc, diameter / 2);
             var alive = new Color(1f, 0.45f, 0.5f);
             for (int i = 0; i < 2; i++) Arc(rect, thickness, i * .5f + .02f, .46f, i < left ? alive : Track);
-            Label(cx - diameter / 2, cy - 15, diameter, 20, "♥", left > 0 ? vitalSmall : vitalLabel);
-            Label(cx - diameter / 2, cy + 1, diameter, 20, left + " / 2", vitalSmall);
+            Icon(cx - 7, cy - 16, HudIcon.Heart, left > 0 ? alive : muted, 14);
+            Label(cx - diameter / 2, cy + 1, diameter, 20, Cat(Int(left), " / 2"), vitalSmall);
         }
         // R30: a small square quick slot: key badge in the corner, name, status, and a dimmed curtain over the part
         // still recharging (when the length is known). Lit rim when ready.
-        private void Slot(float x, float y, float size, string key, string name, string status, float recharge)
+        private void Slot(float x, float y, float size, string key, string name, string status, float recharge, HudIcon icon)
         {
             bool ready = status == "준비" || status.StartsWith("준비 ×");
-            var rect = new Rect(x, y, size, size);
-            Card(rect, ready ? new Color(cyan.r, cyan.g, cyan.b, .85f) : Rim, false, 8);
-            if (recharge >= 0 && recharge < 1)
-                Shape(new Rect(x + 2, y + 2, size - 4, (size - 4) * (1 - Mathf.Clamp01(recharge))), new Color(0, 0.02f, 0.04f, .5f), 6);
-            float kw = Mathf.Max(15, 8 + keyTiny.CalcSize(new GUIContent(key)).x);
-            var badge = new Rect(x + 4, y + 4, kw, 14);
-            Shape(badge, new Color(0.86f, 0.97f, 1f, 0.92f), 4);
-            GUI.Label(badge, key, keyTiny);
-            Label(x, y + size * .30f, size, 20, name, ready ? slotTitle : slotTitleDim);
-            Label(x, y + size - 19, size, 15, status, ready ? slotStateReady : slotState);
+            SlotLit(x, y, size, key, name, status, recharge, ready, icon);
         }
         // R29: the compass strip (camera heading) with escape beacons on it for the diver.
         private void Compass(float cx, float y, float width, AquariumSnapshot state, Swimmer local)
@@ -1176,11 +1203,11 @@ namespace PrototypeLab.Aquarium
                 Shape(new Rect(x - size / 2, y - size / 2, size, size), new Color(.3f, .08f, .02f, .35f), size / 2);
                 Ring(x, y, size, 3, left / e.duration, hot, new Color(1f, .5f, .3f, .2f));
                 Stroke(x - 8, y, x, y - 8, hot); Stroke(x, y - 8, x + 8, y, hot); Stroke(x + 8, y, x, y + 8, hot); Stroke(x, y + 8, x - 8, y, hot);
-                var who = Array.Find(state.players, a => a.id == e.owner);
+                var who = PlayerById(state.players, e.owner);
                 float metres = (e.position - local.position).Length;
                 string text = (who != null ? who.name + " " : "외계인 ") + "탈출!";
                 string detail = Mathf.RoundToInt(metres) + "m   " + Mathf.CeilToInt(left) + "s" + (off ? "  (화면 밖)" : "");
-                float w = Mathf.Max(promptText.CalcSize(new GUIContent(text)).x, small.CalcSize(new GUIContent(detail)).x) + 28;
+                float w = Mathf.Max(Measure(promptText, text).x, Measure(small, detail).x) + 28;
                 Card(new Rect(x - w / 2, y + 30, w, 46), new Color(1f, .55f, .3f, .7f), false, 10);
                 Label(x - w / 2 + 14, y + 33, w - 20, 22, text, slotName);
                 Label(x - w / 2 + 14, y + 53, w - 20, 20, detail, small);
@@ -1218,7 +1245,7 @@ namespace PrototypeLab.Aquarium
             if (screen.z > 0 && screen.x > .03f && screen.x < .97f && screen.y > .05f && screen.y < .95f)
                 Ring(screen.x * width, (1 - screen.y) * height, p.drainTask == DrainTask.Screw ? 46 : 64, 4, progress, blocked ? Danger : cyan);
         }
-        private string Ready(float at, float time) { return at > time ? (at - time).ToString("0.0") + "s" : "준비"; }
+        private string Ready(float at, float time) { return at > time ? Cat(Tenths(at - time), "s") : "준비"; }
         private void DamageBorder(float width,float height,float remaining)
         {
             float pulse=.75f+.25f*Mathf.Sin(Time.unscaledTime*7),fade=Mathf.Clamp01(remaining/.4f);
@@ -1230,7 +1257,8 @@ namespace PrototypeLab.Aquarium
                 Panel(new Rect(edge,edge+3,3,height-2*edge-6),c); Panel(new Rect(width-edge-3,edge+3,3,height-2*edge-6),c);
             }
         }
-        private enum HudIcon { Stamina, Hunger, Fish, Egg, Score, Clock }
+        // R70b: the order matches IconFiles (AquariumGameR70.cs).
+        private enum HudIcon { Stamina, Hunger, Fish, Egg, Score, Clock, Heart, Harpoon, Drain, Disguise, Bite, LayEgg, Unmorph, Back, Ink, Shield, Invisible, Electric, Dash, Feed, Glue, Xray, Drone, Ping }
         private void Stroke(float x, float y, float endX, float endY, Color color)
         {
             var matrix = GUI.matrix;

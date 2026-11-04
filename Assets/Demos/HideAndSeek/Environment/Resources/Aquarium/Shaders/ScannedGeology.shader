@@ -15,7 +15,9 @@ Shader "Aquarium/Scanned Geology"
   sampler2D _MainTex,_NormalTex,_ARM,_Caustics;float4 _Color;float _WorldScale,_NormalStrength,_Sand;
   float _AquariumPreviewTime,_AquariumPreviewTimeEnabled;
   struct Input {float3 worldPos;float3 worldNormal;float3 geometricNormal;INTERNAL_DATA};
-  void vert(inout appdata_full v,out Input o){UNITY_INITIALIZE_OUTPUT(Input,o);o.geometricNormal=UnityObjectToWorldNormal(v.normal);}
+  // R68: a vertex with a zero normal or tangent (a welded point on a flat spot of a meshed field) made every
+  // normalize() round it NaN, so the triangles touching it drew NaN and the bloom spread them into a black square.
+  void vert(inout appdata_full v,out Input o){UNITY_INITIALIZE_OUTPUT(Input,o);if(dot(v.normal,v.normal)<1e-12)v.normal=float3(0,1,0);if(dot(v.tangent.xyz,v.tangent.xyz)<1e-12)v.tangent=float4(abs(v.normal.y)<.9?normalize(cross(float3(0,1,0),v.normal)):float3(1,0,0),1);o.geometricNormal=UnityObjectToWorldNormal(v.normal);}
   void surf(Input IN,inout SurfaceOutputStandard o){
    float3 p=IN.worldPos,n=normalize(IN.geometricNormal),weights=pow(abs(n),float3(6,6,6));weights/=dot(weights,1);
    float3 signs=sign(n);float2 ux=p.zy*_WorldScale,uy=p.xz*_WorldScale,uz=p.xy*_WorldScale;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace PrototypeLab.Aquarium
@@ -35,16 +35,11 @@ namespace PrototypeLab.Aquarium
             {290,218,165,229}, {338,175,213,169}, {389,139,276,117},
             {437,111,344,70}, {465,102,410,36}
         };
-        private static readonly Point[] water = Sample(false, 496);
-        private static readonly AquariumClearanceGrid clearance=BuildClearance();
-        private static AquariumClearanceGrid BuildClearance()
-        {
-            float minX=float.MaxValue,minZ=float.MaxValue,maxX=float.MinValue,maxZ=float.MinValue;
-            foreach(var p in water){minX=Math.Min(minX,p.x);maxX=Math.Max(maxX,p.x);minZ=Math.Min(minZ,p.z);maxZ=Math.Max(maxZ,p.z);}
-            return new AquariumClearanceGrid(minX-2,minZ-2,maxX+2,maxZ+2,SignedClearance);
-        }
-        private static float SignedClearance(Point p)
-        {Point nearest,normal;float squared;bool inside=Nearest(p,out nearest,out normal,out squared);return (inside?1:-1)*(float)Math.Sqrt(squared);}
+        // R57: the default tank's water polygon; the twin tank map has its own (AquariumTwinMap.Polygon).
+        // Every query below goes to the selected map (AquariumMaps.Current); the Basic* members always
+        // answer for the default tank (static tables of the default map are built from them).
+        private static readonly AquariumPolygon basic = new AquariumPolygon(BasicSample(false, 496));
+        private static AquariumPolygon Active { get { return AquariumMaps.IsTwin ? AquariumTwinMap.Polygon : basic; } }
 
         private static Point Control(int index, bool outer)
         {
@@ -54,6 +49,8 @@ namespace PrototypeLab.Aquarium
         }
 
         public static Point PointOn(float parameter, bool outer = false)
+        { return AquariumMaps.IsTwin ? AquariumTwinMap.PointOn(parameter, outer) : BasicPointOn(parameter, outer); }
+        public static Point BasicPointOn(float parameter, bool outer = false)
         {
             int count = Trace.GetLength(0);
             float s = (parameter - (float)Math.Floor(parameter)) * count;
@@ -64,75 +61,18 @@ namespace PrototypeLab.Aquarium
         }
 
         public static Point[] Sample(bool outer, int count)
+        { return AquariumMaps.IsTwin ? AquariumTwinMap.Sample(outer, count) : BasicSample(outer, count); }
+        public static Point[] BasicSample(bool outer, int count)
         {
-            var result = new Point[count]; for (int i=0;i<count;i++) result[i]=PointOn(i/(float)count,outer); return result;
+            var result = new Point[count]; for (int i=0;i<count;i++) result[i]=BasicPointOn(i/(float)count,outer); return result;
         }
 
-        private static bool Nearest(Point p, out Point closest, out Point inward, out float distanceSquared)
-        {
-            bool inside = false; closest = new Point(); inward = new Point(0,-1); distanceSquared = float.MaxValue;
-            for (int i=0;i<water.Length;i++)
-            {
-                var a=water[i]; var b=water[(i+1)%water.Length];
-                float dx=b.x-a.x,dz=b.z-a.z;
-                if ((a.z>p.z)!=(b.z>p.z) && p.x < dx*(p.z-a.z)/dz+a.x) inside=!inside;
-                float length2=dx*dx+dz*dz;
-                float t=length2<.0000001f?0:Math.Max(0,Math.Min(1,((p.x-a.x)*dx+(p.z-a.z)*dz)/length2));
-                var q=new Point(a.x+dx*t,a.z+dz*t);
-                float distance=(p.x-q.x)*(p.x-q.x)+(p.z-q.z)*(p.z-q.z);
-                if(distance<distanceSquared)
-                {
-                    distanceSquared=distance; closest=q;
-                    float length=(float)Math.Sqrt(Math.Max(length2,.0000001f));
-                    inward=new Point(dz/length,-dx/length);
-                }
-            }
-            return inside;
-        }
-
-        public static bool Contains(Point p,float padding=0)
-        {
-            bool cached;float threshold=(float)Math.Sqrt(Math.Max(0,padding*padding-.00001f));
-            if(clearance.TryAtLeast(p,threshold,out cached))return cached;
-            Point nearest,normal; float d;
-            bool inside=Nearest(p,out nearest,out normal,out d);
-            return inside && d+0.00001f>=padding*padding;
-        }
-
-        public static Point Clamp(Point p,float padding)
-        {
-            bool cached;
-            if(clearance.TryAtLeast(p,Math.Abs(padding),out cached) && cached)return p;
-            float height=p.y;
-            for(int iteration=0;iteration<8;iteration++)
-            {
-                Point nearest,normal;float d;
-                bool inside=Nearest(p,out nearest,out normal,out d);
-                if(inside && d+0.000001f>=padding*padding) { p.y=height;return p; }
-                if(inside && d>.000001f)
-                {
-                    float distance=(float)Math.Sqrt(d);
-                    normal=new Point((p.x-nearest.x)/distance,(p.z-nearest.z)/distance);
-                }
-                p=nearest+normal*(padding+.001f);p.y=height;
-            }
-            // A very sharp concave join can have two simultaneous nearest edges.
-            for(int i=0;i<32 && !Contains(p,padding);i++) { p.x*=.97f;p.z*=.97f; }
-            p.y=height;return p;
-        }
-
-        public static float Radius(float angle)
-        {
-            float dx=(float)Math.Cos(angle),dz=(float)Math.Sin(angle),nearest=100;
-            for(int i=0;i<water.Length;i++)
-            {
-                var a=water[i];var b=water[(i+1)%water.Length];float ex=b.x-a.x,ez=b.z-a.z;
-                float cross=dx*ez-dz*ex;if(Math.Abs(cross)<.000001f)continue;
-                float ray=(a.x*ez-a.z*ex)/cross,t=(a.x*dz-a.z*dx)/cross;
-                if(ray>=0 && t>=0 && t<=1)nearest=Math.Min(nearest,ray);
-            }
-            return nearest;
-        }
+        public static bool Contains(Point p,float padding=0) { return Active.Contains(p,padding); }
+        public static Point Clamp(Point p,float padding) { return Active.Clamp(p,padding); }
+        public static float Radius(float angle) { return Active.Radius(angle); }
+        // R57: the default tank only (its static reef fitting runs whatever map is selected).
+        public static bool BasicContains(Point p,float padding=0) { return basic.Contains(p,padding); }
+        public static Point BasicClamp(Point p,float padding) { return basic.Clamp(p,padding); }
 
         // Ear clipping supports the non-star-shaped inlet without overlapping floor triangles.
         public static int[] Triangulate(Point[] contour)
@@ -162,5 +102,140 @@ namespace PrototypeLab.Aquarium
             return result.ToArray();
         }
         private static float Cross(Point a,Point b,Point c) { return (b.x-a.x)*(c.z-a.z)-(b.z-a.z)*(c.x-a.x); }
+    }
+
+    // R57: a closed water polygon (clockwise, like the traced default tank) with its cached clearance field.
+    public sealed class AquariumPolygon
+    {
+        private readonly Point[] water;
+        private readonly AquariumClearanceGrid clearance;
+        public Point[] Points { get { return water; } }
+        public AquariumPolygon(Point[] contour)
+        {
+            water=contour;
+            float minX=float.MaxValue,minZ=float.MaxValue,maxX=float.MinValue,maxZ=float.MinValue;
+            foreach(var p in water){minX=Math.Min(minX,p.x);maxX=Math.Max(maxX,p.x);minZ=Math.Min(minZ,p.z);maxZ=Math.Max(maxZ,p.z);}
+            clearance=new AquariumClearanceGrid(minX-2,minZ-2,maxX+2,maxZ+2,SignedClearance);
+        }
+        // R57: the same exact clearance cache, filled through a coarse bucket grid of the edges (a long contour
+        // would otherwise take a second to cache). side(p) is a rough signed distance used for inside/outside
+        // well away from the edge; near it the exact crossing test decides.
+        private const float Bucket=2f;
+        private List<int>[,] buckets;private float bucketX,bucketZ;
+        public AquariumPolygon(Point[] contour,Func<Point,float> side)
+        {
+            water=contour;
+            float minX=float.MaxValue,minZ=float.MaxValue,maxX=float.MinValue,maxZ=float.MinValue;
+            foreach(var p in water){minX=Math.Min(minX,p.x);maxX=Math.Max(maxX,p.x);minZ=Math.Min(minZ,p.z);maxZ=Math.Max(maxZ,p.z);}
+            bucketX=minX-3;bucketZ=minZ-3;
+            int nx=(int)Math.Ceiling((maxX+3-bucketX)/Bucket),nz=(int)Math.Ceiling((maxZ+3-bucketZ)/Bucket);
+            buckets=new List<int>[nx,nz];
+            for(int i=0;i<water.Length;i++)
+            {
+                var a=water[i];var b=water[(i+1)%water.Length];
+                int x0=(int)Math.Floor((Math.Min(a.x,b.x)-bucketX)/Bucket),x1=(int)Math.Floor((Math.Max(a.x,b.x)-bucketX)/Bucket);
+                int z0=(int)Math.Floor((Math.Min(a.z,b.z)-bucketZ)/Bucket),z1=(int)Math.Floor((Math.Max(a.z,b.z)-bucketZ)/Bucket);
+                for(int x=x0;x<=x1;x++)for(int z=z0;z<=z1;z++){if(buckets[x,z]==null)buckets[x,z]=new List<int>(8);buckets[x,z].Add(i);}
+            }
+            clearance=new AquariumClearanceGrid(minX-2,minZ-2,maxX+2,maxZ+2,p=>
+            {
+                float hint=side(p);bool inside;
+                if(Math.Abs(hint)>.5f)inside=hint>0;else{Point n,m;float d;inside=Nearest(p,out n,out m,out d);}
+                return (inside?1:-1)*BucketDistance(p);
+            });
+        }
+        private float BucketDistance(Point p)
+        {
+            int nx=buckets.GetLength(0),nz=buckets.GetLength(1);
+            int cx=(int)Math.Floor((p.x-bucketX)/Bucket),cz=(int)Math.Floor((p.z-bucketZ)/Bucket);
+            float best=float.MaxValue;
+            for(int ring=0;ring<Math.Max(nx,nz)+2;ring++)
+            {
+                // Everything in this ring is at least (ring-1) buckets away.
+                if(best<float.MaxValue && (ring-1)*Bucket>Math.Sqrt(best))break;
+                for(int x=cx-ring;x<=cx+ring;x++)for(int z=cz-ring;z<=cz+ring;z++)
+                {
+                    if(Math.Max(Math.Abs(x-cx),Math.Abs(z-cz))!=ring||x<0||z<0||x>=nx||z>=nz||buckets[x,z]==null)continue;
+                    foreach(int i in buckets[x,z])
+                    {
+                        var a=water[i];var b=water[(i+1)%water.Length];float dx=b.x-a.x,dz=b.z-a.z;
+                        float length2=dx*dx+dz*dz;
+                        float t=length2<.0000001f?0:Math.Max(0,Math.Min(1,((p.x-a.x)*dx+(p.z-a.z)*dz)/length2));
+                        float qx=a.x+dx*t,qz=a.z+dz*t,d=(p.x-qx)*(p.x-qx)+(p.z-qz)*(p.z-qz);
+                        if(d<best)best=d;
+                    }
+                }
+            }
+            return (float)Math.Sqrt(best);
+        }
+        public float SignedClearance(Point p)
+        {Point nearest,normal;float squared;bool inside=Nearest(p,out nearest,out normal,out squared);return (inside?1:-1)*(float)Math.Sqrt(squared);}
+
+        private bool Nearest(Point p, out Point closest, out Point inward, out float distanceSquared)
+        {
+            bool inside = false; closest = new Point(); inward = new Point(0,-1); distanceSquared = float.MaxValue;
+            for (int i=0;i<water.Length;i++)
+            {
+                var a=water[i]; var b=water[(i+1)%water.Length];
+                float dx=b.x-a.x,dz=b.z-a.z;
+                if ((a.z>p.z)!=(b.z>p.z) && p.x < dx*(p.z-a.z)/dz+a.x) inside=!inside;
+                float length2=dx*dx+dz*dz;
+                float t=length2<.0000001f?0:Math.Max(0,Math.Min(1,((p.x-a.x)*dx+(p.z-a.z)*dz)/length2));
+                var q=new Point(a.x+dx*t,a.z+dz*t);
+                float distance=(p.x-q.x)*(p.x-q.x)+(p.z-q.z)*(p.z-q.z);
+                if(distance<distanceSquared)
+                {
+                    distanceSquared=distance; closest=q;
+                    float length=(float)Math.Sqrt(Math.Max(length2,.0000001f));
+                    inward=new Point(dz/length,-dx/length);
+                }
+            }
+            return inside;
+        }
+
+        public bool Contains(Point p,float padding=0)
+        {
+            bool cached;float threshold=(float)Math.Sqrt(Math.Max(0,padding*padding-.00001f));
+            if(clearance.TryAtLeast(p,threshold,out cached))return cached;
+            Point nearest,normal; float d;
+            bool inside=Nearest(p,out nearest,out normal,out d);
+            return inside && d+0.00001f>=padding*padding;
+        }
+
+        public Point Clamp(Point p,float padding)
+        {
+            bool cached;
+            if(clearance.TryAtLeast(p,Math.Abs(padding),out cached) && cached)return p;
+            float height=p.y;
+            for(int iteration=0;iteration<8;iteration++)
+            {
+                Point nearest,normal;float d;
+                bool inside=Nearest(p,out nearest,out normal,out d);
+                if(inside && d+0.000001f>=padding*padding) { p.y=height;return p; }
+                if(inside && d>.000001f)
+                {
+                    float distance=(float)Math.Sqrt(d);
+                    normal=new Point((p.x-nearest.x)/distance,(p.z-nearest.z)/distance);
+                }
+                p=nearest+normal*(padding+.001f);p.y=height;
+            }
+            // A very sharp concave join can have two simultaneous nearest edges.
+            for(int i=0;i<32 && !Contains(p,padding);i++) { p.x*=.97f;p.z*=.97f; }
+            p.y=height;return p;
+        }
+
+        public float Radius(float angle)
+        {
+            float dx=(float)Math.Cos(angle),dz=(float)Math.Sin(angle),nearest=100;
+            for(int i=0;i<water.Length;i++)
+            {
+                var a=water[i];var b=water[(i+1)%water.Length];float ex=b.x-a.x,ez=b.z-a.z;
+                float cross=dx*ez-dz*ex;if(Math.Abs(cross)<.000001f)continue;
+                float ray=(a.x*ez-a.z*ex)/cross,t=(a.x*dz-a.z*dx)/cross;
+                if(ray>=0 && t>=0 && t<=1)nearest=Math.Min(nearest,ray);
+            }
+            return nearest;
+        }
+
     }
 }

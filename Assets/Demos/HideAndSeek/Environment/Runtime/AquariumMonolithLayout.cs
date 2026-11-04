@@ -120,33 +120,93 @@ namespace PrototypeLab.Aquarium
             float x=Math.Max(Math.Max(min.x-p.x,p.x-max.x),0),y=Math.Max(Math.Max(min.y-p.y,p.y-max.y),0),z=Math.Max(Math.Max(min.z-p.z,p.z-max.z),0);
             return (float)Math.Sqrt(x*x+y*y+z*z);
         }
+        // R57: the cliffs stand in the default tank only (AquariumMaps); in the twin tanks they are not there.
+        // R58: there the world queries answer for the twin tanks' rocks (AquariumSceneryLayout.TwinRocks) instead.
+        private static bool None { get { return AquariumMaps.IsTwin; } }
+        private static AquariumRockSet TwinRocks { get { return AquariumSceneryLayout.Current.TwinRocks; } }
         public static float Distance(Point p)
         {
+            if(None)return TwinRocks.Distance(p);
             float d=100;var layout=AquariumSceneryLayout.Current;
             for(int group=0;group<Groups.Length;group++)
             {
                 var q=layout.MonolithToLocal(p,group);
-                if(BoundDistance(q,group)<d+.6f)d=Math.Min(d,LocalDistance(q,group));
+                if(BoundDistance(q,group)<d+.6f)d=Math.Min(d,LocalDistanceBelow(q,group,d));
             }
             return d;
         }
-        public static float Distance(Point p,int group){return LocalDistance(AquariumSceneryLayout.Current.MonolithToLocal(p,group),group);}
+        public static float Distance(Point p,int group){if(None)return 100;return LocalDistance(AquariumSceneryLayout.Current.MonolithToLocal(p,group),group);}
         // The field in the authored frame (the environment builder and the layout's own footprints use this).
         public static float LocalDistance(Point p,int group)
         {
+            float distance=Beds(p,group,float.PositiveInfinity);
+            // Aperiodic erosion, much smaller than the fracture beds. Avoid the former
+            // sinusoidal blobs that softened every face into a moulded clay surface.
+            float weather=(Noise(p*.72f)-.5f)*.36f+(Noise(p*2.4f+new Point(7,11,3))-.5f)*.12f+(Noise(p*6.1f)-.5f)*.025f;
+            return distance+weather;
+        }
+        // R66: LocalDistance when it can come below `below`; otherwise a number no smaller than `below`. The
+        // weathering moves the field by at most .2525 m, so beds lying .26 m above `below` cannot win a
+        // minimum against it and their three noise lookups are skipped. Callers that only keep a minimum
+        // (Distance) or compare with a radius (Overlaps) get exactly the answers they got before.
+        private static float LocalDistanceBelow(Point p,int group,float below)
+        {
+            float distance=Beds(p,group,below+.3f);   // 2 cm above what the test below needs, for float rounding
+            if(distance-.26f>=below)return distance-.26f;
+            float weather=(Noise(p*.72f)-.5f)*.36f+(Noise(p*2.4f+new Point(7,11,3))-.5f)*.12f+(Noise(p*6.1f)-.5f)*.025f;
+            return distance+weather;
+        }
+        // R66: the fracture beds of LocalDistance before weathering, read from flat copies of the lobes (no struct
+        // copies or operator calls in the hottest loop of the simulation). Every product and sum is formed in the
+        // same order as FractureDistance, so the results are the same numbers bit for bit.
+        // A lobe also stops once it reaches `cap`: such lobes can only leave the beds at cap - .02 or more, and the
+        // beds are exact whenever they come out below that (the only case LocalDistanceBelow goes on to use).
+        private static float Beds(Point p,int group,float cap)
+        {
             float distance=100;
-            foreach(var l in Groups[group])
+            var lobes=FlatLobes[group];
+            for(int i=0;i<lobes.Length;)
             {
+                // (float) wherever the old code stored to a Point field or returned from Point.Dot: Mono may keep
+                // wider intermediates, so the roundings have to fall in the same places.
+                float qx=(float)(p.x-lobes[i]),qy=(float)(p.y-lobes[i+1]),qz=(float)(p.z-lobes[i+2]);int end=i+4+4*(int)lobes[i+3];i+=4;
+                qy=(float)(qy-(qx*.13f-qz*.07f));
                 // R48: a lobe stops testing planes once it cannot come below the current minimum (same result).
-                float d=FractureDistance(p,l,distance+.02f);
+                float limit=Math.Min(distance+.02f,cap),d=-100;
+                for(;i<end;i+=4){d=Math.Max(d,(float)(qx*lobes[i]+qy*lobes[i+1]+qz*lobes[i+2])-lobes[i+3]);if(d>=limit){i=end;break;}}
                 // Only 2 cm of weathered edge; the broad fracture faces remain planar.
                 distance=Math.Min(distance,d-.02f);
             }
-            // Aperiodic erosion, much smaller than the fracture beds. Avoid the former
-            // sinusoidal blobs that softened every face into a moulded clay surface.
-            if(group<EdgeBreaks.Length)foreach(var cut in EdgeBreaks[group])distance=Math.Max(distance,-FractureDistance(p,cut));
-            float weather=(Noise(p*.72f)-.5f)*.36f+(Noise(p*2.4f+new Point(7,11,3))-.5f)*.12f+(Noise(p*6.1f)-.5f)*.025f;
-            return distance+weather;
+            if(group<FlatBreaks.Length)
+            {
+                var cuts=FlatBreaks[group];
+                for(int i=0;i<cuts.Length;)
+                {
+                    float qx=(float)(p.x-cuts[i]),qy=(float)(p.y-cuts[i+1]),qz=(float)(p.z-cuts[i+2]);int end=i+4+4*(int)cuts[i+3];i+=4;
+                    qy=(float)(qy-(qx*.13f-qz*.07f));
+                    float d=-100;for(;i<end;i+=4)d=Math.Max(d,(float)(qx*cuts[i]+qy*cuts[i+1]+qz*cuts[i+2])-cuts[i+3]);
+                    distance=Math.Max(distance,-d);
+                }
+            }
+            return distance;
+        }
+        // Per group: for each lobe its centre, plane count, then every plane's normal and offset.
+        private static readonly float[][] FlatLobes=Flatten(Groups),FlatBreaks=Flatten(EdgeBreaks);
+        private static float[][] Flatten(Lobe[][] groups)
+        {
+            var flat=new float[groups.Length][];
+            for(int g=0;g<groups.Length;g++)
+            {
+                int count=0;foreach(var l in groups[g])count+=4+4*l.planes.Length;
+                var data=new float[count];int i=0;
+                foreach(var l in groups[g])
+                {
+                    data[i++]=l.centre.x;data[i++]=l.centre.y;data[i++]=l.centre.z;data[i++]=l.planes.Length;
+                    foreach(var plane in l.planes){data[i++]=plane.normal.x;data[i++]=plane.normal.y;data[i++]=plane.normal.z;data[i++]=plane.offset;}
+                }
+                flat[g]=data;
+            }
+            return flat;
         }
         private static float FractureDistance(Point p,Lobe l,float limit)
         {
@@ -176,11 +236,12 @@ namespace PrototypeLab.Aquarium
         }
         public static bool Overlaps(Point p,float radius)
         {
+            if(None)return TwinRocks.Overlaps(p,radius);
             var layout=AquariumSceneryLayout.Current;
             for(int group=0;group<Groups.Length;group++)
             {
                 var q=layout.MonolithToLocal(p,group);
-                if(BoundDistance(q,group)<=radius && LocalDistance(q,group)<radius)return true;
+                if(BoundDistance(q,group)<=radius && LocalDistanceBelow(q,group,radius)<radius)return true;
             }
             return false;
         }
@@ -198,6 +259,7 @@ namespace PrototypeLab.Aquarium
         }
         public static Point Constrain(Point p,float radius)
         {
+            if(None)return TwinRocks.Constrain(p,radius);
             if(!Overlaps(p,radius))return p;
             for(int pass=0;pass<32;pass++)
             {
@@ -211,6 +273,7 @@ namespace PrototypeLab.Aquarium
         }
         public static float Hit(Point start,Point end,float padding=0)
         {
+            if(None)return TwinRocks.Hit(start,end,padding);
             var ray=end-start;float length=ray.Length;
             if(length<.00001f)return Distance(start)<=padding?0:2;
             // The unpadded field, including weathering and the hit tolerance,

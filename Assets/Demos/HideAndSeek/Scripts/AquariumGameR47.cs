@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -64,7 +64,7 @@ namespace PrototypeLab.Aquarium
             if (local != null && session.IsHost && local.alienKind != selectedAlien) session.SetAlien(selectedAlien);
             if (local != null && session.IsHost && local.diverKind != selectedDiver) session.SetDiver(selectedDiver);
             bool shown = inLobby && lobbyTab == 0;
-            bool diver = local != null && local.team == Team.Seeker;
+            bool diver = local != null && local.team == Team.Seeker && (session.Practice || !lobbyAlienPick);   // R72
             if (alienPreview != null && (!shown || diver)) alienPreview.Show(false);
             if (diverPreview != null && (!shown || !diver)) diverPreview.Show(false);
             if (!shown) return;
@@ -82,11 +82,43 @@ namespace PrototypeLab.Aquarium
 
         private void CharacterPanel(float x, float y, float width, float height, Swimmer local)
         {
-            if (lobbyTab == 1) FishGuide(x, y, width, height);
-            else if (local != null && local.team == Team.Seeker) DiverSelect(x, y, width, height, local);
+            bool practice = session.Practice, wish = local != null && local.team == Team.Seeker;
+            bool diverTab = wish && (practice || !lobbyAlienPick);
+            if (lobbyTab == MapTab) MapSelect(x, y, width, height);
+            else if (lobbyTab == 1) FishGuide(x, y, width, height);
+            else if (diverTab) DiverSelect(x, y, width, height, local);
             else AlienSelect(x, y, width, height, local);
-            if (Button(new Rect(x + width - 252, y + 18, 110, 32), lobbyTab == 0 ? "✓ 캐릭터" : "캐릭터", lobbyTab == 0)) lobbyTab = 0;
-            if (Button(new Rect(x + width - 134, y + 18, 110, 32), lobbyTab == 1 ? "✓ 어종 도감" : "어종 도감", lobbyTab == 1)) lobbyTab = 1;
+            // R73g: three buttons that never move: 외계인 선택 (left), 잠수부 선택 (middle), then 술래 희망 online or the
+            // role switch in practice (right). Online, the diver tab works only after asking to be 술래 (greyed out
+            // before); in practice each tab also switches the role to it.
+            var alienRect = new Rect(x + width - 502, y + 18, 154, 32);
+            var diverRect = new Rect(x + width - 340, y + 18, 154, 32);
+            var roleRect = new Rect(x + width - 178, y + 18, 154, 32);
+            bool alienOn = lobbyTab == 0 && !diverTab, diverOn = lobbyTab == 0 && diverTab;
+            if (Button(alienRect, alienOn ? "✓ 외계인 선택" : "외계인 선택", alienOn))
+            {
+                lobbyTab = 0; lobbyAlienPick = true;
+                if (practice && local != null && local.team == Team.Seeker) { selectedTeam = Team.Hider; session.PracticeRole(Team.Hider); }
+            }
+            bool diverUsable = local != null && (practice || wish), was = GUI.enabled;
+            GUI.enabled = was && diverUsable;
+            if (Button(diverRect, diverOn ? "✓ 잠수부 선택" : "잠수부 선택", diverOn))
+            {
+                lobbyTab = 0; lobbyAlienPick = false;
+                if (practice && local.team == Team.Hider) { selectedTeam = Team.Seeker; session.PracticeRole(Team.Seeker); }
+            }
+            GUI.enabled = was;
+            if (local != null)
+            {
+                Team other = local.team == Team.Hider ? Team.Seeker : Team.Hider;
+                string label = practice ? (other == Team.Seeker ? "잠수부로 바꾸기" : "외계인으로 바꾸기") : wish ? "✓ 술래 희망" : "술래 희망";
+                if (Button(roleRect, label, !practice && wish))
+                {
+                    notice = !practice && other == Team.Seeker ? "술래 희망! 잠수부 선택 탭에서 잠수부도 고를 수 있어요." : "";
+                    selectedTeam = other; lobbyTab = 0; lobbyAlienPick = other == Team.Hider;
+                    if (practice) session.PracticeRole(other); else session.Role(other, false);
+                }
+            }
         }
 
         private void DiverSelect(float x, float y, float width, float height, Swimmer local)
@@ -121,19 +153,10 @@ namespace PrototypeLab.Aquarium
                 Label(card.x + 12, card.y + 13, card.width - 18, 28, (chosen ? "✓ " : "") + kind.name, chosen ? Tinted(body, color) : body);
                 if (canPick && GUI.Button(card, GUIContent.none, GUIStyle.none)) PickDiver(kind.id);
             }
-            float infoY = cardY + 64;
-            Separator(x + 24, infoY, stageWidth);
-            Label(x + 24, infoY + 14, 260, 30, picked.name, Tinted(heading, pickedColor));
-            Label(x + 24, infoY + 46, 260, 24, picked.look, small);
-            float half = (stageWidth - 276 - 10) / 2, boxH = height - (infoY - y) - 28;
-            var active = new Rect(x + 300, infoY + 12, half, boxH);
-            Card(active, new Color(picked.r, picked.g, picked.b, .6f), false, 12);
-            Label(active.x + 14, active.y + 8, active.width - 24, 22, "R  " + picked.activeName, Tinted(body, pickedColor));
-            Label(active.x + 14, active.y + 34, active.width - 24, active.height - 40, picked.activeText, small);
-            var passive = new Rect(active.xMax + 10, infoY + 12, half, boxH);
-            Card(passive, Rim, false, 12);
-            Label(passive.x + 14, passive.y + 8, passive.width - 24, 22, "패시브  " + picked.passiveName, body);
-            Label(passive.x + 14, passive.y + 34, passive.width - 24, passive.height - 40, picked.passiveText, small);
+            // R70b: no name block (as on the alien panel); the R ability and the passive across the full width.
+            float infoY = cardY + 66, boxH = height - (infoY - y) - 24, half = (stageWidth - 12) / 2;
+            AbilityBox(new Rect(x + 24, infoY, half, boxH), new Color(picked.r, picked.g, picked.b, .6f), Cat("R  ", picked.activeName), picked.activeText, pickedColor);
+            AbilityBox(new Rect(x + 36 + half, infoY, half, boxH), Rim, Cat("패시브  ", picked.passiveName), picked.passiveText, Color.white);
         }
 
         private void PickDiver(int kind)
@@ -179,7 +202,7 @@ namespace PrototypeLab.Aquarium
             }
         }
         private static string FeedText(int species)
-        { return AquariumFishTraits.IgnoresFeed(species) ? "먹이 무시 (사육사 잠수부의 먹이에는 몰려듦)" : "먹이에 몰려듦"; }
+        { return AquariumFishTraits.IgnoresFeed(species) ? "사육사 잠수부의 먹이에만 관심" : "먹이에 몰려듦"; }
 
         // Character pictures for the guide, rendered offline into Resources/AquariumCharacters/Guide/Species{id}.png.
         private readonly Dictionary<int, Texture2D> guideImages = new Dictionary<int, Texture2D>();
@@ -190,30 +213,39 @@ namespace PrototypeLab.Aquarium
             return image;
         }
 
+        // R70b: one row per species: picture, name and a short tag, and a sentence or two on its habits (no size or
+        // speed figures any more).
         private void FishGuide(float x, float y, float width, float height)
         {
             Card(new Rect(x, y, width, height), true, 18);
             Label(x + 24, y + 18, 300, 34, "어종 도감", heading);
-            Label(x + 24, y + 54, width - 300, 23, "위장한 외계인은 그 물고기의 크기와 속도로 헤엄칩니다. 습성을 흉내 내세요!", small);
+            Label(x + 24, y + 54, width - 48, 23, "위장한 외계인은 그 물고기처럼 헤엄칩니다. 습성을 흉내 내야 들키지 않아요!", small);
             var all = SpeciesCatalog();
-            float rowY = y + 92, rowH = Mathf.Min(78, (height - 110) / Mathf.Max(1, all.Length));
-            Label(x + 126, rowY - 4, 200, 18, "어종", caption); Label(x + 290, rowY - 4, 90, 18, "크기", caption);
-            Label(x + 370, rowY - 4, 90, 18, "속도", caption); Label(x + 470, rowY - 4, 200, 18, "습성 / 먹이", caption);
-            rowY += 18;
+            float rowY = y + 86, rowH = Mathf.Min(80, (height - 104) / Mathf.Max(1, all.Length));
+            Label(x + 132, rowY - 4, 150, 18, "어종", caption); Label(x + 270, rowY - 4, 200, 18, "습성", caption);
+            rowY += 16;
             for (int i = 0; i < all.Length; i++)
             {
                 var s = all[i]; int id = s.speciesId; float ry = rowY + i * rowH;
                 Shape(new Rect(x + 18, ry, width - 36, rowH - 6), i % 2 == 0 ? new Color(0.08f, 0.22f, 0.29f, 0.5f) : new Color(0.06f, 0.17f, 0.23f, 0.4f), 9);
                 var tint = s.tint; tint.a = 1;
                 var image = GuideImage(id);
-                if (image != null) GUI.DrawTexture(new Rect(x + 24, ry + 1, 96, rowH - 8), image, ScaleMode.ScaleToFit, true);
+                if (image != null) GUI.DrawTexture(new Rect(x + 26, ry + 2, 98, rowH - 10), image, ScaleMode.ScaleToFit, true);
                 else Shape(new Rect(x + 34, ry + (rowH - 6) / 2 - 10, 20, 20), tint, 10);
-                Label(x + 126, ry + 6, 160, 26, SpeciesName(s), body);
-                Label(x + 126, ry + 30, 160, 22, AquariumFishTraits.Habit(id) == FishHabit.School ? "떼 지어 다님" : "단독", small);
-                Label(x + 290, ry + 14, 80, 26, "×" + AquariumFishTraits.Scale(id).ToString("0.00"), body);
-                Label(x + 370, ry + 14, 90, 26, (AquariumFishTraits.Speed(id) * AquariumModel.FishSpeed).ToString("0.0") + " m/s", body);
-                Label(x + 470, ry + 6, width - 510, 26, HabitText(AquariumFishTraits.Habit(id)), body);
-                Label(x + 470, ry + 30, width - 510, 22, FeedText(id), AquariumFishTraits.IgnoresFeed(id) ? Tinted(small, Warm) : small);
+                float mid = ry + (rowH - 6) / 2;
+                Label(x + 132, mid - 22, 132, 24, SpeciesName(s), body);
+                Label(x + 132, mid + 2, 132, 20, AquariumFishTraits.Habit(id) == FishHabit.School ? "떼 지어 다님" : AquariumFishTraits.IgnoresFeed(id) ? "단독, 사육사 먹이만" : "단독",
+                    AquariumFishTraits.IgnoresFeed(id) ? Tinted(small, Warm) : small);
+                Label(x + 270, ry + 6, width - 300, rowH - 16, SpeciesTrait(s), GuideText);
+            }
+        }
+        private GUIStyle guideText;
+        private GUIStyle GuideText
+        {
+            get
+            {
+                if (guideText != null) return guideText;
+                guideText = Text(14, new Color(.88f, .95f, .97f)); guideText.alignment = TextAnchor.MiddleLeft; return guideText;
             }
         }
 
@@ -222,8 +254,8 @@ namespace PrototypeLab.Aquarium
             if (tips != null) return tips;
             var list = new List<string>();
             foreach (var s in SpeciesCatalog())
-                list.Add(SpeciesName(s) + ", " + HabitText(AquariumFishTraits.Habit(s.speciesId)) + ", " + (AquariumFishTraits.Speed(s.speciesId) * AquariumModel.FishSpeed).ToString("0.0") + " m/s"
-                    + (AquariumFishTraits.IgnoresFeed(s.speciesId) ? ", 먹이 무시" : ""));
+                list.Add(SpeciesName(s) + ": " + HabitText(AquariumFishTraits.Habit(s.speciesId))
+                    + (AquariumFishTraits.IgnoresFeed(s.speciesId) ? ", 사육사 잠수부의 먹이에만 관심" : ""));
             list.Add("외계인은 F로 고유 능력을 씁니다, 초록 외계인은 패시브뿐");
             list.Add("배수구 나사는 둘이 같이 풀면 10% 빨라집니다");
             list.Add("사육사 잠수부의 접착제가 발린 배수구는 더 이상 열 수 없습니다");
@@ -238,7 +270,7 @@ namespace PrototypeLab.Aquarium
         {
             var all = Tips(); if (all.Length == 0) return;
             string tip = all[(int)(Time.unscaledTime / 7f) % all.Length];
-            float w = Mathf.Min(maxWidth, promptText.CalcSize(new GUIContent(tip)).x + 76);
+            float w = Mathf.Min(maxWidth, Measure(promptText, tip).x + 76);
             var rect = new Rect(cx - w / 2, y, w, 30);
             Pill(rect, Rim);
             Label(rect.x + 16, y + 8, 40, 16, "TIP", caption);
@@ -246,25 +278,38 @@ namespace PrototypeLab.Aquarium
         }
 
         // ---- HUD: vitals and slots ------------------------------------------------------------------------
+        // R73i: where on the hunger ring fish can be eaten (below 80%): a thin green arc outside the ring from the top round
+        // to the 80% mark, with a tick at the mark; bright while the alien is hungry enough, dim while it is full.
+        private void EatableZone(float cx, float cy, float diameter, bool canEat)
+        {
+            var zone = canEat ? new Color(.45f, 1f, .55f, .95f) : new Color(.45f, 1f, .55f, .35f);
+            float outer = diameter + 12; var rect = new Rect(cx - outer / 2, cy - outer / 2, outer, outer);
+            Arc(rect, 3, 0, AquariumModel.FeedingHungerFraction, zone);
+            float a = AquariumModel.FeedingHungerFraction * Mathf.PI * 2, s = Mathf.Sin(a), c = Mathf.Cos(a);
+            float r0 = diameter / 2 - 5, r1 = outer / 2 + 3;
+            Stroke(cx + s * r0, cy - c * r0, cx + s * r1, cy - c * r1, new Color(zone.r, zone.g, zone.b, 1));
+            Stroke(cx + s * r0 + c, cy - c * r0 + s, cx + s * r1 + c, cy - c * r1 + s, new Color(zone.r, zone.g, zone.b, 1));
+        }
         // R29 vitals with the R47 per-kind maxima (hunger large, stamina and lives small).
         private void AlienVitals(AquariumSnapshot state, Swimmer p, float height)
         {
             float hungerMax = AquariumModel.HungerMax(p), hunger = p.alive ? AquariumModel.HungerLeft(p, state.time) : 0;
-            var hungerColor = hunger <= 15 ? Danger : Warm;
-            Vital(76, height - 82, 100, 7, hunger / hungerMax, hungerColor, HudIcon.Hunger, Mathf.CeilToInt(hunger).ToString(), "배고픔");
-            Vital(166, height - 62, 60, 5, p.stamina / AquariumModel.StaminaMax(p), cyan, HudIcon.Stamina, Mathf.RoundToInt(p.stamina).ToString(), "스태미나");
+            var hungerColor = hunger < hungerMax * AquariumModel.StarvingFraction ? Danger : Warm;
+            Vital(76, height - 82, 100, 7, hunger / hungerMax, hungerColor, HudIcon.Hunger, Int(Mathf.CeilToInt(hunger)), "배고픔");
+            EatableZone(76, height - 82, 100, hunger < hungerMax * AquariumModel.FeedingHungerFraction);
+            Vital(166, height - 62, 60, 5, p.stamina / AquariumModel.StaminaMax(p), cyan, HudIcon.Stamina, Int(Mathf.RoundToInt(p.stamina)), "스태미나");
             int lives = AquariumModel.HitsToKill(p);
             LivesOf(238, height - 62, 60, 5, p.alive ? Mathf.Max(0, lives - p.harpoonHits) : 0, lives);
             var stats = new Rect(24, height - 168, 196, 30);
             Pill(stats, Rim);
-            Icon(stats.x + 14, stats.y + 7, HudIcon.Fish, muted, 16); Label(stats.x + 36, stats.y + 5, 60, 22, p.personalEaten.ToString(), small);
-            Icon(stats.x + 92, stats.y + 7, HudIcon.Score, muted, 16); Label(stats.x + 114, stats.y + 5, 76, 22, p.score.ToString(), small);
+            Icon(stats.x + 14, stats.y + 7, HudIcon.Fish, muted, 16); Label(stats.x + 36, stats.y + 5, 60, 22, Int(p.personalEaten), small);
+            Icon(stats.x + 92, stats.y + 7, HudIcon.Score, muted, 16); Label(stats.x + 114, stats.y + 5, 76, 22, Int(p.score), small);
         }
         private void DiverVitals(AquariumSnapshot state, Swimmer p, float height)
         {
-            Vital(76, height - 82, 100, 7, p.stamina / AquariumModel.StaminaMax(p), cyan, HudIcon.Stamina, Mathf.RoundToInt(p.stamina).ToString(), "스태미나");
-            string line = "오사  " + state.killed + "     점수  " + p.score;
-            var stats = new Rect(24, height - 168, 54 + small.CalcSize(new GUIContent(line)).x, 30);
+            Vital(76, height - 82, 100, 7, p.stamina / AquariumModel.StaminaMax(p), cyan, HudIcon.Stamina, Int(Mathf.RoundToInt(p.stamina)), "스태미나");
+            string line = Cat("오사  ", Int(state.killed), "     점수  ", Int(p.score));
+            var stats = new Rect(24, height - 168, 54 + Measure(small, line).x, 30);
             Pill(stats, Rim);
             Icon(stats.x + 14, stats.y + 7, HudIcon.Fish, muted, 16); Label(stats.x + 36, stats.y + 5, 260, 22, line, small);
             CatchPill(24, height - 208, p);
@@ -272,14 +317,11 @@ namespace PrototypeLab.Aquarium
         // R49: how many aliens this diver has caught so far (never the total), with a small harpoon glyph.
         private void CatchPill(float x, float y, Swimmer diver)
         {
-            string text = "포획  " + diver.kills;
-            float w = 48 + body.CalcSize(new GUIContent(text)).x;
+            string text = Cat("포획  ", Int(diver.kills));
+            float w = 48 + Measure(body, text).x;
             var rect = new Rect(x, y, w, 32);
             Pill(rect, new Color(cyan.r, cyan.g, cyan.b, .75f));
-            float gx = rect.x + 14, gy = rect.y + 23;
-            Stroke(gx, gy, gx + 15, gy - 14, cyan);
-            Stroke(gx + 15, gy - 14, gx + 9, gy - 13, cyan);
-            Stroke(gx + 15, gy - 14, gx + 14, gy - 8, cyan);
+            Icon(rect.x + 11, rect.y + 6, HudIcon.Harpoon, cyan, 20);
             Label(rect.x + 38, rect.y + 2, w - 40, 28, text, body);
         }
         // The lives ring split into HitsToKill parts (the green alien takes three hits).
@@ -289,83 +331,98 @@ namespace PrototypeLab.Aquarium
             Shape(rect, Disc, diameter / 2);
             var alive = new Color(1f, 0.45f, 0.5f); float part = 1f / Mathf.Max(1, total);
             for (int i = 0; i < total; i++) Arc(rect, thickness, i * part + .02f, part - .04f, i < left ? alive : Track);
-            Label(cx - diameter / 2, cy - 15, diameter, 20, "♥", left > 0 ? vitalSmall : vitalLabel);
-            Label(cx - diameter / 2, cy + 1, diameter, 20, left + " / " + total, vitalSmall);
+            Icon(cx - 8, cy - 18, HudIcon.Heart, left > 0 ? alive : muted, 16);
+            Label(cx - diameter / 2, cy + 1, diameter, 20, Cat(Int(left), " / ", Int(total)), vitalSmall);
         }
         // A quick slot whose lit state is given (for counters such as 2/3 that are ready).
-        private void SlotLit(float x, float y, float size, string key, string name, string status, float recharge, bool ready)
+        // R70b: the action's icon in the middle, the key badge in the corner, the state along the bottom and the
+        // action's name under the slot.
+        private void SlotLit(float x, float y, float size, string key, string name, string status, float recharge, bool ready, HudIcon icon)
         {
             var rect = new Rect(x, y, size, size);
             Card(rect, ready ? new Color(cyan.r, cyan.g, cyan.b, .85f) : Rim, false, 8);
+            float iconSize = size * .5f;
+            Icon(x + (size - iconSize) / 2, y + size * .2f, icon, ready ? cyan : new Color(muted.r, muted.g, muted.b, .85f), iconSize);
             if (recharge >= 0 && recharge < 1)
                 Shape(new Rect(x + 2, y + 2, size - 4, (size - 4) * (1 - Mathf.Clamp01(recharge))), new Color(0, 0.02f, 0.04f, .5f), 6);
-            float kw = Mathf.Max(15, 8 + keyTiny.CalcSize(new GUIContent(key)).x);
+            float kw = Mathf.Max(15, 8 + Measure(keyTiny, key).x);
             var badge = new Rect(x + 4, y + 4, kw, 14);
             Shape(badge, new Color(0.86f, 0.97f, 1f, 0.92f), 4);
             GUI.Label(badge, key, keyTiny);
-            Label(x, y + size * .30f, size, 20, name, ready ? slotTitle : slotTitleDim);
-            Label(x, y + size - 19, size, 15, status, ready ? slotStateReady : slotState);
+            Label(x, y + size - 17, size, 15, status, ready ? slotStateReady : slotState);
+            Shape(new Rect(x + 2, y + size + 3, size - 4, 15), new Color(0, 0.03f, 0.06f, .55f), 7.5f);
+            Label(x - 8, y + size + 2, size + 16, 16, name, ready ? slotTitle : slotTitleDim);
         }
         private static string ShortAbility(int kind)
         {
             switch (kind) { case 0: return "먹물"; case 1: return "패시브"; case 2: return "투명"; case 3: return "전기"; default: return "돌진"; }
         }
-        private static string MinSec(float seconds) { int s = Mathf.Max(0, Mathf.CeilToInt(seconds)); return (s / 60) + ":" + (s % 60).ToString("00"); }
+        private static string MinSec(float seconds) { int s = Mathf.Max(0, Mathf.CeilToInt(seconds)); return MinSecText(s); }
 
         private void AlienSlots(AquariumSnapshot state, Swimmer p, float actionsX, float actionsY, float slotW, float gap)
         {
             int eggFood = AquariumModel.EggFoodFor(p), eggsReady = AquariumModel.EggsReady(p);
             bool laying = p.layEndsAt > state.time, inside = p.swallowedBy != 0;
-            string eggStatus = laying ? "산란 " + (p.layEndsAt - state.time).ToString("0.0") + "s" : inside ? "사용 불가" : p.stunnedUntil > state.time ? Ready(p.stunnedUntil, state.time)
-                : eggsReady > 0 ? (eggsReady > 1 ? "준비 ×" + eggsReady : "준비") : (p.personalEaten % eggFood) + " / " + eggFood;
+            string eggStatus = laying ? Cat("산란 ", Tenths(p.layEndsAt - state.time), "s") : inside ? "사용 불가" : p.stunnedUntil > state.time ? Ready(p.stunnedUntil, state.time)
+                : eggsReady > 0 && p.species >= 0 ? "위장 중"   // R68: eggs are laid in the alien form only
+                : eggsReady > 0 ? (eggsReady > 1 ? Cat("준비 ×", Int(eggsReady)) : "준비") : Cat(Int(p.personalEaten % eggFood), " / ", Int(eggFood));
             float morphAt = Mathf.Max(p.stunnedUntil, Mathf.Max(p.nextMorph, p.morphLockedUntil));
             Slot(actionsX, actionsY, slotW, "Q", "위장", laying ? "산란 중" : inside ? "사용 불가" : Ready(morphAt, state.time),
-                p.nextMorph > state.time ? 1 - (p.nextMorph - state.time) / AquariumModel.MorphCooldown : -1);
-            // R47: aliens can eat at any time (no "full" gate).
+                p.nextMorph > state.time ? 1 - (p.nextMorph - state.time) / AquariumModel.MorphCooldown : -1, HudIcon.Disguise);
+            // R73: fish are eaten only below 80% hunger again ("배부름" until then).
             Slot(actionsX + (slotW + gap), actionsY, slotW, "E", "포식",
-                laying ? "산란 중" : inside ? "사용 불가" : Ready(Mathf.Max(state.huntAt, Mathf.Max(p.nextAction, p.stunnedUntil)), state.time), -1);
+                laying ? "산란 중" : inside ? "사용 불가" : AquariumModel.Full(p, state.time) ? "배부름" : Ready(Mathf.Max(state.huntAt, Mathf.Max(p.nextAction, p.stunnedUntil)), state.time), -1, HudIcon.Bite);
             Slot(actionsX + 2 * (slotW + gap), actionsY, slotW, "R", "산란", eggStatus,
-                eggsReady > 0 || laying ? -1 : (p.personalEaten % eggFood) / (float)eggFood);
-            Slot(actionsX + 3 * (slotW + gap), actionsY, slotW, "C", p.drainTask == DrainTask.Enter ? "그만두기" : "해제", p.drainTask == DrainTask.Enter ? "준비" : p.species < 0 ? "기본형" : inside ? "사용 불가" : "준비", -1);
+                eggsReady > 0 || laying ? -1 : (p.personalEaten % eggFood) / (float)eggFood, HudIcon.LayEgg);
+            if (eggsReady > 0 && !laying && !inside && p.species >= 0)
+            {
+                // R68: an egg is ready but the alien is disguised: R works only in the alien form (C drops the disguise).
+                const string only = "외계인 상태에서만";
+                float w = Measure(slotState, only).x + 16, cx = actionsX + 2 * (slotW + gap) + slotW / 2;
+                Shape(new Rect(cx - w / 2, actionsY - 22, w, 17), new Color(0, 0.02f, 0.04f, .72f), 8);
+                Label(cx - w / 2, actionsY - 22, w, 17, only, slotStateReady);
+            }
+            Slot(actionsX + 3 * (slotW + gap), actionsY, slotW, "C", p.drainTask == DrainTask.Enter ? "그만두기" : "해제", p.drainTask == DrainTask.Enter ? "준비" : p.species < 0 ? "기본형" : inside ? "사용 불가" : "준비", -1, p.drainTask == DrainTask.Enter ? HudIcon.Back : HudIcon.Unmorph);
             float fx = actionsX + 4 * (slotW + gap);
-            if (!AquariumModel.HasAlienAbility(p)) { SlotLit(fx, actionsY, slotW, "F", "패시브", "체력", -1, false); return; }
+            if (!AquariumModel.HasAlienAbility(p)) { SlotLit(fx, actionsY, slotW, "F", "패시브", "체력", -1, false, AlienAbilityIcon(p.alienKind)); return; }
             float total = AquariumModel.AlienAbilityCooldownOf(p);
             string status; float recharge = -1; bool ready = false;
             if (inside) status = "사용 불가";
             else if (p.alienKind == 2 && state.time < p.abilityUntil && AquariumModel.Invisibility(p, state.time) > 0)
-            { status = "투명 " + (p.abilityUntil - state.time).ToString("0.0") + "s"; recharge = 1 - (p.abilityUntil - state.time) / AquariumModel.InvisibleSeconds; }
+            { status = Cat("투명 ", Tenths(p.abilityUntil - state.time), "s"); recharge = 1 - (p.abilityUntil - state.time) / AquariumModel.InvisibleSeconds; }
             else if (state.time < state.huntAt) status = Ready(state.huntAt, state.time);
             else if (p.nextAbility > state.time) { status = Ready(p.nextAbility, state.time); recharge = 1 - Mathf.Clamp01((p.nextAbility - state.time) / total); }
             else { status = "준비"; ready = true; }
-            SlotLit(fx, actionsY, slotW, "F", ShortAbility(p.alienKind), status, recharge, ready);
+            SlotLit(fx, actionsY, slotW, "F", ShortAbility(p.alienKind), status, recharge, ready, AlienAbilityIcon(p.alienKind));
         }
 
         private void DiverSlots(AquariumSnapshot state, Swimmer p, float actionsX, float actionsY, float slotW, float gap)
         {
             Slot(actionsX, actionsY, slotW, "LMB", "작살", Ready(Mathf.Max(p.nextAction, state.huntAt), state.time),
-                p.nextAction > state.time && state.time >= state.huntAt ? 1 - Mathf.Clamp01((p.nextAction - state.time) / AquariumModel.HarpoonCooldown) : -1);
+                p.nextAction > state.time && state.time >= state.huntAt ? 1 - Mathf.Clamp01((p.nextAction - state.time) / AquariumModel.HarpoonCooldown) : -1, HudIcon.Harpoon);
             // R47: three feeds per game, no cooldown.
-            SlotLit(actionsX + (slotW + gap), actionsY, slotW, "F", "먹이", p.feedsLeft + "/" + AquariumModel.FeedsPerGame, -1, p.feedsLeft > 0 && state.time >= state.huntAt);
+            SlotLit(actionsX + (slotW + gap), actionsY, slotW, "F", "먹이", Cat(Int(p.feedsLeft), "/", Int(AquariumModel.FeedsPerGame)), -1, p.feedsLeft > 0 && state.time >= state.huntAt, HudIcon.Feed);
             string name = p.diverKind == 0 ? "접착제" : p.diverKind == 1 ? "탐지" : "드론";
+            var rIcon = DiverAbilityIcon(p.diverKind);
             float unlock = AquariumModel.DiverAbilityAt(state.huntAt), rx = actionsX + 2 * (slotW + gap);
             if (state.time < unlock)
             {
                 float progress = state.time < state.huntAt ? 0 : (state.time - state.huntAt) / AquariumModel.DiverAbilityDelay;
-                SlotLit(rx, actionsY, slotW, "R", name, "잠김 " + MinSec(unlock - state.time), progress, false);
+                SlotLit(rx, actionsY, slotW, "R", name, Cat("잠김 ", MinSec(unlock - state.time)), progress, false, rIcon);
                 return;
             }
             if (p.diverKind == 0)
-                SlotLit(rx, actionsY, slotW, "R", name, p.abilityUses > 0 ? "준비 " + p.abilityUses + "/" + AquariumModel.GlueUses : "사용함", -1, p.abilityUses > 0);
+                SlotLit(rx, actionsY, slotW, "R", name, p.abilityUses > 0 ? Cat("준비 ", Int(p.abilityUses), "/", Int(AquariumModel.GlueUses)) : "사용함", -1, p.abilityUses > 0, rIcon);
             else if (p.diverKind == 1)
             {
                 if (AquariumModel.XrayOn(p, state.time))
-                    SlotLit(rx, actionsY, slotW, "R", name, (p.abilityUntil - state.time).ToString("0.0") + "s", 1 - (p.abilityUntil - state.time) / AquariumModel.XraySeconds, true);
+                    SlotLit(rx, actionsY, slotW, "R", name, Cat(Tenths(p.abilityUntil - state.time), "s"), 1 - (p.abilityUntil - state.time) / AquariumModel.XraySeconds, true, rIcon);
                 // R49: no use limit any more; a 60 s cooldown after each scan.
                 else if (p.nextAbility > state.time)
-                    SlotLit(rx, actionsY, slotW, "R", name, Mathf.CeilToInt(p.nextAbility - state.time) + "s", 1 - (p.nextAbility - state.time) / AquariumModel.XrayCooldown, false);
-                else SlotLit(rx, actionsY, slotW, "R", name, "준비", -1, true);
+                    SlotLit(rx, actionsY, slotW, "R", name, Cat(Int(Mathf.CeilToInt(p.nextAbility - state.time)), "s"), 1 - (p.nextAbility - state.time) / AquariumModel.XrayCooldown, false, rIcon);
+                else SlotLit(rx, actionsY, slotW, "R", name, "준비", -1, true, rIcon);
             }
-            else SlotLit(rx, actionsY, slotW, "R", name, p.droneControl ? "조종 중" : p.droneOut ? "배회 중" : "준비", -1, true);
+            else SlotLit(rx, actionsY, slotW, "R", name, p.droneControl ? "조종 중" : p.droneOut ? "배회 중" : "준비", -1, true, rIcon);
         }
 
         // The most advanced laid egg's hatch progress (per its owner's hatch time) under the egg card.
@@ -374,7 +431,7 @@ namespace PrototypeLab.Aquarium
             float best = -1;
             foreach (var egg in state.eggs)
             {
-                var owner = Array.Find(state.players, a => a.id == egg.owner);
+                var owner = PlayerById(state.players, egg.owner);
                 float total = AquariumModel.HatchSecondsFor(owner), left = egg.hatchAt - state.time;
                 best = Mathf.Max(best, left <= 0 ? 1 : 1 - left / total);
             }
@@ -395,11 +452,11 @@ namespace PrototypeLab.Aquarium
                 bool open = d.isOpen || d.lid > 0;
                 Color color = d.glued ? new Color(.55f, .6f, .62f, .85f) : open ? Warm : new Color(.72f, .95f, 1f, .85f);
                 if (flash && Mathf.Repeat(Time.unscaledTime * 6, 1) < .6f) color = Danger;
-                var rect = new Rect(x - 7, 8, 14, 14);
-                Shape(rect, new Color(0.01f, 0.05f, 0.08f, .75f), 7);
-                Shape(rect, color, 7, flash ? 2.2f : 1.5f);
-                // a drain grate: two bars
-                Shape(new Rect(x - 3.5f, 12.5f, 7, 1.5f), color, .7f); Shape(new Rect(x - 3.5f, 16f, 7, 1.5f), color, .7f);
+                // R70b: the drain grate icon on a dark disc (a bright ring while it flashes).
+                var rect = new Rect(x - 9, 6, 18, 18);
+                Shape(rect, new Color(0.01f, 0.05f, 0.08f, .8f), 9);
+                if (flash) Shape(rect, color, 9, 2f);
+                Icon(x - 7, 8, HudIcon.Drain, color, 14);
             }
         }
         private void LidAlarm(AquariumSnapshot state, Swimmer p, float width)
@@ -414,7 +471,7 @@ namespace PrototypeLab.Aquarium
             Shape(rect, new Color(.35f, .03f, .02f, .82f), 12);
             Shape(rect, new Color(1f, .3f + .2f * pulse, .25f, .95f), 12, 2f);
             Label(rect.x, rect.y + 4, rect.width, 24, "배수구 뚜껑이 열렸습니다!", Tinted(centred, new Color(1f, .85f, .8f)));
-            Label(rect.x, rect.y + 26, rect.width, 20, Cardinal(dir) + " 방향, " + Mathf.RoundToInt(metres) + "m", smallCentred);
+            Label(rect.x, rect.y + 26, rect.width, 20, Cat(Cardinal(dir), " 방향, ", Int(Mathf.RoundToInt(metres)), "m"), smallCentred);
         }
 
         // ---- Prompts and overlays --------------------------------------------------------------------------
@@ -437,7 +494,7 @@ namespace PrototypeLab.Aquarium
                 {
                     var pill = new Rect(width / 2 - 90, 148, 180, 28);
                     Pill(pill, new Color(1f, .4f, .35f, .8f));
-                    Label(pill.x, pill.y, pill.width, pill.height, "생체 탐지  " + (p.abilityUntil - state.time).ToString("0.0") + "s", centred);
+                    Label(pill.x, pill.y, pill.width, pill.height, Cat("생체 탐지  ", Tenths(p.abilityUntil - state.time), "s"), centred);
                 }
             }
             if (!session.IsSpectator && p.escaped && state.time - p.escapedAt < 4.5f)
@@ -450,8 +507,8 @@ namespace PrototypeLab.Aquarium
         // [text] [key] [text] in a glass pill.
         private void KeyHint(float cx, float y, string before, string key, string after, Color rim)
         {
-            float a = promptText.CalcSize(new GUIContent(before)).x, b = promptText.CalcSize(new GUIContent(after)).x;
-            float kw = Mathf.Max(24, 12 + keyInk.CalcSize(new GUIContent(key)).x);
+            float a = Measure(promptText, before).x, b = Measure(promptText, after).x;
+            float kw = Mathf.Max(24, 12 + Measure(keyInk, key).x);
             float w = a + b + kw + 44; var rect = new Rect(cx - w / 2, y, w, 30);
             Pill(rect, rim);
             float x = rect.x + 14;
@@ -623,10 +680,10 @@ namespace PrototypeLab.Aquarium
             Separator(x + 26, y + 70, w - 52);
             float col = (w - 52 - 40) / 3, top = y + 84;
             Label(x + 26, top, col, 28, "공통 조작", body);
-            Label(x + 26, top + 30, col, 200, "WASD 이동, Space 상승, Ctrl 하강\n마우스 시점, Shift 질주, 휠 카메라\nEsc 메뉴\n\n배수구: 나사 6개 (각 20초, 둘이 같이 풀면 +10%) → 뚜껑 치우기 10초 → 비집고 들어가기 10초 = 탈출", small);
+            Label(x + 26, top + 30, col, 200, "WASD 이동, Space 상승, Ctrl 하강\n마우스 시점, Shift 질주, 휠 카메라\nEsc 메뉴, Enter 채팅 (대기실과 경기 후)\n\n배수구: 나사 6개 (각 20초, 둘이 같이 풀면 +10%) → 뚜껑 치우기 10초 → 비집고 들어가기 10초 = 탈출", small);
             float c2 = x + 26 + col + 20;
             Label(c2, top, col, 28, "외계인", body);
-            Label(c2, top + 30, col, 200, "Q 위장 (쿨 10초), C 해제\nE 포식 (언제든), 배수구 작업\nR 산란 (포식 10마리마다, 보라 8)\nF 고유 능력\n\n배고픔 0이면 굶어 죽음, 작살 2번 (초록 3번)에 잡힘, 알이 부화하면 (60초, 보라 40초) 쓰러진 동료 부활", small);
+            Label(c2, top + 30, col, 200, "Q 위장 (쿨 10초), C 해제\nE 포식 (배고픔 80% 밑에서), 배수구 작업\nR 산란 (외계인 상태에서만, 포식 10마리마다, 보라 8)\nF 고유 능력, 휠 클릭 핑 (외계인끼리만)\n\n배고픔 0이면 굶어 죽음, 작살 2번 (초록 3번)에 잡힘, 알이 부화하면 (60초, 보라 40초) 쓰러진 동료 부활", small);
             float c3 = c2 + col + 20;
             Label(c3, top, col, 28, "잠수부", body);
             Label(c3, top + 30, col, 200, "클릭 작살 (재장전 5초)\nF 먹이 뿌리기 (게임당 3회)\nE 열린 뚜껑 덮기 (4초)\nR 능력 (사냥 3분 뒤부터)\n\n나침반에 배수구 4곳 표시, 나사가 빠지면 깜빡이고 뚜껑이 열리면 경보, 배수구 소리는 25m까지", small);
@@ -638,7 +695,7 @@ namespace PrototypeLab.Aquarium
             Label(c2, y + 324, col, 24, "잠수부 캐릭터 (R / 패시브)", body);
             sb.Length = 0;
             foreach (var k in AquariumDiverKinds.All) sb.Append(k.name).Append(": ").Append(k.activeName).Append(" / ").Append(k.passiveName).Append('\n');
-            sb.Append("접착제: 닫힌 뚜껑을 끝까지 봉인 (1회)\n탐지: 5초 투시, 쿨타임 60초 (횟수 제한 없음)");
+            sb.Append("접착제: 닫힌 뚜껑을 끝까지 봉인 (1회)\n탐지: 10초 투시, 쿨타임 60초 (횟수 제한 없음)");
             Label(c2, y + 352, col + 10, 150, sb.ToString(), small);
             Label(c3, y + 324, col, 24, "점수", body);
             Label(c3, y + 352, col, 160, "외계인: 물고기 +5, 산란 +10, 나사 +5, 탈출 +20 (마지막 탈출 +20), 동료 포식 −10, 잡힘 −20, 팀 승리 시 생존자 +40, 전멸 −20\n잠수부: 포획 +30, 알 파괴 +10, 진짜 물고기 −5, 전멸시킴 +20, 해고 −20", small);
@@ -664,11 +721,14 @@ namespace PrototypeLab.Aquarium
             new[] { "입수가 끝나면 클릭으로 작살을 쏘세요", "F로 먹이를 뿌려 보세요 (게임당 3회)", "나침반의 주황 배수구로 가서 열린 뚜껑을 E로 덮으세요 (4초)" },
         };
 
+        // R70b: the main menu's tutorial row (moved out of the practice waiting room).
+        private static readonly string[] TutorialShort = { "", "외계인 기초", "탈출", "잠수부" };
         private void TutorialButtons(float x, float y, float width)
         {
-            Label(x, y, width, 18, "튜토리얼", caption);
+            Label(x, y, width, 18, "튜토리얼  (혼자 1~2분)", caption);
+            const float gap = 8; float w = (width - gap * 2) / 3;
             for (int i = 1; i <= 3; i++)
-                if (Button(new Rect(x, y + 20 + (i - 1) * 38, width, 34), TutorialNames[i])) StartTutorial(i);
+                if (Button(new Rect(x + (i - 1) * (w + gap), y + 18, w, 34), TutorialShort[i])) StartTutorial(i);
         }
 
         private void StartTutorial(int kind)
@@ -692,6 +752,9 @@ namespace PrototypeLab.Aquarium
                 if (drains[0].screws != null) for (int s = 0; s < drains[0].screws.Length; s++) drains[0].screws[s] = 1;
                 drains[0].lid = 1; drains[0].isOpen = true;
             }
+            // R73: fish are eaten only below 80% hunger, so the alien tutorial starts a little hungry (70%).
+            var me = session.Model.Player(session.LocalId);
+            if (kind == 1 && me != null) me.lastMealAt = session.Model.HuntAt - AquariumModel.HungerMax(me) * .3f;
         }
 
         private void UpdateTutorial()
@@ -700,7 +763,7 @@ namespace PrototypeLab.Aquarium
             if (!session.Connected || !session.Practice || session.State == null || session.State.phase == RoundPhase.Lobby) { tutorial = 0; tutorialDone = false; return; }
             var state = session.State;
             if (state.phase != RoundPhase.Playing || tutorialDone) return;
-            var p = Array.Find(state.players, a => a.id == session.LocalId);
+            var p = PlayerById(state.players, session.LocalId);
             if (p == null) return;
             bool next = false;
             if (tutorial == 1)
@@ -764,7 +827,7 @@ namespace PrototypeLab.Aquarium
             Card(box, cyan, true, 16);
             Label(box.x, box.y + 14, box.width, 30, "튜토리얼 완료!", bigCentred);
             Label(box.x, box.y + 48, box.width, 22, TutorialNames[tutorial], smallCentred);
-            if (Button(box.x + 24, box.y + 88, 188, "연습 대기실로", true)) BackToPracticeLobby();
+            if (Button(box.x + 24, box.y + 88, 188, "메인 메뉴로", true)) Leave();   // R70b: tutorials start from the main menu
             int again = tutorial;
             if (Button(box.x + 228, box.y + 88, 188, "한 번 더")) StartTutorial(again);
         }

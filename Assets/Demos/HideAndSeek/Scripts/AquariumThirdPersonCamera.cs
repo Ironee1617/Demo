@@ -26,6 +26,7 @@ namespace PrototypeLab.Aquarium
         // R47: the drone diver is steering its fish drone: a third-person view behind the drone.
         public bool DroneView { get; private set; }
         private Vector3 dronePivot;
+        private bool lockerView;
         private float diverYaw, diverPitch;
         public float Yaw { get { return yaw; } }
         public float Pitch { get { return pitch; } }
@@ -127,7 +128,7 @@ namespace PrototypeLab.Aquarium
         {
             if (SpectatingDiver || Cinematic || (observerView && !FreeView)) return;
             targetYaw = Mathf.Repeat(targetYaw + horizontal * 2.3f, 360);
-            targetPitch = Mathf.Clamp(targetPitch - vertical * 2.3f, -65, 65);
+            targetPitch = Mathf.Clamp(targetPitch - vertical * 2.3f, -65, 89);   // R73h: the mouse looks all the way down
             if (!DeathReview) targetDistance = Mathf.Clamp(targetDistance - scroll * 0.5f, 2.4f, 5.5f);
         }
 
@@ -255,6 +256,18 @@ namespace PrototypeLab.Aquarium
         private void DiveEntryShot(AquariumSnapshot state, Swimmer player, Vector3 centre, AquariumView view)
         {
             float t = state.time - (player.entryAt - AquariumDiveEntry.Seconds);
+            // R60: before the cut the diver is in the changing room, looking about freely at eye height.
+            if (t < 0)
+            {
+                Cinematic = false; lockerView = true;
+                var roomEye = centre + Vector3.up * AquariumLockerRoom.EyeAboveRoot;
+                var roomLook = Quaternion.Euler(pitch, yaw, 0);
+                camera.transform.SetPositionAndRotation(snap ? roomEye : Vector3.Lerp(camera.transform.position, roomEye, 1 - Mathf.Exp(-Time.unscaledDeltaTime * 20)), roomLook);
+                camera.nearClipPlane = .05f; snap = false;
+                view?.CameraOcclusion(FollowId, centre, true);
+                return;
+            }
+            if (lockerView) { lockerView = false; snap = true; }
             var heading = new Vector3(player.facing.x, 0, player.facing.z);
             if (heading.sqrMagnitude < .0001f) heading = Vector3.forward;
             yaw = targetYaw = Quaternion.LookRotation(heading).eulerAngles.y; pitch = targetPitch = 0;
@@ -286,7 +299,7 @@ namespace PrototypeLab.Aquarium
                     nearest = Mathf.Min(nearest, AquariumModel.FishHitTime(start, end, fish));
             foreach (var p in state.players)
                 if (p.id != local.id && p.team == Team.Hider && p.alive && p.swallowedBy == 0)
-                    nearest = Mathf.Min(nearest, AquariumModel.PlayerHitTime(start, end, p, state.time));
+                    nearest = Mathf.Min(nearest, AquariumModel.PlayerHitTime(start, end, p, state.time, state.drains));
             if (local.team == Team.Seeker && state.eggs != null)
                 foreach (var egg in state.eggs)
                     nearest = Mathf.Min(nearest, AquariumModel.HitTime(start, end, egg.position, 0.45f));

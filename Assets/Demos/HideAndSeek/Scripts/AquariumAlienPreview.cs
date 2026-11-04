@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using UnityEngine;
 
 namespace PrototypeLab.Aquarium
@@ -10,7 +10,8 @@ namespace PrototypeLab.Aquarium
     public sealed class AquariumAlienPreview : IDisposable
     {
         public const int Layer = 29;
-        public const float Aspect = 2.4f;
+        public const float Aspect = 2.05f;   // R70b: was 2.4; a taller stage (same horizontal view, see the camera's field of view)
+        private const float SandY = -.93f;   // R56: just above the lobby backdrop's sand (AquariumEnvironment.LobbyFloor)
         private const float Unselected = .84f, DiverScale = .8f;
         // R47: the same stage shows the three divers when the local player dives.
         private readonly bool divers;
@@ -25,6 +26,7 @@ namespace PrototypeLab.Aquarium
         private readonly Renderer[] discs;
         private readonly MaterialPropertyBlock discColor = new MaterialPropertyBlock();
         private readonly float[] size, yaw, step;
+        private readonly AquariumLobbyBackdrop backdrop;
         private int selected = -1;
         private float selectedAt = -10, lastUpdate = -1;
 
@@ -57,22 +59,45 @@ namespace PrototypeLab.Aquarium
                     AquariumDiverKinds.PaintGun(gun, slot);
                 }
                 var disc = new GameObject("Glow").AddComponent<MeshFilter>(); disc.sharedMesh = quad; disc.transform.SetParent(stage.transform, false);
-                disc.transform.localPosition = SlotPosition(slot, 0) + new Vector3(0, -.47f, 0);
+                disc.transform.localPosition = SlotPosition(slot, 0) + new Vector3(0, SandY, 0);
                 var r = disc.gameObject.AddComponent<MeshRenderer>(); r.sharedMaterial = discMaterial; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; r.receiveShadows = false;
                 discs[slot] = r;
             }
+            // R56b: both stages stand inside a fish-free, art-directed piece of the tank (AquariumEnvironment.LobbyBackdrop).
+            backdrop = AquariumEnvironment.LobbyBackdrop(stage.transform, divers ? 56 : 57, Layer);
             texture = new RenderTexture(1200, Mathf.RoundToInt(1200 / Aspect), 24) { name = "Alien lobby preview", antiAliasing = 4 };
             camera = new GameObject("Alien lobby camera").AddComponent<Camera>(); camera.transform.SetParent(stage.transform, false);
             camera.transform.localPosition = new Vector3(0, 1.05f, 8.9f); camera.transform.LookAt(stage.transform.TransformPoint(new Vector3(0, .42f, 0)));
             camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = new Color(.06f, .15f, .21f);
-            camera.cullingMask = 1 << Layer; camera.fieldOfView = 24; camera.nearClipPlane = .1f; camera.farClipPlane = 30;
+            camera.cullingMask = 1 << Layer; camera.fieldOfView = 28; camera.nearClipPlane = .1f; camera.farClipPlane = 30;
             camera.targetTexture = texture; camera.depth = -20; camera.allowHDR = false;
             // Kept soft (the tank's own lights reach the stage too) so the white bodies keep their coloured spots.
             AddLight("Key", new Vector3(30, 200, 0), .62f, new Color(1, .97f, .92f));
             AddLight("Fill", new Vector3(12, 150, 0), .18f, new Color(.72f, .86f, 1));
-            AddLight("Rim", new Vector3(18, 10, 0), .32f, new Color(.6f, .95f, 1));
+            AddLight("Rim", new Vector3(18, 10, 0), .5f, new Color(.55f, .95f, 1));
+            AddVignette();
             foreach (var t in stage.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = Layer;
             stage.SetActive(false);
+        }
+
+        // R56b: a soft dark-teal vignette in front of the stage camera, so the eye settles on the row.
+        private void AddVignette()
+        {
+            const int n = 128; var t = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "Lobby vignette" };
+            var pixels = new Color[n * n];
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float dx = ((x + .5f) / n * 2 - 1), dy = ((y + .5f) / n * 2 - 1) * 1.15f, r = Mathf.Sqrt(dx * dx + dy * dy);
+                    float a = Mathf.Clamp01((r - .55f) / .75f); pixels[y * n + x] = new Color(.01f, .06f, .10f, .62f * a * a * (3 - 2 * a));
+                }
+            t.SetPixels(pixels); t.Apply();
+            var quad = new GameObject("Vignette").AddComponent<MeshFilter>(); quad.sharedMesh = DiscMesh(); quad.transform.SetParent(camera.transform, false);
+            float d = camera.nearClipPlane + .02f, h = d * Mathf.Tan(camera.fieldOfView * .5f * Mathf.Deg2Rad) * 2.02f;
+            quad.transform.localPosition = new Vector3(0, 0, d); quad.transform.localRotation = Quaternion.Euler(-90, 0, 0);
+            quad.transform.localScale = new Vector3(h * Aspect / 1.5f, 1, h / .84f);
+            var r2 = quad.gameObject.AddComponent<MeshRenderer>(); r2.sharedMaterial = new Material(Shader.Find("Sprites/Default")) { name = "Lobby vignette", mainTexture = t, renderQueue = 4000 };
+            r2.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; r2.receiveShadows = false;
         }
 
         private void AddLight(string name, Vector3 euler, float intensity, Color color)
@@ -110,6 +135,8 @@ namespace PrototypeLab.Aquarium
         public void Update(float now)
         {
             float dt = lastUpdate < 0 ? 0 : Mathf.Clamp(now - lastUpdate, 0, .1f); lastUpdate = now;
+            if (backdrop != null)
+                backdrop.Focus(selected >= 0 ? SlotPosition(selected, step[selected]) : Vector3.zero, selected >= 0 ? 1 : 0, dt > 0 ? dt : 1);
             for (int slot = 0; slot < holders.Length; slot++)
             {
                 bool picked = slot == selected;
@@ -129,7 +156,7 @@ namespace PrototypeLab.Aquarium
                 holder.localScale = new Vector3(across, stretch, across) * size[slot];
                 if (rigs[slot] != null) rigs[slot].SampleLocomotion(0, now, slot * .37f);
                 var tint = colors[slot];
-                discs[slot].transform.localPosition = SlotPosition(slot, step[slot]) + new Vector3(0, -.47f * size[slot], 0);
+                discs[slot].transform.localPosition = SlotPosition(slot, step[slot]) + new Vector3(0, SandY, 0);   // R56: glow lies on the backdrop sand
                 float glow = picked ? .55f + .1f * Mathf.Sin(now * 2.4f) : .16f;
                 discColor.SetColor("_Color", new Color(tint.r, tint.g, tint.b, glow)); discs[slot].SetPropertyBlock(discColor);
                 discs[slot].transform.localScale = Vector3.one * (picked ? 1.25f : .95f) * size[slot] * (1 - .35f * Mathf.Clamp01(lift / .3f));

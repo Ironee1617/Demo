@@ -8,12 +8,12 @@ namespace PrototypeLab.Aquarium
     public sealed partial class AquariumModel
     {
         public const float HideSeconds = 20f;
-        public const float AlienAbilityCooldown = 60f, InkBombSeconds = 5f, InkBombRadius = 7f;
+        public const float AlienAbilityCooldown = 60f, InkBombSeconds = 5f, InkBombRadius = 10f;   // R73d: ink 7 -> 10 m
         public const float InvisibleSeconds = 5f, InvisibleFadeSeconds = .7f;
-        public const float ShockRadius = 6f, ShockStun = 4f;
+        public const float ShockRadius = 9f, ShockStun = 4f;   // R73d: shock 6 -> 9 m
         public const float DashDistance = 6f, DashSeconds = .35f, DashCooldown = 30f;
         public const float BlueStillSeconds = 3f;
-        public const float DiverAbilityDelay = 180f, XraySeconds = 5f, XrayCooldown = 60f;
+        public const float DiverAbilityDelay = 180f, XraySeconds = 10f, XrayCooldown = 60f;
         // R49: the harpoon only counts a hit that goes properly through the body (core of the old hit volume),
         // and the body is then skewered on the shaft. Shared with the aiming camera through FishHitTime / PlayerHitTime.
         public const float HitCore = .8f;
@@ -354,7 +354,9 @@ namespace PrototypeLab.Aquarium
             bool seen = diver != null && InAim(diver, p.position, 12.001f) && !Hidden(p, Time);
             bool danger = diver != null && Time >= HuntAt && (diverDistance < 8f || seen);
             bool ability = danger && HasAlienAbility(p) && Time >= p.nextAbility && diverDistance < 6f;
-            bool lay = EggsReady(p) > 0 && !danger;
+            // R68: eggs are laid only in the alien form. A disguised bot drops its disguise to lay only when no diver is
+            // within 14 m (and does not disguise again meanwhile); otherwise it keeps the egg for later.
+            bool lay = EggsReady(p) > 0 && !danger && (p.species < 0 || diverDistance > 14f);
             if ((p.drainTask == DrainTask.Screw || p.drainTask == DrainTask.Lid) && p.drainIndex >= 0 && p.drainIndex < drains.Length)
             {
                 int part = p.drainTask == DrainTask.Lid ? DrainLidPart : p.drainScrew;
@@ -376,7 +378,7 @@ namespace PrototypeLab.Aquarium
             if (food != null && (hunger < .4f || diver == null))
             {
                 var s = Go(p, food.position, .75f, food.position - p.position);
-                s.action = foodDistance < 1.72f && Time >= HuntAt; s.morph = p.species < 0 && diverDistance < 18f; s.layEgg = lay;
+                s.action = foodDistance < 1.72f && Time >= HuntAt; s.morph = p.species < 0 && diverDistance < 18f; LayInAlienForm(p, s, lay);
                 return s;
             }
             int drain, job;
@@ -388,13 +390,22 @@ namespace PrototypeLab.Aquarium
                 if (p.species >= 0) s.unmorph = true;
                 else if ((at - p.position).Length < DrainReach(job, Team.Hider) - .35f)
                 { s.x = s.y = s.z = 0; s.interact = true; s.interactDrain = drain; s.interactPart = job; }
-                s.layEgg = lay;
+                LayInAlienForm(p, s, lay);
                 return s;
             }
-            var target = AquariumMapOutline.LayoutPoint((float)Math.Sin(Time * 0.23f + p.id) * 10, 3 + (float)Math.Sin(Time * 0.3f + p.id) * 1.5f, (float)Math.Cos(Time * 0.31f + p.id) * 6);
+            var target = AquariumMaps.Layout((float)Math.Sin(Time * 0.23f + p.id) * 10, 3 + (float)Math.Sin(Time * 0.3f + p.id) * 1.5f, (float)Math.Cos(Time * 0.31f + p.id) * 6);
             var w = Go(p, target, .55f, food != null ? food.position - p.position : target - p.position);
-            w.morph = p.species < 0 && food != null && foodDistance < 9f; w.layEgg = lay;
+            w.morph = p.species < 0 && food != null && foodDistance < 9f; LayInAlienForm(p, w, lay);
             return w;
+        }
+
+        // R68: a bot that wants to lay does not disguise this tick, and drops a disguise first (C, then R in the same tick).
+        private static void LayInAlienForm(Swimmer p, SwimInput s, bool lay)
+        {
+            s.layEgg = lay;
+            if (!lay) return;
+            s.morph = false;
+            if (p.species >= 0) s.unmorph = true;
         }
 
         private bool PickDrainJob(Swimmer p, out int drain, out int part)

@@ -8,7 +8,9 @@ namespace PrototypeLab.Aquarium
     {
         public static readonly float[] HalfWidths = { .57f * AquariumMapOutline.HorizontalScale, .56f * AquariumMapOutline.HorizontalScale, .58f * AquariumMapOutline.HorizontalScale };
         public static readonly Point[][] Paths = CreatePaths();
-        private static readonly AquariumClearanceGrid clearance=new AquariumClearanceGrid(-40,-26,40,26,p=>SignedDistance(p));
+        private static readonly AquariumClearanceGrid clearance=new AquariumClearanceGrid(-40,-26,40,26,p=>BasicSignedDistance(p,-1));
+        // R57: the glass walk-through galleries belong to the default tank only; the twin tanks have none.
+        private static bool None { get { return AquariumMaps.IsTwin; } }
 
         private static Point[][] CreatePaths()
         {
@@ -56,6 +58,7 @@ namespace PrototypeLab.Aquarium
 
         public static bool Contains(Point p, float padding=0, int exceptPath=-1)
         {
+            if(None)return false;
             bool atLeast;if(exceptPath==-1 && clearance.TryAtLeast(p,padding,out atLeast))return !atLeast;
             return SignedDistance(p,exceptPath)<padding;
         }
@@ -63,6 +66,8 @@ namespace PrototypeLab.Aquarium
         // Round the concave joints between whole corridors; each individual path keeps its width.
         // This same field drives the unified glass mesh, swimmers and projectile collision.
         public static float SignedDistance(Point p,int exceptPath=-1)
+        { return None?1000:BasicSignedDistance(p,exceptPath); }
+        public static float BasicSignedDistance(Point p,int exceptPath)
         {
             float clearance=float.MaxValue;
             for(int i=0;i<Paths.Length;i++)
@@ -78,7 +83,7 @@ namespace PrototypeLab.Aquarium
 
         public static Point Constrain(Point p,float padding)
         {
-            if(!Contains(p,padding))return p;
+            if(None||!Contains(p,padding))return p;
             float height=p.y;
             for(int pass=0;pass<16;pass++)
             {
@@ -110,6 +115,7 @@ namespace PrototypeLab.Aquarium
         // Exact 2D ray/capsule intersections; the gallery walls span the entire water depth.
         public static float Hit(Point start,Point end,float padding=0)
         {
+            if(None)return 2;
             var s=new Point(start.x,start.z);var e=new Point(end.x,end.z);var ray=e-s;
             // R48: SignedDistance is 1-Lipschitz and never above the capsule distance, so when the cached field at the
             // midpoint keeps the whole segment clear of the padded walls neither test below can hit: answer at once.

@@ -132,6 +132,8 @@ namespace PrototypeLab.Aquarium
             {
                 var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(Equipment + "/" + name + ".asset");
                 report += name + ": " + Cut(mesh) + "; ";
+                // R58: the regulator held in the mouth, patched onto the freshly cut yellow diver
+                if (name == "Diver") report += "regulator " + global::PrototypeLab.Aquarium.Editor.DiverRegulator.ApplyTo(mesh, name) + "; ";
                 EditorUtility.SetDirty(mesh);
             }
             report += PaintAtlas();

@@ -1,0 +1,3 @@
+Assets\Demos\HideAndSeek\Scripts\AquariumPerformanceDriver.cs(35,42): warning CS0108: 'AquariumPerformanceDriver.camera' hides inherited member 'Component.camera'. Use the new keyword if hiding was intended.
+Assets\Demos\HideAndSeek\Characters\Runtime\AquariumAbilityFx.cs(197,56): warning CS0219: The variable 'paint' is assigned but its value is never used
+Assets\Demos\HideAndSeek\Characters\Runtime\AquariumMealTrail.cs(50,99): warning CS0414: The field 'AquariumMealTrail.spreadWidth' is assigned but its value is never used

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace PrototypeLab.Aquarium
 {
@@ -6,15 +6,19 @@ namespace PrototypeLab.Aquarium
     public static class AquariumEntryLayout
     {
         public const float DeckHeight = AquariumModel.WaterHeight+.275f;
-        public static readonly Point Anchor = AquariumMapOutline.PointOn(.089f);
-        public static readonly Point Right = (AquariumMapOutline.PointOn(.090f)-AquariumMapOutline.PointOn(.088f)).Normalized;
-        public static readonly Point Inward = new Point(Right.z,-Right.x);
+        // R57: the deck of the selected map (AquariumMaps): the default tank's north deck, or the twin map's
+        // deck on tank A's north wall.
+        private static readonly Point BasicAnchor = AquariumMapOutline.BasicPointOn(.089f);
+        private static readonly Point BasicRight = (AquariumMapOutline.BasicPointOn(.090f)-AquariumMapOutline.BasicPointOn(.088f)).Normalized;
+        public static Point Anchor { get { return AquariumMaps.IsTwin ? AquariumTwinMap.EntryAnchor : BasicAnchor; } }
+        public static Point Right { get { return AquariumMaps.IsTwin ? AquariumTwinMap.EntryRight : BasicRight; } }
+        public static Point Inward { get { var right = Right; return new Point(right.z,-right.x); } }
 
         public static Point At(float across,float inward,float height)
-        { var p=Anchor+Right*across+Inward*inward;p.y=height;return p; }
+        { var right=Right;var p=Anchor+right*across+new Point(right.z,0,-right.x)*inward;p.y=height;return p; }
 
         public static Point Local(Point p)
-        { var d=p-Anchor;return new Point(Point.Dot(d,Right),Point.Dot(d,Inward)); }
+        { var right=Right;var d=p-Anchor;d.y=0;return new Point(Point.Dot(d,right),Point.Dot(d,new Point(right.z,0,-right.x))); }
 
         // Rounded apron 7.8 m wide, from the existing promenade to 3.2 m over water.
         public static float DeckDistance(Point p)

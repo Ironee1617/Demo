@@ -106,7 +106,13 @@ namespace PrototypeLab.Aquarium
         private string HarpoonKey(int id)=>ActorKey(harpoonKeys,"h",id);
         private static string ActorKey(Dictionary<int,string> cache,string prefix,int id)
         {if(!cache.TryGetValue(id,out var key)){key=prefix+id;cache.Add(id,key);}return key;}
-        private static string FishKind(int species)=>species>=0 && species<fishKinds.Length?fishKinds[species]:"fish"+species;
+        private static string FishKind(int species)=>species>=0 && species<fishKinds.Length?fishKinds[species]:MoreFishKind(species);
+        // R66: "fish" + species for the painted species past fish2, made once each instead of every frame per fish.
+        private static readonly Dictionary<int,string> moreFishKinds=new Dictionary<int,string>();
+        private static string MoreFishKind(int species){if(!moreFishKinds.TryGetValue(species,out var kind)){kind="fish"+species;moreFishKinds[species]=kind;}return kind;}
+        // int.Parse(kind.Substring(4)) for a "fishN" kind, parsed once per kind.
+        private static readonly Dictionary<string,int> kindSpecies=new Dictionary<string,int>();
+        private static int KindSpecies(string kind){if(!kindSpecies.TryGetValue(kind,out var species)){species=int.Parse(kind.Substring(4));kindSpecies[kind]=species;}return species;}
         private readonly Dictionary<int, GameObject> effects = new Dictionary<int, GameObject>();
         private const float HarpoonDockSeconds = .6f;
         private readonly List<Material> materials = new List<Material>();
@@ -170,6 +176,7 @@ namespace PrototypeLab.Aquarium
                     if (Application.isPlaying) UnityEngine.Object.Destroy(warm); else UnityEngine.Object.DestroyImmediate(warm);
                 }
             }
+            AquariumMaps.Prewarm();
             BuildEnvironment();
             drains = new AquariumDrainPresentation(root);
             abilities = new AquariumAbilityFx(root);
@@ -214,12 +221,31 @@ namespace PrototypeLab.Aquarium
         { return Shape(name, PrimitiveType.Sphere, parent, at, size, mat); }
         private float Range(float a, float b) { return a + (float)random.NextDouble() * (b - a); }
 
-        private void BuildEnvironment()
+        // R57: one baked environment per map (AquariumMaps); only the selected map's is active.
+        private readonly AquariumEnvironmentRoot[] environments = new AquariumEnvironmentRoot[AquariumMaps.Count];
+        private readonly AquariumSceneryPresentation[] sceneryByMap = new AquariumSceneryPresentation[AquariumMaps.Count];
+        private readonly List<Renderer> environmentGlass = new List<Renderer>();
+        private int shownMap = -1;
+        private void BuildEnvironment() { ShowMap(AquariumMaps.Current); }
+        private void ShowMap(int map)
         {
-            var environment = AquariumEnvironment.Ensure(root);
-            scenery = new AquariumSceneryPresentation(environment);
-            foreach (var renderer in environment.GetComponentsInChildren<Renderer>())
-                if (renderer.name == "04 • Curved aquarium glass") glassPanels.Add(renderer);
+            map = AquariumMaps.Clamp(map);
+            if (map == shownMap) return;
+            if (environments[map] == null)
+            {
+                var environment = AquariumEnvironment.EnsureMap(map, root);
+                environments[map] = environment;
+                sceneryByMap[map] = new AquariumSceneryPresentation(environment);
+            }
+            for (int i = 0; i < environments.Length; i++)
+                if (environments[i] != null && environments[i].gameObject.activeSelf != (i == map)) environments[i].gameObject.SetActive(i == map);
+            scenery = sceneryByMap[map];
+            foreach (var renderer in environmentGlass) glassPanels.Remove(renderer);
+            environmentGlass.Clear();
+            foreach (var renderer in environments[map].GetComponentsInChildren<Renderer>())
+                if (renderer.name == "04 • Curved aquarium glass") environmentGlass.Add(renderer);
+            glassPanels.AddRange(environmentGlass);
+            shownMap = map;
         }
 
         private Mesh MakeFanMesh()
@@ -577,12 +603,12 @@ namespace PrototypeLab.Aquarium
                 actor = MakeActor(kind, alienLook); actors[key] = actor;
             }
             Vector3 target = new Vector3(at.x, at.y, at.z);
-            if((fresh || actor.kind!=kind) && key.StartsWith("p") && actor.creature!=null && kind.StartsWith("fish"))actor.creature.PrepareFeedingForms(int.Parse(kind.Substring(4)));
+            if((fresh || actor.kind!=kind) && key.StartsWith("p") && actor.creature!=null && kind.StartsWith("fish"))actor.creature.PrepareFeedingForms(KindSpecies(kind));
             actor.kind=kind;
             if(actor.bodyCollider!=null)
             {
                 // R23: sized per fish species (a disguise takes its fish's hull).
-                int sizedSpecies=kind.StartsWith("fish")?int.Parse(kind.Substring(4)):-1;
+                int sizedSpecies=kind.StartsWith("fish")?KindSpecies(kind):-1;
                 float radius=AquariumBodyCollision.Radius(kind=="diver",kind=="alien",sizedSpecies);
                 actor.bodyCollider.radius=radius;actor.bodyCollider.height=2*(radius+AquariumBodyCollision.Half(kind=="diver",kind=="alien",sizedSpecies));
             }
@@ -679,6 +705,7 @@ namespace PrototypeLab.Aquarium
         public void Draw(AquariumSnapshot state, int localId, float dt, float renderTime = float.NaN)
         {
             if (state == null) return;
+            AquariumMaps.Select(state.map); if (environments != null) ShowMap(state.map);
             scenery?.Sync(state.scenerySeed);
             drains.Draw(state, dt);
             bool finished = state.phase == RoundPhase.Finished;
@@ -730,7 +757,8 @@ namespace PrototypeLab.Aquarium
                     float entry=p.entryAt>0?visualTime-(p.entryAt-AquariumDiveEntry.Seconds):float.NaN;
                     if(!float.IsNaN(entry) && visualTime<p.entryAt && actor.diver.HasClip("DiveIn") && actor.diver.HasClip("DeckIdle"))
                     {
-                        if(entry<0)actor.diver.SamplePose("DeckIdle",visualTime,visualTime);
+                        // R60: waiting in the changing room: standing, or a walk over the standing pose when moving.
+                        if(entry<0){actor.diver.SamplePose("DeckIdle",visualTime,visualTime);AquariumLockerRoom.WalkPose(actor.diver,visualTime,actor.moveSpeed,p.id*.31f);}
                         else actor.diver.SamplePose("DiveIn",entry,visualTime);
                     }
                     else if(actor.diver.cartoon && remaining>0 && fireAge<.5f)actor.diver.SamplePose("Fire",fireAge,visualTime);
@@ -1544,7 +1572,10 @@ namespace PrototypeLab.Aquarium
         { if(value==null)return;if(Application.isPlaying)UnityEngine.Object.Destroy(value);else UnityEngine.Object.DestroyImmediate(value); }
         public void Dispose()
         {
-            scenery?.Dispose(); AquariumSceneryLayout.Apply(0);
+            foreach (var presentation in sceneryByMap) presentation?.Dispose();
+            // R57: the scene's own (default) gallery stays in the scene, shown again; the twin gallery goes with the view.
+            if (environments[AquariumMaps.Basic] != null) environments[AquariumMaps.Basic].gameObject.SetActive(true);
+            AquariumMaps.Select(AquariumMaps.Basic); AquariumSceneryLayout.Apply(0);
             drains.Dispose();
             abilities.Dispose(); AquariumGalleryCamera.InkBombMurk = 0;
             equipment?.Dispose();

@@ -223,6 +223,8 @@ namespace PrototypeLab.Aquarium.Editor
             var mesh = ReadMesh(Path.Combine(src, "Diver.bin"), "Diver " + kind + " cartoon surface", bones, go.transform);
             if (mesh.vertexCount != d.vertices) throw new Exception("Vertex count mismatch " + kind);
             skin.sharedMesh = Save(mesh, Equipment + "/Diver_" + kind + ".asset");
+            // R58: the regulator held in the mouth (a patch on this exact mesh; see DiverRegulator)
+            Debug.Log("Diver_" + kind + " regulator: " + DiverRegulator.ApplyTo(skin.sharedMesh, "Diver_" + kind));
             skin.bones = bones; skin.rootBone = bones[0]; skin.quality = SkinQuality.Bone4; skin.localBounds = new Bounds(Vector3.zero, Vector3.one * 5);
             skin.sharedMaterials = new[] { bodyMaterial }; skin.receiveShadows = false; skin.updateWhenOffscreen = false;
             rig.skin = skin; rig.cartoon = true; rig.cartoonKind = "Diver"; rig.firstPerson = false;

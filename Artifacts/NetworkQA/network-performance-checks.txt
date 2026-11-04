@@ -1,0 +1,11 @@
+baseline=3e12b65
+managed_allocation_counter=GC.Alloc frame_aggregate recorder_valid=True probe_samples=1 probe_65536_observed_bytes=100 allocation_comparison=unsupported
+snapshot_baseline_us=0.927 current_us=1.106 baseline_bytes=unsupported current_bytes=unsupported
+four_recipient_packet_bytes=49592 host_sequence=2
+welcome_captures_fresh_sequence=true mid_round_observer=true
+host_tick_snapshots=1 serialized_state_reuses_host=true protocol=6
+four_peer_state_preparation_baseline_us=1441.455 current_us=301.226 baseline_bytes=unsupported current_bytes=unsupported
+FAIL System.NullReferenceException: Object reference not set to an instance of an object
+  at PrototypeLab.Aquarium.AquariumView.Draw (PrototypeLab.Aquarium.AquariumSnapshot state, System.Int32 localId, System.Single dt, System.Single renderTime) [0x0003a] in D:\Demo\Assets\Demos\HideAndSeek\Scripts\AquariumView.cs:704 
+  at PrototypeLab.Aquarium.Editor.AquariumNetworkPerformanceChecks.CheckViewKeys (System.Text.StringBuilder result) [0x002d6] in D:\Demo\Assets\Demos\HideAndSeek\Editor\AquariumNetworkPerformanceChecks.cs:194 
+  at PrototypeLab.Aquarium.Editor.AquariumNetworkPerformanceChecks.Run () [0x002b4] in D:\Demo\Assets\Demos\HideAndSeek\Editor\AquariumNetworkPerformanceChecks.cs:55 

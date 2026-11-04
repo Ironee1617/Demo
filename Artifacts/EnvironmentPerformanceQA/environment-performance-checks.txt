@@ -1,0 +1,27 @@
+label_materials_before=79
+render_variant=before view=0 frozen_time=0.7 warmup=3 samples=12 render_sync_wall_median_ms=7.252 render_sync_wall_p95_ms=12.610 editor_stats_available=True editor_draw_calls=4 editor_triangles=8
+render_variant=before view=0 frozen_time=3.1 warmup=3 samples=12 render_sync_wall_median_ms=10.084 render_sync_wall_p95_ms=13.473 editor_stats_available=True editor_draw_calls=4 editor_triangles=8
+render_variant=before view=1 frozen_time=0.7 warmup=3 samples=12 render_sync_wall_median_ms=7.461 render_sync_wall_p95_ms=16.707 editor_stats_available=True editor_draw_calls=4 editor_triangles=8
+render_variant=before view=1 frozen_time=3.1 warmup=3 samples=12 render_sync_wall_median_ms=10.888 render_sync_wall_p95_ms=14.685 editor_stats_available=True editor_draw_calls=4 editor_triangles=8
+render_variant=before view=2 frozen_time=0.7 warmup=3 samples=12 render_sync_wall_median_ms=11.284 render_sync_wall_p95_ms=13.193 editor_stats_available=True editor_draw_calls=4 editor_triangles=8
+render_variant=before view=2 frozen_time=3.1 warmup=3 samples=12 render_sync_wall_median_ms=10.855 render_sync_wall_p95_ms=17.030 editor_stats_available=True editor_draw_calls=4 editor_triangles=8
+initialization_ms=189.07
+optimization={"tightenedBounds":12,"sharedLabelRenderers":78,"meshReads":12}
+label_materials_after=1
+tightened_bounds=12
+render_variant=after view=0 frozen_time=0.7 warmup=3 samples=12 render_sync_wall_median_ms=10.234 render_sync_wall_p95_ms=13.971 editor_stats_available=True editor_draw_calls=4 editor_triangles=8
+view=0 mean_channel_difference=0.0000 changed_pixels=0 frustum_candidate_triangles=8209202 -> 8209202
+render_variant=after view=0 frozen_time=3.1 warmup=3 samples=12 render_sync_wall_median_ms=10.455 render_sync_wall_p95_ms=13.026 editor_stats_available=True editor_draw_calls=4 editor_triangles=8
+view=1 mean_channel_difference=0.0000 changed_pixels=0 frustum_candidate_triangles=8209202 -> 8209202
+render_variant=after view=1 frozen_time=0.7 warmup=3 samples=12 render_sync_wall_median_ms=10.343 render_sync_wall_p95_ms=13.207 editor_stats_available=True editor_draw_calls=4 editor_triangles=8
+view=2 mean_channel_difference=0.0000 changed_pixels=0 frustum_candidate_triangles=4767927 -> 4465847
+render_variant=after view=1 frozen_time=3.1 warmup=3 samples=12 render_sync_wall_median_ms=10.618 render_sync_wall_p95_ms=13.506 editor_stats_available=True editor_draw_calls=4 editor_triangles=8
+view=3 mean_channel_difference=0.0000 changed_pixels=0 frustum_candidate_triangles=4767927 -> 4465847
+render_variant=after view=2 frozen_time=0.7 warmup=3 samples=12 render_sync_wall_median_ms=10.779 render_sync_wall_p95_ms=13.896 editor_stats_available=True editor_draw_calls=4 editor_triangles=8
+view=4 mean_channel_difference=0.0000 changed_pixels=0 frustum_candidate_triangles=4779213 -> 4477133
+render_variant=after view=2 frozen_time=3.1 warmup=3 samples=12 render_sync_wall_median_ms=13.324 render_sync_wall_p95_ms=18.490 editor_stats_available=True editor_draw_calls=4 editor_triangles=8
+view=5 mean_channel_difference=0.0000 changed_pixels=0 frustum_candidate_triangles=4779213 -> 4477133
+Frustum counts estimate camera candidates; Player GPU/draw counters measure actual submitted work.
+Render timings include Camera.Render CPU work, GPU completion and a 1px readback; they are not isolated GPU milliseconds.
+UnityStats counters are best-effort editor-wide snapshots; all-zero counters are unavailable, not zero-cost rendering.
+OK

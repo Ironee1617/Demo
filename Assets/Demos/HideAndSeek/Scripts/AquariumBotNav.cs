@@ -43,6 +43,8 @@ namespace PrototypeLab.Aquarium
                 }
                 catch (Exception) { }
                 finally { warming = false; }
+                // R62: the layout changed while this worked: lay the new one out too.
+                if (linkedFor != AquariumSceneryLayout.Version) Prewarm();
             });
         }
 
@@ -72,7 +74,8 @@ namespace PrototypeLab.Aquarium
             int version = AquariumSceneryLayout.Version;
             if (free != null && version == builtFor) return;
             builtFor = version;
-            float w = AquariumModel.HalfWidth + 2, d = AquariumModel.HalfDepth + 2;
+            // R57: the selected map's extent (the twin tanks reach further than the default tank).
+            float w = AquariumMaps.HalfWidth + 2, d = AquariumMaps.HalfDepth + 2;
             minX = -w; minZ = -d; nx = (int)Math.Ceiling(2 * w / Cell); nz = (int)Math.Ceiling(2 * d / Cell); nl = Layers.Length;
             int n = nx * nz * nl;
             free = new bool[n]; centres = new Point[n]; known = new int[n]; open = new int[n]; g = new float[n]; parent = new int[n]; stamp = new int[n];
@@ -133,7 +136,9 @@ namespace PrototypeLab.Aquarium
 
         private static bool FindLocked(Point from, Point to, List<Point> path)
         {
-            Build();
+            // R62: never lay the grid out here on the main thread (a new layout's grid is worked out by Prewarm on a
+            // worker; until then there is no path and the bot steers straight, as for an unreachable goal).
+            if (free == null || builtFor != AquariumSceneryLayout.Version || linkedFor != builtFor) { Prewarm(); return false; }
             int s = NearestFree(from), t = NearestFree(to);
             if (s < 0 || t < 0) return false;
             search++;

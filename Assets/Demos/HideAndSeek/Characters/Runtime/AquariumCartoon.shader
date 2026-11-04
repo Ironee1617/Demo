@@ -16,7 +16,7 @@ Shader "Aquarium/Cartoon Character" {
  SubShader {
   Tags {"RenderType"="Opaque"} LOD 250
   CGPROGRAM
-  #pragma surface surf Standard fullforwardshadows addshadow vertex:vert
+  #pragma surface surf Standard fullforwardshadows addshadow vertex:vert finalcolor:ClampGlint
   #pragma target 3.0
   #include "AquariumIngestion.cginc"
   sampler2D _MainTex; fixed4 _Tint;
@@ -24,7 +24,7 @@ Shader "Aquarium/Cartoon Character" {
   // surface.xy = metallic, smoothness (uv2); surface.zw = the eye coordinates for painted lids (uv3), packed into the
   // same interpolator (shader model 3.0 has no room for another)
   struct Input {float2 uv_MainTex; float4 surface;};
-  void vert(inout appdata_full v,out Input o){UNITY_INITIALIZE_OUTPUT(Input,o);o.surface=float4(v.texcoord1.xy,v.texcoord3.xy);IngestVertex(v);}
+  void vert(inout appdata_full v,out Input o){UNITY_INITIALIZE_OUTPUT(Input,o);o.surface=float4(v.texcoord1.xy,v.texcoord3.xy);if(dot(v.normal,v.normal)<1e-12)v.normal=float3(0,1,0);if(dot(v.tangent.xyz,v.tangent.xyz)<1e-12)v.tangent=float4(abs(v.normal.y)<.9?normalize(cross(float3(0,1,0),v.normal)):float3(1,0,0),1);IngestVertex(v);}
   // R38: aliens whose eyelids are paint have no lid mesh. The lids are drawn over the eye in its rest-pose
   // coordinates (uv3: x, y from the eye's centre seen from the front; points away from the eye carry (10, 10), far
   // outside its rim), so they bend with the head like paint does. The upper lid rests on its own edge (above the
@@ -56,6 +56,11 @@ Shader "Aquarium/Cartoon Character" {
    if(_LidLower.w>.5){fixed4 l=Lid(low,fl,lash,lashGone);c=lerp(c,l.rgb,l.a*onEye);}
    return c;
   }
+  // R67b: the divers' glossy mask frame and glass meet the nose, face and earpieces in thin seams whose normals
+  // catch the sun as a mirror: single pixels reach 500x normal brightness for one frame, then vanish as the head
+  // moves. The bloom spread each one into a white dot flashing on the face. Ordinary highlights stay under 2.5,
+  // so capping the lit colour at 3 removes only those sparks.
+  void ClampGlint(Input IN,SurfaceOutputStandard o,inout fixed4 color){color.rgb=min(color.rgb,3);}
   void surf(Input IN,inout SurfaceOutputStandard o)
   {
    fixed3 c=tex2D(_MainTex,IN.uv_MainTex).rgb;
