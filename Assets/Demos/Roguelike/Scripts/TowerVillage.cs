@@ -25,6 +25,9 @@ namespace PrototypeLab.Roguelike
         internal const float VillageSpawnX=-13,SteleX=-14.6f,RunestoneX=-9.9f,ShrineX=11.2f,PracticeYardX=5.9f;
         internal static readonly float[] DummyXs={4.6f,7.2f};
         private static readonly float[] CandidateXs={20.1f,22.5f};
+        // Home from a restored myth, the hero starts inside the gate's reach (26±2.1), past the next chapter's gods and clear of
+        // every god's talk range (.9), so the gate is the first thing on offer.
+        internal const float ReturnSpawnX=24.4f;
         // Five places in the plaza by the shrine, then the clearing under the tutorial ledges; the gods of the
         // most recently restored myths take them first.
         private static readonly float[] RosterXs={13.4f,14.65f,15.9f,17.15f,18.4f,-.9f,.5f,1.9f};
@@ -33,9 +36,9 @@ namespace PrototypeLab.Roguelike
         private static readonly Sign[] TutorialSigns={
             new Sign{x=-11.8f,y=TowerWorld.Ground,lift=1.85f,keys="A / D",text="이동"},
             new Sign{x=-8.6f,y=TowerWorld.Ground,lift=2.75f,keys="Space",text="점프 · 공중에서 2단 점프"},
-            new Sign{x=-3.6f,y=-.4f,lift=1.85f,keys="S",text="발판 아래로"},
-            new Sign{x=2.8f,y=TowerWorld.Ground,lift=1.85f,keys="J",text="공격 · 3타째 마무리 일격"},
-            new Sign{x=8.4f,y=TowerWorld.Ground,lift=2.75f,keys="Shift → J",text="회피 직후 돌진 베기"}};
+            new Sign{x=-3.6f,y=-.4f,lift=1.85f,keys="S",text="발판 아래로 · 공중에선 고속 낙하"},
+            new Sign{x=2.8f,y=TowerWorld.Ground,lift=1.85f,keys="좌클릭",text="조준점 쪽으로 공격 · 3타째 마무리"},
+            new Sign{x=8.4f,y=TowerWorld.Ground,lift=2.75f,keys="우클릭",text="조준점 쪽 돌진 · 2회 충전 · 직후 돌진 베기"}};
         private sealed class Dummy { public Transform root,body;public Vector2 pos;public float wobble,flash;public int hits; }
         private readonly List<Dummy> dummies=new List<Dummy>();
         private readonly List<Fighter> villagers=new List<Fighter>();
@@ -56,23 +59,29 @@ namespace PrototypeLab.Roguelike
         }
         internal void ResetCampaign()
         {
-            campaign=new TowerCampaignSave();SaveCampaign();EnterVillage();intro=true;
+            campaign=new TowerCampaignSave();SaveCampaign();EnterVillage();lastParty.Clear();intro=true;
             Toast("새로운 여정","되찾은 신화와 스킬트리가 모두 초기화되었습니다",muted,3.2f);
         }
 
-        internal void EnterVillage()
+        /// <summary>
+        /// Opens the village. <paramref name="fromChapter"/> (home from a restored myth with another chapter ahead) starts a
+        /// hero past the tutorial near the gate; every other arrival starts at the tutorial's first sign.
+        /// </summary>
+        internal void EnterVillage(bool fromChapter=false)
         {
+            RememberParty();
             seed=Environment.TickCount&0x7fffffff;
             ResetActors();
             village=true;chapterRecorded=false;
             run=campaign.Preview(seed,new string[0]);
-            SpawnHero(new Vector2(VillageSpawnX,TowerWorld.Ground));
+            float spawnX=fromChapter&&campaign.TutorialDone&&campaign.NextChapter!=null?ReturnSpawnX:VillageSpawnX;
+            SpawnHero(new Vector2(spawnX,TowerWorld.Ground));
             BeginFloorRecord();
             using(TowerProfiling.SetTheme.Auto()){world.SetTheme(TowerThemeId.Village,1,seed,VillageLayout());world.SetFloorFeature(FloorType.Normal,false);}
             music.PlayTheme(TowerThemeId.Village);
             cameraCeiling=Mathf.Max(1.8f,world.HighestPlatform+4);
             hero.facing=1;hero.grounded=true;hero.support=-1;hero.lastX=hero.pos.x;previousHeroPosition=hero.pos;
-            view.transform.position=new Vector3(-7.5f,0,-10);appliedShake=Vector3.zero;
+            view.transform.position=new Vector3(Mathf.Clamp(spawnX+cameraLead,-7.5f,TowerWorld.Right-7.5f),0,-10);appliedShake=Vector3.zero;
             BuildVillage();
             var next=campaign.NextChapter;
             if(!campaign.TutorialDone)Notice(TowerCampaign.Village+"  ·  표지판을 따라 조작을 익히고 오른쪽 끝 탑의 문으로 가세요",6);
@@ -190,13 +199,16 @@ namespace PrototypeLab.Roguelike
             bool hit=false;
             foreach(var dummy in dummies)
             {
-                float dx=dummy.pos.x-hero.pos.x;
-                if(dx*hero.facing<-.4f||Mathf.Abs(dx)>reach+.3f||Mathf.Abs(hero.pos.y-dummy.pos.y)>1.9f)continue;
-                dummy.hits++;dummy.wobble=heavy?1.3f:.8f;dummy.flash=.12f;hit=true;
-                FloatText(dummy.pos+Vector2.up*2.1f,Mathf.CeilToInt(damage).ToString(),heavy?brass:TowerWorld.Gold);
-                Burst(dummy.pos+Vector2.up*1.1f,TowerWorld.Gold,4,.3f);Sound(hitSound,.3f);
+                if(!SwingReaches(dummy.pos+Vector2.up*ChestHeight,reach+.3f,.4f,1.9f))continue;
+                ChipDummy(dummy,damage,heavy);hit=true;
             }
             return hit;
+        }
+        private void ChipDummy(Dummy dummy,float damage,bool heavy)
+        {
+            dummy.hits++;dummy.wobble=heavy?1.3f:.8f;dummy.flash=.12f;
+            FloatText(dummy.pos+Vector2.up*2.1f,Mathf.CeilToInt(damage).ToString(),heavy?brass:TowerWorld.Gold);
+            Burst(dummy.pos+Vector2.up*1.1f,TowerWorld.Gold,4,.3f);Sound(hitSound,.3f);
         }
 
         /// <summary>Some node of the skill tree can be learned with the points in hand.</summary>
@@ -247,8 +259,9 @@ namespace PrototypeLab.Roguelike
         internal void OpenGate(){villagePanel=VillagePanel.Gate;Sound(chimeSound,.3f);}
 
         /// <summary>
-        /// Leaves the village for the next chapter. After its intro page the expedition opens with a screen that
-        /// shows every god of the companion pool to pick from; <paramref name="kept"/> skips the slots it already fills.
+        /// Leaves the village for the next chapter. The expedition opens with a screen that shows every god of the
+        /// companion pool to pick from, the last expedition's companions already chosen; <paramref name="kept"/> skips
+        /// the slots it already fills. Only a chapter's first departure shows its intro page first; the gate replays it.
         /// </summary>
         internal bool StartExpedition(IList<string> kept=null)
         {
@@ -256,9 +269,12 @@ namespace PrototypeLab.Roguelike
             seed=Environment.TickCount&0x7fffffff;
             StartRun(campaign.BeginChapter(seed,kept));
             chapterRecorded=false;ExpeditionPoints=0;
-            ShowStory(new[]{new TowerStoryPage(chapter.Title+"  ·  "+chapter.Subtitle,chapter.Intro)},chapter.Numeral+"  /  "+chapter.Floors,null);
+            PickLastParty();
+            if(kept==null&&campaign.MarkIntroSeen(chapter)){SaveCampaign();ShowChapterIntro(chapter);}
             return true;
         }
+        internal void ShowChapterIntro(TowerChapter chapter)
+        {ShowStory(new[]{new TowerStoryPage(chapter.Title+"  ·  "+chapter.Subtitle,chapter.Intro)},chapter.Numeral+"  /  "+chapter.Floors,null);}
         /// <summary>After a defeat: the same chapter again with the same companions, without a new draft.</summary>
         internal void RetryExpedition()
         {
@@ -271,12 +287,12 @@ namespace PrototypeLab.Roguelike
             if(campaign.RecordChapterClear(run))SaveCampaign();
             Sound(chimeSound,1);
         }
-        /// <summary>Leaves a finished chapter: the epilogue follows the evil god's fall, otherwise straight home.</summary>
+        /// <summary>Leaves a finished chapter: the epilogue follows the evil god's fall, otherwise straight home by the gate.</summary>
         internal void ReturnFromChapter()
         {
             if(run.Chapter!=null&&run.Chapter.IsFinal&&campaign.IsComplete&&!campaign.EndingSeen)
-            {ShowStory(TowerCampaign.Epilogue,"EPILOGUE",()=>{campaign.EndingSeen=true;SaveCampaign();EnterVillage();});return;}
-            EnterVillage();
+            {ShowStory(TowerCampaign.Epilogue,"EPILOGUE",()=>{campaign.EndingSeen=true;SaveCampaign();EnterVillage(true);});return;}
+            EnterVillage(true);
         }
 
         internal void ShowStory(IReadOnlyList<TowerStoryPage> pages,string eyebrow,Action done)

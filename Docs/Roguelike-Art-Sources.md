@@ -21,6 +21,8 @@
 
 이 데모는 외부 Spine 런타임 패키지를 추가하지 않습니다. 파일 형식 확인에는 [Spine 4.2의 공식 데이터 리더](https://github.com/EsotericSoftware/spine-runtimes/blob/4.2/spine-csharp/src/SkeletonBinary.cs)를 참고했습니다. 전용 데이터 추출 도구는 `Tools/TowerArt/extract-original-art.py`, 재생 코드는 `TowerActorArt.cs`입니다. 전체 Spine 런타임을 구현한 것은 아니므로 별도의 메시 변형 곡선과 슬롯 이미지 전환 전체를 재생하지는 않습니다. 본·가중치로 이루어진 원본 움직임과 데모 전용 보완 포즈를 재생합니다.
 
+2026-11-03부터 플레이어는 `cha_000` 메시 대신 chuchuking이 그린 Spine 캐릭터(`Assets/RogueLike/Character/Spine/Player`)를 구운 도트로 그립니다(`TowerHeroPixelArt`, [Roguelike-God-Pixels.md](Roguelike-God-Pixels.md#주인공)). 000번은 공격 접점 같은 재생 프로필(Oathblade)로만 남습니다.
+
 ## 16종의 재생 프로필
 
 각 프로필은 해당 원본 캐릭터의 애니메이션을 사용하며 보행·대기 속도, 공격 접점과 보완 포즈를 구분합니다. 표의 접점은 요청한 공격 전체 시간에 대한 비율입니다.

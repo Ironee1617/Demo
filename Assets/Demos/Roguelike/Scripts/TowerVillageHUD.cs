@@ -12,6 +12,27 @@ namespace PrototypeLab.Roguelike
         private string RestoredLine()
         {return campaign.IsComplete?"모든 신화를 되찾고 악신을 쓰러뜨렸습니다":"되찾은 신화  "+Mathf.Min(campaign.ClearedChapters,MythChapters)+" / "+MythChapters;}
 
+        // Keyboard answers on the departure screens. A fresh press (not a key repeat) only counts once its screen has been
+        // drawn enabled since an earlier frame, so the Enter that closed a story page or ended a fight in Update is never
+        // taken again by the screen that opens under it.
+        internal enum KeyScreen { None, Gate, ChapterComplete, ExpeditionLost, CompanionPick }
+        private KeyScreen keyScreen;private int keyScreenFrom,keyScreenLast=-2;
+        /// <summary>Enter (or <paramref name="alternate"/>) pressed on <paramref name="screen"/>; call it on every GUI event the screen draws.</summary>
+        private bool ScreenKey(KeyScreen screen,KeyCode alternate=KeyCode.None)
+        {
+            var e=Event.current;int frame=Time.frameCount;
+            if(e==null||!GUI.enabled)return false;
+            if(e.type==EventType.Repaint)
+            {
+                if(keyScreen!=screen||keyScreenLast<frame-1){keyScreen=screen;keyScreenFrom=frame;}
+                keyScreenLast=frame;return false;
+            }
+            if(SmokeControlled||e.type!=EventType.KeyDown||keyScreen!=screen||keyScreenLast<frame-1||keyScreenFrom>=frame)return false;
+            if(e.keyCode!=KeyCode.Return&&e.keyCode!=KeyCode.KeypadEnter&&(alternate==KeyCode.None||e.keyCode!=alternate))return false;
+            if(!Input.GetKeyDown(e.keyCode))return false;
+            e.Use();return true;
+        }
+
         private void DrawVillageHUD()
         {
             Vignette(new Color(0,0,0,.42f));
@@ -102,6 +123,7 @@ namespace PrototypeLab.Roguelike
                 if(Button(new Rect(64,791,236,53),"돌아가기  [Esc]",muted))villagePanel=VillagePanel.None;
                 return;
             }
+            if(ScreenKey(KeyScreen.Gate)){StartExpedition();return;}
             var theme=TowerThemeCatalog.Get(next.Theme);
             MenuBackdrop(next.Numeral+"  ·  "+next.Title,"TOWER GATE  /  "+next.Floors);
             DrawGold(new Rect(1130,83,400,36),22,gold);
@@ -148,8 +170,10 @@ namespace PrototypeLab.Roguelike
             }
             Divider(new Rect(64,767,1472,10),.5f);
             if(Button(new Rect(64,791,236,53),"돌아가기  [Esc]",muted))villagePanel=VillagePanel.None;
-            Label(new Rect(326,791,730,53),"동료 "+slots+"명을 고른 뒤 1층부터 "+next.LastFloor+"층까지 오릅니다",16,muted,TextAnchor.MiddleLeft);
-            if(Button(new Rect(1080,786,456,64),next.IsFinal?"최후의 원정 출발":"원정 출발",brass,true,true))StartExpedition();
+            // The intro page opens only a chapter's first departure; it can be read again here, over the gate.
+            if(Button(new Rect(316,791,236,53),"소개 다시 보기",silver)){ShowChapterIntro(next);return;}
+            FitLabel(new Rect(576,791,480,53),"동료 "+slots+"명을 고른 뒤 1층부터 "+next.LastFloor+"층까지 오릅니다",16,12,muted,TextAnchor.MiddleLeft);
+            if(Button(new Rect(1080,786,456,64),(next.IsFinal?"최후의 원정 출발":"원정 출발")+"  [Enter]",brass,true,true))StartExpedition();
             ShowGodInfo(hoverId,hoverRect,1);
         }
 
@@ -216,6 +240,7 @@ namespace PrototypeLab.Roguelike
         }
         private void DrawChapterComplete()
         {
+            if(ScreenKey(KeyScreen.ChapterComplete)){ReturnFromChapter();return;}
             var ch=run.Chapter;
             MenuBackdrop(ch.RestoredTitle,ch.Numeral+"  /  "+(ch.IsFinal?"THE EVIL GOD FALLS":"MYTH RESTORED"));
             Halo(new Rect(450,135,700,520),Alpha(brass,.2f));
@@ -253,10 +278,11 @@ namespace PrototypeLab.Roguelike
                 }
             }
             bool epilogue=ch.IsFinal&&campaign.IsComplete&&!campaign.EndingSeen;
-            if(Button(new Rect(555,760,490,60),epilogue?"에필로그 보기":"마을로 귀환",brass,true,true))ReturnFromChapter();
+            if(Button(new Rect(555,760,490,60),(epilogue?"에필로그 보기":"마을로 귀환")+"  [Enter]",brass,true,true))ReturnFromChapter();
         }
         private void DrawExpeditionLost()
         {
+            if(ScreenKey(KeyScreen.ExpeditionLost,KeyCode.R)){RetryExpedition();return;}
             var ch=run.Chapter;
             MenuBackdrop("원정이 끝났습니다","EXPEDITION FAILED  /  "+ch.Numeral+"  "+ch.Title);
             Halo(new Rect(450,135,700,520),Alpha(silver,.16f));
@@ -265,7 +291,7 @@ namespace PrototypeLab.Roguelike
             DrawExpeditionStats(420);
             Divider(new Rect(240,529,1120,10),.6f,true,silver);
             Label(new Rect(240,560,1120,60),"이번 원정에서 얻은 증강은 사라졌습니다. 모은 골드와 스킬 포인트는 남아 있습니다.\n같은 동료와 곧바로 다시 오르거나, 마을로 돌아가 다음 출발 때 동료를 새로 고를 수 있습니다.",17,muted,TextAnchor.MiddleCenter);
-            if(Button(new Rect(555,689,490,60),"같은 동료와 다시 도전",brass,true,true))RetryExpedition();
+            if(Button(new Rect(555,689,490,60),"같은 동료와 다시 도전  [Enter · R]",brass,true,true))RetryExpedition();
             if(Button(new Rect(660,771,280,44),"마을로 돌아가기",muted))EnterVillage();
         }
     }

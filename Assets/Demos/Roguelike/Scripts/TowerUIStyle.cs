@@ -340,6 +340,7 @@ namespace PrototypeLab.Roguelike
             if(new Rect(1280,28,256,42).Contains(p)||new Rect(28,18,444,104).Contains(p))return true;
             for(int i=0;i<run.Companions.Count;i++)if(new Rect(36+i*150,790,140,76).Contains(p))return true;
             if(run.FloorType==FloorType.Shop&&run.IsFloorCleared&&NearMerchant&&ShopButtonRect.Contains(p))return true;
+            if(RestChoiceOpen&&RestChoiceRect.Contains(p))return true;
             return run.IsFloorCleared&&!run.IsRewardPending&&new Rect(1190,790,346,64).Contains(p);
         }
     }

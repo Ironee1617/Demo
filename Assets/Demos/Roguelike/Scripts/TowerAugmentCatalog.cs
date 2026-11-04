@@ -204,7 +204,8 @@ namespace PrototypeLab.Roguelike
             PlayerTrait(result, "arcana", "마력의 샘", RewardTier.Gold, HeroStat.SkillPower, .12f);
             PlayerTrait(result, "echo", "메아리 탄환", RewardTier.Diamond, HeroStat.Projectiles, 1);
             PlayerTrait(result, "renewal", "불멸의 숨결", RewardTier.Diamond, HeroStat.Regeneration, 1);
-            PlayerTrait(result, "evasion", "찰나의 회피", RewardTier.Diamond, HeroStat.DodgeCooldown, .08f);
+            // One more dash charge; every source together stops at HeroState.DashChargeCap, so this card is taken once.
+            PlayerTrait(result, "evasion", "찰나의 회피", RewardTier.Diamond, HeroStat.DashCharges, 1);
             PlayerTrait(result, "expansion", "광역 공명", RewardTier.Diamond, HeroStat.Area, .12f);
             PlayerTrait(result, "grace", "빛의 축복", RewardTier.Diamond, HeroStat.Healing, .15f);
             return result.AsReadOnly();

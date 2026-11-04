@@ -7,9 +7,11 @@ using UnityEngine;
 namespace PrototypeLab.Roguelike
 {
     /// <summary>
-    /// High-resolution combat effects. Every element is generated once at 128 pixels per unit with trilinear
-    /// filtering and drawn as layered additive light or alpha-blended smoke, so slashes, spells, projectiles,
-    /// impacts and dash afterimages read as photographic light and volume instead of pixel frames.
+    /// High-resolution combat effects in a hand-painted action style. Every element is generated once at 128 pixels
+    /// per unit and drawn as painted light: a crisp silhouette with a smooth colour ramp inside (deep edge, tint, hot band,
+    /// white core; the toon material), smoke and dark layers as brushed ink, and soft blooms glowing underneath. Bursts,
+    /// hit sparks, shock fronts, smoke and energy orbs are hand-animated flipbooks that change form frame by frame. Fades
+    /// erode a shape from its thin edge inward, and shapes change in held steps like drawn frames while motion stays smooth.
     /// This file holds the simulation, the shared builders and the textures; each skill family draws its own
     /// casts, projectiles, impacts, trails and zones in a TowerVfx.&lt;Family&gt;.cs partial.
     /// </summary>
@@ -21,6 +23,10 @@ namespace PrototypeLab.Roguelike
         // Above SoftCap emitters thin out and Budget() shrinks optional particle counts; nothing is ever refused.
         private const int SoftCap = 900, HardCap = 1600, PrewarmCount = 384;
         private const float Infinite = float.PositiveInfinity;
+        // Scale, fade and colour advance at this many drawn frames per second; positions still move every frame.
+        private const float ShapeFps = 24;
+        // The soft blooms sit a little under the painted strokes, as the glow around them.
+        private const float SoftGain = .58f;
 
         private enum Emit { None, Embers, Smoke, Sparkles, Frost, Poison, Motes, Trace, Flames, Custom }
 
@@ -36,7 +42,8 @@ namespace PrototypeLab.Roguelike
             public Vector2 axisStart = Vector2.one, axisEnd = Vector2.one;
             public Color color = Color.white; public Gradient ramp; public float fadeIn, fadePower = 1, flicker, pulse, hold;
             public float age, life, spin, angle, angleOffset; public int seed;
-            public bool alignVelocity, registered, fresh;
+            // toon: drawn with the cel-shaded light material, whose vertex colour carries strength in rgb and the fade in alpha.
+            public bool alignVelocity, registered, fresh, toon;
             // Set by LayFlat: a squashed parent so the clip spins in the ground plane instead of tilting.
             public Transform pivot;
             // Orbit: when orbit is non-zero the clip circles orbitCenter (which drifts with velocity) at a radius
@@ -80,9 +87,14 @@ namespace PrototypeLab.Roguelike
 
         private static bool built;
         private static Sprite glow, core, ring, streak, spark, wisp, shard, sigil, arrow, bolt, hex, meteorRock;
-        private static Sprite crescent, burst, glint, pillar, crack, scorch, spike, swirl, petal, flake, orb, runeRing;
+        private static Sprite crescent, burst, glint, pillar, crack, scorch, spike, swirl, petal, flake, orb, runeRing, starburst, fleck;
         private static Sprite[] smoke, flame, slash, rock, turret;
-        private static Material additiveMaterial, alphaMaterial;
+        // Hand-animated flipbooks: shapes change form frame by frame (see BuildFlipbooks).
+        private static Sprite[] blastFrames, sparkFrames, shockFrames, plasmaFrames;
+        private static Sprite[][] billowFrames;
+        private static Material additiveMaterial, alphaMaterial, toonMaterial, inkMaterial;
+        // Sprites that stay smooth light (or smooth alpha) instead of being cel-shaded: the blooms that sit under the strokes.
+        private static readonly HashSet<Sprite> soft = new HashSet<Sprite>();
         private static readonly Dictionary<Material, Material> ghostMaterials = new Dictionary<Material, Material>();
         private static Gradient fireRamp;
 
@@ -170,12 +182,25 @@ namespace PrototypeLab.Roguelike
             spawned.Clear();
         }
 
+        // Every light sprite except the soft blooms is drawn cel-shaded, and smoke and dark layers as hard-edged ink. This runs
+        // on a clip's first pose (Settle or a Tick, whichever comes first), once the family code has finished building it,
+        // so a material it chose itself (an ink layer) is honoured.
+        private static void Cel(Clip clip)
+        {
+            var renderer = clip.renderer;
+            if (!renderer || clip.toon || soft.Contains(renderer.sprite)) return;
+            var material = renderer.sharedMaterial;
+            if (ReferenceEquals(material, additiveMaterial)) { renderer.sharedMaterial = Toon; clip.toon = true; }
+            else if (ReferenceEquals(material, alphaMaterial)) renderer.sharedMaterial = Ink;
+        }
+
         private void Animate(Clip clip, float dt)
         {
-            clip.fresh = false;
+            if (clip.fresh) { clip.fresh = false; Cel(clip); }
             if (clip.age < 0) { if (clip.renderer) clip.renderer.enabled = false; return; }
             if (clip.renderer && !clip.renderer.enabled) clip.renderer.enabled = true;
-            float p = Mathf.Clamp01(clip.age / clip.life);
+            // Shapes are held between drawn frames; frame sheets, orbits and travel use the running time.
+            float p = Mathf.Clamp01(clip.age / clip.life), held = clip.life < Infinite ? Mathf.Min(p, Mathf.Floor(clip.age * ShapeFps) / ShapeFps / clip.life) : p;
             if (clip.frames != null && clip.renderer && clip.frames.Length > 1)
             {
                 int frame = clip.loop ? (int)(clip.age * clip.fps) % clip.frames.Length : Mathf.Min(clip.frames.Length - 1, (int)(p * clip.frames.Length));
@@ -207,7 +232,7 @@ namespace PrototypeLab.Roguelike
                 else clip.angle += clip.spin * dt;
             }
             else if (!clip.alignVelocity) clip.angle += clip.spin * dt;
-            float eased = clip.ease <= 0 ? p : 1 - Mathf.Pow(1 - p, clip.ease);
+            float eased = clip.ease <= 0 ? held : 1 - Mathf.Pow(1 - held, clip.ease);
             float s = Mathf.Lerp(clip.startScale, clip.endScale, eased);
             if (clip.pulse > 0) s *= 1 + Mathf.Sin(clip.age * 21 + clip.seed) * clip.pulse;
             Vector3 scale = clip.scale * s;
@@ -219,16 +244,18 @@ namespace PrototypeLab.Roguelike
             if (clip.stretch > 0) scale.x *= 1 + clip.velocity.magnitude * clip.stretch;
             transform.localRotation = Quaternion.Euler(0, 0, clip.angle + clip.angleOffset);
             transform.localScale = scale;
-            Color tint = clip.ramp != null ? clip.ramp.Evaluate(p) * clip.color : clip.color;
-            float alpha = tint.a;
-            if (clip.fadeIn > 0 && clip.age < clip.fadeIn) alpha *= clip.age / clip.fadeIn;
+            Color tint = clip.ramp != null ? clip.ramp.Evaluate(held) * clip.color : clip.color;
+            float strength = tint.a, fade = 1;
+            if (clip.fadeIn > 0 && clip.age < clip.fadeIn) fade *= clip.age / clip.fadeIn;
             if (clip.fadePower > 0)
             {
-                float fade = clip.hold > 0 ? Mathf.Clamp01((p - clip.hold) / Mathf.Max(.0001f, 1 - clip.hold)) : p;
-                alpha *= Mathf.Pow(1 - fade, clip.fadePower);
+                float f = clip.hold > 0 ? Mathf.Clamp01((held - clip.hold) / Mathf.Max(.0001f, 1 - clip.hold)) : held;
+                fade *= Mathf.Pow(1 - f, clip.fadePower);
             }
-            if (clip.flicker > 0) alpha *= 1 - clip.flicker * (.5f + .5f * Mathf.Sin(clip.age * 113 + clip.seed * 7));
-            tint.a = alpha;
+            if (clip.flicker > 0) strength *= 1 - clip.flicker * (.5f + .5f * Mathf.Sin(clip.age * 113 + clip.seed * 7));
+            // The cel material takes its strength in rgb and erodes the shape by the fade in alpha.
+            if (clip.toon) tint = new Color(tint.r * strength, tint.g * strength, tint.b * strength, fade);
+            else tint.a = strength * fade;
             if (clip.renderer) clip.renderer.color = tint;
             if (clip.copies != null) foreach (var copy in clip.copies) if (copy) copy.color = tint;
             if (clip.meshCopies != null)
@@ -505,13 +532,15 @@ namespace PrototypeLab.Roguelike
         {
             EnsureTextures();
             int side = facing < 0 ? -1 : 1;
-            Color light = Color.Lerp(tint, Color.white, .35f);
-            var bloom = Sheet("Sword arc bloom", slash, pos, 5.3f, Alpha(light, .5f), .26f, 129, 0, false); bloom.scale.x *= side; bloom.startScale = .9f; bloom.endScale = 1.12f; bloom.fadePower = 1.1f;
-            var arc = Sheet("Sword arc", slash, pos, 4.8f, Alpha(light, 1), .24f, 130, 0, false); arc.scale.x *= side; arc.startScale = .88f; arc.endScale = 1.08f; arc.fadePower = 1;
-            var edge = Sheet("Sword arc edge", slash, pos, 4.4f, new Color(1, 1, 1, .85f), .21f, 131, 0, false); edge.scale.x *= side; edge.startScale = .9f; edge.endScale = 1.05f; edge.fadePower = 1.3f;
+            Color light = Color.Lerp(tint, Color.white, .1f);
+            // A wide coloured sweep under the painted arc and its white edge, with a glow along the blade's path.
+            var body = Sheet("Sword arc body", slash, pos + new Vector2(-side * .1f, 0), 5.6f, Alpha(tint, .7f), .24f, 129, 0, false); body.scale.x *= side; body.scale.y *= 1.08f; body.startScale = .88f; body.endScale = 1.08f; body.fadePower = .9f;
+            var arc = Sheet("Sword arc", slash, pos, 5.1f, Alpha(light, 1), .22f, 130, 0, false); arc.scale.x *= side; arc.startScale = .9f; arc.endScale = 1.06f; arc.fadePower = .9f;
+            var edge = Sheet("Sword arc edge", slash, pos + new Vector2(side * .08f, .03f), 4.5f, new Color(1, 1, 1, .9f), .17f, 131, 0, false); edge.scale.x *= side; edge.scale.y *= .9f; edge.startScale = .92f; edge.endScale = 1.04f; edge.fadePower = 1.2f;
+            var bloom = Spawn("Sword arc glow", glow, pos + new Vector2(side * 1.5f, .2f), 3.4f, Alpha(tint, .45f), .2f, true, 128); bloom.scale.x *= .55f; bloom.endScale = 1.2f; bloom.ease = 1; bloom.fadePower = 1.3f;
             var wind = Puff(pos + new Vector2(side * .9f, -.15f), 2.1f, new Color(1, 1, 1, .12f), new Vector2(side * 2.6f, -.7f), .3f, 129); wind.spin = -side * 70; wind.endScale = 1.9f;
-            var flash = Spawn("Edge flash", glow, pos + new Vector2(side * 1.25f, .15f), 1.2f, new Color(1, 1, 1, .6f), .1f, true, 131); flash.endScale = 1.7f; flash.ease = 1;
-            for (int i = 0; i < 5; i++) Spark(pos + new Vector2(side * Range(1.1f, 1.6f), Range(-.3f, .5f)), new Vector2(side * Range(3, 6.5f), Range(-1.5f, 2.5f)), i % 2 == 0 ? Color.white : light, Range(.25f, .45f), Range(.22f, .38f), 7, 2.5f);
+            SparkFlip(pos + new Vector2(side * 1.4f, .15f), .9f, Alpha(Color.Lerp(Color.white, tint, .3f), .95f), .1f, 131);
+            for (int i = 0; i < 5; i++) Spark(pos + new Vector2(side * Range(1.1f, 1.6f), Range(-.3f, .5f)), new Vector2(side * Range(3, 6.5f), Range(-1.5f, 2.5f)), i % 2 == 0 ? Color.white : light, Range(.3f, .5f), Range(.22f, .38f), 7, 2.5f);
         }
 
         // Combo finishers and dash slashes: a double arc with a shock ring, rays, sparks and ground dust.
@@ -524,11 +553,13 @@ namespace PrototypeLab.Roguelike
             var edge = Sheet("Finisher edge", slash, pos, 5.6f, new Color(1, 1, 1, .7f), .26f, 131, 0, false); edge.scale.x *= side; edge.scale.y *= 1.1f; edge.startScale = .88f; edge.endScale = 1.08f;
             var second = Sheet("Finisher second arc", slash, pos + new Vector2(side * .3f, .1f), 5.2f, Alpha(light, .7f), .3f, 129, 0, false); second.scale.x *= side; second.angle = -side * 26; second.age = -.05f; second.startScale = .8f; second.endScale = 1.1f;
             Vector2 tip = pos + new Vector2(side * 1.4f, .1f);
-            var flash = Spawn("Finisher flash", glow, tip, 2.6f, Alpha(Warm, .85f), .14f, true, 132); flash.endScale = 1.8f; flash.ease = 1; flash.fadePower = 1.5f;
+            var flash = Flash(tip, 2.4f, Alpha(Warm, .95f), .14f); flash.renderer.sortingOrder = 132;
             ImpactRing(tip, .9f, tint);
             Rays(tip, 6, 1.3f, 2.3f, light, .22f);
             for (int i = 0; i < 12; i++) Spark(tip + Inside(.3f), new Vector2(side * Range(2.5f, 8), Range(-2, 4)), i % 3 == 0 ? Color.white : light, Range(.3f, .55f), Range(.25f, .45f), 8, 2.2f);
             for (int i = 0; i < 4; i++) Puff(pos + new Vector2(side * Range(.2f, 1.3f), -.85f), Range(.4f, .7f), DustTone, new Vector2(side * Range(1.5f, 3.5f), Range(.4f, 1.1f)), Range(.4f, .6f), 118);
+            // A few dark ink puffs kicked off the cut give the bright arc something to read against.
+            for (int i = 0; i < 3; i++) { var ink = Puff(tip + new Vector2(side * Range(.1f, .6f), Range(-.4f, .3f)), Range(.5f, .8f), Soot, new Vector2(side * Range(1.2f, 2.6f), Range(-.2f, .8f)), Range(.35f, .5f), 126); ink.endScale = 1.5f; }
         }
 
         public void Dust(Vector2 pos, int direction, float strength)
@@ -568,9 +599,9 @@ namespace PrototypeLab.Roguelike
         public void ImpactRing(Vector2 pos, float radius, Color tint)
         {
             EnsureTextures();
-            var wave = Spawn("Shock ring", ring, pos, radius * 2.6f, Alpha(tint, .9f), .32f, true, 131); wave.startScale = .15f; wave.endScale = 1; wave.ease = 3; wave.fadePower = 1.2f;
-            var inner = Spawn("Shock ring core", ring, pos, radius * 2.2f, new Color(1, 1, 1, .8f), .22f, true, 132); inner.startScale = .1f; inner.endScale = 1; inner.ease = 2.4f; inner.fadePower = 1.5f;
-            var flash = Spawn("Impact flash", glow, pos, radius * 1.8f, new Color(1, 1, 1, .7f), .12f, true, 131); flash.endScale = 1.5f; flash.ease = 1;
+            var wave = ShockFlip(pos, radius * 2.9f, Alpha(tint, .95f), .3f, 131);
+            var inner = ShockFlip(pos, radius * 2.4f, new Color(1, 1, 1, .85f), .24f, 132); inner.angle = wave.angle + 70;
+            SparkFlip(pos, radius * 1.7f, new Color(1, 1, 1, .95f), .14f, 133);
             for (int i = 0; i < 10; i++)
             {
                 Vector2 direction = Direction(i * 36 + Range(-14, 14));
@@ -582,7 +613,7 @@ namespace PrototypeLab.Roguelike
         {
             EnsureTextures();
             Color light = Color.Lerp(tint, Color.white, .4f);
-            var flash = Spawn("Defeat flash", glow, pos, 3.8f, new Color(1, 1, 1, .9f), .2f, true, 132); flash.ramp = Ramp(Color.white, tint); flash.endScale = 1.6f; flash.ease = 1; flash.fadePower = 1.3f;
+            var flash = Flash(pos, 3.2f, new Color(1, 1, 1, .95f), .2f); flash.ramp = Ramp(Color.white, tint); flash.renderer.sortingOrder = 132;
             var heart = Spawn("Defeat core", core, pos, 1.3f, Warm, .12f, true, 133); heart.endScale = .1f; heart.ease = 1;
             ImpactRing(pos, 1.4f, tint);
             Rays(pos, 7, 1.6f, 2.8f, light, .26f);
@@ -599,7 +630,9 @@ namespace PrototypeLab.Roguelike
         {
             EnsureTextures();
             Color light = Color.Lerp(tint, Color.white, .3f);
-            var flash = Spawn("Hit flash", glow, pos, .95f, new Color(1, 1, 1, .8f), .09f, true, 132); flash.endScale = 1.7f; flash.ease = 1;
+            // A small hand-drawn spark in the hit's colour (its ramp still burns white at the heart) over a little bloom.
+            SparkFlip(pos, 1.05f, Alpha(Color.Lerp(Color.white, tint, .45f), .95f), .1f, 132);
+            var bloom = Spawn("Hit bloom", glow, pos, 1.3f, Alpha(tint, .4f), .12f, true, 130); bloom.endScale = 1.4f; bloom.ease = 1; bloom.fadePower = 1.4f;
             for (int i = 0; i < 2; i++)
             {
                 var cross = Spawn("Hit cross", streak, pos, 1.25f, i == 0 ? new Color(1, 1, 1, .9f) : Alpha(light, .9f), i == 0 ? .12f : .15f, true, 132);
@@ -701,7 +734,7 @@ namespace PrototypeLab.Roguelike
             if (!actor) return;
             EnsureTextures();
             var root = new GameObject("Dash afterimage"); root.transform.SetParent(transform, false);
-            Color ghost = new Color(.5f, .92f, 1, .72f);
+            Color ghost = new Color(.68f, .94f, 1, .72f);
             var copies = new List<SpriteRenderer>();
             var meshCopies = new List<MeshRenderer>();
             var ownedMeshes = new List<Mesh>();
@@ -739,7 +772,7 @@ namespace PrototypeLab.Roguelike
             Vector2 center = actor.position + Vector3.up * .9f;
             for (int i = 0; i < 4; i++)
             {
-                var mote = Spawn("Afterimage mote", glow, center + new Vector2(Range(-.4f, .4f), Range(-.7f, .7f)), Range(.1f, .22f), new Color(.7f, .97f, 1, .9f), .2f, true, 131);
+                var mote = Spawn("Afterimage mote", fleck, center + new Vector2(Range(-.4f, .4f), Range(-.7f, .7f)), Range(.14f, .28f), new Color(.7f, .97f, 1, .9f), .2f, true, 131);
                 mote.velocity = new Vector2(Range(-.6f, .6f), Range(.4f, 1.2f)); mote.flicker = .5f; mote.endScale = .2f;
             }
         }
@@ -774,19 +807,75 @@ namespace PrototypeLab.Roguelike
             var inner = Line(a, b, width * .55f, Color.white, life * .9f, 130, 1.15f); inner.flicker = .25f; inner.fadePower = 1.3f;
         }
 
+        /// <summary>A hit flash: the hand-animated spark (flare, star, shards flying apart) over a bloom.</summary>
         private Clip Flash(Vector2 pos, float width, Color color, float life)
         {
-            var flash = Spawn("Flash", glow, pos, width, color, life, true, 131); flash.endScale = 1.5f; flash.ease = 1; flash.fadePower = 1.4f; return flash;
+            var bloom = Spawn("Flash bloom", glow, pos, width * 1.2f, Alpha(color, color.a * .45f), life * 1.3f, true, 130); bloom.endScale = 1.4f; bloom.ease = 1; bloom.fadePower = 1.4f;
+            return SparkFlip(pos, width * 1.05f, color, life, 131);
+        }
+
+        /// <summary>The hit-spark flipbook alone: it plays once over at least a fifth of a second so every drawn frame shows.</summary>
+        private Clip SparkFlip(Vector2 pos, float width, Color color, float life, int order)
+        {
+            var flash = Spawn("Flash", sparkFrames[0], pos, width, color, Mathf.Clamp(life * 1.5f, .2f, .42f), true, order);
+            flash.frames = sparkFrames; flash.loop = false; flash.angle = Range(0, 360); flash.startScale = .85f; flash.endScale = 1.12f; flash.ease = 3; flash.hold = .55f; flash.fadePower = .8f;
+            return flash;
+        }
+
+        /// <summary>An explosion: the hand-animated blast in the colour's ramp, a deeper copy swelling behind it for body, a
+        /// white-hot flash at its heart and a bloom. Returns the main blast.</summary>
+        private Clip Blast(Vector2 pos, float width, Color color, float life, int order = 128)
+        {
+            var bloom = Spawn("Blast bloom", glow, pos, width * 1.3f, Alpha(color, .45f), life * .6f, true, order - 2); bloom.endScale = 1.3f; bloom.ease = 1; bloom.fadePower = 1.5f;
+            var back = Spawn("Blast body", blastFrames[0], pos + Vector2.down * width * .04f, width * 1.12f, Alpha(Color.Lerp(color, Color.black, .25f), .85f), life * 1.1f, true, order - 1);
+            var blast = Spawn("Blast", blastFrames[0], pos, width, Alpha(color, 1), life, true, order);
+            foreach (var clip in new[] { back, blast }) { clip.frames = blastFrames; clip.loop = false; clip.angle = Range(-12, 12); clip.startScale = .9f; clip.endScale = 1.08f; clip.ease = 2; clip.hold = .6f; clip.fadePower = .9f; }
+            back.angle = blast.angle + Range(-25, 25);
+            // Its heart spark stays on the blast's side of the actors (they start at 30).
+            SparkFlip(pos, width * .45f, Alpha(Color.Lerp(Color.white, color, .3f), .95f), life * .35f, order <= 29 ? 29 : order + 3);
+            return blast;
+        }
+
+        /// <summary>Review aid: lays every frame of the shared flipbooks out in rows (blast, spark, shock, plasma, billow), held
+        /// still in their usual colours, for the review driver to photograph.</summary>
+        internal void FlipbookGallery(Vector2 topLeft, float cell)
+        {
+            EnsureTextures();
+            var rows = new[] { blastFrames, sparkFrames, shockFrames, plasmaFrames, billowFrames[0] };
+            Color[] tints = { FireLight, IceLight, GoldLight, StormLight, Soot };
+            for (int row = 0; row < rows.Length; row++)
+                for (int i = 0; i < rows[row].Length; i++)
+                {
+                    var still = Spawn("Flipbook gallery", rows[row][i], topLeft + new Vector2(i * cell, -row * cell), cell * .95f, Alpha(tints[row], row == 4 ? .9f : 1), 60, row < 4, 131);
+                    still.fadePower = 0;
+                }
+        }
+
+        /// <summary>A plasma orb (looped flipbook) riding on <paramref name="root"/>: swirling filaments, a lit rim, flares.</summary>
+        private Clip PlasmaOrb(Transform root, string name, float width, Color color, int order, Vector2 offset = default(Vector2))
+        {
+            var orbClip = Attach(root, name, plasmaFrames[0], width, color, order, true, offset);
+            orbClip.frames = plasmaFrames; orbClip.fps = 16; orbClip.loop = true;
+            return orbClip;
+        }
+
+        /// <summary>The shock-front flipbook alone: a thick ring that races out, thins and breaks into arcs as it plays.</summary>
+        private Clip ShockFlip(Vector2 pos, float width, Color color, float life, int order)
+        {
+            var clip = Spawn("Shock front", shockFrames[0], pos, width, color, life, true, order);
+            clip.frames = shockFrames; clip.loop = false; clip.angle = Range(0, 360); clip.startScale = .85f; clip.endScale = 1.05f; clip.ease = 2; clip.hold = .55f; clip.fadePower = .8f;
+            return clip;
         }
 
         private Clip Wave(Vector2 pos, float width, Color color, float life, float ease)
         {
-            var wave = Spawn("Expanding ring", ring, pos, width, color, life, true, 131); wave.startScale = .12f; wave.endScale = 1; wave.ease = ease; wave.fadePower = 1.2f; return wave;
+            var wave = ShockFlip(pos, width * 1.08f, color, life, 131); wave.startScale = .4f; wave.endScale = 1; wave.ease = ease; wave.fadePower = .9f; return wave;
         }
 
         private Clip GroundWave(Vector2 pos, float width, Color color, float life)
         {
-            var wave = Wave(pos, width, color, life, 3); wave.scale.y *= .34f; wave.renderer.sortingOrder = 116; return wave;
+            // Laid in the ground plane (the flipbook's random turn stays flat instead of tilting the ellipse).
+            var wave = Wave(pos, width, color, life, 3); LayFlat(wave, .34f); wave.renderer.sortingOrder = 116; return wave;
         }
 
         private Clip GroundSigil(Vector2 pos, float width, Color color, float life, float spin)
@@ -821,8 +910,8 @@ namespace PrototypeLab.Roguelike
             count = Budget(count);
             for (int i = 0; i < count; i++)
             {
-                var mote = Spawn("Sparkle", glow, pos + Inside(spread), Range(.08f, .2f), Alpha(color, .95f), Range(.25f, .5f), true, 131);
-                mote.velocity = Direction(Range(0, 360)) * Range(.5f, 2.5f); mote.drag = 2; mote.flicker = .6f; mote.endScale = .1f; mote.ease = 1;
+                var mote = Spawn("Sparkle", fleck, pos + Inside(spread), Range(.14f, .3f), Alpha(color, .95f), Range(.25f, .5f), true, 131);
+                mote.velocity = Direction(Range(0, 360)) * Range(.5f, 2.5f); mote.drag = 2; mote.flicker = .45f; mote.endScale = .2f; mote.ease = 1; mote.angle = Range(-20, 20);
             }
         }
 
@@ -845,15 +934,18 @@ namespace PrototypeLab.Roguelike
 
         private Clip Puff(Vector2 pos, float width, Color color, Vector2 velocity, float life, int order)
         {
-            var clip = Spawn("Smoke", smoke[random.Next(smoke.Length)], pos, width, color, life, false, order);
-            clip.velocity = velocity; clip.drag = 3.2f; clip.startScale = .55f; clip.endScale = 1.8f; clip.ease = 1; clip.spin = Range(-90, 90); clip.fadeIn = .04f; clip.fadePower = 1.3f;
+            // The billow flipbook swells and tears apart on its own, so the clip itself grows less.
+            var frames = billowFrames[random.Next(billowFrames.Length)];
+            var clip = Spawn("Smoke", frames[0], pos, width, color, life, false, order);
+            clip.frames = frames; clip.loop = false;
+            clip.velocity = velocity; clip.drag = 3.2f; clip.startScale = .6f; clip.endScale = 1.45f; clip.ease = 1; clip.spin = Range(-60, 60); clip.fadeIn = .04f; clip.fadePower = 1.1f;
             clip.angle = Range(0, 360);
             return clip;
         }
 
         private Clip Flame(Vector2 pos, float width, Vector2 velocity, float life, int order)
         {
-            var clip = Sheet("Flame", flame, pos, width, new Color(1, .85f, .55f, .95f), life, order, 22, true);
+            var clip = Sheet("Flame", flame, pos, width, new Color(1, .64f, .26f, .95f), life, order, 22, true);
             clip.velocity = velocity; clip.drag = 1.5f; clip.startScale = .7f; clip.endScale = 1.5f; clip.ease = 1; clip.angle = Range(-15, 15); clip.fadePower = 1.3f;
             return clip;
         }
@@ -892,12 +984,12 @@ namespace PrototypeLab.Roguelike
             return clip;
         }
 
-        private Clip Scorch(Vector2 ground, float width, float life) { return Decal(ground, scorch, width, new Color(.07f, .05f, .05f, .62f), life, false, 24); }
+        private Clip Scorch(Vector2 ground, float width, float life) { return Decal(ground, scorch, width, new Color(.17f, .11f, .08f, .58f), life, false, 24); }
 
         /// <summary>Dark ground cracks, with a hot glowing copy when <paramref name="glowColor"/> has alpha.</summary>
         private void Crack(Vector2 ground, float width, Color glowColor, float life)
         {
-            var dark = Decal(ground, crack, width, new Color(.08f, .06f, .05f, .85f), life, false, 25); dark.angle = Range(-10, 10);
+            var dark = Decal(ground, crack, width, new Color(.2f, .13f, .09f, .8f), life, false, 25); dark.angle = Range(-10, 10);
             if (glowColor.a > 0) { var hot = Decal(ground, crack, width, glowColor, life * .75f, true, 26); hot.angle = dark.angle; hot.fadePower = 1.8f; }
         }
 
@@ -921,7 +1013,7 @@ namespace PrototypeLab.Roguelike
             for (int i = 0; i < count; i++)
             {
                 bool streakMote = i % 3 == 0;
-                var mote = Spawn("Gathering light", streakMote ? spark : glow, pos, streakMote ? Range(.25f, .45f) : Range(.12f, .26f), Alpha(color, .95f), life * Range(.7f, 1), true, 131);
+                var mote = Spawn("Gathering light", streakMote ? spark : fleck, pos, streakMote ? Range(.25f, .45f) : Range(.16f, .32f), Alpha(color, .95f), life * Range(.7f, 1), true, 131);
                 mote.orbitCenter = pos; mote.orbitAngle = Range(0, 360); mote.orbit = (i % 2 == 0 ? 1 : -1) * turns * 360 / life;
                 mote.orbitRadius = radius * Range(.65f, 1.1f); mote.orbitRadiusEnd = 0; mote.orbitPower = 1.6f;
                 mote.alignVelocity = streakMote; mote.fadeIn = life * .25f; mote.hold = .75f; mote.endScale = .45f; mote.ease = 1;
@@ -998,6 +1090,41 @@ namespace PrototypeLab.Roguelike
         private Clip Underlay(Vector2 pos, float width, float alpha, float life)
         {
             var clip = Spawn("Contrast underlay", glow, pos, width, new Color(.02f, .01f, .03f, alpha), life, false, 29); clip.fadeIn = .03f; clip.fadePower = 1.2f; return clip;
+        }
+
+        // ---------------------------------------------------------------- hand-drawn kit (shared by every family)
+
+        /// <summary>A big painted crescent sweep: a coloured stroke and a thinner white leading edge laid just ahead of it.
+        /// <paramref name="angle"/> points the bulge of the crescent; it snaps open, holds and frays.</summary>
+        private Clip PaintArc(Vector2 pos, float width, float angle, Color color, float life, int order = 130)
+        {
+            var arc = Crescent(pos, width, color, life, angle, order); arc.startScale = .82f; arc.endScale = 1.06f; arc.ease = 6; arc.hold = .3f; arc.fadePower = 1.1f;
+            var edge = Crescent(pos + Direction(angle) * width * .025f, width * .97f, new Color(1, 1, 1, Mathf.Min(1, color.a)), life * .75f, angle, order + 1);
+            edge.scale.y *= .94f; edge.startScale = .84f; edge.endScale = 1.05f; edge.ease = 6; edge.hold = .2f; edge.fadePower = 1.4f;
+            return arc;
+        }
+
+        /// <summary>A burst of needle sparks flung outward (white and <paramref name="color"/>), falling a little.</summary>
+        private void Needles(Vector2 pos, int count, float speed, Color color, float life, float size = .42f)
+        {
+            count = Budget(count);
+            for (int i = 0; i < count; i++)
+            {
+                Vector2 direction = Direction(i * 360f / Mathf.Max(1, count) + Range(-20, 20));
+                Spark(pos + direction * .1f, direction * speed * Range(.5f, 1.1f), i % 3 == 0 ? Color.white : color, size * Range(.6f, 1.2f), life * Range(.6f, 1), 4, 3);
+            }
+        }
+
+        /// <summary>Dark painted smoke kicked out of a hit, so the bright strokes over it read on any backdrop.</summary>
+        private void InkBurst(Vector2 pos, float size, Color color, int count, float life, int order = 126)
+        {
+            count = Budget(count);
+            for (int i = 0; i < count; i++)
+            {
+                Vector2 direction = Direction(Range(0, 360));
+                var ink = Puff(pos + direction * size * Range(.05f, .3f), size * Range(.55f, 1), color, direction * size * Range(1.2f, 2.6f) + Vector2.up * size * .4f, life * Range(.75f, 1.1f), order);
+                ink.startScale = .5f; ink.endScale = 1.45f; ink.fadeIn = 0;
+            }
         }
 
         /// <summary>A full-view wash of light for the biggest hits.</summary>
@@ -1093,11 +1220,11 @@ namespace PrototypeLab.Roguelike
                         var puff = Puff(pos, Range(.35f, .6f), clip.emitColor, new Vector2(Range(-.4f, .4f), Range(.6f, 1.4f)), Range(.5f, .9f), 112);
                         puff.startScale = .6f; puff.endScale = 2.2f; puff.fadeIn = .08f; break;
                     case Emit.Sparkles:
-                        var mote = Spawn("Sparkle", glow, pos, Range(.08f, .18f), Alpha(Color.Lerp(clip.emitColor, Color.white, .4f), .95f), Range(.2f, .45f), true, 131);
+                        var mote = Spawn("Sparkle", fleck, pos, Range(.13f, .26f), Alpha(Color.Lerp(clip.emitColor, Color.white, .4f), .95f), Range(.2f, .45f), true, 131);
                         mote.velocity = Direction(Range(0, 360)) * Range(.3f, 1.2f); mote.flicker = .6f; mote.endScale = 0; mote.ease = 1; break;
                     case Emit.Frost:
                         var mist = Puff(pos, Range(.3f, .5f), clip.emitColor, new Vector2(Range(-.5f, .5f), Range(.2f, .6f)), Range(.5f, .8f), 112); mist.endScale = 2;
-                        if (i % 2 == 0) { var glintMote = Spawn("Frost glint", glow, pos, Range(.06f, .14f), new Color(.85f, .97f, 1, .95f), Range(.25f, .45f), true, 131); glintMote.velocity = new Vector2(Range(-.4f, .4f), Range(-.8f, -.2f)); glintMote.flicker = .6f; glintMote.endScale = .1f; }
+                        if (i % 2 == 0) { var glintMote = Spawn("Frost glint", fleck, pos, Range(.1f, .2f), new Color(.85f, .97f, 1, .95f), Range(.25f, .45f), true, 131); glintMote.velocity = new Vector2(Range(-.4f, .4f), Range(-.8f, -.2f)); glintMote.flicker = .6f; glintMote.endScale = .1f; }
                         break;
                     case Emit.Poison:
                         var haze = Puff(pos, Range(.45f, .8f), clip.emitColor, new Vector2(Range(-.4f, .4f), Range(.25f, .7f)), Range(.8f, 1.4f), 112); haze.endScale = 2.2f; haze.fadeIn = .15f; haze.drag = 1.5f;
@@ -1174,6 +1301,7 @@ namespace PrototypeLab.Roguelike
             }
         }
 
+        /// <summary>Soft additive light: the blooms (and anything the soft set names) and the afterimages.</summary>
         private static Material Additive
         {
             get
@@ -1183,6 +1311,7 @@ namespace PrototypeLab.Roguelike
                 if (shader == null) shader = Shader.Find("Legacy Shaders/Particles/Additive");
                 if (shader == null) shader = Shader.Find("Sprites/Default");
                 additiveMaterial = new Material(shader) { name = "Tower additive light" };
+                if (additiveMaterial.HasProperty("_Gain")) additiveMaterial.SetFloat("_Gain", SoftGain);
                 return additiveMaterial;
             }
         }
@@ -1197,11 +1326,37 @@ namespace PrototypeLab.Roguelike
             }
         }
 
+        /// <summary>Cel-shaded light: hard colour bands, a white-hot core and erosion as it fades. Every additive clip
+        /// whose sprite is not in the soft set is moved onto it (see Cel).</summary>
+        private static Material Toon
+        {
+            get
+            {
+                if (toonMaterial) return toonMaterial;
+                Shader shader = Resources.Load<Shader>("Tower/Effects/TowerEffectToon");
+                toonMaterial = shader != null ? new Material(shader) { name = "Tower cel light" } : Additive;
+                return toonMaterial;
+            }
+        }
+
+        /// <summary>Hard-edged ink for smoke, debris and dark layers.</summary>
+        private static Material Ink
+        {
+            get
+            {
+                if (inkMaterial) return inkMaterial;
+                Shader shader = Resources.Load<Shader>("Tower/Effects/TowerEffectInk");
+                inkMaterial = shader != null ? new Material(shader) { name = "Tower cel ink" } : AlphaBlend;
+                return inkMaterial;
+            }
+        }
+
         private static Material GhostMaterial(Material source)
         {
             Material ghost;
             if (source != null && ghostMaterials.TryGetValue(source, out ghost) && ghost) return ghost;
             ghost = new Material(Additive) { name = "Afterimage " + (source != null ? source.name : "light") };
+            if (ghost.HasProperty("_Gain")) ghost.SetFloat("_Gain", 1);
             if (source != null && source.HasProperty("_MainTex")) ghost.mainTexture = source.mainTexture;
             if (source != null) ghostMaterials[source] = ghost;
             return ghost;
@@ -1221,69 +1376,95 @@ namespace PrototypeLab.Roguelike
                 new GradientColorKey(new Color(1, .78f, .3f), .65f), new GradientColorKey(new Color(1, .95f, .7f), .85f), new GradientColorKey(new Color(1, 1, .95f), 1) },
                 new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 1) });
 
+            // The cel material reads a sprite's alpha as a light level and cuts it into bands (rim .06, colour .2, hot .6,
+            // white core .86), so these shapes are authored as level profiles: hard outer edges, brush streaks running along
+            // each stroke, and the brightest level where a drawn effect would be white-hot.
             glow = Build("Light bloom", 256, 256, (u, v) => Radial(u, v, r => Gauss(r, .2f) * .8f + Gauss(r, .5f) * .55f));
             core = Build("Hot core", 128, 128, (u, v) => Radial(u, v, r => 1 - Smooth(.55f, .92f, r)));
-            ring = Build("Shock ring", 256, 256, (u, v) => Radial(u, v, r => Gauss(r - .74f, .06f) + Gauss(r - .74f, .16f) * .3f + (r < .74f ? Gauss(r - .74f, .4f) * .12f : 0)));
+            ring = Build("Shock ring", 256, 256, (u, v) =>
+            {
+                // A painted shock front: a hard bright outer edge with a streaky tail that frays inward unevenly.
+                float r = Mathf.Sqrt(u * u + v * v); if (r > .84f) return Color.clear;
+                float th = Mathf.Atan2(v, u), edge = .78f;
+                float outside = 1 - Smooth(edge - .014f, edge + .004f, r), depth = Mathf.Max(0, edge - r);
+                // The tail is cut off short of the centre, so the cel bands never fill the ring into a disc.
+                float streaks = RingNoise(th, r, 1.6f, 14), reach = .06f + .12f * RingNoise(th, 0, 3.2f, 0);
+                float a = outside * (Mathf.Exp(-depth / reach) * (.82f + .55f * (streaks - .5f)) + Gauss(depth, .012f) * .3f) - .07f;
+                return White(Mathf.Clamp01(a * 1.08f));
+            });
             streak = Build("Light streak", 256, 64, (u, v) =>
             {
-                float body = Mathf.Pow(Mathf.Max(0, 1 - u * u), 1.6f);
-                return White(Gauss(v, .5f) * body + Gauss(v, .14f) * Mathf.Pow(Mathf.Max(0, 1 - u * u), 2.5f) * .8f);
+                // A spindle stroke: tapered to points, a linear fall-off across (evenly spaced bands) and streaks along it.
+                float taper = Mathf.Pow(Mathf.Max(0, 1 - u * u), .9f), half = .9f * taper + .001f;
+                float across = Mathf.Clamp01(1 - Mathf.Abs(v) / half), grain = Fbm(u * 2.2f + 3, v * 7 + 1, 2);
+                return White(Mathf.Pow(across, .85f) * (.86f + .3f * (grain - .5f)) * Mathf.Pow(taper, .25f));
             });
             spark = Build("Spark", 128, 32, (u, v) =>
             {
-                float head = Gauss(Mathf.Sqrt(Sq((u - .5f) / .16f) + Sq(v / .62f)), 1);
-                float p = Mathf.Clamp01((u + 1) / 1.5f);
-                float tail = Mathf.Pow(p, 1.6f) * Gauss(v, .22f + p * .3f) * (1 - Smooth(.45f, .6f, u));
-                float a = Mathf.Max(head, tail * .85f), l = Mathf.Lerp(.85f, 1, head);
-                return new Color(l, l, l, a);
+                // A needle shard pointing along +u: a sharp head and a long thinning tail.
+                const float head = .45f;
+                float half = u > head ? .9f * (1 - (u - head) / (1 - head)) : .9f * Mathf.Pow(Mathf.Max(0, 1 - (head - u) / (1 + head)), 1.2f);
+                float across = Mathf.Clamp01(1 - Mathf.Abs(v) / Mathf.Max(.001f, half));
+                return White(across * (u > head ? 1 : Mathf.Lerp(.5f, 1, (u + 1) / (1 + head))));
             });
             wisp = Build("Wisp", 64, 64, (u, v) => White(Gauss(Mathf.Sqrt(u * u + Sq(v * .8f - .15f)), .34f) * Window(Mathf.Max(Mathf.Abs(u), Mathf.Abs(v)))));
             smoke = new Sprite[4];
             for (int i = 0; i < smoke.Length; i++)
             {
-                float seed = i * 17.3f + 3;
+                // A painted cloud: a lumpy union of round puffs with a two-tone shade (lit from the upper left). Alpha
+                // rises toward each puff's centre, so the ink material's rising cut thins it puff by puff as it fades.
+                var puffs = new Vector3[6]; uint h0 = Hash(i * 13 + 5);
+                for (int k = 0; k < puffs.Length; k++)
+                {
+                    uint h = Hash((int)h0 + k * 7919);
+                    float angle = k * 1.047f + (h & 255) / 255f * .8f, distance = k == 0 ? 0 : .18f + (h >> 8 & 255) / 255f * .2f;
+                    puffs[k] = new Vector3(Mathf.Cos(angle) * distance, Mathf.Sin(angle) * distance * .85f, k == 0 ? .5f : .26f + (h >> 16 & 255) / 255f * .18f);
+                }
                 smoke[i] = Build("Smoke " + i, 160, 160, (u, v) =>
                 {
-                    float n = Fbm(u * 1.7f + seed, v * 1.7f + seed * .7f, 4), n2 = Fbm(u * 4.2f + seed + 9, v * 4.2f - seed, 3);
-                    float r = Mathf.Sqrt(u * u + v * v) * (1 + (n2 - .5f) * .55f);
-                    float mask = 1 - Smooth(.4f, 1, r);
-                    float a = Mathf.Clamp01((n * 1.6f - .35f) * mask * 1.5f) * Window(Mathf.Max(Mathf.Abs(u), Mathf.Abs(v)));
-                    float light = Mathf.Clamp01(.68f + (n2 - .5f) * .55f + v * .14f);
-                    return new Color(light, light, light, a);
+                    float field = CloudField(puffs, u, v);
+                    if (field <= 0) return Color.clear;
+                    float lit = Smooth(.2f, .3f, CloudField(puffs, u - .13f, v + .13f));
+                    float light = Mathf.Lerp(.6f, .97f, lit) + Gauss(field - .9f, .08f) * .03f;
+                    return new Color(light, light, light, Mathf.Clamp01(field * 1.5f) * Window(Mathf.Max(Mathf.Abs(u), Mathf.Abs(v))));
                 });
             }
             flame = Sheet("Flame", 8, 128, 192, (u, v, f) =>
             {
+                // A flame tongue as a light level (hot at the root and the middle), coloured by the cel bands of its tint.
                 float phase = f / 8f * Mathf.PI * 2, ox = Mathf.Cos(phase) * .9f, oy = Mathf.Sin(phase) * .9f;
                 float h = (v + 1) * .5f;
                 float w = h < .35f ? Mathf.Sqrt(Mathf.Max(0, 1 - Sq((h - .35f) / .36f))) * .88f : .88f * Mathf.Pow(Mathf.Max(0, 1 - (h - .35f) / .66f), 1.4f);
                 float n = Fbm(u * 2.4f + ox + 5, v * 1.7f + oy - h * .6f + 11, 4);
                 float edge = 1 - Mathf.Abs(u) / Mathf.Max(.03f, w);
                 float a = Mathf.Clamp01(edge * 1.7f + (n - .5f) * 1.7f) * (1 - Smooth(.82f, 1, h)) * (1 - Smooth(.86f, 1, Mathf.Abs(u)));
-                float heat = Mathf.Clamp01(a * (1.15f - h * .9f) * (.55f + n * .9f));
-                Color c = fireRamp.Evaluate(heat); c.a = a * Mathf.Lerp(.55f, 1, heat); return c;
+                return White(Mathf.Clamp01(a * (1.25f - h * .85f) * (.6f + n * .8f)));
             });
             slash = Sheet("Sword arc", 6, 256, 256, (u, v, f) =>
             {
-                float r = Mathf.Sqrt(u * u + v * v); if (r < .35f || r > 1) return Color.clear;
+                // A painted crescent sweep: a razor outer edge, white along the leading rim and streaked colour behind it,
+                // tapering to points at both ends; the tail frays apart over the last frames.
+                float r = Mathf.Sqrt(u * u + v * v); if (r < .3f || r > .97f) return Color.clear;
                 float theta = Mathf.Atan2(v, u) * Mathf.Rad2Deg;
-                float lead = 75 - 150 * (f + 1) / 6f, behind = theta - lead;
-                if (behind < -8 || behind > 95 || Mathf.Abs(theta) > 78) return Color.clear;
-                float t = Mathf.Abs(theta) / 75f, rc = .76f, w = .17f * (1 - .5f * t * t);
-                float band = Gauss(r - rc, w), front = Smooth(-8, 0, behind), trail = Mathf.Exp(-Mathf.Max(0, behind) / 34f);
-                float blur = .72f + .4f * Fbm(theta * .06f + f * .37f, r * 7, 2);
-                float edge = Gauss(r - (rc + w * .95f), .02f) * Mathf.Exp(-Mathf.Max(0, behind) / 60f) * front;
-                float erosion = 1 - Smooth(.55f, 1, f / 5f) * Smooth(10, 60, behind);
-                float a = Mathf.Clamp01((band * front * trail * blur + edge) * erosion * (f == 5 ? .55f : f == 4 ? .8f : 1));
-                float l = Mathf.Lerp(.8f, 1, a); return new Color(l, l, l, a);
+                float lead = 78 - 156 * (f + 1) / 6f, behind = theta - lead;
+                if (behind < -6 || behind > 112 || Mathf.Abs(theta) > 84) return Color.clear;
+                float tip = Mathf.Abs(theta) / 82f, outer = .93f - .04f * tip;
+                float thick = .5f * Mathf.Max(0, 1 - Mathf.Pow(tip, 2.4f)) * (.42f + .58f * Mathf.Exp(-Mathf.Max(0, behind) / 50f)) + .004f;
+                float depth = (outer - r) / thick; if (depth < -.06f || depth > 1) return Color.clear;
+                float edge = 1 - Smooth(-.05f, 0, -depth), front = Smooth(-6, 0, behind);
+                float streaks = Fbm(theta * .03f + f * .21f, r * 17, 2);
+                float a = edge * front * (Mathf.Pow(Mathf.Max(0, 1 - depth), 1.35f) * (.74f + .62f * (streaks - .5f)) + Gauss(depth, .07f) * .25f);
+                a *= .5f + .5f * Mathf.Exp(-Mathf.Max(0, behind) / 42f);
+                a -= Smooth(.5f, 1, f / 5f) * Smooth(15, 90, behind) * (.35f + .4f * streaks);
+                return White(Mathf.Clamp01(a));
             });
             shard = Build("Ice shard", 96, 96, (u, v) =>
             {
+                // A crystal chip: tinted facets (colour and hot bands) under a white rim.
                 float hx = Mathf.Abs(u) * 2.4f, hy = Mathf.Abs(v), d = Mathf.Max(hx * .866f + hy * .5f, hy);
-                float inside = 1 - Smooth(.9f, .98f, d);
-                float facet = .5f + .5f * Mathf.Abs(Mathf.Sin((u * 2.6f + v * 4.2f) * 3.1416f)), rim = Gauss(d - .9f, .05f);
-                Color c = Color.Lerp(new Color(.55f, .85f, 1), Color.white, Mathf.Clamp01(.55f + facet * .3f + rim * .6f));
-                c.a = inside * Mathf.Clamp01(.7f + rim * .4f); return c;
+                float inside = 1 - Smooth(.92f, .97f, d);
+                float facet = (u * .6f + v) > 0 ? .58f : .36f, rim = Gauss(d - .88f, .07f);
+                return new Color(.72f, .92f, 1, inside * Mathf.Clamp01(facet + rim * .7f));
             });
             sigil = Build("Magic sigil", 512, 512, (u, v) =>
             {
@@ -1304,7 +1485,6 @@ namespace PrototypeLab.Roguelike
                 if (local > .18f && local < .18f + len && (hash % 3 != 0 || Mathf.Repeat(local * 9, 2) < 1))
                     a += (1 - Smooth(.705f, .72f, r)) * Smooth(.6f, .615f, r) * .8f * (hash % 2 == 0 ? 1 : Mathf.Repeat(r * 40, 2) < 1 ? 1 : .35f);
                 a += Gauss(Mathf.Abs(u), .008f) * (1 - Smooth(.15f, .19f, Mathf.Abs(v))) + Gauss(Mathf.Abs(v), .008f) * (1 - Smooth(.15f, .19f, Mathf.Abs(u)));
-                a += (1 - Smooth(.1f, .95f, r)) * .07f;
                 return White(Mathf.Clamp01(a) * Window(r));
             });
             arrow = Build("Arrow", 256, 64, (u, v) =>
@@ -1335,7 +1515,7 @@ namespace PrototypeLab.Roguelike
             {
                 float r = Mathf.Sqrt(u * u + v * v); if (r > 1) return Color.clear;
                 float inside = 1 - Smooth(.93f, .975f, r);
-                float a = Gauss(HexEdge(u, v, .2f), .012f) * .85f * inside + inside * .07f + Gauss(r - .95f, .018f) * .95f + Gauss(r - .95f, .07f) * .3f;
+                float a = Gauss(HexEdge(u, v, .2f), .012f) * .85f * inside + Gauss(r - .95f, .018f) * .95f + Gauss(r - .95f, .07f) * .3f;
                 return White(Mathf.Clamp01(a) * Window(r));
             });
             meteorRock = Build("Meteor", 128, 128, (u, v) =>
@@ -1386,11 +1566,12 @@ namespace PrototypeLab.Roguelike
                 if (f == 2) { float fd = Mathf.Sqrt(Sq((u - 1.02f) * 1.6f) + Sq(v - .2f)); c = Over(c, new Color(1, .92f, .6f, Gauss(fd, .18f) * .95f)); }
                 return c;
             });
-            BuildActionTextures();
+            BuildActionTextures(); BuildFlipbooks();
             BuildFireTextures(); BuildFrostTextures(); BuildStormTextures(); BuildBladeTextures(); BuildArcheryTextures(); BuildGraceTextures();
             // The companions' newer families build theirs here too, so no first cast pays for them.
             HuntDiscTextures(); HuntChainTextures(); HuntMarkTextures(); HuntSlugTextures(); EarthTextures(); MysticEnsure(); GradeEnsure();
             StatusVaporTextures(); StatusGuardTextures();
+            soft.Add(glow); soft.Add(wisp);
         }
 
         // Shapes shared by every family: crescent slashes, impact lines, glints, light pillars, ground marks,
@@ -1399,30 +1580,52 @@ namespace PrototypeLab.Roguelike
         {
             crescent = Build("Crescent", 256, 256, (u, v) =>
             {
-                float outer = Mathf.Sqrt(u * u + v * v) - .9f, inner = Mathf.Sqrt(Sq(u + .34f) + v * v) - .86f;
-                float d = Mathf.Max(outer, -inner), body = 1 - Smooth(-.02f, .015f, d), depth = Mathf.Max(0, -outer);
-                float rim = Gauss(outer + .03f, .028f) * body, halo = Gauss(Mathf.Max(0, d), .07f) * .4f;
-                float a = body * (.2f + .8f * Mathf.Exp(-depth / .15f)) + rim * .7f + halo;
-                return White(Mathf.Clamp01(a) * (1 - Smooth(.93f, .995f, Mathf.Max(Mathf.Abs(u), Mathf.Abs(v)))));
+                // A painted crescent: razor outer rim (white), streaked colour falling off toward the hollow side.
+                float r = Mathf.Sqrt(u * u + v * v), outer = r - .9f, inner = Mathf.Sqrt(Sq(u + .34f) + v * v) - .86f;
+                float d = Mathf.Max(outer, -inner); if (d > .02f) return Color.clear;
+                float body = 1 - Smooth(-.012f, .006f, d), depth = Mathf.Max(0, -outer);
+                float streaks = RingNoise(Mathf.Atan2(v, u), r, 1.4f, 15);
+                float a = body * (Mathf.Exp(-depth / .2f) * (.76f + .55f * (streaks - .5f)) + .06f + Gauss(outer + .012f, .016f) * .3f);
+                return White(Mathf.Clamp01(a));
             });
             burst = Build("Impact lines", 512, 512, (u, v) =>
             {
-                float r = Mathf.Sqrt(u * u + v * v); if (r < .16f || r > 1) return Color.clear;
-                const int spokes = 44;
+                // Anime impact frame: tapered wedges bursting outward, widest where they start, at uneven lengths.
+                float r = Mathf.Sqrt(u * u + v * v); if (r < .14f || r > .98f) return Color.clear;
+                const int spokes = 26;
                 float f = Mathf.Repeat(Mathf.Atan2(v, u) / (2 * Mathf.PI), 1) * spokes; int slot = Mathf.FloorToInt(f);
                 float a = 0;
                 for (int k = -1; k <= 1; k++)
                 {
                     int s = (slot + k + spokes) % spokes; uint h = Hash(s + 17);
-                    if ((h & 3u) == 0) continue;
-                    float center = s + .5f + ((h >> 2 & 255) / 255f - .5f) * .7f, diff = f - center;
+                    if ((h & 7u) == 0) continue;
+                    float center = s + .5f + ((h >> 3 & 255) / 255f - .5f) * .6f, diff = f - center;
                     diff -= Mathf.Round(diff / spokes) * spokes;
-                    float start = .18f + (h >> 18 & 63) / 63f * .22f, end = .58f + (h >> 10 & 255) / 255f * .4f;
+                    float start = .16f + (h >> 18 & 63) / 63f * .2f, end = .55f + (h >> 10 & 255) / 255f * .42f;
                     if (r < start || r > end) continue;
-                    float along = (r - start) / (end - start), width = (.006f + (h >> 24 & 15) / 15f * .016f) * Mathf.Sin(along * Mathf.PI) + .001f;
-                    a = Mathf.Max(a, Gauss(diff * 2 * Mathf.PI * r / spokes, width) * Mathf.Pow(Mathf.Sin(along * Mathf.PI), .6f));
+                    float along = (r - start) / (end - start), half = (.1f + (h >> 24 & 15) / 15f * .22f) * Mathf.Pow(1 - along, 1.1f) + .002f;
+                    a = Mathf.Max(a, Mathf.Clamp01(1 - Mathf.Abs(diff) / half) * (1 - along * .35f) * Smooth(0, .06f, along));
                 }
-                return White(a * Window(r));
+                return White(a);
+            });
+            starburst = Build("Hit star", 256, 256, (u, v) =>
+            {
+                // A jagged hit flash: an uneven star of sharp spikes around a solid heart, white in the middle.
+                float r = Mathf.Sqrt(u * u + v * v), th = Mathf.Atan2(v, u), reach = .3f;
+                for (int k = 0; k < 9; k++)
+                {
+                    uint h = Hash(k + 71);
+                    float angle = k * (2 * Mathf.PI / 9) + ((h & 255) / 255f - .5f) * .5f, length = .3f + (h >> 8 & 255) / 255f * .37f;
+                    float width = .12f + (h >> 16 & 255) / 255f * .14f, d = Mathf.Abs(Mathf.Repeat(th - angle + Mathf.PI, 2 * Mathf.PI) - Mathf.PI);
+                    reach = Mathf.Max(reach, .3f + length * Mathf.Pow(Mathf.Max(0, 1 - d / width), 1.6f));
+                }
+                return White(Mathf.Clamp01((1 - r / reach) * 1.35f));
+            });
+            fleck = Build("Fleck", 64, 64, (u, v) =>
+            {
+                // A small four-point sparkle for motes and glitter.
+                float d = Mathf.Pow(Mathf.Pow(Mathf.Abs(u), .55f) + Mathf.Pow(Mathf.Abs(v), .55f), 1 / .55f);
+                return White(Mathf.Clamp01(1 - d) * 1.2f);
             });
             glint = Build("Glint", 256, 256, (u, v) =>
             {
@@ -1430,14 +1633,15 @@ namespace PrototypeLab.Roguelike
                 float cross = Gauss(v, .02f + .025f * Mathf.Max(0, 1 - au)) * Mathf.Pow(Mathf.Max(0, 1 - au), 2.2f) + Gauss(u, .02f + .025f * Mathf.Max(0, 1 - av)) * Mathf.Pow(Mathf.Max(0, 1 - av), 2.2f);
                 float du = (u + v) * .7071f, dv = (u - v) * .7071f;
                 float diagonal = (Gauss(dv, .014f) * Mathf.Pow(Mathf.Max(0, 1 - Mathf.Abs(du) / .55f), 3) + Gauss(du, .014f) * Mathf.Pow(Mathf.Max(0, 1 - Mathf.Abs(dv) / .55f), 3)) * .45f;
-                return White(Mathf.Clamp01(cross + diagonal + Gauss(r, .08f) + Gauss(r, .22f) * .35f) * Window(Mathf.Max(au, av)));
+                return White(Mathf.Clamp01(cross + diagonal + Gauss(r, .06f)) * Window(Mathf.Max(au, av)));
             });
             pillar = Build("Light pillar", 128, 512, (u, v) =>
             {
+                // A column of light with a white spine and vertical brush streaks, thinning out toward the top.
                 float h = (v + 1) * .5f;
-                float column = Gauss(u, .42f) * .5f + Gauss(u, .16f) * .75f + Gauss(u, .05f) * .5f;
-                float rise = Smooth(0, .04f, h) * (1 - Smooth(.3f, 1, h)), bands = .78f + .22f * Mathf.PerlinNoise(u * 7 + 3, h * 1.3f);
-                return White(Mathf.Clamp01(column * rise * bands) * (1 - Smooth(.86f, .99f, Mathf.Abs(u))));
+                float column = Mathf.Pow(Mathf.Clamp01(1 - Mathf.Abs(u) / .86f), 1.1f);
+                float rise = Smooth(0, .04f, h) * (1 - Smooth(.3f, 1, h)), streaks = .8f + .45f * (Fbm(u * 9 + 3, h * 1.4f, 2) - .5f);
+                return White(Mathf.Clamp01(column * rise * streaks * 1.12f));
             }, new Vector2(.5f, 0));
             crack = Build("Ground crack", 256, 256, (u, v) =>
             {
@@ -1522,9 +1726,121 @@ namespace PrototypeLab.Roguelike
                     float a0 = (90 + i * 120) * Mathf.Deg2Rad, a1 = (90 + (i + 1) * 120) * Mathf.Deg2Rad, turn = i < 3 ? 0 : Mathf.PI / 3;
                     seg = Mathf.Min(seg, SegmentDistance(u, v, Mathf.Cos(a0 + turn) * .68f, Mathf.Sin(a0 + turn) * .68f, Mathf.Cos(a1 + turn) * .68f, Mathf.Sin(a1 + turn) * .68f));
                 }
-                a += Gauss(seg, .006f) * .85f + (1 - Smooth(.05f, .72f, r)) * .06f;
+                a += Gauss(seg, .006f) * .85f;
                 return White(Mathf.Clamp01(a) * Window(r));
             });
+        }
+
+        // Hand-animated flipbooks. A drawn effect changes form from frame to frame (a fireball billows, licks and tears into
+        // wisps; a hit spark flares, splits into shards and scatters), which scaling a still sprite never gives. All are
+        // light levels for the painted ramp (white rgb) except the billows, which are ink with a baked two-tone shade.
+        private static void BuildFlipbooks()
+        {
+            // An explosion: lobes swell from a white-hot heart, flame tongues lick past the edge, then the heat drains to the
+            // deep edge colour while the cloud rises and tears into wisps.
+            // Uneven lobes, heaped a little above the centre, each outlined by a darker crease where it meets its neighbour.
+            var lobes = new Vector3[14];
+            for (int k = 0; k < lobes.Length; k++)
+            {
+                uint h = Hash(k * 31 + 7);
+                float angle = (k * 26 + (h & 255) / 255f * 30) * Mathf.Deg2Rad, reach = k == 0 ? 0 : .18f + (h >> 8 & 255) / 255f * .38f;
+                lobes[k] = new Vector3(Mathf.Cos(angle) * reach, Mathf.Sin(angle) * reach * .85f + .05f, k == 0 ? .5f : .17f + (h >> 16 & 255) / 255f * .2f);
+            }
+            blastFrames = Sheet("Blast", 8, 256, 256, (u, v, f) =>
+            {
+                float p = f / 7f, grow = .5f + .5f * (1 - Mathf.Pow(1 - p, 2.2f));
+                float x = u / grow, y = v / grow - p * .14f, r = Mathf.Sqrt(u * u + v * v), th = Mathf.Atan2(v, u);
+                float first = 0, second = 0;
+                foreach (var l in lobes)
+                {
+                    float d = 1 - Mathf.Sqrt(Sq(x - l.x) + Sq(y - l.y)) / l.z;
+                    if (d > first) { second = first; first = d; } else if (d > second) second = d;
+                }
+                float crease = Gauss(first - second, .05f) * Smooth(.04f, .2f, second) * .38f;
+                // Pointed flame tongues lick past the edge early on.
+                float lick = Mathf.Pow(Mathf.Clamp01(RingNoise(th, f * .05f, 3.6f, 0) * 1.9f - .74f), 1.2f);
+                float field = Mathf.Max(first, (1 - r / ((.7f + .75f * lick) * grow)) * lick * (1 - p) * 1.25f);
+                field -= Smooth(.2f, 1, p) * .95f * (Fbm(u * 3.1f + f * .23f, v * 3.1f - f * .19f, 3) * 1.3f - .12f);
+                if (field <= 0) return Color.clear;
+                float heat = Mathf.Lerp(.82f, .45f, Smooth(.1f, .95f, p));
+                float crown = Mathf.Clamp01((field - .2f) * 1.4f) * Mathf.Clamp01(.45f - .5f * x + .65f * y) * .18f;
+                return White(Mathf.Clamp01(field * 1.4f) * heat + crown - crease * (1 - p * .5f));
+            });
+
+            // A hit spark: a tight flare, a full jagged star, then its spikes thin, detach into shards and fly apart while
+            // the heart opens into a ring and vanishes.
+            var spikes = new Vector3[9];
+            for (int k = 0; k < spikes.Length; k++)
+            {
+                uint h = Hash(k + 211);
+                spikes[k] = new Vector3(k * (2 * Mathf.PI / 9) + ((h & 255) / 255f - .5f) * .55f, .55f + (h >> 8 & 255) / 255f * .4f, .09f + (h >> 16 & 255) / 255f * .08f);
+            }
+            float[] spanFrom = { 0, 0, .12f, .42f, .75f, .95f }, spanTo = { .35f, 1, 1.08f, 1.16f, 1.22f, 1.27f };
+            float[] thick = { 1, 1, .8f, .55f, .38f, .25f }, bright = { .95f, 1, .9f, .75f, .6f, .45f };
+            sparkFrames = Sheet("Hit spark", 6, 192, 192, (u, v, f) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v), th = Mathf.Atan2(v, u), level = 0;
+                foreach (var s in spikes)
+                {
+                    float along = (r / s.y - spanFrom[f]) / (spanTo[f] - spanFrom[f]); if (along <= 0 || along >= 1) continue;
+                    float half = s.z * thick[f] * Mathf.Pow(Mathf.Sin(along * Mathf.PI), .7f);
+                    float d = Mathf.Abs(Mathf.Repeat(th - s.x + Mathf.PI, 2 * Mathf.PI) - Mathf.PI) * r;
+                    level = Mathf.Max(level, Mathf.Clamp01(1 - d / Mathf.Max(.002f, half)) * bright[f] * (.75f + .25f * (1 - along)));
+                }
+                if (f <= 1) level = Mathf.Max(level, Mathf.Clamp01(1 - r / (f == 0 ? .2f : .27f)) * 1.25f);
+                else if (f <= 3) { float ring = f == 2 ? .3f : .42f, w = f == 2 ? .07f : .035f; level = Mathf.Max(level, Mathf.Clamp01(1 - Mathf.Abs(r - ring) / w) * bright[f]); }
+                return White(level);
+            });
+
+            // A shock front: a thick bright ring that races out, thins, and breaks into arcs.
+            shockFrames = Sheet("Shock front", 6, 256, 256, (u, v, f) =>
+            {
+                float p = f / 5f, r = Mathf.Sqrt(u * u + v * v), th = Mathf.Atan2(v, u);
+                float rr = .3f + .58f * (1 - Mathf.Pow(1 - p, 1.8f)), band = .2f * Mathf.Pow(1 - p, 1.2f) + .035f;
+                float outside = 1 - Smooth(rr - .01f, rr + .006f, r), depth = (rr - r) / band;
+                if (outside <= 0 || depth >= 1) return Color.clear;
+                float level = outside * Mathf.Pow(Mathf.Clamp01(1 - depth), 1.2f) * (.8f + .45f * (RingNoise(th, r, 1.6f, 12) - .5f));
+                float gaps = Smooth(.35f, 1, p) * .55f;
+                return White(level * Smooth(gaps - .03f, gaps + .03f, RingNoise(th, 0, 2.6f + f * .1f, 0)));
+            });
+
+            // A plasma orb (looped): a bright off-centre heart, filaments swirling inside, a lit rim and flares licking off it.
+            plasmaFrames = Sheet("Plasma orb", 8, 128, 128, (u, v, f) =>
+            {
+                const float R = .7f;
+                float r = Mathf.Sqrt(u * u + v * v), th = Mathf.Atan2(v, u), turn = f * Mathf.PI / 4;
+                float inside = 1 - Smooth(R - .012f, R + .006f, r);
+                float body = (.14f + .16f * (1 - r / R)) * inside;
+                float swirl = Mathf.Pow(.5f + .5f * Mathf.Cos(3 * th - Mathf.Log(r + .05f) * 4.5f + turn), 6) * Smooth(.05f, .2f, r) * (1 - Smooth(R - .14f, R, r)) * .5f;
+                float heart = Gauss(Mathf.Sqrt(Sq(u + .16f) + Sq(v - .18f)), .15f) * .7f;
+                float rim = Gauss(r - R + .035f, .04f) * (.5f + .5f * Mathf.Clamp01(-u * .7f + v * .7f + .3f)) * inside * .85f;
+                float lick = Mathf.Pow(Mathf.Clamp01(RingNoise(th - turn * .5f, 0, 3, 0) * 1.6f - .55f), 1.3f);
+                float flare = (1 - Smooth(R, R + .26f * lick + .001f, r)) * lick * Smooth(R - .02f, R + .02f, r) * .55f;
+                return White(Mathf.Clamp01(body + swirl * inside + heart + rim + flare));
+            });
+
+            // Billowing ink smoke (two variants): puffs swell and drift apart while holes open and the edges tear away.
+            billowFrames = new Sprite[2][];
+            for (int variant = 0; variant < 2; variant++)
+            {
+                var puffs = new Vector3[6]; uint h0 = Hash(variant * 17 + 3);
+                for (int k = 0; k < puffs.Length; k++)
+                {
+                    uint h = Hash((int)h0 + k * 7919);
+                    float angle = k * 1.047f + (h & 255) / 255f * .8f, distance = k == 0 ? 0 : .16f + (h >> 8 & 255) / 255f * .18f;
+                    puffs[k] = new Vector3(Mathf.Cos(angle) * distance, Mathf.Sin(angle) * distance * .85f, k == 0 ? .44f : .22f + (h >> 16 & 255) / 255f * .16f);
+                }
+                int seed = variant;
+                billowFrames[variant] = Sheet("Billow " + variant, 6, 128, 128, (u, v, f) =>
+                {
+                    float p = f / 5f, grow = 1 + .3f * p, x = u / grow, y = v / grow - p * .06f;
+                    float field = CloudField(puffs, x, y) - Smooth(.15f, 1, p) * .8f * Fbm(u * 3.4f + f * .3f + seed * 5, v * 3.4f - f * .2f, 3);
+                    if (field <= 0) return Color.clear;
+                    float lit = Smooth(.18f, .3f, CloudField(puffs, x - .12f, y + .12f));
+                    float light = Mathf.Lerp(.5f, 1, lit);
+                    return new Color(light, light, light, Mathf.Clamp01(field * 1.6f) * Window(Mathf.Max(Mathf.Abs(u), Mathf.Abs(v))));
+                });
+            }
         }
 
         private static Sprite Build(string name, int width, int height, Shade shade) { return Build(name, width, height, shade, Vector2.one * .5f); }
@@ -1567,6 +1883,19 @@ namespace PrototypeLab.Roguelike
             float sum = 0, amplitude = .5f, norm = 0;
             for (int i = 0; i < octaves; i++) { sum += Mathf.PerlinNoise(x, y) * amplitude; norm += amplitude; x = x * 2.03f + 7.1f; y = y * 1.97f + 3.3f; amplitude *= .5f; }
             return sum / norm;
+        }
+        /// <summary>Seamless noise around a circle: slow along the angle <paramref name="theta"/>, fast across the radius, so
+        /// rings and sweeps carry brush streaks that follow the stroke.</summary>
+        private static float RingNoise(float theta, float r, float around, float across)
+        {
+            return Fbm(Mathf.Cos(theta) * around + r * across + 5, Mathf.Sin(theta) * around - r * across * .7f + 13, 2);
+        }
+        /// <summary>A cloud of round puffs (x, y, radius): 1 at a puff's centre, falling to 0 at its edge, highest puff wins.</summary>
+        private static float CloudField(Vector3[] puffs, float u, float v)
+        {
+            float best = 0;
+            foreach (var p in puffs) best = Mathf.Max(best, 1 - Mathf.Sqrt(Sq(u - p.x) + Sq(v - p.y)) / p.z);
+            return best;
         }
         private static Color Over(Color under, Color over)
         {

@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using UnityEngine;
 
 namespace PrototypeLab.Roguelike
@@ -12,7 +13,7 @@ namespace PrototypeLab.Roguelike
         [Serializable] private sealed class MusicReport
         {
             public bool success, stereoStreaming, playbackAdvances, sameThemeContinuous, themeBoundaryCrossfades;
-            public bool loopWraps, disablePauses, reenableResumes, lifecycleCleanup, soundEffectsIndependent;
+            public bool loopWraps, disablePauses, reenableResumes, lifecycleCleanup, soundEffectsIndependent, verbSoundsDistinct, cueVoicesCapped;
             public int tracks, themes, pauseRequestedSamples, pauseSettledSamples, pausedSamples;
             public string finishedUtc;
             public List<string> samples = new List<string>(), errors = new List<string>();
@@ -86,6 +87,8 @@ namespace PrototypeLab.Roguelike
             Require(music != null, "TowerGame did not create theme music.");
             var effects = game.GetComponent<AudioSource>();
             Require(effects != null && effects.transform != music.transform, "BGM must have independent sound-effect volume.");
+            // The voice cap counts PlayOneShot plays on this one source; it never adds sources of its own.
+            Require(game.GetComponents<AudioSource>().Length == 1, "Sound effects must stay on a single source: " + game.GetComponents<AudioSource>().Length);
             float effectsVolume = effects.volume;
             yield return new WaitForSecondsRealtime(TowerMusic.CrossfadeSeconds + .2f);
             var first = Audible(music); var firstClip = first.clip; int before = first.timeSamples;
@@ -175,11 +178,57 @@ namespace PrototypeLab.Roguelike
             report.reenableResumes = true;
             Require(effects.volume == effectsVolume && effects.clip == null, "BGM changed the sound-effect source.");
             report.soundEffectsIndependent = true;
+            VerbSounds();
+            Require(effects.volume == effectsVolume && effects.clip == null && game.GetComponents<AudioSource>().Length == 1, "The verb sounds changed the sound-effect source.");
             Destroy(music.gameObject);
             yield return null;
             foreach (var source in decks) Require(source == null, "A music source survived its owner.");
             report.lifecycleCleanup = true;
             Finish(null);
+        }
+        // Each combat verb sounds a synthesized clip of its own (none of them the old shared slash, hit or chime tone, no two
+        // verbs sharing one) in pitch variants across ±CuePitchSway. A cue sounds at most CueVoices times within CueWindow,
+        // and asked again in the frame it sounded it only tops that voice up instead of stacking another copy.
+        private void VerbSounds()
+        {
+            const BindingFlags hidden = BindingFlags.NonPublic | BindingFlags.Instance;
+            var taken = new HashSet<AudioClip>();
+            foreach (string legacy in new[] { "slashSound", "hitSound", "chimeSound" }) taken.Add((AudioClip)typeof(TowerGame).GetField(legacy, hidden).GetValue(game));
+            float sway = (1 + TowerGame.CuePitchSway) / (1 - TowerGame.CuePitchSway);
+            AudioClip[] strike = null;
+            // The verbs, and the hit other blows land with (its own voice budget beside the player's strike).
+            string[] verbs = { "jumpCue", "airJumpCue", "dashCue", "swingCue", "strikeCue", "heavyCue", "hurtCue", "dodgeCue", "struckCue" };
+            foreach (string verb in verbs)
+            {
+                object cue = typeof(TowerGame).GetField(verb, hidden).GetValue(game);
+                Require(cue != null, "A combat verb has no sound of its own: " + verb);
+                var clips = (AudioClip[])cue.GetType().GetField("clips").GetValue(cue);
+                float shortest = float.MaxValue, longest = 0;
+                foreach (var clip in clips)
+                {
+                    Require(clip != null && clip.channels == 1 && taken.Add(clip), "Combat verbs share a sound: " + verb);
+                    shortest = Mathf.Min(shortest, clip.length); longest = Mathf.Max(longest, clip.length);
+                }
+                Require(clips.Length >= 3 && Mathf.Abs(longest / shortest - sway) < .02f, "A verb sound does not sway its pitch by ±" + TowerGame.CuePitchSway + ": " + verb + " " + shortest.ToString("F4") + "–" + longest.ToString("F4") + " s");
+                if (verb == "strikeCue") strike = clips;
+            }
+            report.verbSoundsDistinct = true;
+            report.samples.Add("verb sounds: " + verbs.Length + " synthesized cues, " + strike.Length + " pitch variants each, no shared clip");
+
+            // A fresh cue over the strike's clips, asked at times well past the real clock, leaves the game's own cues untouched.
+            var cueType = typeof(TowerGame).GetNestedType("SoundCue", BindingFlags.NonPublic);
+            object probe = Activator.CreateInstance(cueType, true); cueType.GetField("clips").SetValue(probe, strike);
+            var voice = typeof(TowerGame).GetMethod("Voice", hidden);
+            Func<int, float, float, bool> ask = (frame, at, volume) => (bool)voice.Invoke(game, new object[] { probe, volume, frame, at });
+            float start = Time.unscaledTime + 100; int voices = 0;
+            for (int i = 0; i < 6; i++) if (ask(-100 - i, start + i * .008f, .01f)) voices++;
+            Require(voices == TowerGame.CueVoices, "A cue sounded " + voices + " times within " + TowerGame.CueWindow + " s instead of at most " + TowerGame.CueVoices + ".");
+            Require(ask(-200, start + .2f, .01f) && !ask(-200, start + .2f, .02f) && !ask(-200, start + .2f, .005f),
+                "A cue asked again in the frame it sounded stacked another voice instead of topping its own up.");
+            Require((int)cueType.GetField("played").GetValue(probe) == TowerGame.CueVoices + 1 && (int)cueType.GetField("dropped").GetValue(probe) == 6 - TowerGame.CueVoices,
+                "The voice cap miscounted its plays: played=" + cueType.GetField("played").GetValue(probe) + ", dropped=" + cueType.GetField("dropped").GetValue(probe));
+            report.cueVoicesCapped = true;
+            report.samples.Add("voice cap: " + TowerGame.CueVoices + " voices per " + TowerGame.CueWindow + " s, same-frame asks top up");
         }
         private void Finish(Exception error)
         {

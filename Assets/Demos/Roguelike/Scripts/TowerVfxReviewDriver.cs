@@ -14,7 +14,8 @@ namespace PrototypeLab.Roguelike
     /// Twelve frames (four wind-up, eight after release) are rendered through the game camera into one contact sheet
     /// per effect, and the peak clip count and effect tick cost are written to a JSON report.
     /// Opt-in only: a player started with -towerVfxReview &lt;folder&gt; [-towerVfxEffects a,b] [-towerVfxTheme name]
-    /// [-towerVfxLevel 1-3] [-towerVfxPrime slow|burn] runs it and quits; -towerVfxSuite &lt;name&gt; instead runs one of the
+    /// [-towerVfxLevel 1-3] [-towerVfxPrime slow|burn] [-towerVfxFrame width] runs it and quits (the effect name Basic adds a sheet of the hero's
+    /// own slash, hit, dash and defeat effects); -towerVfxSuite &lt;name&gt; instead runs one of the
     /// editor-only smoke suites in the player. The level draws the skill at that level (awakening at three); priming leaves a
     /// status on the targets first so reactions show (fire or lightning on the slowed, frost or poison on the burning).
     /// </summary>
@@ -41,11 +42,13 @@ namespace PrototypeLab.Roguelike
         }
         private static int level = 1; private static string prime;
         private const float Windup = .46f, Step = 1 / 60f;
-        private const int FrameWidth = 640, FrameHeight = 360, Columns = 4;
+        private const int Columns = 4;
+        // Frame size: 640x360 by default; -towerVfxFrame <width> renders larger frames (16:9) to judge detail at game scale.
+        private static int FrameWidth = 640, FrameHeight = 360;
         private static readonly BindingFlags Hidden = BindingFlags.NonPublic | BindingFlags.Instance;
 
         private readonly Report report = new Report();
-        private TowerGame game; private TowerVfx vfx; private string folder; private bool quit; private List<SkillEffect> wanted;
+        private TowerGame game; private TowerVfx vfx; private string folder; private bool quit, basics, gallery; private List<SkillEffect> wanted;
         private TowerThemeId? theme;
         private readonly List<TowerGame.Fighter> targets = new List<TowerGame.Fighter>();
         public bool IsFinished { get; private set; }
@@ -60,6 +63,7 @@ namespace PrototypeLab.Roguelike
             string output = Arg(args, "-towerVfxReview"); if (output == null) return;
             int parsed; if (int.TryParse(Arg(args, "-towerVfxLevel") ?? "1", out parsed)) level = Mathf.Clamp(parsed, 1, 3);
             prime = Arg(args, "-towerVfxPrime");
+            if (int.TryParse(Arg(args, "-towerVfxFrame") ?? "", out parsed) && parsed >= 320) { FrameWidth = Mathf.Min(parsed, 1600); FrameHeight = FrameWidth * 9 / 16; }
             new GameObject("Tower VFX review").AddComponent<TowerVfxReviewDriver>().StartCoroutine(Launch(output, Arg(args, "-towerVfxEffects"), Arg(args, "-towerVfxTheme")));
         }
         private static string Arg(string[] args, string key) { int at = Array.IndexOf(args, key); return at >= 0 && at + 1 < args.Length ? args[at + 1] : null; }
@@ -88,7 +92,14 @@ namespace PrototypeLab.Roguelike
             if (!Path.IsPathRooted(outputFolder)) throw new ArgumentException("The review folder must be absolute.");
             game = tower; folder = outputFolder; quit = quitOnComplete;
             wanted = new List<SkillEffect>();
-            if (!string.IsNullOrEmpty(effects)) foreach (var name in effects.Split(',')) wanted.Add((SkillEffect)Enum.Parse(typeof(SkillEffect), name.Trim(), true));
+            // "Basic" is not a skill: it reviews the hero's own sword combo, hit, dash and defeat effects on one sheet.
+            if (!string.IsNullOrEmpty(effects))
+                foreach (var name in effects.Split(','))
+                {
+                    if (name.Trim().Equals("Basic", StringComparison.OrdinalIgnoreCase)) basics = true;
+                    else if (name.Trim().Equals("Gallery", StringComparison.OrdinalIgnoreCase)) gallery = true;
+                    else wanted.Add((SkillEffect)Enum.Parse(typeof(SkillEffect), name.Trim(), true));
+                }
             else wanted.AddRange((SkillEffect[])Enum.GetValues(typeof(SkillEffect)));
             if (!string.IsNullOrEmpty(themeName)) theme = (TowerThemeId)Enum.Parse(typeof(TowerThemeId), themeName, true);
             Application.logMessageReceived += RecordLog;
@@ -111,9 +122,13 @@ namespace PrototypeLab.Roguelike
             Exception failure = null;
             Setup(); yield return null;
             report.idleRenderMs = RenderCost();
-            foreach (var effect in wanted)
+            var reviews = new List<KeyValuePair<string, IEnumerator>>();
+            if (gallery) reviews.Add(new KeyValuePair<string, IEnumerator>("Gallery", ReviewGallery()));
+            if (basics) reviews.Add(new KeyValuePair<string, IEnumerator>("Basic", ReviewBasics()));
+            foreach (var each in wanted) reviews.Add(new KeyValuePair<string, IEnumerator>(each.ToString(), Review(each)));
+            foreach (var review in reviews)
             {
-                IEnumerator body = Review(effect);
+                string effect = review.Key; IEnumerator body = review.Value;
                 while (true)
                 {
                     object current = null;
@@ -204,6 +219,72 @@ namespace PrototypeLab.Roguelike
                 Render(sheet, frame, index++, (Windup + at) / (Windup + releaseFrames[releaseFrames.Length - 1]), new Color(.3f, .9f, 1));
             }
             stats.sheet = Path.Combine(folder, effect + ".png");
+            File.WriteAllBytes(stats.sheet, sheet.EncodeToPNG());
+            Destroy(sheet); Destroy(frame);
+            report.effects.Add(stats);
+            vfx.Clear();
+        }
+
+        // Every frame of the shared flipbooks laid out still over the backdrop, photographed once at the game's 1600x900.
+        private IEnumerator ReviewGallery()
+        {
+            Setup(SkillEffect.Fireball);
+            yield return null;
+            var camera = game.view; Vector2 center = camera.transform.position;
+            vfx.FlipbookGallery(center + new Vector2(-8.9f, 4.7f), 2.25f);
+            vfx.Tick(Step); yield return null;
+            var target = RenderTexture.GetTemporary(1600, 900, 24, RenderTextureFormat.ARGB32);
+            var shot = new Texture2D(1600, 900, TextureFormat.RGBA32, false);
+            var previousTarget = camera.targetTexture; float previousSize = camera.orthographicSize;
+            camera.targetTexture = target; camera.orthographicSize = 5.8f; camera.aspect = 1600 / 900f; camera.Render();
+            var previousActive = RenderTexture.active; RenderTexture.active = target;
+            shot.ReadPixels(new Rect(0, 0, 1600, 900), 0, 0); shot.Apply();
+            RenderTexture.active = previousActive; camera.targetTexture = previousTarget; camera.orthographicSize = previousSize; camera.ResetAspect();
+            RenderTexture.ReleaseTemporary(target);
+            var stats = new EffectStats { effect = "Gallery", sheet = Path.Combine(folder, "Gallery.png") };
+            File.WriteAllBytes(stats.sheet, shot.EncodeToPNG());
+            Destroy(shot);
+            report.effects.Add(stats);
+            vfx.Clear();
+        }
+
+        // The hero's own effects: a light slash with its hit, a finisher with its hit, a dash with afterimages and speed
+        // lines, a double jump ring and a defeat burst, three frames each.
+        private IEnumerator ReviewBasics()
+        {
+            Setup(SkillEffect.DashStrike);
+            var target = targets[0]; Place(target, new Vector2(2.2f, TowerWorld.Ground));
+            yield return null;
+            var stats = new EffectStats { effect = "Basic" };
+            var sheet = new Texture2D(FrameWidth * Columns, FrameHeight * 3, TextureFormat.RGBA32, false);
+            var frame = new Texture2D(FrameWidth, FrameHeight, TextureFormat.RGBA32, false);
+            var hero = game.hero; var watch = new Stopwatch();
+            Color gold = TowerWorld.Gold, teal = TowerWorld.Teal;
+            Vector2 slash = hero.pos + new Vector2(1.1f, 1), body = target.pos + Vector2.up * .9f;
+            var beats = new List<KeyValuePair<float, Action>>
+            {
+                new KeyValuePair<float, Action>(0, () => vfx.BasicSlash(slash, 1, gold)),
+                new KeyValuePair<float, Action>(.04f, () => vfx.Hit(body, gold)),
+                new KeyValuePair<float, Action>(.5f, () => vfx.HeavySlash(slash, 1, gold)),
+                new KeyValuePair<float, Action>(.54f, () => vfx.Hit(body, gold)),
+                new KeyValuePair<float, Action>(1, () => { vfx.Afterimage(hero.root.transform); vfx.SpeedLines(hero.pos + Vector2.up * .9f, 1, teal); vfx.Dust(hero.pos, 1, .9f); }),
+                new KeyValuePair<float, Action>(1.05f, () => vfx.Afterimage(hero.root.transform)),
+                new KeyValuePair<float, Action>(1.1f, () => { vfx.Afterimage(hero.root.transform); vfx.ImpactRing(hero.pos + Vector2.up * .1f, .5f, teal); }),
+                new KeyValuePair<float, Action>(1.5f, () => vfx.KillBurst(body, teal)),
+            };
+            float[] shots = { .03f, .09f, .18f, .53f, .6f, .72f, 1.03f, 1.09f, 1.16f, 1.53f, 1.62f, 1.8f };
+            float clock = 0; int next = 0, index = 0;
+            foreach (float at in shots)
+            {
+                while (clock + Step <= at)
+                {
+                    while (next < beats.Count && beats[next].Key <= clock) { watch.Restart(); beats[next].Value(); stats.castMs += (float)watch.Elapsed.TotalMilliseconds; next++; }
+                    Advance(stats, watch, false); clock += Step; yield return null;
+                }
+                stats.peakRenderMs = Mathf.Max(stats.peakRenderMs, RenderCost());
+                Render(sheet, frame, index++, at / shots[shots.Length - 1], new Color(.3f, .9f, 1));
+            }
+            stats.sheet = Path.Combine(folder, "Basic.png");
             File.WriteAllBytes(stats.sheet, sheet.EncodeToPNG());
             Destroy(sheet); Destroy(frame);
             report.effects.Add(stats);

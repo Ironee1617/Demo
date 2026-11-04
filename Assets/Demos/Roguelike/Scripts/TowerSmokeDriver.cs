@@ -637,6 +637,8 @@ namespace PrototypeLab.Roguelike
         private IEnumerator PeacefulFloor(FloorType type)
         {
             Require(game.enemies.Count == 0, "The " + type + " floor spawned monsters.");
+            // A quiet room: the exit stands 28 units past the spawn instead of at the end of a generated climb.
+            Require(Mathf.Approximately(TowerWorld.ExitX, TowerTerrainGenerator.PeacefulExitX), "The " + type + " floor kept the long generated climb.");
             float wounded = game.hero.hp = type == FloorType.Rest ? game.PlayerMaxHealth * .3f : game.hero.hp;
             float limit = Time.realtimeSinceStartup + 3;
             while (!game.run.IsFloorCleared) { Require(Time.realtimeSinceStartup < limit, "The " + type + " floor did not clear on arrival."); yield return null; }
@@ -840,6 +842,9 @@ namespace PrototypeLab.Roguelike
             // The second ordering covers lethal hostile and final friendly shots in one projectile pass.
             ClearFixtureShots(shots); reset.Invoke(game, null);
             game.hero.hp = 1; game.invulnerable = 0; probeTarget.hp = 1; probeTarget.windup = 0; probeTarget.cooldown = 999;
+            // The lethal slam above set off a lunge; the probe stands still under the friendly shot for this ordering.
+            var enemyStates = (IDictionary)typeof(TowerGame).GetField("enemyCombat", flags).GetValue(game);
+            if (enemyStates.Contains(probeTarget)) typeof(TowerGame).GetMethod("CancelEnemyWindup", flags).Invoke(game, new[] { probeTarget, enemyStates[probeTarget] });
             fire.Invoke(game, new object[] { target, target, 0f, 1000f, false, Color.white, 0f, null, 1, 0f });
             Vector2 player = game.hero.pos + Vector2.up;
             fire.Invoke(game, new object[] { player, player, 0f, 1000f, true, Color.red, 0f, null, 1, 0f });

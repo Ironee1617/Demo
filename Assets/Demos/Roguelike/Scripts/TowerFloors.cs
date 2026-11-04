@@ -21,7 +21,7 @@ namespace PrototypeLab.Roguelike
         {return type==FloorType.Elite?"엘리트":type==FloorType.Rest?"휴식":type==FloorType.Shop?"상점":"일반";}
         internal static string FloorTypeSummary(FloorType type)
         {
-            return type==FloorType.Elite?"강한 적 · 스킬 증강·"+TowerRun.EliteBounty+" G":type==FloorType.Rest?"생명력 "+Mathf.RoundToInt(TowerRun.RestHealFraction*100)+"% 회복":
+            return type==FloorType.Elite?"강한 적 · 스킬 증강·"+TowerRun.EliteBounty+" G":type==FloorType.Rest?"회복 "+Mathf.RoundToInt(TowerRun.RestHealFraction*100)+"% 또는 단련":
                 type==FloorType.Shop?"골드로 증강·회복 구매":"다음 층";
         }
         private void MakeElite(Fighter actor)
@@ -31,6 +31,9 @@ namespace PrototypeLab.Roguelike
             actor.damageScale*=TowerDifficulty.EliteDamage;
             actor.root.transform.localScale=Vector3.one*TowerDifficulty.EliteScale;
             actor.art.Tint=new Color(1,.84f,.76f);
+            // One behaviour prefix per elite, shown before its name over the health bar.
+            var affix=ApplyEliteAffix(actor);
+            if(affix!=EliteAffix.None)actor.title=EliteAffixName(affix)+" "+(actor.monster!=null?actor.monster.Name:"엘리트");
         }
         // Where the floor's last monster fell; the elite bounty bursts from there.
         private Vector2? lastFallen;
@@ -55,14 +58,19 @@ namespace PrototypeLab.Roguelike
         }
         private void OnSpecialFloorCleared()
         {
-            if(run.FloorType==FloorType.Rest)
-            {
-                float healed=Mathf.Min(PlayerMaxHealth-hero.hp,PlayerMaxHealth*TowerRun.RestHealFraction);hero.hp+=healed;
-                if(healed>0)FloatText(hero.pos+Vector2.up*2,"+"+Mathf.CeilToInt(healed),TowerWorld.Teal);
-                if(vfx!=null)vfx.Cast(SkillEffect.HealPulse,hero.pos+Vector2.up,2.4f,TowerWorld.Teal);
-                Toast("모닥불 곁의 휴식",healed>0?"생명력 "+Mathf.CeilToInt(healed)+" 회복":"생명력이 이미 가득합니다",TowerWorld.Teal,3.2f);
-            }
+            // Fixtures (and a rest floor that ends the climb) take the campfire's heal at once; real play offers the heal or
+            // a tempering (TowerRestChoice.cs) and takes the heal if the hero leaves undecided.
+            if(run.FloorType==FloorType.Rest){if(SmokeControlled||run.IsComplete)RestHeal();else OpenRestChoice();}
             else if(run.FloorType==FloorType.Shop)Toast("상점 층","상인에게 다가가 [E]로 거래하세요. 거래는 한 번뿐입니다.",brass,3.6f);
+        }
+        /// <summary>The campfire's heal: half of max health, the rest floor's default.</summary>
+        private void RestHeal()
+        {
+            restChoiceRun=null;
+            float healed=Mathf.Min(PlayerMaxHealth-hero.hp,PlayerMaxHealth*TowerRun.RestHealFraction);hero.hp+=healed;
+            if(healed>0)FloatText(hero.pos+Vector2.up*2,"+"+Mathf.CeilToInt(healed),TowerWorld.Teal);
+            if(vfx!=null)vfx.Cast(SkillEffect.HealPulse,hero.pos+Vector2.up,2.4f,TowerWorld.Teal);
+            Toast("모닥불 곁의 휴식",healed>0?"생명력 "+Mathf.CeilToInt(healed)+" 회복":"생명력이 이미 가득합니다",TowerWorld.Teal,3.2f);
         }
         internal bool BuyShopItem(ShopItem item)
         {

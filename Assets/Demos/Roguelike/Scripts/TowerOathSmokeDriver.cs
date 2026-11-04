@@ -148,9 +148,30 @@ namespace PrototypeLab.Roguelike
             game.DashOverride=true;Call("Update");game.DashOverride=false;Set("previousHeroPosition",game.hero.pos);
             CrossBullet();Check(game.run.Oath.Charge==2,"An actual early dash crossing grants two oath charge.");
             CrossBullet();Check(game.run.Oath.Charge==2,"Multiple bullets in one dash grant charge only once.");
-            game.run.Oath.Acquire(OathState.Dodge);game.dashCooldown=0;
+            // A trap's bolt dodged the same way readies the counter alone: the dodge counts, the oath keeps its charge.
+            game.ReadyDash();game.DashOverride=true;Call("Update");game.DashOverride=false;Set("previousHeroPosition",game.hero.pos);
+            int dodges=game.PerfectDodges;CrossBullet(true);
+            Check(game.PerfectDodges==dodges+1&&Mathf.Abs(game.CounterRemaining-TowerGame.DodgeCounterDuration)<.001f&&game.run.Oath.Charge==2,"A perfect dodge through a trap's bolt counts and readies the counter but leaves the oath charge at 2.");
+            game.run.Oath.Acquire(OathState.Dodge);game.ReadyDash();
             game.DashOverride=true;Call("Update");game.DashOverride=false;Set("previousHeroPosition",game.hero.pos);CrossBullet();
             Check(game.run.Oath.Ready,"Dodge augmentation fills the gauge through real projectile collision.");
+
+            // A gun dash shot is one volley: with the next dash's volley fired while the first is still in flight, and every
+            // piercing bullet of both landing, each volley charges the oath exactly once.
+            Setup("gabriel");var mark=Enemy(3);
+            game.AttackModeOverride=TowerAttackMode.Gun;Call("SyncAttackMode",false);
+            game.AimOverride=mark.pos+Vector2.up*.7f;Call("TickAim");int volleys=game.GunDashShots;
+            game.ReadyDash();Call("StartDash",0f,false);Call("FireGun");int firstVolley=Volley(Shots[Shots.Count-1]);Call("TickShots",.02f);
+            game.ReadyDash();Call("StartDash",0f,false);Call("FireGun");int secondVolley=Volley(Shots[Shots.Count-1]);
+            var landed=new HashSet<object>();int firstLanded=0,secondLanded=0;
+            for(int i=0;i<40&&Shots.Count>0;i++)
+            {
+                Call("TickShots",.02f);
+                foreach(object shot in Shots)if(HitCount(shot)>0&&landed.Add(shot)){if(Volley(shot)==firstVolley)firstLanded++;else if(Volley(shot)==secondVolley)secondLanded++;}
+            }
+            Check(game.GunDashShots==volleys+2&&firstVolley!=0&&secondVolley!=firstVolley&&firstLanded>=2&&secondLanded>=2&&game.run.Oath.Charge==2,
+                "Two gun dash volleys, the second fired before the first landed, charge the oath once each ("+firstLanded+" and "+secondLanded+" bullets landed).");
+            game.AttackModeOverride=null;game.AimOverride=null;Call("SyncAttackMode",false);
 
             Setup("michael");first=Enemy(1);game.run.Oath.Acquire(OathState.Echo);Ready();Call("PlayerSlash");
             ClearEnemies();Call("Update");
@@ -172,10 +193,14 @@ namespace PrototypeLab.Roguelike
             Check(game.run.Oath==null&&!game.OathEchoPending&&game.run.MaxFloor==TowerRun.DefaultMaxFloor&&game.run.Companions.Count==0,"Returning to the normal game resets all trial state.");
             Finish(null);
         }
-        private void CrossBullet()
+        private static int Volley(object shot){return (int)shot.GetType().GetField("volley").GetValue(shot);}
+        private static int HitCount(object shot){object hit=shot.GetType().GetField("hit").GetValue(shot);return (int)hit.GetType().GetProperty("Count").GetValue(hit,null);}
+        // A hostile bolt crossing the hero's chest at once; a trap's bolt (a totem's) when trap is set.
+        private void CrossBullet(bool trap=false)
         {
             Vector2 center=game.hero.pos+Vector2.up*.9f;
             Call("Fire",center+Vector2.left*2,center+Vector2.right*2,200f,12f,true,Color.red,0f,null,1,0f);
+            if(trap){object shot=Shots[Shots.Count-1];shot.GetType().GetField("trap").SetValue(shot,true);}
             Call("TickShots",.02f);
         }
         private void Finish(Exception error)

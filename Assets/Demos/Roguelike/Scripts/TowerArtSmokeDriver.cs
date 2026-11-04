@@ -184,9 +184,12 @@ namespace PrototypeLab.Roguelike
         private void VerifyAfterimage(TowerActorArt art)
         {
             var service = TowerVfx.Create(gallery); service.Afterimage(art.transform, .25f);
-            var copies = service.GetComponentsInChildren<MeshFilter>();
-            Require(copies.Length > 0 && Visible(service.transform) > 0, "A weighted-mesh actor did not produce a visible dash afterimage.");
+            // The pixel hero leaves sprite copies, weighted-mesh actors frozen mesh copies; either keeps the dash pose.
+            var ghost = service.transform.Find("Dash afterimage");
+            Require(ghost != null && ghost.childCount > 0 && Visible(ghost) > 0, "The hero did not produce a visible dash afterimage.");
+            var copies = ghost.GetComponentsInChildren<MeshFilter>(); var sprites = ghost.GetComponentsInChildren<SpriteRenderer>();
             var frozen = new List<Vector3[]>(); foreach (var copy in copies) frozen.Add(copy.sharedMesh.vertices);
+            var placed = new List<Vector3>(); var shown = new List<Sprite>(); foreach (var sprite in sprites) { placed.Add(sprite.transform.position); shown.Add(sprite.sprite); }
             var before = Pose(art); art.SetPose(true, false, false, 1, .08f);
             Require(Different(before, Pose(art)), "The source pose did not advance during the afterimage fixture.");
             for (int mesh = 0; mesh < copies.Length; mesh++)
@@ -195,6 +198,8 @@ namespace PrototypeLab.Roguelike
                 Require(after.Length == frozen[mesh].Length, "An afterimage mesh changed topology.");
                 for (int vertex = 0; vertex < after.Length; vertex++) Require(after[vertex] == frozen[mesh][vertex], "Afterimage vertices followed the live actor instead of freezing its pose.");
             }
+            for (int i = 0; i < sprites.Length; i++)
+                Require(sprites[i].transform.position == placed[i] && sprites[i].sprite == shown[i], "An afterimage sprite followed the live actor instead of freezing its pose.");
             service.Tick(.3f); Require(service.ActiveCount == 0, "A dash afterimage did not expire.");
             report.meshAfterimageVerified = true;
         }

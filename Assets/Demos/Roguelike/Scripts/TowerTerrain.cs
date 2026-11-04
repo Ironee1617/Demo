@@ -807,6 +807,29 @@ namespace PrototypeLab.Roguelike
             return pits;
         }
 
+        /// <summary>Rest and shop floors end here, 28 units past the spawn; the campfire or stall keeps <see cref="FeatureX"/>.</summary>
+        public const float PeacefulExitX = 16;
+
+        /// <summary>
+        /// The quiet room of a rest or shop floor, which holds no fight: flat ground from the spawn to <see cref="PeacefulExitX"/>
+        /// with up to two low ledges, no traps and no launch pads. Like the village it is laid out by hand, so it needs no
+        /// verification; the ledges keep clear of the spawn, the campfire or merchant stall and the exit lane.
+        /// </summary>
+        public static TowerFloorLayout PeacefulLayout(int runSeed, int floor)
+        {
+            if (floor < 1) floor = 1;
+            var rng = new Rng(runSeed, floor, 5003);
+            var platforms = new List<TowerPlatform>();
+            // One spot between the spawn and the feature, one between the feature and the exit lane; a lone ledge takes either.
+            int count = rng.I(3); bool leftFirst = rng.Chance(.5f);
+            if (count == 2 || count == 1 && leftFirst) platforms.Add(Slab(rng.R(-8.4f, -4.2f), TierHeights[0], rng.R(2.6f, 3.4f)));
+            if (count == 2 || count == 1 && !leftFirst) platforms.Add(Slab(rng.R(10.2f, 11.6f), TierHeights[0], rng.R(2.6f, 3.2f)));
+            int id = unchecked((int)(rng.Next() & 0x7fffffff));
+            return new TowerFloorLayout(id, "고요한 쉼터", floor, GroundSurface(new List<Bump>()), platforms, PeacefulExitX);
+        }
+        private static TowerPlatform Slab(float cx, float y, float width)
+        { return new TowerPlatform(new TowerSurface(new[] { cx - width * .5f, cx + width * .5f }, new[] { y, y }), 1); }
+
         /// <summary>Known-good layouts on flat ground, used only if every random attempt failed verification.</summary>
         private static TowerFloorLayout Fallback(int runSeed, int floor)
         {

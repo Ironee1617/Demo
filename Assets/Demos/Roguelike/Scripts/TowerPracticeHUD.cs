@@ -7,7 +7,8 @@ namespace PrototypeLab.Roguelike
     // right, and every skill grouped by build style in two rows along the bottom.
     public sealed partial class TowerGame
     {
-        private static readonly Rect PracticeSettingsRect=new Rect(28,146,272,506),PracticeStatusRect=new Rect(1290,196,282,206);
+        private static readonly Rect PracticeSettingsRect=new Rect(28,146,272,506),PracticeStatusRect=new Rect(1290,196,282,206),PracticeAttackRect=new Rect(1290,414,282,138);
+        private static readonly string[] PracticeAttackNames={"근거리","원거리","자동공격"};
         private const float PracticeTileWidth=74,PracticeTileHeight=60,PracticeTileGap=6,PracticeGroupGap=20;
         // Bar rows: melee, ranged and automatic skills on the first, spells and support on the second.
         private static readonly float[] PracticeRowY={708,800};
@@ -89,6 +90,7 @@ namespace PrototypeLab.Roguelike
 
             DrawPracticeSettings(accent);
             DrawPracticeStatus(effect);
+            DrawPracticeAttackMode();
 
             for(int style=0;style<TowerSkillBuilds.StyleCount;style++)
             {
@@ -164,6 +166,25 @@ namespace PrototypeLab.Roguelike
             string hint;bool live=PracticeReaction(effect,PracticeStatus,out hint);
             FitLabel(new Rect(x,y,w,60),hint,14,11,live?TowerWorld.Gold:new Color(.8f,.82f,.88f),TextAnchor.UpperLeft,live);
         }
+        // The hero's attack mode, the same choice X and the wheel cycle everywhere, with the chosen weapon's numbers to compare.
+        private void DrawPracticeAttackMode()
+        {
+            Rect p=PracticeAttackRect;Panel(p,brass);
+            float x=p.x+16,w=p.width-32,y=p.y+14;var mode=AttackMode;
+            Label(new Rect(x,y,w,20),"공격 방식",14,brass,TextAnchor.MiddleLeft,true);Keycap(new Rect(x+w-58,y-1,56,22),"X · 휠");y+=28;
+            // A selected button's name is drawn larger; the buttons take a slimmer margin and the four-letter last name a
+            // wider button, so every name stays on one line.
+            float bx=p.x+12,cell=(p.width-24-2*4-25)/3;
+            for(int i=0;i<PracticeAttackNames.Length;i++)
+            {var m=(TowerAttackMode)i;if(Button(new Rect(bx+i*(cell+4),y,i==2?cell+25:cell,34),PracticeAttackNames[i],m==mode?brass:muted,true,m==mode))ChooseAttackMode(m);}
+            y+=42;
+            string what=mode==TowerAttackMode.Gun?"총  ·  누르는 동안 조준점으로 사격":mode==TowerAttackMode.Orb?"오브  ·  범위 안의 적을 알아서 공격":"검  ·  조준점 쪽 베기 · 3타째 마무리";
+            FitLabel(new Rect(x,y,w,20),what,14,11,paper,TextAnchor.MiddleLeft,true);y+=22;
+            float damage=PlayerDamage*(mode==TowerAttackMode.Gun?GunDamageScale:mode==TowerAttackMode.Orb?OrbDamageScale:1);
+            float interval=mode==TowerAttackMode.Gun?GunInterval:mode==TowerAttackMode.Orb?OrbInterval:PlayerAttackInterval;
+            float reach=mode==TowerAttackMode.Gun?GunRange:mode==TowerAttackMode.Orb?OrbRange:run.Player.Range;
+            Label(new Rect(x,y,w,20),"피해 "+Mathf.RoundToInt(damage)+"  ·  간격 "+interval.ToString("0.00")+"초  ·  "+(mode==TowerAttackMode.Orb?"범위 ":"사거리 ")+reach.ToString("0.#"),13,muted,TextAnchor.MiddleLeft);
+        }
         /// <summary>What the selected skill does with the chosen status (true when it sets off a reaction), or what it sets up.</summary>
         private static bool PracticeReaction(SkillEffect effect,int status,out string text)
         {
@@ -207,7 +228,7 @@ namespace PrototypeLab.Roguelike
         }
         private bool PracticeHUDHit(Vector2 p)
         {
-            return new Rect(28,18,464,104).Contains(p)||new Rect(1280,28,256,42).Contains(p)||PracticeSettingsRect.Contains(p)||PracticeStatusRect.Contains(p)||
+            return new Rect(28,18,464,104).Contains(p)||new Rect(1280,28,256,42).Contains(p)||PracticeSettingsRect.Contains(p)||PracticeStatusRect.Contains(p)||PracticeAttackRect.Contains(p)||
                 new Rect(100,PracticeRowY[0]-32,1400,PracticeRowY[1]+PracticeTileHeight+8-(PracticeRowY[0]-32)).Contains(p);
         }
     }

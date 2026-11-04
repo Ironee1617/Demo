@@ -28,12 +28,13 @@ namespace PrototypeLab.Roguelike
             }
             statusScratch.Clear();
         }
-        // Damage over time counts toward the cast that applied it but never sets off reactions or new statuses.
+        // Damage over time counts toward the cast that applied it but never sets off reactions or new statuses. Its ticks
+        // gather into one number per enemy and never stop time on a kill (dotStrike, read by StrikeEnemy).
         private void DotStrike(Fighter enemy,float damage,HeroState owner,int cast)
         {
             if(damage<=0||(owner!=null&&!IsCurrentHero(owner)))return;
             var saved=SaveStrike();striking=false;practiceStrike=cast;
-            StrikeEnemy(enemy,damage,owner,0);
+            dotStrike=true;StrikeEnemy(enemy,damage,owner,0);dotStrike=false;
             RestoreStrike(saved);
         }
 
@@ -43,6 +44,8 @@ namespace PrototypeLab.Roguelike
             float scale=1;
             if(enemy.markTime>0)scale*=1.2f;
             if(owner!=null&&BannerEmpowers(owner))scale*=1.15f;
+            // A boss reeling after its slam takes heavier blows of every kind.
+            scale*=BossDamageTakenScale(enemy);
             if(!striking)return scale;
             var element=TowerSkillBuilds.Element(strikeEffect);float bonus;TowerVfx.ReactionKind kind;
             if(element==SkillElement.Lightning&&(enemy.slowTime>0||enemy.stunTime>0)){bonus=1.5f;kind=TowerVfx.ReactionKind.Superconduct;}

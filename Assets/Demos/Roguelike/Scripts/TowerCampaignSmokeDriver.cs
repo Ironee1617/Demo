@@ -16,7 +16,7 @@ namespace PrototypeLab.Roguelike
         [Serializable] private sealed class CampaignReport
         {
             public string mode = "towerCampaignSmoke", finishedUtc;
-            public bool success, villageTutorial, gateParty, companionDraft, firstChapter, hellChapter, abyssChapter, finalBoss, chapterRecorded, expeditionLost;
+            public bool success, villageTutorial, gateParty, companionDraft, villageReturn, firstChapter, hellChapter, abyssChapter, finalBoss, chapterRecorded, expeditionLost;
             public List<string> samples = new List<string>(), screenshots = new List<string>(), errors = new List<string>();
         }
         private readonly CampaignReport report = new CampaignReport();
@@ -76,18 +76,19 @@ namespace PrototypeLab.Roguelike
         private static TowerCampaignSave Progress(int chapters)
         {
             var save = new TowerCampaignSave { PrologueSeen = true, TutorialDone = true };
-            for (int c = 0; c < chapters; c++)
-            {
-                var run = save.BeginChapter(500 + c);
-                while (run.IsRecruitOffer) run.ChooseOffer(run.Offers[0].Id);
-                while (true)
-                {
-                    run.ClearFloor(); if (run.IsRewardPending) run.ChooseOffer(run.Offers[0].Id);
-                    if (run.IsComplete) break; run.AdvanceFloor();
-                }
-                save.RecordChapterClear(run);
-            }
+            for (int c = 0; c < chapters; c++) ClearChapter(save, c);
             return save;
+        }
+        private static void ClearChapter(TowerCampaignSave save, int c)
+        {
+            var run = save.BeginChapter(500 + c);
+            while (run.IsRecruitOffer) run.ChooseOffer(run.Offers[0].Id);
+            while (true)
+            {
+                run.ClearFloor(); if (run.IsRewardPending) run.ChooseOffer(run.Offers[0].Id);
+                if (run.IsComplete) break; run.AdvanceFloor();
+            }
+            save.RecordChapterClear(run);
         }
         // Clears the current floor (taking any reward) and walks to the next one.
         private void Advance()
@@ -166,6 +167,7 @@ namespace PrototypeLab.Roguelike
             Require(game.StartExpedition(), "The first expedition departs.");
             Require(!game.village && game.run.IsCampaign && game.run.Floor == 1 && game.run.Theme.Id == TowerThemeId.Olympus && game.run.Companions.Count == 0, "Chapter one starts on Olympus.");
             Require(game.run.IsRewardPending && game.run.IsRecruitOffer && game.run.Offers.Count == 2 && !game.run.CanReroll(0), "Chapter one opens with both Olympians and nothing to reroll.");
+            Require(game.StoryOpen && game.campaign.IntroSeen(game.run.Chapter), "The chapter's first departure opens with its intro page, marked as seen.");
             yield return Frames(4); yield return Shot("chapter1-intro");
             game.SkipStory(); yield return Frames(4); yield return Shot("chapter1-draft");
             Require(Draft("poseidon") == 1 && game.run.GetCompanion("poseidon") != null && game.run.Companions.Count == 1 && !game.run.IsRewardPending, "Poseidon joins from the single draft.");
@@ -180,9 +182,12 @@ namespace PrototypeLab.Roguelike
             Require(game.StartExpedition(), "The fourth expedition departs."); game.SkipStory();
             Require(game.run.Floor == 1 && game.run.MaxFloor == 40 && game.run.Theme.Id == TowerThemeId.Olympus, "The fourth expedition starts again on floor 1.");
             Require(game.run.IsCompanionPick && game.run.Offers.Count == 8 && !game.run.CanReroll(0), "All eight gods are offered at once.");
-            yield return Frames(4); yield return Shot("eden-pick-empty");
-            // The screen's own choice list: Thor first, then Odin completes Asgard's synergy before departure.
+            // The screen's own choice list starts from the last expedition's party: Poseidon came home from chapter one.
             var picks = (List<string>)typeof(TowerGame).GetField("companionPicks", Hidden).GetValue(game);
+            Require(picks.Count == 1 && picks[0] == "poseidon", "The last expedition's companion is chosen in advance.");
+            yield return Frames(4); yield return Shot("eden-pick-last-party");
+            picks.Clear(); yield return Frames(4); yield return Shot("eden-pick-empty");
+            // Thor first, then Odin completes Asgard's synergy before departure.
             picks.Add("thor"); game.PointerOverride = new Vector2(1260, 446);
             yield return Frames(4); yield return Shot("eden-pick-hover-michael");
             picks.Add("odin"); game.PointerOverride = null;
@@ -191,6 +196,26 @@ namespace PrototypeLab.Roguelike
             Require(!game.run.IsRewardPending && game.run.Companions.Count == 2 && game.run.Companions[0].Id == "thor" && game.run.Companions[1].Id == "odin", "Both choices join in the order picked.");
             Require(game.run.ActiveSynergies.Count == 1, "Thor and Odin wake Asgard's synergy.");
             report.companionDraft = true;
+
+            // Home from every chapter that leaves another ahead: the plaza fills with restored gods, yet the hero lands
+            // at the gate, clear of every god's talk range, with the gate the nearest thing to use.
+            var travelled = new TowerCampaignSave { PrologueSeen = true, TutorialDone = true };
+            for (int c = 0; c < 8; c++)
+            {
+                ClearChapter(travelled, c);
+                game.campaign = travelled; game.EnterVillage(true); game.SmokeControlled = true;
+                int cleared = travelled.ClearedChapters; float x = game.hero.pos.x;
+                Require(cleared == c + 1 && travelled.NextChapter != null && Mathf.Abs(x - TowerGame.ReturnSpawnX) < .05f,
+                    "Home from chapter " + cleared + " the hero stood at x " + x + " instead of the return spot.");
+                string prompt = (string)Call("SpotPrompt") ?? "";
+                Require(prompt.StartsWith("서약의 탑") && !prompt.EndsWith("대화하기"), "Home from chapter " + cleared + " the nearest spot was '" + prompt + "' instead of the gate.");
+                var villagers = (IList)typeof(TowerGame).GetField("villagers", Hidden).GetValue(game);
+                Require(villagers.Count > 0, "Home from chapter " + cleared + " the village holds no gods.");
+                foreach (TowerGame.Fighter npc in villagers)
+                    Require(Mathf.Abs(npc.pos.x - x) >= .9f, "Home from chapter " + cleared + " the hero landed on " + npc.id + " at x " + npc.pos.x + ".");
+                if (cleared == 3) { yield return Frames(14); yield return Shot("village-return"); }
+            }
+            report.villageReturn = true;
 
             // Hell: seven myths restored, Solomon's demons wait at the gate.
             game.campaign = Progress(7); game.EnterVillage(); game.SmokeControlled = true; Place(18.5f);
@@ -214,7 +239,8 @@ namespace PrototypeLab.Roguelike
             Require(game.run.IsCampaign && game.hero.hp <= 0 && game.campaign.ClearedChapters == 7, "A defeat records nothing.");
             report.expeditionLost = true;
             var fallen = new List<string>(); foreach (var c in game.run.Companions) fallen.Add(c.Id);
-            game.RetryExpedition(); game.SkipStory(); game.SmokeControlled = true;
+            game.RetryExpedition(); Require(!game.StoryOpen, "A retry climbs again at once, without the chapter's intro page.");
+            game.SkipStory(); game.SmokeControlled = true;
             Require(!game.run.IsRewardPending && game.run.Companions.Count == 3 && fallen.TrueForAll(id => game.run.GetCompanion(id) != null), "A retry keeps the same companions without a new draft.");
             Require(game.run.Floor == 1, "A retry starts again on floor 1.");
             yield return ClimbTo(75);

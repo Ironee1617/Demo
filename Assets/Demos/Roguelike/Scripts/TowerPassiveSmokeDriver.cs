@@ -262,10 +262,34 @@ namespace PrototypeLab.Roguelike
             Setup("loki", "bael", "zodiac_rat"); var near = Spawn(.8f, 1e6f);
             game.DashOverride = true; yield return null; game.DashOverride = false;
             Verify("bael", game.invulnerable > .6f && game.hero.art.Tint.a < .5f, "veiled for " + game.invulnerable + "s");
+            // The veil keeps its own fade: invulnerability never blinks over it once the dash is over (TowerGame.TickHeroBlink).
+            for (int frame = 0; frame < 120 && game.dashTime > 0; frame++) yield return null;
+            int veiled = 0;
+            for (int frame = 0; frame < 120 && Get<float>("veilRemaining") > .15f; frame++, veiled++)
+            {
+                Expect(game.hero.art.BlinkAlpha == 1 && game.hero.art.Tint.a < .5f && game.hero.art.ShownColor.a < .5f,
+                    "bael: invulnerability blinked over the veil (blink " + game.hero.art.BlinkAlpha + ", tint alpha " + game.hero.art.Tint.a + ", shown alpha " + game.hero.art.ShownColor.a + ")");
+                yield return null;
+            }
+            Expect(veiled > 0, "bael: the veil ended with the dash, so the blink rule over it went unchecked.");
             // Past the base perfect-dodge window but inside the scout's.
             Set("dodgeStartedAt", game.elapsed - .18f); Set("dodgeCounterGranted", false); game.dashTime = Mathf.Max(game.dashTime, .05f); game.invulnerable = Mathf.Max(game.invulnerable, .1f);
+            // Every perfect dodge gives one charge back and the scout every one, so empty two or more first: the refund alone falls short.
+            Set("dashCharges", 0); Set("dodgeRefundAt", -10f); Expect(game.DashCharges == 0 && game.MaxDashCharges > 1, "The scout fixture could not empty two or more dash charges.");
             bool perfect = (bool)Call("TryPrimeDodgeCounter");
-            Verify("zodiac_rat", perfect && game.dashCooldown == 0, "late perfect dodge counted, dash ready");
+            Verify("zodiac_rat", perfect && game.DashCharges == game.MaxDashCharges && game.dashCooldown == 0, "late perfect dodge counted, every dash charge back (" + game.DashCharges + "/" + game.MaxDashCharges + ")");
+            // The scout's refill keeps the perfect dodge's refund pace: a second perfect dodge inside it gives nothing back.
+            Set("dashCharges", 0); Set("dodgeStartedAt", game.elapsed - .05f); Set("dodgeCounterGranted", false);
+            bool again = (bool)Call("TryPrimeDodgeCounter");
+            Expect(again && game.DashCharges == 0, "zodiac_rat: a second perfect dodge within " + TowerGame.DodgeRefundInterval + " s refilled the dash again (" + game.DashCharges + ")");
+            // Half a second short of the interval (past the old 1.5 s) the scout still refills nothing; once it has passed, all.
+            float refilledAt = Get<float>("dodgeRefundAt"), held = TowerGame.DodgeRefundInterval - .5f;
+            game.elapsed = refilledAt + held; Set("dashCharges", 0); Set("dodgeStartedAt", game.elapsed - .05f); Set("dodgeCounterGranted", false);
+            bool inside = (bool)Call("TryPrimeDodgeCounter");
+            Expect(inside && game.DashCharges == 0, "zodiac_rat: a perfect dodge " + held + " s after the refill, inside its " + TowerGame.DodgeRefundInterval + "-second pace, refilled the dash (" + game.DashCharges + ")");
+            game.elapsed = refilledAt + TowerGame.DodgeRefundInterval + .01f; Set("dashCharges", 0); Set("dodgeStartedAt", game.elapsed - .05f); Set("dodgeCounterGranted", false);
+            bool paced = (bool)Call("TryPrimeDodgeCounter");
+            Expect(paced && game.DashCharges == game.MaxDashCharges, "zodiac_rat: a perfect dodge past the " + TowerGame.DodgeRefundInterval + "-second pace did not refill every charge (" + game.DashCharges + "/" + game.MaxDashCharges + ")");
             yield return Wait(1);
             Verify("loki", game.PassiveFireCount(PassiveKind.Decoy) > 0 && near.hp < near.maxHp, "the illusion exploded for " + Mathf.RoundToInt(near.maxHp - near.hp));
         }

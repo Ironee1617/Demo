@@ -15,12 +15,23 @@ namespace PrototypeLab.Roguelike
             public BossStage stage;
             public int first, cycle, step, releases;
             public bool enraged, final, engaged;
-            public float clock, nextStep, jumpTime, lastRelease = -1;
+            public float clock, nextStep, jumpTime, lastRelease = -1, groggy;
+            // TwinSpiral's open lane: degrees off the locked aim (signed toward up), fixed as the cast begins.
+            public float corridor;
             public Vector2 jumpFrom, jumpTo;
             public Transform shadow;
         }
         private readonly Dictionary<Fighter, BossState> bossCombat = new Dictionary<Fighter, BossState>();
         internal const float BossEnrageThreshold = .5f, BossEnragedCooldown = .75f, BossWakeRange = 17;
+        // A boss closes in to where its next technique bites: the slam from near, the volleys from mid range. The slam's last
+        // waves leave it reeling for BossGroggySeconds (no technique, heavier blows taken; less for an awakened guardian or
+        // the evil god). Its bar heads the screen once the hero is within BossBarRange or it is awake.
+        internal const float BossSlamReach = 3.2f, BossVolleyReach = 5, BossGroggySeconds = .9f, BossGroggyDamage = 1.3f, BossGroggyHeavyDamage = 1.15f, BossBarRange = 24;
+        // The once-slow aimed volleys and rings fly at BossBoltSpeed and the slam's ground waves at BossWaveSpeed. TwinSpiral
+        // keeps its 105-degree open lane, turned SpiralCorridorMin to SpiralCorridorMax degrees upward off the locked aim, so
+        // the aim line lies 10-27.5 degrees below the lane: standing there is struck, a jump rises into it. Its arms start
+        // SpiralArmStart off the aim, so the fifth wave sends one bolt straight down the aim line instead of two around it.
+        internal const float BossBoltSpeed = 5.5f, BossWaveSpeed = 6, SpiralCorridorHalf = 52.5f, SpiralCorridorMin = 62.5f, SpiralCorridorMax = 80, SpiralArmStart = 95;
 
         private void ConfigureBoss(Fighter actor, int floor)
         {
@@ -42,6 +53,13 @@ namespace PrototypeLab.Roguelike
             bossCombat.Add(actor, state);
             actor.root.transform.position = actor.pos;
             UpdateBossShadow(actor, state);
+        }
+
+        /// <summary>The banner a boss raises as it appears: on entry when built at once, else as it streams in.</summary>
+        private void AnnounceBoss(Fighter actor)
+        {
+            if (IsFinalBoss(actor)) Notice(actor.monster.Name + " 강림  ·  지구를 삼킨 자", 4);
+            else Notice((actor.title ?? actor.monster.Name) + " 출현  ·  " + SignatureName(run.Theme.Id), 3);
         }
 
         private static BossState NewBossState(Fighter actor, int floor)
@@ -87,9 +105,10 @@ namespace PrototypeLab.Roguelike
                 default: return "파라오의 저주 고리";
             }
         }
-        private static BossPattern NextBossPattern(Fighter actor, BossState state)
+        private static BossPattern NextBossPattern(Fighter actor, BossState state) { return BossPatternAt(actor, state, state.cycle++); }
+        private static BossPattern PeekBossPattern(Fighter actor, BossState state) { return BossPatternAt(actor, state, state.cycle); }
+        private static BossPattern BossPatternAt(Fighter actor, BossState state, int cycle)
         {
-            int cycle = state.cycle++;
             if (state.final && (state.enraged || cycle % 2 == 1)) return FinalTechniques[(state.enraged ? cycle : cycle / 2) % FinalTechniques.Length];
             return cycle % 2 == 0 ? (BossPattern)((state.first + cycle / 2) % 3) : Signature(actor.theme);
         }
@@ -173,6 +192,44 @@ namespace PrototypeLab.Roguelike
         { BossState state; return actor != null && bossCombat.TryGetValue(actor, out state) ? state.lastRelease : -1; }
         internal int BossReleaseCount(Fighter actor)
         { BossState state; return actor != null && bossCombat.TryGetValue(actor, out state) ? state.releases : 0; }
+        internal float BossGroggyRemaining(Fighter actor)
+        { BossState state; return actor != null && bossCombat.TryGetValue(actor, out state) ? state.groggy : 0; }
+        internal float BossSpiralCorridor(Fighter actor)
+        { BossState state; return actor != null && bossCombat.TryGetValue(actor, out state) ? state.corridor : 0; }
+
+        /// <summary>
+        /// The angle (degrees off the locked aim) of TwinSpiral's open lane: its size fixed by the run's seed, the floor and the
+        /// cast, and always turned upward (counter-clockwise toward a hero on the right, clockwise toward one on the left), the
+        /// side a jump reaches, so it never opens into the ground. Called once the cast has faced the locked aim.
+        /// </summary>
+        private float SpiralCorridor(Fighter actor, BossState state)
+        {
+            uint roll = unchecked((uint)(seed * 83492791) ^ (uint)(actor.difficultyFloor * 73856093) ^ (uint)(state.cycle * 19349663) ^ 0x5bd1e995u);
+            roll ^= roll >> 15; roll = unchecked(roll * 2246822519u); roll ^= roll >> 13; roll = unchecked(roll * 3266489917u); roll ^= roll >> 16;
+            float magnitude = Mathf.Lerp(SpiralCorridorMin, SpiralCorridorMax, (roll & 0xffffu) / 65535f);
+            return actor.facing >= 0 ? magnitude : -magnitude;
+        }
+
+        /// <summary>Factor on every blow a boss takes: heavier while it reels after its slam.</summary>
+        internal float BossDamageTakenScale(Fighter actor)
+        {
+            BossState state;
+            if (actor == null || !actor.isBoss || !bossCombat.TryGetValue(actor, out state) || state.groggy <= 0) return 1;
+            // Only an awakened guardian carries a title.
+            return state.final || actor.title != null ? BossGroggyHeavyDamage : BossGroggyDamage;
+        }
+
+        /// <summary>The boss whose bar heads the screen: a standing boss within <see cref="BossBarRange"/> of the hero, or one already awake.</summary>
+        internal Fighter ShownBoss()
+        {
+            foreach (var actor in enemies)
+            {
+                if (!actor.isBoss || actor.hp <= 0) continue;
+                BossState state;
+                if (Mathf.Abs(actor.pos.x - hero.pos.x) <= BossBarRange || actor.hp < actor.maxHp || bossCombat.TryGetValue(actor, out state) && state.engaged) return actor;
+            }
+            return null;
+        }
 
         private void TickBoss(Fighter actor, float dt)
         {
@@ -187,6 +244,7 @@ namespace PrototypeLab.Roguelike
             actor.stunTime = Mathf.Max(0, actor.stunTime - dt);
             actor.attackPose = Mathf.Max(0, actor.attackPose - dt);
             actor.cooldown = Mathf.Max(0, actor.cooldown - dt);
+            state.groggy = Mathf.Max(0, state.groggy - dt);
             bool moving = false;
             if (!state.enraged && actor.hp < actor.maxHp * BossEnrageThreshold)
             {
@@ -218,8 +276,11 @@ namespace PrototypeLab.Roguelike
                 state.nextStep -= dt;
                 if (state.nextStep <= 0)
                 {
+                    bool slam = state.pattern == BossPattern.LeapingSlam;
                     if (EnemyCanFire(actor)) ReleaseBossVolley(actor, state);
                     else EndBossPattern(actor, state);
+                    // Once the slam's last waves are out, the boss reels from its own landing.
+                    if (slam) BossReel(actor, state);
                 }
             }
             else if (state.stage == BossStage.Leaping)
@@ -242,7 +303,8 @@ namespace PrototypeLab.Roguelike
                 // On the long floor the boss holds its stretch by the exit until the hero arrives or strikes it.
                 if (!state.engaged && (Mathf.Abs(dx) < BossWakeRange || actor.hp < actor.maxHp)) state.engaged = true;
                 float speed = 1.25f * actor.moveScale * (actor.slowTime > 0 ? .5f : 1) * (state.enraged ? 1.2f : 1);
-                if (state.engaged && Mathf.Abs(dx) > 6.6f)
+                float reach = PeekBossPattern(actor, state) == BossPattern.LeapingSlam ? BossSlamReach : BossVolleyReach;
+                if (state.engaged && Mathf.Abs(dx) > reach)
                 { actor.pos.x += Mathf.Sign(dx) * speed * dt; moving = true; }
                 if (actor.cooldown <= 0 && EnemyCanFire(actor)) BeginBossPattern(actor, state);
             }
@@ -256,6 +318,7 @@ namespace PrototypeLab.Roguelike
             UpdateBossShadow(actor, state);
             float actualVelocityX = dt > 0 ? (actor.pos.x - previousPosition.x) / dt : 0;
             actor.art.SetLocomotion(actor.grounded, actor.velocityY, false, Mathf.Abs(actualVelocityX), actualVelocityX);
+            TelegraphCue(actor);
             actor.art.SetPose(moving, actor.windup > 0 || actor.attackPose > 0, actor.hurt > 0, actor.facing, dt);
         }
 
@@ -265,6 +328,7 @@ namespace PrototypeLab.Roguelike
             state.stage = BossStage.Warning; state.step = 0; state.nextStep = 0;
             actor.strikePoint = hero.pos;
             actor.facing = hero.pos.x >= actor.pos.x ? 1 : -1;
+            if (state.pattern == BossPattern.TwinSpiral) state.corridor = SpiralCorridor(actor, state);
             float windup = BossWindup(state.pattern);
             actor.windup = windup;
             int motion = BossMotion(state.pattern);
@@ -276,6 +340,7 @@ namespace PrototypeLab.Roguelike
             actor.cooldown = (activeDuration + 1.6f / actor.attackRateScale) * (state.enraged ? BossEnragedCooldown : 1);
             actor.attackPose = motionDuration;
             actor.art.PlayBossAttack(motion, motionDuration);
+            TelegraphBegan(actor);
             if (IsSignature(state.pattern)) FloatText(actor.pos + Vector2.up * (state.final ? 4.6f : 3.6f), PatternName(state.pattern), brass);
         }
 
@@ -296,18 +361,19 @@ namespace PrototypeLab.Roguelike
             {
                 float sweep = (state.step - 1) * 6;
                 foreach (float angle in new[] { -32f, -16f, 0f, 16f, 32f })
-                    BossBolt(actor, origin, direction, angle + sweep, 3.7f, 10, new Color(1, .7f, .22f), .19f);
+                    BossBolt(actor, origin, direction, angle + sweep, BossBoltSpeed, 10, new Color(1, .7f, .22f), .19f);
             }
             else if (state.pattern == BossPattern.TwinSpiral)
             {
-                // Two opposite spiral arms rotate in fixed increments. The 105-degree
-                // corridor pointing at the original aim stays open throughout the sequence.
+                // Two opposite spiral arms rotate in fixed increments from SpiralArmStart. The 105-degree corridor, turned
+                // upward off the original aim by the angle fixed as the cast began, stays open throughout the sequence; the
+                // aim line below it is swept, so a hero standing at the locked point is struck and one who jumps is not.
                 for (int arm = 0; arm < 2; arm++)
                     foreach (float spread in new[] { -5f, 5f })
                     {
-                        float angle = 90 + state.step * 22.5f + arm * 180 + spread;
-                        if (Mathf.Abs(Mathf.DeltaAngle(0, angle)) < 52.5f) continue;
-                        BossBolt(actor, origin, direction, angle, 3.15f, 9, new Color(.73f, .5f, 1), .17f);
+                        float angle = SpiralArmStart + state.step * 22.5f + arm * 180 + spread;
+                        if (Mathf.Abs(Mathf.DeltaAngle(state.corridor, angle)) < SpiralCorridorHalf) continue;
+                        BossBolt(actor, origin, direction, angle, BossBoltSpeed, 9, new Color(.73f, .5f, 1), .17f);
                     }
             }
             else ReleaseSignature(actor, state, origin, direction);
@@ -356,7 +422,7 @@ namespace PrototypeLab.Roguelike
                 {
                     float shift = step % 2 == 0 ? 0 : 6;
                     foreach (float angle in new[] { -30f, -18f, -6f, 6f, 18f, 30f })
-                        BossBolt(actor, origin, direction, angle + shift, 3f, 9, color, .19f);
+                        BossBolt(actor, origin, direction, angle + shift, BossBoltSpeed, 9, color, .19f);
                     break;
                 }
                 case BossPattern.TidalWall:
@@ -401,7 +467,7 @@ namespace PrototypeLab.Roguelike
                     for (int i = 0; i < 24; i++)
                     {
                         if (i % 8 < 2) continue;
-                        BossBolt(actor, eye, Vector2.right, i * 15f + rotation, 3.1f, 10, color, .19f);
+                        BossBolt(actor, eye, Vector2.right, i * 15f + rotation, BossBoltSpeed, 10, color, .19f);
                     }
                     break;
                 }
@@ -437,7 +503,7 @@ namespace PrototypeLab.Roguelike
                     for (int i = 0; i < 18; i++)
                     {
                         if (i % 6 < 2) continue;
-                        BossBolt(actor, origin, Vector2.right, i * 20f + rotation, 3.4f, 10, color, .19f);
+                        BossBolt(actor, origin, Vector2.right, i * 20f + rotation, BossBoltSpeed, 10, color, .19f);
                     }
                     break;
                 }
@@ -460,7 +526,7 @@ namespace PrototypeLab.Roguelike
             if (EnemyCanFire(actor))
             {
                 if (Vector2.Distance(hero.pos, actor.pos) < 3.1f && Mathf.Abs(hero.pos.y - actor.pos.y) < 1.8f)
-                    HurtHero(14 * actor.damageScale);
+                { TryPrimeDodgeCounter(); HurtHeroBy(PaceHit.Landing, 14 * actor.damageScale); }
                 BossGroundWaves(actor, state, .65f);
             }
             if (vfx != null) { vfx.Impact(SkillEffect.Shockwave, actor.pos + Vector2.up * .5f, 3.1f, new Color(1, .5f, .23f)); vfx.Dust(actor.pos, 0, 2); }
@@ -473,20 +539,30 @@ namespace PrototypeLab.Roguelike
         {
             Vector2 origin = actor.pos + Vector2.up * height;
             foreach (int side in new[] { -1, 1 })
-                BossBolt(actor, origin + Vector2.right * side * 1.2f, Vector2.right * side, 0, 4.1f, 11, new Color(1, .43f, .25f), .22f);
+                BossBolt(actor, origin + Vector2.right * side * 1.2f, Vector2.right * side, 0, BossWaveSpeed, 11, new Color(1, .43f, .25f), .22f);
         }
 
         private void BossBolt(Fighter actor, Vector2 origin, Vector2 direction, float angle, float speed, float damage, Color color, float radius)
         {
             Vector2 ray = Quaternion.Euler(0, 0, angle) * direction;
             Fire(origin, origin + ray * 12, speed * actor.bulletSpeedScale, damage * actor.damageScale, true, ThemedBoltColor(actor, color));
-            StyleHostileLastShot(radius);
+            StyleHostileLastShot(radius, actor);
         }
 
         private static void EndBossPattern(Fighter actor, BossState state)
         {
             actor.windup = 0; state.stage = BossStage.Recovery;
             actor.cooldown = Mathf.Max(.45f, actor.cooldown);
+        }
+
+        /// <summary>Holds a boss in recovery after its slam: no technique begins and it takes heavier blows for a moment.</summary>
+        private void BossReel(Fighter actor, BossState state)
+        {
+            state.groggy = BossGroggySeconds;
+            actor.cooldown = Mathf.Max(actor.cooldown, BossGroggySeconds);
+            // Stars over its head and a callout mark the opening without touching the actor's tint.
+            ShowStatus(actor, TowerVfx.StatusKind.Stun, BossGroggySeconds, SkillEffect.Quake);
+            FloatText(actor.pos + Vector2.up * (state.final ? 4.6f : 3.6f), "그로기", TowerWorld.Gold);
         }
 
         private void UpdateBossShadow(Fighter actor, BossState state)

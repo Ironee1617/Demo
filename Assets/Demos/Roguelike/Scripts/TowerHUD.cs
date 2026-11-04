@@ -32,16 +32,20 @@ namespace PrototypeLab.Roguelike
             // Full-screen menus cover the play HUD entirely, so it is not drawn beneath them.
             bool covered=Paused&&!menu;
             if(!intro&&!covered)DrawWorldLabels();
+            DrawThreatIndicators();
             if(intro){GUI.enabled=!help;DrawIntro();GUI.enabled=true;}
             else
             {
-                GUI.enabled=!menu&&!party&&!help&&!shopOpen&&!VillageBlocking&&!run.IsRewardPending&&hero.hp>0&&!run.IsComplete;
-                if(!covered){if(village)DrawVillageHUD();else if(practice)DrawPracticeHUD();else DrawHUD();}GUI.enabled=!party&&!help&&!StoryOpen;
-                if(run.IsRewardPending)DrawRewards();else if(shopOpen)DrawShop();
+                // The play HUD stays live exactly while the floor does, including while a fresh clear plays out.
+                GUI.enabled=!Paused;
+                // The menu draws over the cards and panels, so they take no clicks or keys beneath it.
+                if(!covered){if(village)DrawVillageHUD();else if(practice)DrawPracticeHUD();else DrawHUD();}GUI.enabled=!party&&!help&&!StoryOpen&&!menu;
+                // A fresh clear plays out over the live floor before its cards (or the ending below) open.
+                if(run.IsRewardPending){if(!ClearRevealing)DrawRewards();}else if(shopOpen)DrawShop();
                 else if(villagePanel==VillagePanel.Gate)DrawGatePanel();else if(villagePanel==VillagePanel.Shrine)DrawShrinePanel();
                 else if(villagePanel==VillagePanel.SkillTree)DrawSkillTreePanel();
                 GUI.enabled=!help&&!StoryOpen;
-                if(party)DrawParty();else if(menu)DrawMenu();else if(hero.hp<=0)DrawEnding(false);else if(run.IsComplete){if(run.IsCampaign)DrawChapterComplete();else DrawEnding(true);}
+                if(party)DrawParty();else if(menu)DrawMenu();else if(hero.hp<=0)DrawEnding(false);else if(run.IsComplete&&!ClearRevealing){if(run.IsCampaign)DrawChapterComplete();else DrawEnding(true);}
             }
             GUI.enabled=!help;if(StoryOpen)DrawStory();
             GUI.enabled=true;if(help)DrawHelp();DrawToasts();GUI.matrix=oldMatrix;GUI.color=Color.white;
@@ -107,7 +111,7 @@ namespace PrototypeLab.Roguelike
                 Round(new Rect(p.x-30,p.y-1,60,8),new Color(.01f,.012f,.025f,.9f),4);
                 Round(new Rect(p.x-28,p.y+1,56*Mathf.Clamp01(e.hp/e.maxHp),4),e.isElite?brass:e.airborne?silver:crimson,2);
                 Fill(new Rect(p.x-28,p.y+1,56*Mathf.Clamp01(e.hp/e.maxHp),1),new Color(1,1,1,.25f));
-                if(e.isElite)Diamond(new Vector2(p.x-36,p.y+3),9,brass);
+                if(e.isElite){Diamond(new Vector2(p.x-36,p.y+3),9,brass);if(e.title!=null)ShadowLabel(new Rect(p.x-90,p.y-21,180,18),e.title,14,brass,TextAnchor.MiddleCenter,true);}
             }
             if(!intro&&run.FloorType!=FloorType.Normal&&run.FloorType!=FloorType.Elite)
             {
@@ -120,17 +124,25 @@ namespace PrototypeLab.Roguelike
             }
             foreach(var n in numbers)
             {
-                var p=WorldGui(n.pos);var c=n.color;c.a=Mathf.Min(1,n.life*3);float w=Mathf.Max(90,n.text.Length*24+20);
-                Title(new Rect(p.x-w*.5f+1,p.y-13,w,35),n.text,24,new Color(0,0,0,c.a*.75f),TextAnchor.MiddleCenter);
-                Title(new Rect(p.x-w*.5f-1,p.y-15,w,35),n.text,24,new Color(0,0,0,c.a*.4f),TextAnchor.MiddleCenter);
-                Title(new Rect(p.x-w*.5f,p.y-16,w,35),n.text,24,c,TextAnchor.MiddleCenter);
+                // Companions' numbers and cast tags draw at their smaller size; everything else at the full 24 points.
+                var p=WorldGui(n.pos);var c=n.color;c.a=Mathf.Min(1,n.life*3);float k=n.size;int size=Mathf.RoundToInt(24*k);
+                float w=Mathf.Max(90*k,n.text.Length*size+20),h=35*k;
+                Title(new Rect(p.x-w*.5f+1,p.y-13*k,w,h),n.text,size,new Color(0,0,0,c.a*.75f),TextAnchor.MiddleCenter);
+                Title(new Rect(p.x-w*.5f-1,p.y-15*k,w,h),n.text,size,new Color(0,0,0,c.a*.4f),TextAnchor.MiddleCenter);
+                Title(new Rect(p.x-w*.5f,p.y-16*k,w,h),n.text,size,c,TextAnchor.MiddleCenter);
             }
             if(village){DrawVillageLabels();return;}
             if(practice)return;
             if(!intro&&run.IsFloorCleared&&!run.IsRewardPending&&!run.IsComplete)
             {
                 var near=NearestGate();
-                if(!run.IsBranchFloor){var p=WorldGui(new Vector2(TowerWorld.ExitX,TowerWorld.Ground+3.4f));Keycap(new Rect(p.x-18,p.y-16,36,30),"E");}
+                // A lone exit is walked through, so it points the way; the oath trial's still asks for the key.
+                if(!run.IsBranchFloor)
+                {
+                    var p=WorldGui(new Vector2(TowerWorld.ExitX,TowerWorld.Ground+3.4f));
+                    if(AutoExitFloor){Tag(new Rect(p.x-58,p.y-16,116,32),brass,near.HasValue);Label(new Rect(p.x-58,p.y-16,116,32),"앞으로  →",15,brass,TextAnchor.MiddleCenter,true);}
+                    else Keycap(new Rect(p.x-18,p.y-16,36,30),"E");
+                }
                 else foreach(var type in TowerWorld.BranchGates)
                 {
                     // Each doorway names its destination; the one in reach shows the key.
@@ -187,19 +199,21 @@ namespace PrototypeLab.Roguelike
                 if(TowerDifficulty.IsBossFloor(floor))Diamond(at,size+3,new Color(0,0,0,.6f));
                 Diamond(at,size,c);
             }
-            var boss=enemies.Find(e=>e.isBoss&&e.hp>0);
+            // A distant sleeping boss shows only as its diamond on the floor track; its bar appears as the hero closes in or it wakes.
+            var boss=ShownBoss();
             // A boss's name takes the line where the next augment floor is announced.
             if(!run.IsOathTrial&&boss==null)
             {
                 int nextRecruit=-1;if(!run.IsCampaign)foreach(int floor in TowerRun.RecruitFloors)if(floor>=run.Floor&&run.Companions.Count<TowerRun.MaxCompanions){nextRecruit=floor;break;}
-                // The next fifth floor deals skill cards unless a free climb's recruit takes its place.
+                // The next fifth floor deals skill cards unless a free climb's recruit takes its place; a chapter's last floor deals none.
                 int nextSkill=((run.Floor-(run.IsFloorCleared?0:1))/TowerRun.RewardInterval+1)*TowerRun.RewardInterval;
-                string skillText=nextSkill<=run.MaxFloor&&nextSkill!=nextRecruit?"다음 스킬 증강  "+nextSkill+"층":"";
+                string skillText=nextSkill<=run.MaxFloor&&run.DealsSkillCards(nextSkill)&&nextSkill!=nextRecruit?"다음 스킬 증강  "+nextSkill+"층":"";
                 string recruitText=nextRecruit>0?"다음 동료 영입  "+nextRecruit+"층":"";
                 ShadowLabel(new Rect(500,124,600,22),skillText+(skillText!=""&&recruitText!=""?"   ·   ":"")+recruitText,13,muted,TextAnchor.MiddleCenter);
             }
             if(Button(new Rect(1280,28,132,42),"동료",silver))OpenParty("player");Keycap(new Rect(1372,38,32,22),"Tab");
-            if(Button(new Rect(1424,28,112,42),"메뉴",muted))menu=!menu;Keycap(new Rect(1496,38,32,22),"Esc");
+            // Like Esc, the menu waits while a clear's cards are pending (they open over it once the clear plays out).
+            if(Button(new Rect(1424,28,112,42),"메뉴",muted,!run.IsRewardPending))menu=!menu;Keycap(new Rect(1496,38,32,22),"Esc");
             string foes=run.IsFloorCleared?"층 클리어":"남은 적  "+RemainingEnemies;
             if(!run.IsFloorCleared){textStyle.fontSize=15;textStyle.fontStyle=FontStyle.Normal;Icon(new Rect(1536-textStyle.CalcSize(new GUIContent(foes)).x-28,84,22,22),UIIcon.Skull,.9f);}
             ShadowLabel(new Rect(1300,83,236,24),foes,15,run.IsFloorCleared?brass:paper,TextAnchor.MiddleRight,run.IsFloorCleared);
@@ -236,22 +250,32 @@ namespace PrototypeLab.Roguelike
                 Label(new Rect(r.x+40,r.y+2,400,20),s.Definition.Name+"  ·  "+TowerMythCatalog.Get(s.Definition.MythId).Name+" "+s.Members+"명",14,brass,TextAnchor.MiddleLeft,true);
                 FitLabel(new Rect(r.x+40,r.y+20,398,18),s.Description,12,10,paper);
             }
-            DrawOathGauge();
+            DrawOathGauge();DrawRestChoice();
             if(run.IsFloorCleared&&!run.IsRewardPending&&!run.IsComplete)
             {
                 var gate=NearestGate();
                 if(run.FloorType==FloorType.Shop&&NearMerchant&&Button(ShopButtonRect,run.ShopTraded?"거래 종료":"상인과 거래  [E]",gold,CanOpenShop))InteractMerchant();
-                string label=gate.HasValue?(gate.Value==FloorType.Normal?"다음 층으로":FloorTypeName(gate.Value)+" 층으로")+"  [E]":run.IsBranchFloor?"문을 골라 이동  →":"출구로 이동  →";
+                // Only a choice of doors names the key; a lone exit takes the hero on as they walk into it.
+                string label=AutoExitFloor?(gate.HasValue?"앞으로  →":"출구로 이동  →"):
+                    gate.HasValue?(gate.Value==FloorType.Normal?"다음 층으로":FloorTypeName(gate.Value)+" 층으로")+"  [E]":run.IsBranchFloor?"문을 골라 이동  →":"출구로 이동  →";
                 if(Button(new Rect(1190,790,346,64),label,brass,gate.HasValue,true))NextFloor(gate.Value);
             }
             else if(!run.IsFloorCleared)
             {
                 bool counter=CounterRemaining>0;Color c=counter?TowerWorld.Teal:brass;
                 Panel(new Rect(1290,786,246,80),c);Keycap(new Rect(1306,804,56,34),"Shift");
-                Title(new Rect(1376,796,146,30),counter?"반격 준비":dashCooldown>0?dashCooldown.ToString("0.0")+"초":"회피",20,counter?c:paper,TextAnchor.MiddleLeft);
-                Label(new Rect(1376,828,146,20),counter?"다음 검격 +50%":dashCooldown>0?"재사용 중":"준비 완료",13,counter?paper:muted);
-                float ready=counter?CounterRemaining/DodgeCounterDuration:1-Mathf.Clamp01(dashCooldown/(1.15f*run.Player.DodgeCooldownMultiplier));
+                int charges=DashCharges,maxCharges=MaxDashCharges;float recharged=1-Mathf.Clamp01(dashCooldown/DashRechargeTime);
+                Title(new Rect(1376,796,100,30),counter?"반격 준비":charges>0?"회피":dashCooldown.ToString("0.0")+"초",20,counter?c:paper,TextAnchor.MiddleLeft);
+                Label(new Rect(1376,828,146,20),counter?"다음 공격 +50%":charges>=maxCharges?"준비 완료":charges>0?"다음 충전 "+dashCooldown.ToString("0.0")+"초":"충전 중",13,counter?paper:muted);
+                // A diamond per charge (three at most) closes the title row; the one coming back grows with its recharge.
+                for(int i=0;i<maxCharges;i++)
+                {
+                    var pip=new Vector2(1516-(maxCharges-1-i)*16,811);Diamond(pip,11,new Color(0,0,0,.6f));
+                    if(i<charges)Diamond(pip,8,c);else if(i==charges)Diamond(pip,8*recharged,Alpha(c,.55f));
+                }
+                float ready=counter?CounterRemaining/DodgeCounterDuration:recharged;
                 Round(new Rect(1306,852,214,5),new Color(0,0,0,.6f),2);Round(new Rect(1306,852,214*ready,5),c,2);
+                DrawAttackModePanel();
             }
         }
         private void DrawIntro(){if(oathLobby)DrawOathSelection();else DrawTitle();}
@@ -259,19 +283,33 @@ namespace PrototypeLab.Roguelike
         {
             // A chapter opens with its own companion pick screen; free climbs and the oath trial keep recruit cards.
             if(run.IsCompanionPick){DrawCompanionPick();return;}
+            // Just after a clear's cards open they ignore input for a moment, so a swing still held cannot pick one.
+            if(RewardInputLocked)GUI.enabled=false;
+            // 1, 2 and 3 (on the row or the keypad) take the matching card. A held key's repeats never do, so the key that
+            // opened these cards (a campfire's [2]) cannot also take one once the input lock ends.
+            var key=Event.current;
+            if(GUI.enabled&&key.type==EventType.KeyDown)
+            {
+                int slot=key.keyCode>=KeyCode.Alpha1&&key.keyCode<=KeyCode.Alpha3?key.keyCode-KeyCode.Alpha1:key.keyCode>=KeyCode.Keypad1&&key.keyCode<=KeyCode.Keypad3?key.keyCode-KeyCode.Keypad1:-1;
+                if(slot>=0&&slot<run.Offers.Count&&Input.GetKeyDown(key.keyCode)){key.Use();SelectOffer(run.Offers[slot].Id);return;}
+            }
             bool recruit=run.IsRecruitOffer,opening=recruit&&!run.IsFloorCleared;
             // Ordinary floors deal stat cards, every fifth floor skill cards and elite floors gold-or-better spoils; shop and oath cards mix both.
-            bool stats=!recruit&&run.Draft==RewardDraft.Stats,skills=!recruit&&run.Draft==RewardDraft.Skills,elite=run.IsEliteReward;
+            bool stats=!recruit&&run.Draft==RewardDraft.Stats,skills=!recruit&&run.Draft==RewardDraft.Skills,elite=run.IsEliteReward,tempering=run.IsTempering;
             string heading=recruit?"동료를 영입하세요":stats?"능력치를 강화하세요":skills?"새 스킬을 고르세요":"힘을 선택하세요";
             if(elite)heading="엘리트 전리품  ·  "+heading;
-            MenuBackdrop(heading,opening?"CLIMB START  /  RECRUIT":"FLOOR "+run.Floor.ToString("00")+(recruit?"  /  RECRUIT":elite?"  /  ELITE SPOILS":stats?"  /  STAT AUGMENT":skills?"  /  SKILL AUGMENT":"  /  REWARD"));
+            // A campfire's tempering raises a skill already owned rather than teaching one.
+            if(tempering)heading="모닥불 단련  ·  "+(skills?"단련할 스킬을 고르세요":heading);
+            MenuBackdrop(heading,opening?"CLIMB START  /  RECRUIT":"FLOOR "+run.Floor.ToString("00")+(recruit?"  /  RECRUIT":elite?"  /  ELITE SPOILS":tempering?"  /  CAMPFIRE TEMPERING":stats?"  /  STAT AUGMENT":skills?"  /  SKILL AUGMENT":"  /  REWARD"));
             if(!opening&&run.IsFloorCleared)Label(new Rect(1130,83,400,36),CombatTime(LastFloorSeconds)+(LastFloorFlawless?"  ·  무피격":""),18,LastFloorFlawless?TowerWorld.Teal:muted,TextAnchor.MiddleRight);
-            // A draft from a small pool can show fewer cards and have no spare god or skill to reroll into.
-            bool spare=recruit?run.OpenRecruits>run.Offers.Count:!skills||run.OpenSkills>run.Offers.Count;
+            // A draft from a small pool can show fewer cards and have no spare god or skill to reroll into (CanReroll's rule).
+            bool spare=recruit?run.OpenRecruits>run.Offers.Count:!skills||(tempering?run.TemperableSkills:run.OpenSkills)>run.Offers.Count;
             for(int i=0;i<run.Offers.Count;i++)
             {
                 var o=run.Offers[i];var d=TowerRun.GetDefinition(o.OwnerId);Color c=TierColor(o.Tier);float x=800-(run.Offers.Count*432-36)*.5f+i*432;
-                Rect card=new Rect(x,202,396,534);Card(card,c);
+                Rect card=new Rect(x,202,396,534);
+                if(GUI.enabled&&card.Contains(Event.current.mousePosition))Halo(new Rect(card.x-24,card.y-24,card.width+48,card.height+48),Alpha(c,.16f));
+                Card(card,c);
                 Label(new Rect(x+30,228,254,23),CategoryName(o),15,c,TextAnchor.MiddleLeft,true);
                 Diamond(new Vector2(x+356,240),10,c);Label(new Rect(x+250,228,94,23),TierName(o.Tier),13,muted,TextAnchor.MiddleRight);
                 Halo(new Rect(x+58,240,280,220),Alpha(c,.3f));
@@ -306,10 +344,14 @@ namespace PrototypeLab.Roguelike
                 }
                 else FitLabel(new Rect(x+30,552,338,112),ConciseDescription(o.Description),18,16,new Color(.82f,.83f,.88f));
                 if(Button(new Rect(x+28,676,340,44),o.Kind==RewardKind.Recruit?"영입":"선택",c,true,true)){SelectOffer(o.Id);return;}
+                Keycap(new Rect(x+44,686,28,24),(i+1).ToString());
                 if(spare&&Button(new Rect(x+94,756,208,39),run.CanReroll(i)?"다시 뽑기":"사용 완료",muted,run.CanReroll(i))){run.Reroll(i);Sound(chimeSound,.25f);return;}
+                // The whole card takes a click, not only its button (drawn last, so the buttons keep theirs).
+                if(Hit(card)){SelectOffer(o.Id);return;}
             }
             bool oathOffer=false;foreach(var offer in run.Offers)if(offer.Kind==RewardKind.Oath)oathOffer=true;
-            string note=recruit?"모든 신화의 동료가 후보입니다. 같은 신화를 모으면 시너지가 발동합니다.":
+            string note=tempering?(skills?"보유한 Lv.1 스킬 하나를 Lv."+TowerRun.TemperedLevel+"로 올립니다. 각성(Lv.3)은 스킬 증강 카드로만 열립니다.":"단련할 Lv.1 스킬이 없어 금 등급 능력치 하나를 받습니다."):
+                recruit?"모든 신화의 동료가 후보입니다. 같은 신화를 모으면 시너지가 발동합니다.":
                 stats?"층마다 능력치 증강, "+TowerRun.RewardInterval+"층마다 스킬 증강을 고릅니다. 같은 능력치는 누적됩니다.":
                 skills?"스킬을 새로 배우거나 한 단계 강화합니다 (최대 Lv.3).":"하나의 보상만 선택할 수 있습니다.";
             Label(new Rect(170,827,1000,29),oathOffer?"서약 변형은 함께 적용됩니다.":note,16,muted);
@@ -455,7 +497,7 @@ namespace PrototypeLab.Roguelike
             if(Button(new Rect(600,y,400,48),"화면 흔들림  ·  "+(ScreenShakeEnabled?"켜짐":"꺼짐"),muted))ScreenShakeEnabled=!ScreenShakeEnabled;y+=64;
             if(expedition){if(Button(new Rect(600,y,400,48),"원정 포기  ·  마을로",crimson)){EnterVillage();inspectedOwner="player";}y+=64;}
             if(practice){if(Button(new Rect(600,y,400,48),"연습장 나가기  ·  마을로",silver))LeavePractice();y+=64;}
-            if(Button(new Rect(600,y,400,48),"처음 화면",muted)){if(village||run.IsCampaign)EnterVillage();else NewRun();intro=true;inspectedOwner="player";}y+=64;
+            if(Button(new Rect(600,y,400,48),"처음 화면",muted)){EnterVillage();intro=true;inspectedOwner="player";}y+=64;
             if(Button(new Rect(600,y,400,48),"데모 선택",muted))BackToHub();y+=69;
             Label(new Rect(600,y,400,27),village?TowerCampaign.Village:practice?"스킬 연습장  ·  "+TowerThemeCatalog.Get(PracticeTheme).Name:run.Floor+"층  ·  "+CombatTime(elapsed),16,muted,TextAnchor.MiddleCenter);
         }
@@ -483,20 +525,23 @@ namespace PrototypeLab.Roguelike
             // The guide opens over other menus, so its veil hides them completely.
             MenuBackdrop("조작과 규칙","FIELD GUIDE",.98f);
             if(Button(new Rect(1320,76,216,48),"닫기",brass))help=false;
-            string[] keys={"A / D","Space","J","Shift","Shift → J","Ctrl","S / ↓","E","Esc","Tab"};
-            string[] actions={"이동","점프 · 공중에서 한 번 더 · 짧게 누르면 낮게","검 공격 · 3타째 마무리 일격 · 항아리·상자 부수기","무적 회피 · 공중에서도 높이 유지","돌진 베기 · 회피 중이나 직후 공격","정밀 이동","발판 아래로","가까운 문으로 이동 · 상인과 거래","메뉴 · 상점 나가기","동료와 능력"};
+            bool trial=run.IsOathTrial||oathLobby;
+            // Twelve rows fill the column down to the build guide; each action stays on one line (500 wide at 18).
+            string[] keys={"A / D","Space","좌클릭 · J","X · 휠","우클릭","Shift","회피 → 공격","공중 아래 베기","S / ↓","E","Esc","Tab"};
+            // A climb's lone exit is walked through, so E is for branch doors and the merchant; the oath trial's exit still takes it.
+            string[] actions={"이동","점프 · 공중에서 한 번 더 · 짧게 누르면 낮게","검은 조준점 쪽 베기 · 셋째는 느린 강타 · 총은 누르는 동안 사격","공격 방식 전환 · 검 → 총 → 오브(자동 공격)","조준점 쪽으로 무적 돌진 · 공중에선 위아래로도","무적 회피 · 2회 충전 · 이동 방향 · 공중에서도 높이 유지","돌진 베기 · 회피 중이나 직후 공격 · 닿는 탄도 벤다","아래를 조준해 적을 베면 딛고 튀어 오름 · 체공마다 3번","발판 아래로 · 공중에선 고속 낙하, 착지하며 주변 충격",trial?"가까운 문으로 이동 · 상인과 거래":"갈림길 문 고르기 · 상인과 거래 · 일반 출구는 걸어서 통과","메뉴 · 상점 나가기","동료와 능력"};
             for(int i=0;i<keys.Length;i++)
             {
-                float y=192+i*58;if(i%2==0)Slot(new Rect(84,y-8,664,52),.55f);
+                float y=192+i*48;if(i%2==0)Slot(new Rect(84,y-6,664,46),.55f);
                 Keycap(new Rect(100,y,120,36),keys[i]);Label(new Rect(238,y,500,36),actions[i],18,paper,TextAnchor.MiddleLeft);
             }
-            bool trial=run.IsOathTrial||oathLobby;
             Card(new Rect(772,198,712,574),brass);
             GildedTitle(new Rect(808,232,640,37),trial?"서약 연계":"회피와 반격",27);
             Divider(new Rect(808,276,640,10),.6f);
-            string rules=trial?"검격 적중 +1 · 순간 회피 +2\n기본 4충전 후 다음 검격 적중에 연계가 발동합니다. 헛스윙은 충전을 소모하지 않습니다.\n\n회피 시작 0.12초 안에 탄환을 통과하면 순간 회피입니다. 다음 검격의 반격 효과는 3초간 유지됩니다.\n\n여러 서약 변형은 함께 적용되며 충전은 다음 층에도 유지됩니다.\n\n5·10층 보스 · 10층 클리어로 종료\n부서지는 항아리와 상자, 골드는 나오지 않습니다.":
-                "회피 시작 0.12초 안에 탄환을 통과하면 반격을 준비합니다. 3초 안에 맞힌 다음 검격은 피해가 50% 증가합니다.\n\n탑은 열 층마다 한 신화를 가둔 장입니다. 원정을 떠나면 되찾은 신화와 그 장 신화의 신들 가운데 함께 오를 동료를 직접 고릅니다. 30층을 넘으면 둘, 60층을 넘으면 셋을 데려갑니다.\n\n층마다 능력치 증강, 5층마다 보스와 스킬 증강이 나오고 그 장의 마지막 층에는 각성한 보스가 있습니다. 장을 끝내면 마을로 돌아와 다음 열 층이 열리고, 증강은 원정마다 처음부터 다시 쌓습니다. 층을 넘길 때마다 얻는 스킬 포인트는 실패해도 남으며, 마을의 스킬트리(K)에서 영구 능력을 배웁니다.";
-            Label(new Rect(808,298,640,360),rules,18,new Color(.8f,.82f,.88f));
+            string rules=trial?"검격 적중 +1 · 순간 회피 +2\n기본 4충전 후 다음 검격 적중에 연계가 발동합니다. 헛스윙은 충전을 소모하지 않습니다.\n\n회피 시작 0.12초 안에 탄환·근접 공격·보스 착지를 통과하면 순간 회피입니다(함정은 반격만 준비). 다음 검격의 반격 효과는 3초간 유지됩니다.\n\n여러 서약 변형은 함께 적용되며 충전은 다음 층에도 유지됩니다.\n\n5·10층 보스 · 10층 클리어로 종료\n부서지는 항아리와 상자, 골드는 나오지 않습니다.":
+                "회피 시작 0.12초 안에 탄환·근접 공격·보스 착지·함정을 통과하면 반격을 준비하고 대시 충전 하나를 돌려받습니다("+DodgeRefundInterval.ToString("0.#")+"초에 한 번, 함정은 반격만). 3초 안에 맞힌 다음 공격은 피해가 50% 증가합니다. 반격과 돌진 베기는 닿는 탄을 베고, 적중한 반격은 벤 탄을 두 발까지 되돌립니다.\n\n적은 공격 직전 하얗게 번쩍입니다. 근접 적은 앞으로 뛰어들며 베고 발판 위로도 뛰어오르며, 탄은 점프나 대시로 넘깁니다. 일반 적은 연달아 맞으면 경직되어 공격이 끊기고, 화면 밖에서 다가오는 적은 가장자리 화살표로 보입니다. 총은 대시 중에도 쏘고 돌진 직후 첫 발이 세 갈래로 나가며, 오브는 대시할 때 한 발을 더 쏩니다.\n\n탑은 열 층마다 한 신화를 가둔 장입니다. 원정마다 되찾은 신화와 그 장 신화의 신 가운데 동료를 고르고(30층을 넘으면 둘, 60층을 넘으면 셋), 층마다 능력치, 5층마다 보스와 스킬 증강을 받습니다. 장을 끝내면 마을로 돌아오고 증강은 원정마다 새로 쌓습니다. 스킬 포인트는 실패해도 남아 마을 스킬트리(K)에서 영구 능력을 배웁니다. 층을 비우면 출구로 걸어 들어가고, 갈림길 문과 상인만 E로 고릅니다.";
+            // The rules keep their box: a longer text steps the size down rather than running into the line beneath.
+            FitLabel(new Rect(808,298,640,360),rules,18,15,new Color(.8f,.82f,.88f));
             if(!trial)
             {
                 // The build guide: styles resonate across the party, statuses let one hero's skill set up another's.
@@ -504,7 +549,7 @@ namespace PrototypeLab.Roguelike
                 Label(new Rect(104,786,1360,24),"빌드 공명  ·  파티가 배운 근접·원거리·자동·주문·수호 스킬의 레벨 합이 3·6·10에 이르면 그 계열 스킬이 강해집니다 (레벨 3은 각성)",15,brass,TextAnchor.MiddleLeft,true);
                 Label(new Rect(104,814,1360,40),"연계  ·  둔화+번개 초전도 1.5배  ·  화염↔냉기 증기 폭발 1.4배  ·  화상+독 독연 1.5배  ·  기절+근접 무방비 1.35배  ·  표식 +20%  ·  저주는 옆 적에게 번짐",14,new Color(.8f,.82f,.88f),TextAnchor.MiddleLeft);
             }
-            Label(new Rect(808,675,640,65),trial?"적을 모두 처치하면 생명력 18 회복\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회":"5층 갈림길에서 휴식·상점·엘리트 문 · 항아리·상자에서 하트와 골드\n보상은 하나만 선택 · 각 칸 다시 뽑기 1회",18,paper);
+            Label(new Rect(808,675,640,65),trial?"적을 모두 처치하면 생명력 18 회복\n보상은 1·2·3 키나 클릭으로 하나만 선택 · 각 칸 다시 뽑기 1회":"5층 갈림길에서 휴식(회복·단련)·상점·엘리트 문 · 항아리·상자에서 하트와 골드\n보상은 1·2·3 키나 클릭으로 하나만 선택 · 각 칸 다시 뽑기 1회",18,paper);
         }
     }
 }

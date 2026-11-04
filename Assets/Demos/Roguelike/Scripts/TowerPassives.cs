@@ -88,7 +88,12 @@ namespace PrototypeLab.Roguelike
                     Fighter strongest = null;
                     foreach (var e in enemies) if (CanTarget(e, owner) && Vector2.Distance(e.pos, actor.pos) < passive.Radius && (strongest == null || e.hp > strongest.hp)) strongest = e;
                     return strongest;
-                case PassiveKind.SunFlare: case PassiveKind.Roar: return ClosestEnemy(actor.pos, passive.Radius, owner);
+                case PassiveKind.SunFlare: return ClosestEnemy(actor.pos, passive.Radius, owner);
+                case PassiveKind.Roar:
+                    // Bosses shrug off the roar's stun, so only a lesser foe in range calls it.
+                    Fighter cowed = null; float nearest = passive.Radius;
+                    foreach (var e in enemies) { float d = Vector2.Distance(e.pos, actor.pos); if (CanTarget(e, owner) && !e.isBoss && d < nearest) { nearest = d; cowed = e; } }
+                    return cowed;
                 case PassiveKind.Quake:
                     Fighter grounded = null; float best = 13;
                     foreach (var e in enemies) { float d = Vector2.Distance(e.pos, actor.pos); if (CanTarget(e, owner) && !e.airborne && d < best) { best = d; grounded = e; } }
@@ -106,7 +111,8 @@ namespace PrototypeLab.Roguelike
             Shot nearest = null; float best = radius * radius; Vector2 body = hero.pos + Vector2.up * .9f;
             foreach (var shot in shots)
             {
-                if (!shot.hostile || shot.life <= 0) continue;
+                // A fading bolt (its shooter fell) is already harmless, so foresight saves itself for a live one.
+                if (!shot.hostile || shot.life <= 0 || shot.fade >= 0) continue;
                 Vector2 offset = body - shot.pos; float distance = offset.sqrMagnitude;
                 if (distance < best && Vector2.Dot(offset, shot.velocity) > 0) { best = distance; nearest = shot; }
             }
@@ -151,7 +157,7 @@ namespace PrototypeLab.Roguelike
                     PassiveCue(passive.Kind, passive.Name); break;
                 case PassiveKind.Roar:
                     if (vfx != null) vfx.ImpactRing(origin, passive.Radius, color);
-                    foreach (var e in enemies) if (CanTarget(e, owner) && Vector2.Distance(e.pos, actor.pos) < passive.Radius) e.stunTime = Mathf.Max(e.stunTime, passive.Duration);
+                    foreach (var e in enemies) if (CanTarget(e, owner) && Vector2.Distance(e.pos, actor.pos) < passive.Radius) Stun(e, passive.Duration, false);
                     Shake(.08f, .15f); PassiveCue(passive.Kind, passive.Name); break;
                 case PassiveKind.PearlWave:
                     Fire(origin, target.pos + Vector2.up * .7f, 14, owner.Damage * passive.Value, false, color, 0, owner, 99, passive.Duration);
@@ -250,9 +256,11 @@ namespace PrototypeLab.Roguelike
                     if (vfx != null) vfx.ImpactRing(target.pos + Vector2.up * 1.7f, .35f, color); break;
                 case PassiveKind.Mjolnir:
                     if (!empowered) break;
-                    if (alive) target.stunTime = Mathf.Max(target.stunTime, p.Duration);
+                    // Bosses shrug off the stun, so a blow that lands none names the hammer instead.
+                    bool stunned = alive && !target.isBoss;
+                    if (stunned) Stun(target, p.Duration, false);
                     if (vfx != null) vfx.Impact(SkillEffect.ChainLightning, at + Vector2.up, 1.2f, color);
-                    Shake(.06f, .1f); PassiveCue(p.Kind, "기절", at + Vector2.up * 2.4f); break;
+                    Shake(.06f, .1f); PassiveCue(p.Kind, stunned ? "기절" : p.Name, at + Vector2.up * 2.4f); break;
                 case PassiveKind.ChainStrike:
                     if (!empowered) break;
                     var chained = enemies.FindAll(e => e != target && CanTarget(e, state) && Vector2.Distance(e.pos, at) < p.Radius);
@@ -304,7 +312,8 @@ namespace PrototypeLab.Roguelike
                 {
                     a.tick += .5f;
                     if (vfx != null) vfx.Hit(a.enemy.pos + Vector2.up * .9f, a.kind == PassiveKind.GaeBolg ? new Color(.86f, .2f, .26f) : new Color(1, .5f, .18f));
-                    StrikeEnemy(a.enemy, a.dps * .5f * a.stacks, a.owner, 0);
+                    // A damage-over-time tick: its number gathers with the enemy's others (DamageNumber).
+                    dotStrike = true; StrikeEnemy(a.enemy, a.dps * .5f * a.stacks, a.owner, 0); dotStrike = false;
                 }
                 if (a.remaining <= 0) afflictions.Remove(a);
             }
@@ -422,10 +431,11 @@ namespace PrototypeLab.Roguelike
             var aegis = passives.Active(PassiveKind.Aegis);
             if (aegis != null)
             {
-                var near = enemies.FindAll(e => CanTarget(e, run.Player) && Vector2.Distance(e.pos, hero.pos) <= aegis.Radius);
+                // Bosses shrug off holds as they do every other stun, so they neither draw the petrify nor spend its cooldown.
+                var near = enemies.FindAll(e => !e.isBoss && CanTarget(e, run.Player) && Vector2.Distance(e.pos, hero.pos) <= aegis.Radius);
                 if (near.Count > 0 && passives.TryCooldown(PassiveKind.Aegis))
                 {
-                    foreach (var e in near) e.stunTime = Mathf.Max(e.stunTime, aegis.Duration);
+                    foreach (var e in near) Stun(e, aegis.Duration, false);
                     if (vfx != null) vfx.ImpactRing(hero.pos + Vector2.up, aegis.Radius, new Color(.78f, .8f, .74f));
                     PassiveCue(PassiveKind.Aegis, "석화");
                 }
@@ -461,8 +471,13 @@ namespace PrototypeLab.Roguelike
         }
         private void EndVeil() { veilRemaining = 0; if (hero != null && hero.art != null) hero.art.Tint = Color.white; }
         private float PassiveDodgeWindow { get { return run.Companions.Count == 0 ? 0 : run.Passives.DodgeWindowBonus; } }
-        private void OnPassivePerfectDodge()
-        { if (run.Companions.Count > 0 && run.Passives.Has(PassiveKind.Nimble)) { dashCooldown = 0; PassiveCue(PassiveKind.Nimble, "기민한 척후", hero.pos + Vector2.up * 2.8f); } }
+        private void OnPassivePerfectDodge(bool refundReady)
+        {
+            if (!refundReady || run.Companions.Count == 0 || !run.Passives.Has(PassiveKind.Nimble)) return;
+            int before = DashCharges; RefillDashCharges();
+            if (DashCharges > before) dodgeRefundAt = elapsed;
+            PassiveCue(PassiveKind.Nimble, "기민한 척후", hero.pos + Vector2.up * 2.8f);
+        }
 
         // Heals: the healer's regular pulse, overflow into shields and the moon herb's lingering regeneration.
         private void CompanionHeal(CompanionState state)

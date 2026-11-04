@@ -14,6 +14,9 @@ namespace PrototypeLab.Roguelike
             public float moveVelocity,followGroundY,followGroundX,dropTime,dropHeight;
             public int followSource=-2,followGoal=-2,followNext=-2; public bool followMoving,returningToFormation;
             public int facing=1,kind,difficultyFloor=1; public string id; public bool grounded,airborne,isBoss,isElite,isEnemy; public float slowTime,stunTime; public Vector2 strikePoint;
+            // A monster's poise (TowerPoise.cs): what the player's blows have taken of it, the time until it refills, and a
+            // break's stagger and guard. Its moveVelocity carries the player's sliding knockback.
+            public float poiseDamage,poiseRest,staggerTime,poiseGuard;
             // Platform index the actor stands on (-1: the ground), the platform being dropped through, and the x at the previous step.
             public int support=-1,dropSupport=-1; public float lastX=float.NaN;
             public float damageScale=1,moveScale=1,bulletSpeedScale=1,attackRateScale=1;
@@ -29,8 +32,20 @@ namespace PrototypeLab.Roguelike
         private sealed class Shot { public GameObject root; public Vector2 pos,velocity; public float damage,life,area,slowDuration,hitRadius=.16f; public bool hostile,oathChain,basic,empowered,forceCrit,signature; public Color color; public HeroState owner; public SkillEffect effect; public int pierce=1,practiceCast;
             // Skill level (drawn grade); a returning disc's thrower and turn; a bouncing shot's remaining bounces.
             public int level=1,bounces; public Fighter home; public bool returning,skill; public float returnScale=1,bounceRange,bounceGain=1;
+            // The hero's gun bullets and orb bolts (Sword for every other shot), and the enemy an orb bolt homes on.
+            public TowerAttackMode weapon; public Fighter seek;
+            // The monster that fired a hostile bolt (its bolts fade away when it falls) and the fade's remaining time (-1: none).
+            public Fighter shooter; public float fade=-1;
+            // A trap's bolt (a totem's): dodging it readies the counter alone, like the traps' other dangers.
+            public bool trap;
+            // The poise the player's own shot (a gun bullet, an orb bolt, a reflected bolt) takes from a monster; 0 for any other.
+            public float poise;
+            // The dash volley a weapon shot belongs to (TowerWeapons.cs): a dash shot's bullets share one, the orb's dash bolt has its own; 0 for any other.
+            public int volley;
             public readonly HashSet<Fighter> hit=new HashSet<Fighter>(); }
-        internal sealed class Number { public Vector2 pos; public string text; public Color color; public float life; }
+        // Floating text over the world; size scales its 24-point face. A damage-over-time number keeps its enemy (tally),
+        // the damage gathered so far and when it began, so later ticks within a second add to it.
+        internal sealed class Number { public Vector2 pos; public string text; public Color color; public float life,size=1; public Fighter tally; public float total,since; }
         internal TowerRun run;
         internal TowerProgress progress;
         internal bool SuppressProgressPersistence;
@@ -45,13 +60,30 @@ namespace PrototypeLab.Roguelike
         internal string dismissId="",notice="";
         internal float noticeTime,elapsed,invulnerable,dashCooldown,slashCooldown,attackTimer,dashTime;
         private float jumpBuffer,coyote,healClock,cameraLead=1.6f,cameraCeiling=1.8f;
+        // Real input keeps a tap made while a swing or the dash is still cooling down for a moment; fixtures hold their overrides.
+        internal const float AttackBufferTime=.15f,DashBufferTime=.12f;
+        private float attackBuffer,dashBuffer;private bool dashBufferAimed;
+        // Real play lets a clear land before its cards or the ending cover it: the floor keeps running until rewardRevealAt
+        // (unscaled time), then the cards ignore input for RewardInputLock so a held attack cannot pick one. A cleared floor
+        // with a single way on is left by standing in its exit for AutoExitDwell; a hero already in it as the cards close
+        // stands AutoExitGrace longer, so the floor does not end the moment they are taken.
+        internal const float RewardRevealDelay=.7f,BossRewardRevealDelay=1.2f,RewardInputLock=.35f,AutoExitReach=.6f,AutoExitDwell=.15f,AutoExitGrace=.6f;
+        internal float rewardRevealAt;
+        private float exitDwell;
+        internal bool ClearRevealing{get{return Time.unscaledTime<rewardRevealAt;}}
+        internal bool RewardInputLocked{get{return rewardRevealAt>0&&Time.unscaledTime<rewardRevealAt+RewardInputLock;}}
+        /// <summary>The floor's exit is walked through rather than chosen: not a branch floor's doors, and not the oath trial.</summary>
+        internal bool AutoExitFloor{get{return !run.IsBranchFloor&&!run.IsOathTrial;}}
         // One extra jump in the air; touching any support restores it.
         internal const int MaxAirJumps=1;
         internal const float AirJumpVelocity=9.6f;
         internal int airJumps;
         private Vector2 previousHeroPosition;
         private GameObject playerHitCore;
-        internal bool FocusActive,FocusOverride;
+        // True while a hostile bolt closes in on the hero's chest; the hit core then shows itself (TowerProjectiles.cs).
+        internal bool FocusActive;
+        [Obsolete("Ctrl precision movement was removed; the hit core shows itself as hostile bolts close in. Kept so fixtures still compile.")]
+        internal bool FocusOverride;
         private bool pendingSlash;
         internal int kills,seed;
         private AudioSource audioSource;
@@ -67,7 +99,7 @@ namespace PrototypeLab.Roguelike
         internal bool SmokeControlled;
         internal float MoveOverride;
         internal bool AttackOverride,JumpOverride,DashOverride,DropOverride;
-        internal bool Paused { get { return intro||menu||party||help||shopOpen||VillageBlocking||run.IsRewardPending||hero.hp<=0||run.IsComplete; } }
+        internal bool Paused { get { return intro||menu||party||help||shopOpen||VillageBlocking||(run.IsRewardPending||run.IsComplete)&&!ClearRevealing||hero.hp<=0; } }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Enter()
@@ -87,9 +119,9 @@ namespace PrototypeLab.Roguelike
             vfx=TowerVfx.Create(transform);world=new TowerWorld(transform);ConfigurePixelCamera();
             audioSource=gameObject.AddComponent<AudioSource>();audioSource.volume=.22f;
             music=TowerMusic.Create(transform);
-            slashSound=Tone(220,.11f);hitSound=Tone(95,.10f);chimeSound=Tone(660,.28f);
+            slashSound=Tone(220,.11f);hitSound=Tone(95,.10f);chimeSound=Tone(660,.28f);BuildCombatCues();
             progress=TowerProgress.Load(PlayerPrefs.GetString(ProgressKey,""));
-            campaign=TowerCampaignSave.Load(PlayerPrefs.GetString(CampaignKey,""));
+            campaign=TowerCampaignSave.Load(PlayerPrefs.GetString(CampaignKey,""));LoadAttackMode();
             var launchArgs=Environment.GetCommandLineArgs();
             bool visualFixture=Array.IndexOf(launchArgs,"-towerAnimationSmoke")>=0||Array.IndexOf(launchArgs,"-towerArtSmoke")>=0||Array.IndexOf(launchArgs,"-towerMonsterRigSmoke")>=0;
             if(visualFixture)
@@ -130,8 +162,9 @@ namespace PrototypeLab.Roguelike
         private void SpawnHero(Vector2 at)
         {
             hero=Spawn("Player",0,false,at);hero.id="player";hero.hp=hero.maxHp=PlayerMaxHealth;ResetSkills();
-            elapsed=0;kills=0;healClock=0;invulnerable=0;dashCooldown=0;slashCooldown=0;attackTimer=0;dashTime=0;pendingSlash=false;jumpBuffer=0;coyote=0;airJumps=MaxAirJumps;
-            menu=party=help=oathLobby=shopOpen=false;dismissId="";notice="";toasts.Clear();FocusActive=false;cameraLead=1.6f;ResetPresentation();ResetAction();CreateHitCore();ResetCombatRewards();ClearOathEffects();
+            elapsed=0;kills=0;healClock=0;invulnerable=0;ReadyDash();slashCooldown=0;attackTimer=0;dashTime=0;pendingSlash=false;jumpBuffer=0;coyote=0;airJumps=MaxAirJumps;
+            attackBuffer=dashBuffer=0;dashBufferAimed=false;rewardRevealAt=exitDwell=0;
+            menu=party=help=oathLobby=shopOpen=false;dismissId="";notice="";toasts.Clear();FocusActive=false;cameraLead=1.6f;ResetPresentation();ResetAction();CreateHitCore();ResetCombatRewards();ClearOathEffects();SyncAttackMode();
         }
         private Fighter Spawn(string name,int index,bool monster,Vector2 pos)
         {
@@ -148,14 +181,18 @@ namespace PrototypeLab.Roguelike
             ClearOathEffects();
             ResetEnemyCombat();
             BeginFloorRecord();
-            using(TowerProfiling.SetTheme.Auto()){world.SetTheme(run.Theme.Id,run.Floor,seed);world.SetFloorFeature(run.FloorType,run.IsBranchFloor);}
+            // Rest and shop floors hold no fight, so they are a short quiet room instead of the long generated climb.
+            bool peaceful=run.FloorType==FloorType.Rest||run.FloorType==FloorType.Shop;
+            using(TowerProfiling.SetTheme.Auto()){world.SetTheme(run.Theme.Id,run.Floor,seed,peaceful?TowerTerrainGenerator.PeacefulLayout(seed,run.Floor):null);world.SetFloorFeature(run.FloorType,run.IsBranchFloor);}
             using(TowerProfiling.Loot.Auto()){BankLooseCoins();FlushGold();SpawnCaches();}
             using(TowerProfiling.Music.Auto())music.PlayTheme(run.Theme.Id);
             cameraCeiling=Mathf.Max(1.8f,world.HighestPlatform+4);BuildTraps();
             hero.pos=new Vector2(-12,TowerWorld.Ground);hero.velocityY=0;hero.dropTime=0;hero.facing=1;hero.grounded=true;hero.support=-1;hero.lastX=-12;
             hero.root.transform.position=hero.pos;previousHeroPosition=hero.pos;view.transform.position=new Vector3(-7,0,-10);appliedShake=Vector3.zero;
             foreach(var s in shots)Destroy(s.root);shots.Clear();ClearFloorSkillEffects();shopOpen=false;lastFallen=null;
-            if(run.FloorType==FloorType.Rest||run.FloorType==FloorType.Shop)
+            // A campfire left without a choice gives its heal on the way out.
+            SettleRestChoice();
+            if(peaceful)
             {
                 // Peaceful floors hold no monsters; the first update clears them.
                 SyncAllies();ResetAllyFormation();Notice(FloorTypeName(run.FloorType)+" 층  ·  "+FloorTypeSummary(run.FloorType),3);return;
@@ -171,27 +208,30 @@ namespace PrototypeLab.Roguelike
             }
             using(TowerProfiling.Actors.Auto())SpawnEnemies(count,elite,bossFloor,roster);
             using(TowerProfiling.Party.Auto()){SyncAllies();ResetAllyFormation();}
+            // A boss built on entry raises its banner now; one still queued raises it as it streams in (SpawnNow).
             var boss=bossFloor?enemies.Find(e=>e.isBoss):null;
             if(elite)Notice("엘리트 층  ·  클리어하면 금 등급 이상 스킬 증강과 현상금 "+TowerRun.EliteBounty+" G",3);
-            else if(boss!=null&&IsFinalBoss(boss))Notice(boss.monster.Name+" 강림  ·  지구를 삼킨 자",4);
-            else Notice(boss!=null?(boss.title??boss.monster.Name)+" 출현  ·  "+SignatureName(run.Theme.Id):"",boss!=null?3:0);
+            else if(boss!=null)AnnounceBoss(boss);
+            else Notice("",0);
         }
         internal void StartClimb()
         {
             if(oathLobby){StartOathTrial(oathSelection);return;}
-            if(village||run.IsCampaign){BeginCampaign();return;}
+            // Free climbs are fixture runs only; a real title always leads into the campaign.
+            if(village||run.IsCampaign||!SmokeControlled){BeginCampaign();return;}
             intro=false;Notice("",0);
         }
         internal void SaveProgress(){if(progress==null||SuppressProgressPersistence||SmokeControlled)return;goldUnsaved=false;PlayerPrefs.SetString(ProgressKey,progress.Save());PlayerPrefs.Save();}
         private void OnApplicationPause(bool paused){if(paused)SaveProgress();}
-        private void OnApplicationQuit(){SaveProgress();}
+        private void OnApplicationQuit(){SaveProgress();FlushPace();}
         private void OnDestroy()
-        {if(slashSound)Destroy(slashSound);if(hitSound)Destroy(hitSound);if(chimeSound)Destroy(chimeSound);if(uiGradient)Destroy(uiGradient);if(uiHalo)Destroy(uiHalo);if(uiDiamond)Destroy(uiDiamond);if(uiGrain)Destroy(uiGrain);if(uiVignette)Destroy(uiVignette);if(uiScrollThumb)Destroy(uiScrollThumb);if(uiSkin)Destroy(uiSkin);}
+        {if(slashSound)Destroy(slashSound);if(hitSound)Destroy(hitSound);if(chimeSound)Destroy(chimeSound);DestroyCombatCues();if(uiGradient)Destroy(uiGradient);if(uiHalo)Destroy(uiHalo);if(uiDiamond)Destroy(uiDiamond);if(uiGrain)Destroy(uiGrain);if(uiVignette)Destroy(uiVignette);if(uiScrollThumb)Destroy(uiScrollThumb);if(uiSkin)Destroy(uiSkin);DestroyWeapons();FlushPace();}
         private void Update()
         {
             float frame=Mathf.Min(Time.unscaledDeltaTime,.04f);
             TickHUD(frame);TickToasts(frame);
             if(noticeTime>0)noticeTime-=frame;
+            TickPace();
             if(!SmokeControlled)
             {
                 if(Input.GetKeyDown(KeyCode.Escape)){if(help)help=false;else if(StoryOpen)SkipStory();else if(villagePanel!=VillagePanel.None)villagePanel=VillagePanel.None;else if(intro){}else if(shopOpen)shopOpen=false;else if(party){party=false;dismissId="";}else if(!run.IsRewardPending)menu=!menu;}
@@ -201,56 +241,67 @@ namespace PrototypeLab.Roguelike
             }
             if(run.IsCampaign&&run.IsComplete&&!chapterRecorded)CompleteChapter();
             TickOpeningAugments();
-            ConfigurePixelCamera();
-            if(Paused){AnimateIdle(frame);TickDeaths(frame);return;}
+            ConfigurePixelCamera();TickHeroBlink();
+            // A press made on a paused frame (a card, a menu) never carries into play as a buffered swing or dash.
+            if(Paused){attackBuffer=dashBuffer=0;AnimateIdle(frame);TickDeaths(frame);return;}
             // A short hit stop slows the simulation; input, HUD and camera keep real time.
             float dt=TickHitStop(frame);
             previousHeroPosition=hero.pos;
             CounterRemaining=Mathf.Max(0,CounterRemaining-dt);
             hero.castRemaining=Mathf.Max(0,hero.castRemaining-dt);
-            elapsed+=dt;dashCooldown=Mathf.Max(0,dashCooldown-dt);slashCooldown=Mathf.Max(0,slashCooldown-dt);invulnerable=Mathf.Max(0,invulnerable-dt);
+            elapsed+=dt;TickDashCharges(dt);slashCooldown=Mathf.Max(0,slashCooldown-dt);invulnerable=Mathf.Max(0,invulnerable-dt);
             float move=SmokeControlled?MoveOverride:(Input.GetKey(KeyCode.D)||Input.GetKey(KeyCode.RightArrow)?1:0)-(Input.GetKey(KeyCode.A)||Input.GetKey(KeyCode.LeftArrow)?1:0);
             bool jump=SmokeControlled?JumpOverride:Input.GetKeyDown(KeyCode.Space);
             bool drop=SmokeControlled?DropOverride:Input.GetKey(KeyCode.S)||Input.GetKey(KeyCode.DownArrow);
+            // A fresh S in the air is a fast fall instead (TickFastFall); fixtures press it with FastFallOverride.
+            bool fastFall=SmokeControlled?FastFallOverride:Input.GetKeyDown(KeyCode.S)||Input.GetKeyDown(KeyCode.DownArrow);
             bool dash=SmokeControlled?DashOverride:Input.GetKeyDown(KeyCode.LeftShift)||Input.GetKeyDown(KeyCode.RightShift);
+            bool aimedDash=!SmokeControlled&&Input.GetMouseButtonDown(1)&&!MouseInUI();
             bool attack=SmokeControlled?AttackOverride:(Input.GetKey(KeyCode.J)||(Input.GetMouseButton(0)&&!MouseInUI()));
             // A fresh press during the dash cuts it into a dash slash; a held key waits for the dash to end.
             bool attackPressed=!SmokeControlled&&(Input.GetKeyDown(KeyCode.J)||(Input.GetMouseButtonDown(0)&&!MouseInUI()));
             bool jumpHeld=SmokeControlled||Input.GetKey(KeyCode.Space);
-            FocusActive=SmokeControlled?FocusOverride:Input.GetKey(KeyCode.LeftControl)||Input.GetKey(KeyCode.RightControl);
-            if(playerHitCore)playerHitCore.SetActive(FocusActive);
+            // Nothing slows the hero any more: the hit core fades in by itself while a hostile bolt closes in.
+            FocusActive=HostileBoltClosing();TickHitCore(dt);
             if(jump)jumpBuffer=.14f;else jumpBuffer-=dt;
             if(hero.grounded){coyote=.1f;airJumps=MaxAirJumps;}else coyote-=dt;
-            if(move!=0&&dashTime<=0&&(attackTimer<=0||!pendingSlash)&&hero.castRemaining<=0)hero.facing=move>0?1:-1;
+            var heldMode=AttackMode;
+            TickAim();TickAttackModeInput();SyncAttackMode();
+            // Real presses wait briefly for the cooldown to end (switching weapons drops a waiting swing); fixtures never fill these.
+            if(AttackMode!=heldMode)attackBuffer=0;else if(attackPressed)attackBuffer=AttackBufferTime;else attackBuffer=Mathf.Max(0,attackBuffer-dt);
+            if((dash||aimedDash)&&!SmokeControlled){dashBuffer=DashBufferTime;dashBufferAimed=aimedDash&&!dash;}else dashBuffer=Mathf.Max(0,dashBuffer-dt);
+            // With the mouse the hero faces the reticle once a swing is over; fixtures turn with the keys as before.
+            if(MouseAims){if(dashTime<=0&&attackTimer<=0&&hero.castRemaining<=0)FaceAim();}
+            else if(move!=0&&dashTime<=0&&(attackTimer<=0||!pendingSlash)&&hero.castRemaining<=0)hero.facing=move>0?1:-1;
+            drop=TickFastFall(fastFall,drop);
             if(drop&&hero.grounded&&hero.support>=0){jumpBuffer=0;coyote=0;}
-            if(jumpBuffer>0&&coyote>0&&hero.dropTime<=0){hero.velocityY=10.7f;hero.grounded=false;jumpBuffer=0;coyote=0;jumpCut=false;Sound(slashSound,.28f);if(vfx!=null)vfx.Dust(hero.pos,0,.5f);}
+            if(jumpBuffer>0&&coyote>0&&hero.dropTime<=0){hero.velocityY=10.7f;hero.grounded=false;jumpBuffer=0;coyote=0;jumpCut=false;Sound(jumpCue,.3f);if(vfx!=null)vfx.Dust(hero.pos,0,.5f);}
             // Past the coyote window a press spends the air jump, which also turns a fall back upward.
-            else if(jumpBuffer>0&&!hero.grounded&&airJumps>0&&hero.dropTime<=0){airJumps--;hero.velocityY=AirJumpVelocity;jumpBuffer=0;jumpCut=false;Sound(slashSound,.34f);if(vfx!=null){vfx.ImpactRing(hero.pos+Vector2.up*.1f,.5f,TowerWorld.Teal);vfx.Dust(hero.pos,0,.3f);}}
+            else if(jumpBuffer>0&&!hero.grounded&&airJumps>0&&hero.dropTime<=0){airJumps--;hero.velocityY=AirJumpVelocity;jumpBuffer=0;jumpCut=false;Sound(airJumpCue,.34f);if(vfx!=null){vfx.ImpactRing(hero.pos+Vector2.up*.1f,.5f,TowerWorld.Teal);vfx.Dust(hero.pos,0,.3f);}}
             // Releasing jump early cuts the rise for short hops.
             if(!jumpHeld&&!jumpCut&&!hero.grounded&&hero.velocityY>4){hero.velocityY*=.55f;jumpCut=true;}
-            if(dash&&dashCooldown<=0){if(move!=0)hero.facing=move>0?1:-1;attackTimer=0;pendingSlash=false;lungeTime=0;CancelPlayerCast();hero.art.InterruptAction();dashTime=.18f;BeginDodgeCounter();dashCooldown=1.15f*run.Player.DodgeCooldownMultiplier;invulnerable=Mathf.Max(invulnerable,.25f);if(vfx!=null){vfx.Afterimage(hero.root.transform);vfx.Cast(SkillEffect.DashStrike,hero.pos+Vector2.up,1,TowerWorld.Teal);if(hero.grounded)vfx.Dust(hero.pos,hero.facing,.9f);vfx.SpeedLines(hero.pos+Vector2.up*.9f,hero.facing,TowerWorld.Teal);}Sound(slashSound,.5f);}
-            if(dashTime>0)
-            {
-                dashTime-=dt;hero.pos.x+=hero.facing*19*dt;
-                // Air dashes hold their height instead of dropping mid-dodge.
-                if(!hero.grounded)hero.velocityY=Mathf.Max(0,hero.velocityY);
-                if(vfx!=null&&elapsed>=nextAfterimage){nextAfterimage=elapsed+.05f;vfx.Afterimage(hero.root.transform);}
-                if(dashTime<=0)dashEndedAt=elapsed;
-            }
-            else hero.pos.x+=move*PlayerMoveSpeed*(FocusActive?.45f:1)*(attackTimer>0?.85f:1)*dt;
+            // A dash waits for a charge and the gap after the last one. A buffered dash keeps how it was asked for (Shift or the
+            // right button) and takes the aim and keys of the moment it starts.
+            if((dash||aimedDash||dashBuffer>0)&&DashReady){StartDash(move,dash||aimedDash?aimedDash&&!dash:dashBufferAimed);dashBuffer=0;}
+            if(dashTime>0)TickDash(dt);
+            else hero.pos.x+=move*PlayerMoveSpeed*(attackTimer>0?.85f:1)*dt;
             TickLunge(dt);
             hero.pos.x=Mathf.Clamp(hero.pos.x,TowerWorld.Left+.6f,TowerWorld.Right-.6f);
 
             bool wasAirborne=!hero.grounded;float fallSpeed=hero.velocityY;
             StepGravity(hero,dt,drop);hero.root.transform.position=hero.pos;
             LandingFeedback(wasAirborne,fallSpeed);TickTraps(dt);
-            if(attack&&slashCooldown<=0&&hero.castRemaining<=0&&(dashTime<=0||attackPressed&&dashTime<=.12f))StartPlayerAttack();
-            TickPlayerAttack(dt);
+            // A buffered press counts as fresh, so one made early in a dash still cuts it into a dash slash.
+            bool swing=attack||attackBuffer>0,fresh=attackPressed||attackBuffer>0;
+            if(AttackMode==TowerAttackMode.Sword){if(swing&&slashCooldown<=0&&hero.castRemaining<=0&&(dashTime<=0||fresh&&dashTime<=.12f)){StartPlayerAttack();attackBuffer=0;}}
+            else if(AttackMode==TowerAttackMode.Gun&&GunTriggerReady(swing)){FireGun();attackBuffer=0;}
+            TickPlayerAttack(dt);TickOrb(dt);
             hero.hurt=Mathf.Max(0,hero.hurt-dt);
             float actualHeroSpeed=dt>0?(hero.pos.x-previousHeroPosition.x)/dt:0;
             hero.art.SetLocomotion(hero.grounded,hero.velocityY,dashTime>0,Mathf.Abs(actualHeroSpeed),actualHeroSpeed);
             hero.art.SetPose(Mathf.Abs(actualHeroSpeed)>.08f,attackTimer>0,hero.hurt>0,hero.facing,dt);
             using(TowerProfiling.Enemies.Auto()){TickSpawnQueue();foreach(var enemy in enemies)TickEnemy(enemy,dt);}
+            SamplePace();
             if(hero.hp<=0){TickEffects(dt);return;}
             using(TowerProfiling.Allies.Auto())TickAllies(dt);
             using(TowerProfiling.Skills.Auto()){TickSkills(dt);TickOath(dt);}
@@ -260,21 +311,39 @@ namespace PrototypeLab.Roguelike
             if(hero.hp<=0)return;
             if(village)TickVillage(dt);
             else if(practice)TickPractice(dt);
-            else if(RemainingEnemies==0&&!run.IsFloorCleared)
+            // ClearFloor refuses while other cards (a draft, the tree's opening cards) are pending, so a clear is recorded,
+            // healed and paid exactly once, after they are taken.
+            else if(RemainingEnemies==0&&!run.IsFloorCleared&&run.ClearFloor())
             {
-                run.ClearFloor();ClearOathEffects();foreach(var shot in shots)if(shot.root)Destroy(shot.root);shots.Clear();RecordFloorResult();FlushGold();CancelPendingSkills();hero.hp=Mathf.Min(PlayerMaxHealth,hero.hp+18);Sound(chimeSound,.8f);
+                ClearOathEffects();foreach(var shot in shots)if(shot.root)Destroy(shot.root);shots.Clear();RecordFloorResult();FlushGold();CancelPendingSkills();hero.hp=Mathf.Min(PlayerMaxHealth,hero.hp+18);Sound(chimeSound,.8f);
                 if(run.FloorType==FloorType.Elite)DropEliteBounty();
                 RewardTreeFloorClear();
                 if(run.FloorType==FloorType.Rest||run.FloorType==FloorType.Shop)OnSpecialFloorCleared();
-                else Notice(run.IsBranchFloor?"층 클리어  ·  원하는 출구를 고르세요":"층 클리어",2.5f);
+                else
+                {
+                    // The last blow lands in slow motion, and in real play the clear plays out before its cards or the ending
+                    // cover it; the card screen names the floor itself, so only floors without cards announce the clear.
+                    HitStop(.15f);
+                    if(!SmokeControlled&&(run.IsRewardPending||run.IsComplete))
+                        rewardRevealAt=Time.unscaledTime+(run.FloorType==FloorType.Normal&&TowerDifficulty.IsBossFloor(run.Floor)?BossRewardRevealDelay:RewardRevealDelay);
+                    if(!run.IsRewardPending)Notice(run.IsBranchFloor?"층 클리어  ·  원하는 출구를 고르세요":"층 클리어",2.5f);
+                }
             }
             if(!SmokeControlled&&village&&Input.GetKeyDown(KeyCode.E))InteractVillage();
             else if(!SmokeControlled&&run.IsFloorCleared&&!run.IsRewardPending&&Input.GetKeyDown(KeyCode.E))
             {if(NearMerchant)InteractMerchant();else{var gate=NearestGate();if(gate.HasValue)NextFloor(gate.Value);}}
+            // In real play a lone exit is walked through: standing in it a moment climbs on. Branch doors and the oath trial wait for E.
+            if(!SmokeControlled&&!village&&!practice&&AutoExitFloor&&run.IsFloorCleared&&!run.IsRewardPending&&!run.IsComplete&&!shopOpen&&hero.pos.x>=TowerWorld.ExitX-AutoExitReach)
+            {exitDwell+=dt;if(exitDwell>=AutoExitDwell){exitDwell=0;NextFloor();}}
+            // The clear plays out (unpaused) with its cards pending, so the dwell leaves the cards owing the grace.
+            else exitDwell=run.IsRewardPending?-AutoExitGrace:0;
             using(TowerProfiling.World.Auto())world.Tick(dt,village||run.IsFloorCleared&&!run.IsRewardPending);
+            // Real play leads toward the reticle and the keys and runs ahead of the hero's actual speed; fixtures keep the key lead.
+            bool aimLead=AimLeadsCamera&&!practice;
             if(practice)cameraLead=PracticeCameraLead;
+            else if(aimLead)cameraLead=Mathf.MoveTowards(cameraLead,CameraLeadGoal(move),frame*CameraLeadRate);
             else if(move!=0)cameraLead=Mathf.MoveTowards(cameraLead,move*1.6f,frame*4);
-            float cameraX=Mathf.Clamp(hero.pos.x+cameraLead,-7.5f,TowerWorld.Right-7.5f);
+            float cameraX=Mathf.Clamp(hero.pos.x+cameraLead+(aimLead?CameraSpeedLead(actualHeroSpeed):0),-7.5f,TowerWorld.Right-7.5f);
             // The practice range keeps its ground at the same screen height on every resolution, above its skill bar.
             float cameraY=practice?PracticeCameraY:Mathf.Clamp(hero.pos.y+1.5f,0,cameraCeiling);
             Vector3 destination=new Vector3(cameraX,cameraY,-10);
@@ -285,8 +354,9 @@ namespace PrototypeLab.Roguelike
         private void AnimateIdle(float dt)
         {
             float poseDt=intro||hero.hp<=0?dt:0;
-            hero.art.SetPose(false,false,false,hero.facing,poseDt);
-            foreach(var e in enemies)e.art.SetPose(false,false,false,e.facing,intro?dt:0);
+            hero.art.SetPose(false,false,false,hero.facing,poseDt);TickOrb(poseDt,false);
+            // A frozen frame would hold a hit flash lit, so a pause ends it.
+            foreach(var e in enemies){if(!intro)e.art.ClearHitFlash();e.art.SetPose(false,false,false,e.facing,intro?dt:0);}
             foreach(var a in allies)a.art.SetPose(false,false,false,a.facing,intro?dt:0);
         }
         private void StepGravity(Fighter f,float dt,bool drop=false)
@@ -305,29 +375,40 @@ namespace PrototypeLab.Roguelike
             // The third combo hit and dash slashes reach further, hit harder and knock back more.
             bool dashSlash=slashIsDash,finisher=!dashSlash&&slashCombo==2;slashIsDash=false;slashCombo=0;
             bool heavy=dashSlash||finisher;
-            Vector2 origin=hero.pos+new Vector2(hero.facing*1.1f,1);
+            // Fixtures cut along the facing they hold when the blow lands; the mouse fixed the aim when the swing began.
+            if(!MouseAims)attackAim=new Vector2(hero.facing,0);
+            Vector2 origin=hero.pos+Vector2.up+attackAim*1.1f;
             bool counter=CounterRemaining>0;Color color=counter?TowerWorld.Teal:TowerWorld.Gold;
-            if(heavy&&vfx!=null)vfx.HeavySlash(origin,hero.facing,color);else SlashArc(origin,hero.facing,color);
+            if(vfx!=null){if(heavy)vfx.AimedHeavySlash(origin,attackAim,hero.facing,swingRising,color);else vfx.AimedSlash(origin,attackAim,hero.facing,swingRising,color);}
             bool connected=false;
             float reach=run.Player.Range*(dashSlash?DashSlashReach:finisher?FinisherReach:1);
             float damage=PlayerDamage*(counter?DodgeCounterMultiplier:1)*(dashSlash?DashSlashMultiplier:finisher?FinisherMultiplier:1);
             float push=hero.facing*(heavy?.9f:.35f);
+            // The cut takes poise, twice a plain cut's for a heavy blow or a counter; only the counter also breaks a monster
+            // within its guard. Its knockback slides out over time (PlayerBlow, TowerPoise.cs).
+            float poise=heavy||counter?HeavyBlowPoise:SwordPoise;bool breaker=counter;
             Vector2 oathTarget=origin;float nearest=float.PositiveInfinity;
+            // A down-cut in the air bounces off a struck enemy, preferring one other than the last bounce's (Pogo).
+            Fighter bounce=null;
             practiceStrike=-1;
-            var struck=enemies.ToArray();for(int i=struck.Length-1;i>=0;i--){var e=struck[i];if(CanTarget(e,run.Player)&&(e.pos.x-hero.pos.x)*hero.facing>-.4f&&Mathf.Abs(e.pos.x-hero.pos.x)<reach&&Mathf.Abs((e.pos.y+.85f)-(hero.pos.y+.9f))<1.9f){float distance=(e.pos-hero.pos).sqrMagnitude;if(distance<nearest){nearest=distance;oathTarget=e.pos;}StrikeEnemy(e,damage,run.Player,push);connected=true;}}
+            var struck=enemies.ToArray();for(int i=struck.Length-1;i>=0;i--){var e=struck[i];if(CanTarget(e,run.Player)&&SwingReaches(e.pos+Vector2.up*.85f,reach,.4f,1.9f)){float distance=(e.pos-hero.pos).sqrMagnitude;if(distance<nearest){nearest=distance;oathTarget=e.pos;}StrikeEnemy(e,damage,run.Player,Staggerable(e)?0:push);PlayerBlow(e,push,poise,breaker);HoldStruck(e);connected=true;if(bounce==null||bounce==pogoTarget)bounce=e;}}
             practiceStrike=0;
             if(StrikeTraps(reach,heavy))connected=true;
             if(village&&StrikeDummies(reach,damage,heavy))connected=true;
             bool smashed=StrikeCaches(reach,heavy);
+            // The counter and the dash slash cut the bolts they reach; a counter that connects reflects two (TowerProjectiles.cs).
+            if(counter||dashSlash)SlashBolts(reach,counter,connected);
             if(connected)
             {
-                if(counter)ConsumeDodgeCounter();OnOathSwordHit(oathTarget);Sound(slashSound,.65f);
+                if(counter)ConsumeDodgeCounter();OnOathSwordHit(oathTarget);Sound(heavy?heavyCue:strikeCue,.65f);
                 if(dashSlash)DashSlashes++;else if(finisher)Finishers++;
-                HitStop(heavy?.075f:.035f);Shake(heavy?.11f:.04f,heavy?.16f:.08f);
+                // Only heavy blows stop time (the counter its own, in ConsumeDodgeCounter); a light hit holds just the struck enemies.
+                if(heavy){HitStop(HeavyHitStop);Shake(.11f,.16f);KickShake(attackAim,.11f);}else Shake(.04f,.08f);
                 if(heavy)FloatText(hero.pos+Vector2.up*2.6f,dashSlash?"돌진 베기":"마무리 일격",TowerWorld.Gold);
             }
-            // Breaking a cache gives its own small jolt but never spends the dodge counter or charges the oath.
-            else if(smashed){Sound(slashSound,.5f);HitStop(heavy?.05f:.03f);}
+            // Breaking a cache gives its own small jolt (heavy blows only) but never spends the dodge counter or charges the oath.
+            else if(smashed){Sound(heavy?heavyCue:strikeCue,.5f);if(heavy)HitStop(.05f);}
+            Pogo(bounce);
         }
 
         private void Fire(Vector2 from,Vector2 to,float speed,float damage,bool hostile,Color color,float area=0,HeroState owner=null,int pierce=1,float slowDuration=0)
@@ -343,10 +424,13 @@ namespace PrototypeLab.Roguelike
         private void DamageEnemy(Fighter e,float damage,float push)
         {
             bool critical=criticalHit;criticalHit=false;
-            if(!CanTarget(e,null))return;e.hp-=damage;e.hurt=.14f;e.pos.x=Mathf.Clamp(e.pos.x+push,TowerWorld.Left,TowerWorld.Right);
-            FloatText(e.pos+Vector2.up*1.8f,Mathf.CeilToInt(damage)+(critical?"!":""),critical?new Color(1,.5f,.32f):TowerWorld.Gold);Burst(e.pos+Vector2.up,TowerWorld.Gold,4,.3f);Sound(hitSound,.35f);
+            // Bosses barely give ground to ordinary blows. Skills and companions push at once; the player's own blows on other
+            // monsters pass no push here and slide them back instead (PlayerBlow, TowerPoise.cs).
+            if(!CanTarget(e,null))return;PaceDamage(e,damage);e.hp-=damage;e.hurt=.14f;e.pos.x=Mathf.Clamp(e.pos.x+push*(e.isBoss?BossPushScale:1),TowerWorld.Left,TowerWorld.Right);
+            DamageNumber(e,damage,critical);Burst(e.pos+Vector2.up,TowerWorld.Gold,4,.3f);Sound(PlayerStrike?strikeCue:struckCue,.35f);
             if(practice)PracticeStruck(e,damage);
-            if(e.hp<=0){kills++;lastFallen=e.pos;if(vfx!=null)vfx.KillBurst(e.pos+Vector2.up*(e.isBoss?1.6f:.9f),e.isBoss?TowerWorld.Gold:TowerWorld.Teal);HitStop(e.isBoss?.12f:.05f);if(e.isBoss)Shake(.3f,.45f);if(IsFinalBoss(e)){Shake(.6f,1.1f);Toast(e.monster.Name+" 붕괴","지구를 삼킨 악신이 무너집니다",brass,4);}enemies.Remove(e);RetireEnemy(e);StatusesOnFall(e);}
+            // Only the player's own blows stop time on a kill; companions' kills and damage over time just nudge the view.
+            if(e.hp<=0){kills++;lastFallen=e.pos;if(vfx!=null)vfx.KillBurst(e.pos+Vector2.up*(e.isBoss?1.6f:.9f),e.isBoss?TowerWorld.Gold:TowerWorld.Teal);if(PlayerStrike)HitStop(e.isBoss?BossKillHitStop:PlayerKillHitStop);else Shake(.03f,.08f);if(e.isBoss)Shake(.3f,.45f);if(IsFinalBoss(e)){Shake(.6f,1.1f);Toast(e.monster.Name+" 붕괴","지구를 삼킨 악신이 무너집니다",brass,4);}enemies.Remove(e);RetireEnemy(e);StatusesOnFall(e);}
         }
         private void HurtHero(float damage)
         {
@@ -354,11 +438,11 @@ namespace PrototypeLab.Roguelike
             // Companions remain offensive actors without damage, stagger or knockback.
             if(invulnerable>0||hero.hp<=0)return;
             if(PassiveWardsHit())return;
-            FloorHits++;CounterRemaining=0;
+            FloorHits++;CounterRemaining=0;PaceHurt();
             damage=MitigatePlayerDamage(damage*PassiveDamageTakenScale);if(damage<=0)return;
             DamageTaken+=Mathf.Min(hero.hp,damage);
             hero.hp=Mathf.Max(0,hero.hp-damage);hero.hurt=.25f;invulnerable=.65f;HitStop(.05f);Shake(.16f,.22f);
-            FloatText(hero.pos+Vector2.up*2,"−"+Mathf.RoundToInt(damage),new Color(1,.4f,.35f));Sound(hitSound,.8f);
+            FloatText(hero.pos+Vector2.up*2,"−"+Mathf.RoundToInt(damage),new Color(1,.4f,.35f));Sound(hurtCue,.8f);
             if(hero.hp<=0)PassiveRebirth();
             if(hero.hp<=0){ClearOathEffects();hero.art.PlayDeath(.65f);}else OnPassiveHurt();
         }
@@ -391,7 +475,35 @@ namespace PrototypeLab.Roguelike
         { var c=run.GetCompanion(id);if(run.DismissCompanion(id)){ReconcileLoadout();dismissId="";Toast("동료와 작별",(c==null?"":c.Name+"  ·  ")+"능력도 함께 사라졌습니다",muted);} }
         internal void NextFloor(FloorType type=FloorType.Normal){if(run.AdvanceFloor(type))SpawnFloor();}
         internal void Notice(string text,float seconds){notice=text;noticeTime=seconds;}
-        private void FloatText(Vector2 pos,string text,Color color){numbers.Add(new Number{pos=pos,text=text,color=color,life=.8f});}
+        // At most MaxNumbers float at once; a new one past that drops the oldest.
+        internal const int MaxNumbers=40;
+        internal const float CompanionNumberSize=.7f,DotNumberWindow=.95f,CompanionCastLabelSize=14f/24,CompanionCastLabelLife=.5f;
+        private Number companionCastLabel;
+        private void FloatText(Vector2 pos,string text,Color color){AddNumber(pos,text,color,1,.8f);}
+        private Number AddNumber(Vector2 pos,string text,Color color,float size,float life)
+        {
+            if(numbers.Count>=MaxNumbers)numbers.RemoveAt(0);
+            var n=new Number{pos=pos,text=text,color=color,life=life,size=size};numbers.Add(n);return n;
+        }
+        // Companions' damage reads smaller and in silver; damage over time gathers into one number per enemy about each second.
+        private void DamageNumber(Fighter e,float damage,bool critical)
+        {
+            bool companion=lastStrikeOwner is CompanionState;
+            Color color=companion?silver:critical?new Color(1,.5f,.32f):TowerWorld.Gold;float size=companion?CompanionNumberSize:1;
+            if(lastStrikeDot)
+            {
+                foreach(var n in numbers)
+                    if(n.tally==e&&elapsed-n.since<DotNumberWindow){n.total+=damage;n.text=Mathf.CeilToInt(n.total).ToString();n.life=Mathf.Max(n.life,.5f);return;}
+                var tally=AddNumber(e.pos+Vector2.up*1.8f,Mathf.CeilToInt(damage).ToString(),color,size,.8f);tally.tally=e;tally.total=damage;tally.since=elapsed;return;
+            }
+            AddNumber(e.pos+Vector2.up*1.8f,Mathf.CeilToInt(damage)+(critical?"!":""),color,size,.8f);
+        }
+        // A companion's cast is named on a small tag in its colour; only the latest one shows.
+        private void CompanionCastLabel(Vector2 pos,string text,Color color)
+        {
+            if(companionCastLabel!=null)numbers.Remove(companionCastLabel);
+            companionCastLabel=AddNumber(pos,text,color,CompanionCastLabelSize,CompanionCastLabelLife);
+        }
         private void Burst(Vector2 pos,Color color,int count,float size)
         {
             if(vfx!=null)vfx.Hit(pos,color);
@@ -405,7 +517,6 @@ namespace PrototypeLab.Roguelike
         }
         private AudioClip Tone(float hz,float length)
         {int n=(int)(22050*length);var data=new float[n];for(int i=0;i<n;i++){float t=i/22050f;data[i]=(Mathf.Sin(t*hz*6.283f)+Mathf.Sin(t*hz*12.566f)*.25f)*Mathf.Pow(1-i/(float)n,2)*.35f;}var c=AudioClip.Create("Tower sound",n,1,22050,false);c.SetData(data,0);return c;}
-        private void Sound(AudioClip clip,float volume){if(audioSource&&clip)audioSource.PlayOneShot(clip,volume);}
         private bool MouseInUI()
         {
             float scale=Mathf.Min(Screen.width/1600f,Screen.height/900f);

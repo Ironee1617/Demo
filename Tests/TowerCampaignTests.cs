@@ -12,8 +12,15 @@ public static class TowerCampaignTests
     {
         while (true)
         {
+            int open = run.OpenSkills;
             Require(run.ClearFloor(), "clear floor " + run.Floor);
             Require(!run.IsRecruitOffer, "chapters never recruit inside the tower (floor " + run.Floor + ")");
+            // The last floor's skill cards would be reset in the village at once, so the chapter ends without them.
+            Require(run.Floor < run.MaxFloor || !run.IsRewardPending && run.IsComplete, "the chapter's last floor deals no cards (floor " + run.Floor + ")");
+            // The HUD announces the next skill floor by the same rule the clear deals by.
+            if (run.Floor % TowerRun.RewardInterval == 0)
+                Require(run.DealsSkillCards(run.Floor) == (run.Floor < run.MaxFloor) && run.IsRewardPending == (run.DealsSkillCards(run.Floor) && open > 0),
+                    "fifth floor " + run.Floor + " deals skill cards exactly as announced");
             if (run.IsRewardPending) Require(run.ChooseOffer(run.Offers[0].Id), "choose reward on " + run.Floor);
             if (run.IsComplete) return;
             Require(run.AdvanceFloor(), "advance from " + run.Floor);
@@ -167,7 +174,7 @@ public static class TowerCampaignTests
                 Climb(run);
                 Require(run.IsComplete && run.Floor == chapter.LastFloor && run.ClearedFloors == chapter.LastFloor && run.Theme.Id == chapter.Theme, "climbed from floor 1 through chapter " + c);
                 int grown = Levels(run);
-                Require(grown >= joined + 2, "two fifth-floor rewards per chapter");
+                Require(grown >= joined + 2, "the cards on the way up grow the party");
                 Require(save.RecordChapterClear(run) && save.ClearedChapters == c + 1, "chapter recorded " + c);
                 Require(!save.RecordChapterClear(run), "a chapter is recorded once");
                 Require(save.IsRestored(chapter), "chapter restored");
@@ -221,6 +228,22 @@ public static class TowerCampaignTests
             Require(grown.ClearedChapters == 2 && grown.Save() == "c3;2;1;0;" && Levels(grown.Preview(1, new[] { "zeus" })) == 2, "a c2 save drops the growth and health it kept between chapters");
             var overflow = TowerCampaignSave.Load("c3;99;7;0;");
             Require(overflow.IsComplete && overflow.ClearedChapters == 9 && overflow.EndingSeen, "chapter count clamps");
+        });
+        test("a chapter's intro page is marked once and kept in the save flags above the older ones", () => {
+            var save = new TowerCampaignSave(); var olympus = TowerCampaign.Chapters[0]; var abyss = TowerCampaign.Chapters[8];
+            Require(!save.IntroSeen(olympus) && !save.IntroSeen(null) && !save.MarkIntroSeen(null), "a fresh save has seen no intro");
+            Require(save.MarkIntroSeen(olympus) && !save.MarkIntroSeen(olympus) && save.IntroSeen(olympus) && !save.IntroSeen(TowerCampaign.Chapters[1]), "an intro is marked once");
+            Require(save.MarkIntroSeen(abyss), "the final ascent's intro too");
+            save.PrologueSeen = true;
+            string text = save.Save(); var loaded = TowerCampaignSave.Load(text);
+            Require(text == "c3;0;2057;0;" && loaded.Save() == text, "round trip " + text);
+            Require(loaded.IntroSeen(olympus) && loaded.IntroSeen(abyss) && !loaded.IntroSeen(TowerCampaign.Chapters[4]), "intro marks restored");
+            Require(loaded.PrologueSeen && !loaded.TutorialDone && !loaded.EndingSeen, "the older flags keep their bits");
+            var older = TowerCampaignSave.Load("c3;2;3;5;");
+            foreach (var chapter in TowerCampaign.Chapters) Require(!older.IntroSeen(chapter), "a save from before intro marks has seen none");
+            Require(older.PrologueSeen && older.TutorialDone && older.Save() == "c3;2;3;5;", "an older save reads and writes as before");
+            var legacy = TowerCampaignSave.Load("c1;1;3;zeus;zeus;0;");
+            Require(legacy.PrologueSeen && !legacy.IntroSeen(olympus), "a c1 save carries no intro marks");
         });
     }
 }

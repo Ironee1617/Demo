@@ -2,24 +2,28 @@ using UnityEngine;
 
 namespace PrototypeLab.Roguelike
 {
-    // Grace family: HealPulse, ShieldPulse and LifeDrain.
-    // HealPulse: heaven opens over the caster (a narrow descending shaft, a halo, falling light) while a lotus seal unfolds
-    // and light and petals spiral into the hands; the release strikes a divine column down from the sky, raises a ring of
-    // sanctuary pillars on the edge of the area, and throws life rings and a petal storm.
-    // ShieldPulse: bevelled ward plates fly in and lock onto a golden hexagonal dome rising out of a rune seal; the dome
-    // snaps shut, a scan of light runs up its cells, a beacon shoots from its apex and light shards break off.
-    // LifeDrain: a black-crimson vortex drinks blood smoke into the hand while the victim is branded; the release tears a
-    // ghost out of the victim and pulls a thick soul river (dark channel, crimson and life strands, smoke, souls) into the
-    // caster, who surges with life.
-    // Big shapes are drawn twice: a saturated alpha-blended "pigment" or dark "ink" layer that keeps its colour on pale
-    // marble skies, and a smaller additive light layer on top. Large backdrops (halo, column, dome) sit behind the actors.
-    // Instant echo casts (wind-up under 0.2 s) are always followed at once by the skill's own burst, so they stay small.
+    // Grace family: HealPulse, ShieldPulse and LifeDrain, drawn as painted light.
+    // HealPulse: heaven opens over the caster (a column of light with a white spine inside a broad soft beam) while a lotus
+    // seal and a painted brush ring unfold on the floor in a pool of light and painted leaves whirl into the hands; the release
+    // billows a holy blast behind the caster, strikes a divine column down from the sky with a hand-drawn spark and a tall
+    // cross of spindle strokes, raises sanctuary pillars of light on the rim of the area and sends crosses, sparkles and
+    // leaves rising.
+    // ShieldPulse: luminous gold plates fly in and lock onto a glowing painted dome (a bright rim inside a soft halo, a faint
+    // lattice that never hides the hero); the dome snaps shut with a spark, a scan runs up its cells, a beacon shoots from its
+    // apex and crystal slivers of light break off. Blocks flash the lattice; a level-three ward bursts as it breaks.
+    // LifeDrain: a crimson whirl round a plasma heart drinks soul motes into the hand while luminous tendrils hook the victim;
+    // the release tears the soul out (a crimson blast, a spark, needles) and a luminous crimson ribbon with a strand of life
+    // winding through it pours plasma soul motes into the caster, who surges with a column of life.
+    // Every shape is painted light (a crisp silhouette, a smooth ramp inside) over a soft bloom; painted objects (leaves,
+    // plates, slivers) are lit softly from the upper left. There are no dark ink twins: large backdrops sit behind the actors
+    // and a soft underlay keeps the light readable on pale skies. Instant echo casts (wind-up under 0.2 s) are always followed
+    // at once by the skill's own burst, so they stay small.
     public sealed partial class TowerVfx
     {
-        private static Sprite GraceDome, GraceSoul, GraceFacet, GraceMandala, GraceShaft, GracePlate, GraceRibbon;
-        private static Sprite[] GraceGlyphs;
-        private static readonly Color GraceCrimson = new Color(1, .16f, .3f), GraceBlood = new Color(.5f, .01f, .1f, .8f), GraceVoid = new Color(.05f, 0, .04f, .9f),
-            GraceAwake = new Color(1, .93f, .68f), GraceUmber = new Color(.36f, .2f, .03f, .72f);
+        private static Sprite GraceDome, GraceDomeRim, GraceDomeGlow, GraceSoul, GraceFacet, GraceMandala, GraceBeam, GraceRibbon, GracePlate, GracePillar, GraceCross, GraceLeaf, GraceBrushRing, GraceHex, GraceShock;
+        private static Sprite[] GraceGlyphs, GraceStream, GraceStreamShift, GraceRibbonFrames;
+        private static readonly Color GraceCrimson = new Color(1, .16f, .3f), GraceSoulHot = new Color(1, .7f, .74f), GraceSmoke = new Color(.62f, .08f, .18f, .5f),
+            GraceAwake = new Color(1, .93f, .68f);
         private const float GraceDomeWidth = 4.4f, GraceDomeHeight = 3.6f;
         // The caster's drink of the first soul river of a drain, so a second river landing with it only adds a gulp.
         private Clip GraceDrinkMark;
@@ -30,98 +34,100 @@ namespace PrototypeLab.Roguelike
         {
             float k = Mathf.Clamp(c.size / 1.4f, .75f, 2), w = c.windup, release = Mathf.Max(0, w - .02f);
             Color main = GraceVivid(c.tint, LifeLight), life = Color.Lerp(main, LifeLight, .15f), hot = Color.Lerp(life, Warm, .55f);
-            Color deep = GraceDeep(main, .3f, .85f), pigment = GraceDeep(main, .62f, .9f);
+            Color leafTone = GraceLeafTone(main);
             Vector2 pos = c.pos, ground = pos + Vector2.down, hand = pos + new Vector2(c.facing * .25f, .45f), heart = pos + Vector2.up * .2f;
 
-            // Life gathers in the raised hands and peaks exactly at the release.
+            // Life gathers in the raised hands: a white-hot seed in a soft bloom inside a turning cross, peaking at the release.
             float handLife = w + .1f;
-            var aura = Anchored(c.anchor, hand, "Grace heal hand pigment", glow, 1.7f * k, Alpha(pigment, .55f), handLife, 118, false);
-            aura.fadeIn = .05f; aura.startScale = .35f; aura.endScale = 1.1f; aura.ease = 1.5f; aura.hold = w / handLife; aura.fadePower = 2;
-            var bloom = Anchored(c.anchor, hand, "Grace heal hand bloom", glow, 2 * k, Alpha(life, .75f), handLife, 124);
-            bloom.fadeIn = .04f; bloom.startScale = .3f; bloom.endScale = 1.15f; bloom.ease = 1.5f; bloom.hold = w / handLife; bloom.fadePower = 2; bloom.pulse = .06f;
-            var handCore = Anchored(c.anchor, hand, "Grace heal hand core", core, .6f * k, Alpha(Warm, .95f), w + .05f, 126);
-            handCore.fadeIn = .04f; handCore.startScale = .25f; handCore.endScale = 1; handCore.ease = 1.5f; handCore.hold = .85f; handCore.fadePower = 2;
+            var bloom = Anchored(c.anchor, hand, "Grace heal hand bloom", glow, 1.8f * k, Alpha(life, .6f), w + .06f, 28);
+            bloom.fadeIn = .05f; bloom.startScale = .3f; bloom.endScale = 1; bloom.ease = 1.5f; bloom.hold = .85f; bloom.fadePower = 2; bloom.pulse = .06f;
+            var seed = Anchored(c.anchor, hand, "Grace heal hand core", core, .5f * k, Alpha(hot, 1), w + .05f, 126);
+            seed.fadeIn = .04f; seed.startScale = .25f; seed.endScale = 1; seed.ease = 1.5f; seed.hold = .85f; seed.fadePower = 2; seed.pulse = .08f;
+            var handCross = Anchored(c.anchor, hand, "Grace heal hand cross", GraceCross, 1.25f * k, Alpha(life, .95f), handLife, 125);
+            handCross.spin = 150; handCross.startScale = .2f; handCross.endScale = 1; handCross.ease = 1.6f; handCross.hold = w / handLife; handCross.fadePower = 2;
             if (w < .2f)
             {
                 // An instant echo: the heal burst follows at once, so the echo only sparks the hands.
                 Converge(hand, 6, 1.8f * k, life, w, .45f);
-                var spark0 = GraceLater(Glint(hand, 1.8f * k, Alpha(Warm, .9f), .2f), release); spark0.spin = 0;
+                GraceStar(hand, 1.6f * k, Alpha(hot, 1), .18f, 132, release);
                 return;
             }
             float total = w + .4f, hold = w / total;
             // Higher levels open a wider shaft of heaven and a bigger halo.
             int grade = Grade; float gl = GraceLevel(1.15f, 1.3f);
 
-            // Heaven opens: a narrow shaft descends on the caster (behind the actors) and drops of light rain down; both
-            // brighten toward the release.
+            // Heaven opens: a column of light with a white spine descends on the caster inside a broad soft beam (both behind
+            // the actors), and drops of light rain down; they brighten toward the release.
             float beamLife = w + .16f;
-            for (int layer = 0; layer < 3; layer++)
-            {
-                var shaft = layer == 0 ? GraceColumn(GraceShaft, ground, 1.15f * k * gl, 12, Alpha(pigment, .55f), beamLife, false, 26)
-                    : layer == 1 ? GraceColumn(GraceShaft, ground, .9f * k * gl, 12, Alpha(life, .6f), beamLife, true, 27)
-                    : GraceColumn(pillar, ground, .32f * k * gl, 12, Alpha(Warm, .8f), beamLife, true, 27);
-                shaft.axisStart = new Vector2(.12f, 1); shaft.axisEnd = Vector2.one; shaft.ease = 1.4f; shaft.fadeIn = w * .45f; shaft.hold = w / beamLife; shaft.fadePower = 2.2f;
-            }
+            var beamGlow = GraceColumn(GraceBeam, ground, 2.6f * k * gl, 12, Alpha(life, .5f), beamLife, true, 26);
+            var shaft = GraceColumn(GracePillar, ground, .95f * k * gl, 12, Alpha(life, .95f), beamLife, true, 27);
+            foreach (var clip in new[] { beamGlow, shaft }) { clip.axisStart = new Vector2(.12f, 1); clip.axisEnd = Vector2.one; clip.ease = 1.4f; clip.fadeIn = w * .45f; clip.hold = w / beamLife; clip.fadePower = 2; }
             int drops = Budget(6);
             for (int i = 0; i < drops; i++)
             {
                 float x = pos.x + Range(-.8f, .8f) * k, top = pos.y + Range(4.5f, 6);
-                var drop = GraceLater(Line(new Vector2(x, top), new Vector2(x, top - 1.3f), .11f * k, Alpha(Color.Lerp(life, Warm, .5f), .95f), .3f, 130), Range(0, Mathf.Max(0, w - .3f)));
+                var drop = GraceLater(Line(new Vector2(x, top), new Vector2(x, top - 1.3f), .11f * k, Alpha(hot, .95f), .3f, 130), Range(0, Mathf.Max(0, w - .3f)));
                 drop.velocity = Vector2.down * 15; drop.fadeIn = .05f; drop.fadePower = 1.2f;
             }
 
-            // A lotus seal unfolds under the caster: dark ink beneath the light so it reads on pale floors.
-            var ink = Spawn("Grace lotus ink", GraceMandala, ground, 4 * k, deep, total, false, 25);
-            GraceFlat(ink, .3f); ink.spin = 30; ink.fadeIn = .06f; ink.startScale = .45f; ink.endScale = 1; ink.ease = 3; ink.hold = hold; ink.fadePower = 1.5f;
+            // A lotus seal unfolds under the caster in a pool of soft light inside one painted brush ring; light motes,
+            // crosses and painted leaves rise off it.
+            var pool = GraceGroundBloom(ground, 5.2f * k, Alpha(life, .5f), total);
             var seal = Spawn("Grace lotus seal", GraceMandala, ground, 3.8f * k, Alpha(life, .95f), total, true, 27);
-            GraceFlat(seal, .3f); seal.spin = 30; seal.fadeIn = .05f; seal.startScale = .45f; seal.endScale = 1; seal.ease = 3; seal.hold = hold; seal.fadePower = 1.5f;
+            GraceFlat(seal, .3f); seal.spin = 30;
+            foreach (var clip in new[] { pool, seal }) { clip.fadeIn = .05f; clip.startScale = .45f; clip.endScale = 1; clip.ease = 3; clip.hold = hold; clip.fadePower = 1.5f; }
             var runes = RuneCircle(ground, 2.6f * k, Alpha(hot, .85f), total, -80, true); runes.hold = hold;
-            var floor = GroundGlow(ground, 5 * k, Alpha(life, .5f), total); floor.hold = hold;
-            Emitter(floor, 22 * k, 1.7f * k, (owner, p) => GraceHealMote(GraceOnGround(owner, p), Chance(.3f) ? hot : LifeLight, pigment, k));
+            var band = Spawn("Grace heal ring", GraceBrushRing, ground, 4.6f * k, Alpha(life, 1), total, true, 26);
+            GraceFlat(band, .3f); band.angle = Range(0, 360); band.spin = 70; band.fadeIn = .06f; band.startScale = .4f; band.endScale = 1; band.ease = 2.5f; band.hold = hold; band.fadePower = 1.4f;
+            Emitter(band, 18 * k, 1.7f * k, (owner, p) => GraceHealMote(GraceOnGround(owner, p), Chance(.3f) ? hot : LifeLight, leafTone, k));
 
-            // A lotus halo opens behind the caster as the charge builds (behind the actors, so the hero stays readable).
-            var haloInk = Spawn("Grace heal halo ink", GraceMandala, heart, 4.2f * k * gl, Alpha(deep, .8f), total, false, 26);
-            haloInk.spin = -25; haloInk.startScale = .3f; haloInk.endScale = 1; haloInk.ease = 2; haloInk.fadeIn = .06f; haloInk.hold = hold; haloInk.fadePower = 1.6f;
-            var halo = Spawn("Grace heal halo", GraceMandala, heart, 4.1f * k * gl, Alpha(life, .9f), total, true, 27);
-            halo.spin = -25; halo.startScale = .3f; halo.endScale = 1; halo.ease = 2; halo.fadeIn = .06f; halo.hold = hold; halo.fadePower = 1.6f;
+            // A lotus halo opens behind the caster in a soft bloom as the charge builds (behind the actors, so the hero stays
+            // readable).
+            var haloGlow = Spawn("Grace heal halo bloom", glow, heart, 4.8f * k * gl, Alpha(life, .42f), total, true, 25);
+            var halo = Spawn("Grace heal halo", GraceMandala, heart, 4.1f * k * gl, Alpha(life, .85f), total, true, 27); halo.spin = -25;
+            foreach (var clip in new[] { haloGlow, halo }) { clip.startScale = .3f; clip.endScale = 1; clip.ease = 2; clip.fadeIn = .06f; clip.hold = hold; clip.fadePower = 1.6f; }
             if (grade >= 2)
             {
                 // Level two (part of the heal becomes a shield): a gold ring of ward light turns inside the halo the other way;
                 // awakened, a gold-white rune ring crowns the halo's rim.
-                var wardInk = Spawn("Grace heal ward ring ink", runeRing, heart, 2.7f * k, GraceUmber, total, false, 26);
                 var ward = Spawn("Grace heal ward ring", runeRing, heart, 2.6f * k, Alpha(Color.Lerp(GoldLight, Warm, .3f), .9f), total, true, 28);
-                foreach (var clip in new[] { wardInk, ward }) { clip.spin = 60; clip.startScale = .3f; clip.endScale = 1; clip.ease = 2; clip.fadeIn = .08f; clip.hold = hold; clip.fadePower = 1.6f; }
+                ward.spin = 60; ward.startScale = .3f; ward.endScale = 1; ward.ease = 2; ward.fadeIn = .08f; ward.hold = hold; ward.fadePower = 1.6f;
             }
             if (grade >= 3)
             {
-                var crown = Spawn("Grace heal crown", runeRing, heart, 4.6f * k * gl, Alpha(GraceAwake, .8f), total, true, 28);
-                crown.spin = 18; crown.startScale = .35f; crown.endScale = 1; crown.ease = 2; crown.fadeIn = .1f; crown.hold = hold; crown.fadePower = 1.6f; crown.pulse = .03f;
+                var crown = Spawn("Grace heal crown", runeRing, heart, 4.6f * k * gl, Alpha(GraceAwake, .85f), total, true, 28);
+                crown.spin = 18; crown.startScale = .35f; crown.endScale = 1; crown.ease = 2; crown.fadeIn = .1f; crown.hold = hold; crown.fadePower = 1.6f;
             }
 
-            Converge(hand, 14, 2.7f * k, life, w, .45f);
-            // Petals whirl in from a wide circle and vanish into the hands.
-            int petals = Budget(12);
-            for (int i = 0; i < petals; i++)
+            Converge(hand, 12, 2.7f * k, life, w, .45f);
+            // Painted leaves whirl in from a wide circle and vanish into the hands; every third one is a leaf of pure light.
+            int leaves = Budget(10);
+            for (int i = 0; i < leaves; i++)
             {
                 bool lit = i % 3 == 0;
-                var leaf = Spawn("Grace gathering petal", petal, hand, Range(.4f, .6f) * k, lit ? Alpha(Warm, .9f) : Alpha(Color.Lerp(pigment, main, Range(0, .4f)), .95f), w * Range(.85f, 1), lit, lit ? 130 : 121);
-                leaf.orbitCenter = hand; leaf.orbitAngle = i * 360f / petals + Range(-12, 12); leaf.orbit = Range(240, 340);
+                var leaf = Spawn("Grace gathering leaf", GraceLeaf, hand, Range(.46f, .64f) * k, lit ? Alpha(hot, .95f) : Alpha(Color.Lerp(leafTone, main, Range(0, .35f)), .95f), w * Range(.85f, 1), lit, lit ? 130 : 121);
+                leaf.orbitCenter = hand; leaf.orbitAngle = i * 360f / leaves + Range(-12, 12); leaf.orbit = Range(240, 340);
                 leaf.orbitRadius = Range(2.1f, 2.9f) * k; leaf.orbitRadiusEnd = .1f; leaf.orbitPower = 1.4f;
-                leaf.spin = Range(-300, 300); leaf.fadeIn = .1f; leaf.hold = .7f; leaf.fadePower = 2; leaf.startScale = 1; leaf.endScale = .4f;
+                leaf.spin = Range(-300, 300); leaf.fadeIn = .06f; leaf.hold = .7f; leaf.fadePower = 2; leaf.startScale = 1; leaf.endScale = .4f;
             }
 
-            // Release: a bloom of light, a tall cross flare and rings (heart pickups and rest heals end here).
-            var flash = GraceLater(Spawn("Grace heal release", glow, hand, 2.8f * k, Alpha(Warm, .85f), .26f, true, 131), release);
-            flash.ramp = Ramp(Color.white, life); flash.startScale = .45f; flash.endScale = 1.35f; flash.ease = 2.5f; flash.fadePower = 1.6f;
-            var cross = GraceLater(Glint(hand, 3.2f * k, Color.white, .34f), release); cross.scale.y *= 1.5f; cross.spin = 0;
-            GraceLater(Wave(pos, 4.4f * k, Alpha(life, .85f), .38f, 3), release);
-            GraceLater(GraceRing(pos, 4 * k, Alpha(pigment, .75f), .36f, 3, false, 119), release);
-            GraceLater(GroundWave(ground, 5.6f * k, Alpha(life, .85f), .45f), release);
-            int pops = Budget(8);
+            // Release: a hand-drawn spark, a tall cross of spindle strokes, needles and shock fronts (heart pickups and rest heals
+            // end here).
+            GraceStar(hand, 2 * k, Alpha(hot, 1), .24f, 132, release);
+            GraceCrossFlare(hand, 3.4f * k, Alpha(life, 1), .3f, release);
+            GraceWave(pos, 4.4f * k, Alpha(life, .9f), .36f, 3, 131, release);
+            GraceGroundWave(ground, 5.6f * k, Alpha(life, .9f), .42f, release);
+            int needles = Budget(8);
+            for (int i = 0; i < needles; i++)
+            {
+                Vector2 way = Direction(i * 360f / needles + Range(-18, 18));
+                GraceLater(Spark(hand + way * .15f, way * Range(4, 7) * k, i % 3 == 0 ? Color.white : life, Range(.3f, .45f) * k, Range(.22f, .34f), 3, 3), release);
+            }
+            int pops = Budget(6);
             for (int i = 0; i < pops; i++)
             {
                 bool lit = i % 2 == 0;
-                var leaf = GraceLater(Spawn("Grace petal pop", petal, hand, Range(.3f, .45f) * k, lit ? Alpha(Warm, .9f) : Alpha(pigment, .95f), Range(.6f, .9f), lit, lit ? 130 : 121), release);
+                var leaf = GraceLater(Spawn("Grace leaf pop", GraceLeaf, hand, Range(.34f, .5f) * k, lit ? Alpha(hot, .95f) : Alpha(leafTone, .95f), Range(.6f, .9f), lit, lit ? 130 : 121), release);
                 leaf.velocity = Direction(i * 360f / pops + Range(-15, 15)) * Range(3.5f, 5.5f) * k + Vector2.up; leaf.drag = 3; leaf.gravity = -1; leaf.spin = Range(-500, 500); leaf.hold = .35f; leaf.fadePower = 1.3f;
             }
         }
@@ -130,58 +136,60 @@ namespace PrototypeLab.Roguelike
         {
             float R = Mathf.Clamp(radius, .8f, 4.5f), s = Mathf.Clamp(.35f + R * .19f, .55f, 1.2f);
             Color main = GraceVivid(tint, LifeLight), life = Color.Lerp(main, LifeLight, .15f), hot = Color.Lerp(life, Warm, .55f);
-            Color deep = GraceDeep(main, .3f, .85f), pigment = GraceDeep(main, .62f, .9f);
+            Color leafTone = GraceLeafTone(main);
             Vector2 ground = pos + Vector2.down * .95f, heart = pos + Vector2.up * .2f;
             float span = Mathf.Max(2.6f, R * 1.9f);
             // Higher levels: a wider divine column and taller sanctuary pillars (the healed area itself grows with the radius).
             int grade = Grade; float gl = GraceLevel(1.15f, 1.3f);
 
-            // Peak: a white-hot heart, an emerald bloom, a tall holy cross and impact lines, all inside the first 0.05 s.
-            var shade = Underlay(heart, 5 * s, .26f, .5f); shade.hold = .2f;
-            var core0 = Spawn("Grace heal heart", core, pos, 1.3f * s, Color.white, .14f, true, 133); core0.startScale = .5f; core0.endScale = 1.7f; core0.ease = 2.5f; core0.fadePower = 1.5f;
-            var tintBloom = Spawn("Grace heal pigment bloom", glow, heart, 4.4f * s, Alpha(pigment, .55f), .5f, false, 119); tintBloom.startScale = .45f; tintBloom.endScale = 1.2f; tintBloom.ease = 3; tintBloom.fadePower = 1.4f;
-            var bloom = Flash(pos, 3.6f * s, Alpha(life, .7f), .28f); bloom.ramp = Ramp(Color.white, life); bloom.startScale = .45f; bloom.endScale = 1.25f; bloom.ease = 3;
-            var cross = Glint(heart, 5.2f * s, Color.white, .45f); cross.scale.y *= 1.65f; cross.spin = 0;
-            var star = Glint(heart, 3.2f * s, Alpha(hot, .95f), .36f, 45); star.spin = -70;
-            GracePigment(ImpactLines(pos, 7.4f * s, Alpha(pigment, .8f), .34f), 119);
-            ImpactLines(pos, 6.6f * s, Alpha(Color.Lerp(life, Color.white, .45f), .7f), .3f);
-            Rays(heart, 8, 1.6f * s, 3.4f * s, life, .3f);
+            // Peak, inside the first drawn frames: a white-hot heart, a holy blast billowing behind the caster (the hand-drawn
+            // explosion in life's colours, wholly behind the actors so the hero stays clear), a spark flaring over the head, a
+            // tall cross of spindle strokes, light wedges, needles and sparkles flung out.
+            var shade = Underlay(heart, 4.6f * s, .2f, .45f); shade.hold = .2f;
+            var core0 = Spawn("Grace heal heart", core, pos, .8f * s, Color.white, .1f, true, 133); core0.startScale = .5f; core0.endScale = 1.5f; core0.ease = 4; core0.fadePower = 1.3f;
+            Blast(heart, 4 * s, Alpha(hot, 1), .6f, 26);
+            GraceStar(heart + Vector2.up * .9f * s, 2.6f * s, Alpha(hot, 1), .3f, 132);
+            GraceCrossFlare(heart, 6.6f * s, Alpha(life, 1), .42f, 0);
+            ImpactLines(pos, 5.4f * s, Alpha(life, .85f), .26f);
+            int needles = Budget(10);
+            for (int i = 0; i < needles; i++)
+            {
+                Vector2 way = Direction(i * 360f / needles + Range(-16, 16));
+                Spark(heart + way * .2f, way * Range(6, 10) * s + Vector2.up * 1.5f, i % 3 == 0 ? Color.white : life, Range(.4f, .6f) * s, Range(.25f, .4f), 4, 3);
+            }
+            Sparkles(heart, 8, 1.1f * s, hot);
 
-            // A huge lotus halo flares open behind the caster.
-            var haloInk = Spawn("Grace heal halo ink", GraceMandala, heart, 5 * s, Alpha(deep, .62f), .9f, false, 26);
-            haloInk.spin = -30; haloInk.startScale = .55f; haloInk.endScale = 1.1f; haloInk.ease = 4; haloInk.hold = .25f; haloInk.fadePower = 1.5f;
-            var halo = Spawn("Grace heal halo", GraceMandala, heart, 4.9f * s, Alpha(life, .9f), .85f, true, 27);
-            halo.spin = -30; halo.startScale = .55f; halo.endScale = 1.1f; halo.ease = 4; halo.hold = .2f; halo.fadePower = 1.6f;
+            // A huge lotus halo flares open behind the caster in a soft bloom.
+            var haloGlow = Spawn("Grace heal halo bloom", glow, heart, 6 * s, Alpha(life, .45f), .8f, true, 25);
+            var halo = Spawn("Grace heal halo", GraceMandala, heart, 4.9f * s, Alpha(life, .9f), .85f, true, 27); halo.spin = -30;
+            foreach (var clip in new[] { haloGlow, halo }) { clip.startScale = .55f; clip.endScale = 1.1f; clip.ease = 6; clip.hold = .25f; clip.fadePower = 1.4f; }
 
-            // A divine column strikes down from the sky at full height and widens: dark-green body and soft light behind
-            // the actors, a beam and a white spine in front; the strike splashes light across the floor.
+            // A divine column strikes down from the sky at full height and widens: a broad soft beam, a column of light and its
+            // white-hot spine, all behind the actors so the hero stays clear; the strike splashes painted wedges across the floor.
             float height = 14 * Mathf.Lerp(.7f, 1, Mathf.InverseLerp(.55f, 1, s));
-            var shaft = GraceColumn(GraceShaft, ground, 3.2f * s * gl, height, Alpha(deep, .72f), 1.15f, false, 26); shaft.hold = .3f; shaft.fadePower = 1.2f;
-            var glowShaft = GraceColumn(GraceShaft, ground, 2.7f * s * gl, height, Alpha(life, .7f), 1, true, 27); glowShaft.hold = .25f;
-            var beam = GraceColumn(pillar, ground, 1.9f * s * gl, height, Alpha(life, .8f), .8f, true, 128); beam.hold = .1f;
-            var spine = GraceColumn(pillar, ground, .6f * s * gl, height, grade >= 3 ? GraceAwake : Color.white, .5f, true, 129); spine.fadePower = 1.6f;
-            foreach (var column in new[] { shaft, glowShaft, beam, spine }) { column.axisStart = new Vector2(.12f, 1); column.ease = 5; }
-            var strike = Spawn("Grace heal strike", glow, ground, span * .9f, Alpha(Color.Lerp(life, Warm, .25f), .7f), .3f, true, 128);
-            GraceFlat(strike, .3f); strike.startScale = .3f; strike.endScale = 1.1f; strike.ease = 3; strike.fadePower = 1.6f;
+            var beamGlow = GraceColumn(GraceBeam, ground, 6.4f * s * gl, height, Alpha(life, .55f), .9f, true, 26); beamGlow.hold = .3f; beamGlow.fadePower = 1.2f;
+            var beam = GraceColumn(GracePillar, ground, 2.6f * s * gl, height, Alpha(life, 1), .9f, true, 27); beam.hold = .25f; beam.fadePower = 1.3f;
+            var spine = GraceColumn(GracePillar, ground, .9f * s * gl, height, Alpha(grade >= 3 ? GraceAwake : hot, 1), .45f, true, 29); spine.hold = .15f; spine.fadePower = 1.4f;
+            foreach (var column in new[] { beamGlow, beam, spine }) { column.axisStart = new Vector2(.12f, 1); column.ease = 6; }
+            var splash = Spawn("Grace heal splash", burst, ground, span * 1.15f, Alpha(life, 1), .3f, true, 27);
+            GraceFlat(splash, .3f); splash.angle = Range(0, 360); splash.startScale = .5f; splash.endScale = 1.1f; splash.ease = 5; splash.hold = .2f; splash.fadePower = 1.2f;
 
-            // Life rings on the body and the floor, staggered; pigment rings keep their colour on pale backdrops.
-            Wave(pos, R * 2.6f, Alpha(life, .75f), .5f, 3);
-            GraceRing(pos, R * 2.1f, Alpha(pigment, .8f), .42f, 3.5f, false, 119);
-            GraceLater(Wave(pos, R * 3.1f, Alpha(hot, .35f), .55f, 2.5f), .1f);
-            GroundWave(ground, span * 1.55f, Alpha(life, .7f), .55f);
-            GraceFlat(GraceLater(GraceRing(ground, span * 1.9f, Alpha(pigment, .6f), .55f, 3, false, 24), .1f), .34f);
-            var inkRing = GraceRing(ground, span * 1.5f, Alpha(deep, .75f), .6f, 3, false, 24); GraceFlat(inkRing, .34f);
+            // Shock fronts on the body and the floor; a painted brush ring then holds on the floor, slowly turning, and erodes.
+            GraceWave(pos, R * 2.6f, Alpha(life, .9f), .45f, 3);
+            GraceGroundWave(ground, span * 1.55f, Alpha(life, .9f), .5f);
+            var band = Spawn("Grace heal ring", GraceBrushRing, ground, span * 1.2f, Alpha(life, 1), 1.25f, true, 26);
+            GraceFlat(band, .3f); band.angle = Range(0, 360); band.spin = 36; band.startScale = .6f; band.endScale = 1; band.ease = 6; band.hold = .45f; band.fadePower = 1.2f;
 
-            // The lotus seal holds on the floor, slowly turning, then fades; light motes and leaves rise off it.
-            var sealInk = Spawn("Grace lotus ink", GraceMandala, ground, span * 1.06f, deep, 1.5f, false, 25);
-            GraceFlat(sealInk, .3f); sealInk.spin = 16; sealInk.fadeIn = .03f; sealInk.startScale = .55f; sealInk.endScale = 1; sealInk.ease = 6; sealInk.hold = .45f; sealInk.fadePower = 1.3f;
-            var seal = Spawn("Grace lotus seal", GraceMandala, ground, span, life, 1.4f, true, 27);
-            GraceFlat(seal, .3f); seal.spin = 16; seal.fadeIn = .03f; seal.startScale = .55f; seal.endScale = 1; seal.ease = 6; seal.hold = .4f; seal.fadePower = 1.4f;
+            // The lotus seal holds on the floor in a pool of soft light, slowly turning, then erodes; crosses and leaves rise off it.
+            var pool = GraceGroundBloom(ground, span * 1.3f, Alpha(life, .5f), 1.4f);
+            var seal = Spawn("Grace lotus seal", GraceMandala, ground, span, Alpha(life, 1), 1.4f, true, 27);
+            GraceFlat(seal, .3f); seal.spin = 16;
+            foreach (var clip in new[] { pool, seal }) { clip.fadeIn = .03f; clip.startScale = .55f; clip.endScale = 1; clip.ease = 6; clip.hold = .45f; clip.fadePower = 1.3f; }
             RuneCircle(ground, span * .66f, Alpha(hot, .9f), 1.3f, -45, true);
-            var floor = GroundGlow(ground, span * 1.1f, Alpha(life, .32f), 1.3f);
-            Emitter(floor, 30 * s, span * .45f, (owner, p) => GraceHealMote(GraceOnGround(owner, p), Chance(.35f) ? hot : LifeLight, pigment, s));
+            Emitter(seal, 24 * s, span * .45f, (owner, p) => GraceHealMote(GraceOnGround(owner, p), Chance(.35f) ? hot : LifeLight, leafTone, s));
 
-            // Sanctuary: pillars of light erupt one after another around the rim of the healed area.
+            // Sanctuary: pillars of soft-edged light erupt one after another around the rim of the healed area, each inside a
+            // soft beam and kicking up a spark at its foot.
             int posts = Budget(Mathf.RoundToInt(4 + 3 * s));
             float rimX = span * .47f, rimY = span * .47f * .3f;
             for (int i = 0; i < posts; i++)
@@ -190,56 +198,55 @@ namespace PrototypeLab.Roguelike
                 Vector2 at = ground + new Vector2(Mathf.Cos(a) * rimX, Mathf.Sin(a) * rimY);
                 bool back = Mathf.Sin(a) > 0;
                 float delay = .05f + i * .035f, h = Range(3.3f, 4.3f) * s * gl * (back ? .85f : 1);
-                var stem = GraceLater(GraceColumn(GraceShaft, at, .75f * s, h, Alpha(pigment, .85f), .7f, false, back ? 26 : 120), delay);
-                stem.axisStart = new Vector2(.5f, .05f); stem.ease = 5; stem.hold = .3f; stem.fadePower = 1.4f;
-                var post = GraceLater(GraceColumn(pillar, at, 1.05f * s, h * 1.15f, Alpha(life, .95f), .6f, true, back ? 27 : 127), delay);
-                post.axisStart = new Vector2(.35f, .05f); post.ease = 5; post.hold = .2f; post.fadePower = 1.5f;
-                var burstAt = GraceLater(Spawn("Grace sanctuary spring", glow, at, 1.6f * s, Alpha(Color.Lerp(life, Warm, .4f), .9f), .26f, true, back ? 27 : 128), delay);
-                GraceFlat(burstAt, .4f); burstAt.startScale = .4f; burstAt.endScale = 1.2f; burstAt.ease = 3; burstAt.fadePower = 1.5f;
+                var aura = GraceLater(GraceColumn(GraceBeam, at, 2 * s, h * 1.15f, Alpha(life, .5f), .65f, true, back ? 26 : 119), delay);
+                aura.axisStart = new Vector2(.5f, .05f); aura.ease = 6; aura.hold = .3f; aura.fadePower = 1.3f;
+                var post = GraceLater(GraceColumn(GracePillar, at, .95f * s, h * 1.1f, Alpha(life, 1), .55f, true, back ? 27 : 127), delay);
+                post.axisStart = new Vector2(.35f, .05f); post.ease = 6; post.hold = .25f; post.fadePower = 1.3f;
+                var spring = GraceLater(SparkFlip(at, 1.5f * s, Alpha(hot, 1), .2f, back ? 27 : 128), delay);
+                GraceFlat(spring, .4f);
             }
 
-            // Petal storm: petals whirl out of the heart and drift up.
-            int petals = Budget(Mathf.RoundToInt(30 * s));
-            for (int i = 0; i < petals; i++)
+            // Leaf storm: painted leaves (and a few of pure light) whirl out of the heart and drift up.
+            int leaves = Budget(Mathf.RoundToInt(24 * s));
+            for (int i = 0; i < leaves; i++)
             {
                 bool lit = i % 4 == 0;
-                var leaf = Spawn("Grace petal storm", petal, pos, Range(.34f, .55f) * Mathf.Max(.8f, s), lit ? Alpha(Warm, .95f) : Alpha(Color.Lerp(pigment, main, Range(0, .45f)), .95f), Range(1, 1.6f), lit, lit ? 130 : 121);
+                var leaf = Spawn("Grace leaf storm", GraceLeaf, pos, Range(.4f, .6f) * Mathf.Max(.8f, s), lit ? Alpha(hot, .95f) : Alpha(Color.Lerp(leafTone, main, Range(0, .4f)), .95f), Range(1, 1.6f), lit, lit ? 130 : 121);
                 leaf.orbitCenter = pos + Vector2.down * .15f; leaf.velocity = Vector2.up * Range(.5f, 1.5f); leaf.drag = .3f;
-                leaf.orbitAngle = i * 360f / petals + Range(-12, 12); leaf.orbit = (i % 4 == 3 ? -1 : 1) * Range(110, 210);
+                leaf.orbitAngle = i * 360f / leaves + Range(-12, 12); leaf.orbit = (i % 4 == 3 ? -1 : 1) * Range(110, 210);
                 leaf.orbitRadius = .25f; leaf.orbitRadiusEnd = R * Range(.55f, 1); leaf.orbitPower = .3f;
-                leaf.spin = Range(-420, 420); leaf.hold = .35f; leaf.fadePower = 1.3f; leaf.startScale = .5f; leaf.endScale = 1; leaf.ease = 3;
+                leaf.spin = Range(-420, 420); leaf.hold = .35f; leaf.fadePower = 1.3f; leaf.startScale = .5f; leaf.endScale = 1; leaf.ease = 4;
             }
-            int motes = Budget(Mathf.RoundToInt(14 * s));
+            int motes = Budget(Mathf.RoundToInt(12 * s));
             for (int i = 0; i < motes; i++)
-                GraceLater(GraceHealMote(ground + new Vector2(Range(-.5f, .5f) * span, Range(-.12f, .12f) * span), i % 3 == 0 ? hot : LifeLight, pigment, s * 1.2f), Range(0, .25f));
+                GraceLater(GraceHealMote(ground + new Vector2(Range(-.5f, .5f) * span, Range(-.12f, .12f) * span), i % 3 == 0 ? hot : LifeLight, leafTone, s * 1.2f), Range(0, .25f));
             for (int i = 0; i < 6; i++)
-                GraceLater(Glint(pos + new Vector2(Range(-R, R) * .75f, Range(-.6f, 1.8f) * s), Range(.7f, 1.2f) * s, Alpha(Color.Lerp(hot, Color.white, .4f), .95f), .3f, Range(0, 45)), Range(.06f, .6f));
-            var after = Spawn("Grace heal afterglow", glow, pos, 2.8f * s, Alpha(life, .45f), 1.3f, true, 122); after.fadeIn = .15f; after.fadePower = 1.6f; after.pulse = .05f;
+                GraceLater(GraceCrossPop(pos + new Vector2(Range(-R, R) * .75f, Range(-.6f, 1.8f) * s), Range(.6f, .95f) * s, Alpha(hot, 1), .34f), Range(.06f, .6f));
             // A companion's pulse heals the hero, not the caster: a stream of life runs from the caster to the hero and blooms there.
             var game = ArcheryGame();
             if (game != null && game.hero != null && game.hero.root)
             {
                 Vector2 chest = game.hero.pos + Vector2.up * .95f;
-                if ((chest - pos).sqrMagnitude > 2.25f) GraceLifeStream(pos, chest, life, hot, pigment);
+                if ((chest - pos).sqrMagnitude > 2.25f) GraceLifeStream(pos, chest, life, hot);
             }
             if (grade < 2) return;
-            // Level two turns part of the heal into a shield: a faint gold ward dome rises over the hero with the light.
+            // Level two turns part of the heal into a shield: a faint gold ward dome rises over the hero inside its soft halo.
             Color ward = Color.Lerp(GoldLight, Warm, .35f);
-            var domeInk = GraceDomeLayer(ground, GraceDomeWidth * .88f * 1.02f, GraceDomeHeight * .88f * 1.02f, Alpha(GraceUmber, .45f), .8f, false, 26);
-            var dome = GraceDomeLayer(ground, GraceDomeWidth * .88f, GraceDomeHeight * .88f, Alpha(ward, .3f), .75f, true, 121);
-            foreach (var clip in new[] { domeInk, dome }) { clip.startScale = .8f; clip.endScale = 1; clip.ease = 5; clip.hold = .35f; clip.fadePower = 1.5f; GraceLater(clip, .06f); }
+            var domeGlow = GraceDomeLayer(ground, GraceDomeWidth * 1.02f, GraceDomeHeight * 1.02f, Alpha(ward, .45f), .8f, true, 26, GraceDomeGlow);
+            var dome = GraceDomeLayer(ground, GraceDomeWidth * .88f, GraceDomeHeight * .88f, Alpha(ward, .55f), .75f, true, 121);
+            foreach (var clip in new[] { domeGlow, dome }) { clip.startScale = .8f; clip.endScale = 1; clip.ease = 6; clip.hold = .35f; clip.fadePower = 1.4f; GraceLater(clip, .06f); }
             for (int i = 0; i < 3; i++)
             {
                 Vector2 normal = Direction(40 + i * 50);
-                GraceLater(Glint(ground + new Vector2(normal.x * GraceDomeWidth * .44f, normal.y * GraceDomeHeight * .88f), Range(.8f, 1.1f), Alpha(Warm, .95f), .26f, Range(0, 45)), .1f + i * .06f);
+                GraceLater(GraceTwinkle(ground + new Vector2(normal.x * GraceDomeWidth * .44f, normal.y * GraceDomeHeight * .88f), Range(.8f, 1.1f), Alpha(ward, 1), .26f), .1f + i * .06f);
             }
             if (grade < 3) return;
-            // Awakened (the heal leaves a lasting field): gold-white petals rain down through the column onto the field.
+            // Awakened (the heal leaves a lasting field): gold-white leaves rain down through the column onto the field.
             int falls = Budget(5);
             for (int i = 0; i < falls; i++)
             {
-                var leaf = GraceLater(Spawn("Grace heal gold petal", petal, ground + new Vector2(Range(-1.2f, 1.2f), Range(4, 5.5f)), Range(.32f, .45f), Alpha(i % 2 == 0 ? GraceAwake : Warm, .95f), 1.1f, true, 130), Range(.1f, .4f));
-                leaf.velocity = new Vector2(Range(-.4f, .4f), -Range(3.5f, 4.5f)); leaf.drag = .6f; leaf.spin = Range(-300, 300); leaf.fadeIn = .1f; leaf.hold = .5f; leaf.fadePower = 1.4f;
+                var leaf = GraceLater(Spawn("Grace heal gold leaf", GraceLeaf, ground + new Vector2(Range(-1.2f, 1.2f), Range(4, 5.5f)), Range(.36f, .5f), Alpha(i % 2 == 0 ? GraceAwake : ward, .95f), 1.1f, true, 130), Range(.1f, .4f));
+                leaf.velocity = new Vector2(Range(-.4f, .4f), -Range(3.5f, 4.5f)); leaf.drag = .6f; leaf.spin = Range(-300, 300); leaf.fadeIn = .06f; leaf.hold = .5f; leaf.fadePower = 1.4f;
             }
         }
 
@@ -248,90 +255,82 @@ namespace PrototypeLab.Roguelike
         private void CastShieldPulse(CastInfo c)
         {
             float k = Mathf.Clamp(c.size / 1.4f, .8f, 1.6f), w = c.windup, release = Mathf.Max(0, w - .02f);
-            Color main = GraceVivid(c.tint, GoldLight), gold = Color.Lerp(main, GoldLight, .15f), bright = Color.Lerp(gold, Warm, .5f);
-            Color bronze = GraceDeep(main, .3f, .68f, -.04f), pigment = GraceDeep(main, .78f, .92f, -.035f);
+            Color main = GraceVivid(c.tint, GoldLight), gold = Color.Lerp(main, GoldLight, .15f), bright = Color.Lerp(gold, Warm, .5f), amber = Color.Lerp(gold, new Color(1, .6f, .12f), .35f);
             Vector2 ground = c.pos + Vector2.down, body = c.pos + Vector2.up * .15f, hand = c.pos + new Vector2(c.facing * .3f, .4f);
 
-            var palm = Anchored(c.anchor, hand, "Grace ward palm", glow, 1.6f * k, Alpha(gold, .75f), w + .08f, 124);
-            palm.fadeIn = .04f; palm.startScale = .35f; palm.endScale = 1.1f; palm.ease = 1.5f; palm.hold = .8f; palm.fadePower = 2; palm.pulse = .05f;
+            var palmGlow = Anchored(c.anchor, hand, "Grace ward palm bloom", glow, 1.6f * k, Alpha(gold, .45f), w + .08f, 28);
+            var palm = Anchored(c.anchor, hand, "Grace ward palm", core, .45f * k, Alpha(bright, 1), w + .08f, 126);
+            var palmRune = Anchored(c.anchor, hand, "Grace ward palm rune", GraceGlyphs[0], 1.15f * k, Alpha(gold, .95f), w + .08f, 125);
+            palmRune.spin = -120; palm.pulse = .06f; palmGlow.pulse = .05f;
+            foreach (var clip in new[] { palmGlow, palm, palmRune }) { clip.fadeIn = .04f; clip.startScale = .3f; clip.endScale = 1; clip.ease = 1.5f; clip.hold = .8f; clip.fadePower = 2; }
             if (w < .2f)
             {
                 // An instant echo: the dome itself comes with the shield burst that follows at once.
                 Converge(body, 5, 1.8f * k, bright, w, .3f);
-                var tick = GraceLater(Glint(hand, 1.6f * k, Alpha(Warm, .9f), .2f), release); tick.spin = 0;
+                GraceStar(hand, 1.5f * k, Alpha(bright, 1), .18f, 132, release);
                 return;
             }
             // Higher levels raise a bigger, brighter dome.
             int grade = Grade; float gl = GraceLevel(1.07f, 1.14f);
             float total = w + .35f, hold = w / total, domeW = GraceDomeWidth * k * gl, domeH = GraceDomeHeight * k * gl;
 
-            // Rune seal on the floor.
-            var sealInk = Spawn("Grace ward seal ink", runeRing, ground, 4.4f * k, Alpha(bronze, .8f), total, false, 25);
-            GraceFlat(sealInk, .32f); sealInk.spin = 45; sealInk.fadeIn = .06f; sealInk.startScale = .55f; sealInk.endScale = 1; sealInk.ease = 4; sealInk.hold = hold; sealInk.fadePower = 1.5f;
+            // A faint shade behind the caster keeps the gold readable on pale skies while the ward gathers.
+            var shade = Underlay(body, 4.6f * k, .18f, total); shade.hold = hold;
+            // A rune seal on the floor in a pool of gold light; motes rise off it.
+            var pool = GraceGroundBloom(ground, 5 * k, Alpha(gold, .42f), total);
+            pool.startScale = .55f; pool.endScale = 1; pool.ease = 4; pool.hold = hold; pool.fadePower = 1.5f;
             var seal = RuneCircle(ground, 4.2f * k, Alpha(bright, .95f), total, 45, true); seal.hold = hold;
-            var floor = GroundGlow(ground, 5 * k, Alpha(gold, .45f), total); floor.hold = hold;
-            Emitter(floor, 18 * k, 1.7f * k, (owner, p) => GraceRise(GraceOnGround(owner, p), Chance(.4f) ? Warm : gold, k * .9f));
+            Emitter(seal, 14 * k, 1.7f * k, (owner, p) => GraceRise(GraceOnGround(owner, p), Chance(.4f) ? Warm : gold, k * .9f));
 
-            // The dome rises out of the floor during the wind-up: a bronze lattice behind the actors, an amber lattice and
-            // gold light in front. It hands over to the shield burst right after the release.
-            float domeLife = w + .1f;
-            for (int layer = 0; layer < 3; layer++)
-            {
-                var shell = layer == 0 ? GraceDomeLayer(ground, domeW * 1.03f, domeH * 1.03f, Alpha(bronze, .5f), domeLife, false, 26)
-                    : layer == 1 ? GraceDomeLayer(ground, domeW, domeH, Alpha(pigment, .36f), domeLife, false, 119)
-                    : GraceDomeLayer(ground, domeW, domeH, Alpha(bright, .34f), domeLife, true, 121);
-                shell.axisStart = new Vector2(.8f, .03f); shell.axisEnd = Vector2.one; shell.ease = 2.4f; shell.fadeIn = .06f; shell.hold = w / domeLife; shell.fadePower = 2.2f;
-            }
+            // The dome rises out of the floor during the wind-up: its soft halo behind the actors, the painted light shell in
+            // front. It hands over to the shield burst right after the release.
+            float domeLife = w + .04f;
+            var riseGlow = GraceDomeLayer(ground, domeW * 1.12f, domeH * 1.12f, Alpha(gold, .4f), domeLife, true, 26, GraceDomeGlow);
+            var riseShell = GraceDomeLayer(ground, domeW, domeH, Alpha(bright, .38f), domeLife, true, 121);
+            foreach (var shell in new[] { riseGlow, riseShell }) { shell.axisStart = new Vector2(.8f, .03f); shell.axisEnd = Vector2.one; shell.ease = 2.4f; shell.fadeIn = .06f; shell.hold = w / domeLife; shell.fadePower = 2.2f; }
 
-            // Bevelled ward plates sweep in from all around and slam onto the dome surface exactly at the release,
-            // where each locks with a white-gold flash.
-            // They start close round the dome (not scattered over the sky) and each carries a warm glowing rim, so they read
-            // as plates of light homing onto the shell.
+            // Plates of gold light, each in its own glow, sweep in close round the dome and slam onto its surface exactly at the
+            // release, where each locks with a white-gold flash.
             int plates = Budget(8);
-            Color plateTone = GraceDeep(main, .95f, .97f, -.03f);
             for (int i = 0; i < plates; i++)
             {
                 float a = Mathf.Lerp(16, 164, (i + .5f) / plates) + Range(-5, 5);
                 Vector2 normal = Direction(a), at = ground + new Vector2(normal.x * domeW * .5f, normal.y * domeH) * .96f;
-                float size = Range(.85f, 1.05f) * k, from = a + Range(-25, 25), sweep = (i % 2 == 0 ? 1 : -1) * Range(50, 90), radius = Range(1.1f, 1.7f) * k;
+                float size = Range(.9f, 1.1f) * k, from = a + Range(-25, 25), sweep = (i % 2 == 0 ? 1 : -1) * Range(50, 90), radius = Range(1.1f, 1.7f) * k;
                 float tilt = Range(-40, 40), spin = Range(-260, 260);
-                var plate = Spawn("Grace ward plate", GracePlate, at, size, plateTone, w, false, 120);
-                var rim = Spawn("Grace ward plate glow", GracePlate, at, size * 1.12f, Alpha(Warm, .45f), w, true, 121);
-                foreach (var clip in new[] { plate, rim })
+                var plate = Spawn("Grace ward plate", GracePlate, at, size, Alpha(amber, .95f), w, true, 121);
+                var aura = Spawn("Grace ward plate bloom", glow, at, size * 2, Alpha(gold, .34f), w, true, 28);
+                foreach (var clip in new[] { plate, aura })
                 {
                     clip.orbitCenter = at; clip.orbitAngle = from; clip.orbit = sweep; clip.orbitRadius = radius; clip.orbitRadiusEnd = 0; clip.orbitPower = 1.3f;
-                    clip.angle = tilt; clip.spin = spin; clip.fadeIn = .08f; clip.hold = .85f; clip.fadePower = 1.5f; clip.startScale = .6f; clip.endScale = 1; clip.ease = 1;
+                    clip.angle = tilt; clip.fadeIn = .06f; clip.hold = .85f; clip.fadePower = 1.5f; clip.startScale = .6f; clip.endScale = 1; clip.ease = 1;
                 }
-                var locked = GraceLater(Spawn("Grace ward plate lock", GracePlate, at, size * 1.05f, Alpha(Warm, .75f), .24f, true, 131), release);
-                locked.ramp = Ramp(Color.white, bright); locked.startScale = 1.45f; locked.endScale = .9f; locked.ease = 4; locked.fadePower = 1.8f;
-                // The locked plate stays a moment in amber under the flash, so the shell reads on pale skies too.
-                var seated = GraceLater(Spawn("Grace ward plate seated", GracePlate, at, size * 1.08f, plateTone, .32f, false, 120), release);
-                seated.startScale = 1.25f; seated.endScale = 1; seated.ease = 5; seated.hold = .35f; seated.fadePower = 1.4f;
+                plate.spin = spin;
+                var seated = GraceLater(Spawn("Grace ward plate seated", GracePlate, at, size * 1.08f, Alpha(bright, 1), .32f, true, 122), release);
+                seated.ramp = Ramp(Color.white, gold); seated.angle = tilt; seated.startScale = 1.25f; seated.endScale = 1; seated.ease = 5; seated.hold = .35f; seated.fadePower = 1.4f;
             }
 
-            // Glyph runes orbit the caster, close in and lock into place at the release.
+            // Glyph runes, each in a soft glow, orbit the caster, close in and lock into place at the release.
             int glyphs = 4; float turn = 320, lockRadius = 1.8f * k;
             for (int i = 0; i < glyphs; i++)
             {
                 float start = 45 + i * 360f / glyphs; Sprite glyph = GraceGlyphs[i % GraceGlyphs.Length];
                 Vector2 at = body + Direction(start + w * turn) * lockRadius;
-                for (int layer = 0; layer < 2; layer++)
+                var rune = Spawn("Grace ward rune", glyph, body, k, Alpha(bright, .95f), w, true, 130);
+                var aura = Spawn("Grace ward rune bloom", glow, body, 1.7f * k, Alpha(gold, .36f), w, true, 28);
+                foreach (var clip in new[] { rune, aura })
                 {
-                    bool lit = layer == 1; float size = (lit ? 1 : 1.15f) * k;
-                    var rune = Spawn("Grace ward rune", glyph, body, size, lit ? Alpha(bright, .95f) : Alpha(GraceDeep(main, .55f, .9f, -.04f), .9f), w, lit, lit ? 130 : 119);
-                    rune.orbitCenter = body; rune.orbitAngle = start; rune.orbit = turn; rune.orbitRadius = 2.6f * k; rune.orbitRadiusEnd = lockRadius; rune.orbitPower = .55f;
-                    rune.fadeIn = .08f; rune.hold = .92f; rune.fadePower = 2;
+                    clip.orbitCenter = body; clip.orbitAngle = start; clip.orbit = turn; clip.orbitRadius = 2.6f * k; clip.orbitRadiusEnd = lockRadius; clip.orbitPower = .55f;
+                    clip.fadeIn = .06f; clip.hold = .92f; clip.fadePower = 2;
                 }
-                var locked = GraceLater(Spawn("Grace ward rune lock", glyph, at, 1.05f * k, Alpha(Warm, .8f), .38f, true, 131), release);
-                locked.ramp = Ramp(Warm, bright); locked.startScale = 1.6f; locked.endScale = 1; locked.ease = 5; locked.hold = .3f; locked.fadePower = 1.6f;
+                var locked = GraceLater(Spawn("Grace ward rune lock", glyph, at, 1.05f * k, Alpha(bright, 1), .36f, true, 131), release);
+                locked.ramp = Ramp(Warm, bright); locked.startScale = 1.6f; locked.endScale = 1; locked.ease = 6; locked.hold = .3f; locked.fadePower = 1.4f;
             }
             Converge(body, 8, 2.7f * k, bright, w, .3f);
             if (grade >= 2)
             {
                 // Level two: a second, wider rune ring turns the other way on the floor.
-                var outerInk = Spawn("Grace ward outer ring ink", runeRing, ground, 5.6f * k, Alpha(bronze, .7f), total, false, 24); GraceFlat(outerInk, .32f);
-                var outer = RuneCircle(ground, 5.4f * k, Alpha(gold, .8f), total, -35, true); outer.hold = hold;
-                outerInk.spin = -35; outerInk.fadeIn = .06f; outerInk.startScale = .55f; outerInk.endScale = 1; outerInk.ease = 4; outerInk.hold = hold; outerInk.fadePower = 1.5f;
+                var outer = RuneCircle(ground, 5.4f * k, Alpha(gold, .85f), total, -35, true); outer.hold = hold;
             }
             if (grade >= 3)
             {
@@ -342,23 +341,22 @@ namespace PrototypeLab.Roguelike
                     float start = i * 360f / glyphs; Sprite glyph = GraceGlyphs[(i + 2) % GraceGlyphs.Length];
                     float lockAt = start - w * turn;
                     Vector2 at = body + Direction(lockAt) * lockRadius * 1.3f;
-                    for (int layer = 0; layer < 2; layer++)
+                    var rune = Spawn("Grace ward outer rune", glyph, body, .9f * k, Alpha(GraceAwake, .95f), w, true, 130);
+                    var aura = Spawn("Grace ward outer rune bloom", glow, body, 1.5f * k, Alpha(GraceAwake, .32f), w, true, 28);
+                    foreach (var clip in new[] { rune, aura })
                     {
-                        bool lit = layer == 1; float size = (lit ? .9f : 1.05f) * k;
-                        var rune = Spawn("Grace ward outer rune", glyph, body, size, lit ? Alpha(GraceAwake, .95f) : Alpha(GraceUmber, .85f), w, lit, lit ? 130 : 119);
-                        rune.orbitCenter = body; rune.orbitAngle = start; rune.orbit = -turn; rune.orbitRadius = 3.1f * k; rune.orbitRadiusEnd = lockRadius * 1.3f; rune.orbitPower = .55f;
-                        rune.fadeIn = .08f; rune.hold = .92f; rune.fadePower = 2;
+                        clip.orbitCenter = body; clip.orbitAngle = start; clip.orbit = -turn; clip.orbitRadius = 3.1f * k; clip.orbitRadiusEnd = lockRadius * 1.3f; clip.orbitPower = .55f;
+                        clip.fadeIn = .06f; clip.hold = .92f; clip.fadePower = 2;
                     }
-                    var locked = GraceLater(Spawn("Grace ward outer rune lock", glyph, at, .95f * k, Alpha(GraceAwake, .85f), .4f, true, 131), release);
-                    locked.startScale = 1.6f; locked.endScale = 1; locked.ease = 5; locked.hold = .3f; locked.fadePower = 1.6f;
+                    var locked = GraceLater(Spawn("Grace ward outer rune lock", glyph, at, .95f * k, Alpha(GraceAwake, 1), .38f, true, 131), release);
+                    locked.startScale = 1.6f; locked.endScale = 1; locked.ease = 6; locked.hold = .3f; locked.fadePower = 1.4f;
                 }
             }
 
-            // Release: a crown glint on the apex and rings (reward and passive wards end here; skills add the burst).
-            var crown = GraceLater(Glint(ground + Vector2.up * domeH * .97f, 2.8f * k, Color.white, .34f), release); crown.scale.y *= 1.3f;
-            GraceLater(Wave(body, 4.8f * k, Alpha(bright, .5f), .35f, 3), release);
-            GraceLater(GraceRing(body, 4.4f * k, Alpha(pigment, .8f), .33f, 3, false, 119), release);
-            GraceLater(GroundWave(ground, 5.6f * k, Alpha(gold, .85f), .4f), release);
+            // Release: a spark on the apex and shock fronts (reward and passive wards end here; skills add the burst).
+            GraceStar(ground + Vector2.up * domeH * .97f, 2.6f * k, Alpha(bright, 1), .3f, 132, release);
+            GraceWave(body, 4.8f * k, Alpha(bright, .85f), .34f, 3, 131, release);
+            GraceGroundWave(ground, 5.6f * k, Alpha(gold, .9f), .4f, release);
         }
 
         private void ImpactShieldPulse(Vector2 pos, float radius, Color tint, int facing)
@@ -367,41 +365,38 @@ namespace PrototypeLab.Roguelike
             if (facing == 0 && radius >= 2) { GraceShieldShatter(pos, radius, tint); return; }
             int grade = Grade;
             float k = Mathf.Clamp(radius / 1.2f, .7f, 1.8f) * GraceLevel(1.07f, 1.14f);
-            Color main = GraceVivid(tint, GoldLight), gold = Color.Lerp(main, GoldLight, .15f), bright = Color.Lerp(gold, Warm, .5f);
-            Color bronze = GraceDeep(main, .3f, .68f, -.04f), pigment = GraceDeep(main, .78f, .92f, -.035f);
+            Color main = GraceVivid(tint, GoldLight), gold = Color.Lerp(main, GoldLight, .15f), bright = Color.Lerp(gold, Warm, .5f), amber = Color.Lerp(gold, new Color(1, .6f, .12f), .35f);
             Vector2 ground = pos + Vector2.down, body = pos + Vector2.up * .35f;
             float domeW = GraceDomeWidth * k, domeH = GraceDomeHeight * k;
             Vector2 apex = ground + Vector2.up * domeH * .96f;
 
-            // Peak: a white-hot heart, a short gold bloom, impact lines and a crown glint on the dome apex.
-            var shade = Underlay(body, 5 * k, .24f, .45f); shade.hold = .2f;
-            var heart = Spawn("Grace ward heart", core, pos, 1.1f * k, Color.white, .1f, true, 133); heart.startScale = .5f; heart.endScale = 1.7f; heart.ease = 2.5f; heart.fadePower = 1.5f;
-            var bloom = Flash(body, 3 * k, Alpha(bright, .25f), .14f); bloom.ramp = Ramp(Warm, gold); bloom.startScale = .5f; bloom.endScale = 1.2f; bloom.ease = 3;
-            var amber = Spawn("Grace ward pigment bloom", glow, body, 4.8f * k, Alpha(pigment, .35f), .3f, false, 118); amber.startScale = .5f; amber.endScale = 1.15f; amber.ease = 3; amber.fadePower = 1.5f;
-            GracePigment(ImpactLines(body, 7.6f * k, Alpha(pigment, .8f), .32f), 119);
-            ImpactLines(body, 6.6f * k, Alpha(bright, .45f), .26f);
-            var crown = Glint(apex, 3.2f * k, Color.white, .4f); crown.scale.y *= 1.3f;
+            // Peak: a white-hot heart, a small spark over the body, light wedges, and a big spark and a cross flare on the apex.
+            var shade = Underlay(body, 4.6f * k, .2f, .42f); shade.hold = .2f;
+            // The caster stays readable inside the ward: the heart and spark are kept small and short over the body.
+            var heart = Spawn("Grace ward heart", core, pos, .7f * k, Color.white, .08f, true, 133); heart.startScale = .5f; heart.endScale = 1.4f; heart.ease = 4; heart.fadePower = 1.3f;
+            GraceStar(body, 1.6f * k, Alpha(bright, 1), .16f);
+            ImpactLines(body, 5.2f * k, Alpha(gold, .55f), .24f).startScale = .85f;
+            GraceStar(apex, 2.8f * k, Alpha(Warm, 1), .28f, 133);
+            GraceCrossFlare(apex, 3.6f * k, Alpha(bright, 1), .36f, 0);
 
-            // A beacon spear of light shoots up from the apex.
-            var beaconTint = GraceColumn(GraceShaft, apex, .9f * k, 4.6f * k, Alpha(pigment, .6f), .5f, false, 26); beaconTint.hold = .15f; beaconTint.fadePower = 1.6f;
-            var beacon = GraceColumn(pillar, apex, 1.1f * k, 5.6f * k, Alpha(bright, .85f), .45f, true, 128); beacon.hold = .1f; beacon.fadePower = 1.6f;
+            // A beacon spear of light shoots up from the apex inside a soft beam.
+            var beaconGlow = GraceColumn(GraceBeam, apex, 2.4f * k, 5.4f * k, Alpha(gold, .5f), .5f, true, 26); beaconGlow.hold = .15f; beaconGlow.fadePower = 1.4f;
+            var beacon = GraceColumn(GracePillar, apex, 1.05f * k, 5.6f * k, Alpha(bright, 1), .45f, true, 128); beacon.hold = .12f; beacon.fadePower = 1.4f;
+            foreach (var clip in new[] { beaconGlow, beacon }) clip.ease = 6;
 
-            // A golden aegis crest flares open behind the caster.
-            var crestInk = Spawn("Grace ward crest ink", runeRing, body + Vector2.up * .2f, 5 * k, Alpha(bronze, .6f), .8f, false, 25);
-            crestInk.spin = 40; crestInk.startScale = .5f; crestInk.endScale = 1.12f; crestInk.ease = 4; crestInk.hold = .25f; crestInk.fadePower = 1.5f;
-            var crest = Spawn("Grace ward crest", runeRing, body + Vector2.up * .2f, 4.9f * k, Alpha(bright, .6f), .75f, true, 27);
-            crest.spin = 40; crest.startScale = .5f; crest.endScale = 1.12f; crest.ease = 4; crest.hold = .2f; crest.fadePower = 1.6f;
+            // A golden aegis crest flares open behind the caster in a soft bloom.
+            var crestGlow = Spawn("Grace ward crest bloom", glow, body + Vector2.up * .2f, 5.6f * k, Alpha(gold, .26f), .75f, true, 25);
+            var crest = Spawn("Grace ward crest", runeRing, body + Vector2.up * .2f, 4.9f * k, Alpha(bright, .8f), .75f, true, 27); crest.spin = 40;
+            foreach (var clip in new[] { crestGlow, crest }) { clip.startScale = .5f; clip.endScale = 1.12f; clip.ease = 6; clip.hold = .25f; clip.fadePower = 1.4f; }
 
-            // The dome: bronze lattice behind the actors, an amber pigment lattice and gold light in front, a quick snap
-            // flash, then a slow fade.
-            var domeInk = GraceDomeLayer(ground, domeW * 1.03f, domeH * 1.03f, Alpha(bronze, .6f), 1.5f, false, 26);
-            domeInk.startScale = .9f; domeInk.endScale = 1; domeInk.ease = 6; domeInk.hold = .45f; domeInk.fadePower = 1.4f;
-            var domeTint = GraceDomeLayer(ground, domeW, domeH, Alpha(pigment, .44f), 1.4f, false, 119);
-            domeTint.startScale = .9f; domeTint.endScale = 1; domeTint.ease = 6; domeTint.hold = .4f; domeTint.fadePower = 1.5f;
-            var dome = GraceDomeLayer(ground, domeW, domeH, Alpha(bright, .32f), 1.4f, true, 121);
-            dome.startScale = .9f; dome.endScale = 1; dome.ease = 6; dome.hold = .35f; dome.fadePower = 1.6f; dome.pulse = .025f;
-            var snap = GraceDomeLayer(ground, domeW, domeH, Alpha(Color.white, .3f), .1f, true, 132);
-            snap.startScale = 1.15f; snap.endScale = 1; snap.ease = 5; snap.fadePower = 1.8f;
+            // The dome: a soft halo hugging its rim behind the actors and the painted light shell in front (a bright rim, a faint
+            // body thickening toward it, a faint lattice), a white snap of the rim, then it holds and erodes from its thin lines.
+            var domeGlow = GraceDomeLayer(ground, domeW * 1.12f, domeH * 1.12f, Alpha(gold, .3f), 1.45f, true, 26, GraceDomeGlow);
+            domeGlow.startScale = .96f; domeGlow.endScale = 1; domeGlow.ease = 6; domeGlow.hold = .4f; domeGlow.fadePower = 1.4f;
+            var dome = GraceDomeLayer(ground, domeW, domeH, Alpha(bright, .42f), 1.4f, true, 121);
+            dome.startScale = .96f; dome.endScale = 1; dome.ease = 6; dome.hold = .35f; dome.fadePower = 1.4f;
+            var snap = GraceDomeLayer(ground, domeW, domeH, Alpha(Warm, .7f), .14f, true, 132, GraceDomeRim);
+            snap.startScale = 1.1f; snap.endScale = 1; snap.ease = 6; snap.fadePower = 1.3f;
 
             // A scan of light runs up the dome: its cells flash from the floor to the apex.
             int cells = Budget(12);
@@ -409,17 +404,14 @@ namespace PrototypeLab.Roguelike
             {
                 float a = Range(18, 162) * Mathf.Deg2Rad, rr = Range(.72f, .98f);
                 Vector2 at = ground + new Vector2(Mathf.Cos(a) * domeW * .5f * rr, Mathf.Sin(a) * domeH * rr);
-                var cell = GraceLater(Spawn("Grace ward cell", GracePlate, at, Range(.45f, .65f) * k, Alpha(bright, .85f), .24f, true, 130), .04f + (at.y - ground.y) / domeH * .32f);
-                cell.ramp = Ramp(Color.white, gold); cell.startScale = .5f; cell.endScale = 1.1f; cell.ease = 3; cell.fadePower = 1.5f;
+                var cell = GraceLater(Spawn("Grace ward cell", GracePlate, at, Range(.42f, .58f) * k, Alpha(bright, .6f), .22f, true, 130), .04f + (at.y - ground.y) / domeH * .32f);
+                cell.ramp = Ramp(Color.white, gold); cell.startScale = .5f; cell.endScale = 1.1f; cell.ease = 5; cell.fadePower = 1.4f;
             }
 
-            // Hexagonal ripples and rings run outward from the dome; dust is shoved off its base.
-            var ripple = Spawn("Grace ward ripple", hex, body, domeW * .95f, Alpha(bright, .3f), .42f, true, 130); ripple.startScale = .75f; ripple.endScale = 1.6f; ripple.ease = 3; ripple.fadePower = 1.5f; ripple.spin = 20;
-            var tinted = Spawn("Grace ward ripple pigment", hex, body, domeW * .95f, Alpha(pigment, .55f), .45f, false, 119); tinted.startScale = .8f; tinted.endScale = 1.75f; tinted.ease = 3; tinted.fadePower = 1.5f; tinted.spin = -20;
-            Wave(body, 7 * k, Alpha(bright, .6f), .42f, 3);
-            GraceRing(body, 6.4f * k, Alpha(pigment, .8f), .4f, 3, false, 119);
-            GroundWave(ground, 8.2f * k, Alpha(gold, .9f), .5f);
-            var inkRing = GraceRing(ground, 7.6f * k, Alpha(bronze, .7f), .5f, 3, false, 24); GraceFlat(inkRing, .34f);
+            // A hexagonal ripple and shock fronts run outward from the dome; dust is shoved off its base.
+            var ripple = Spawn("Grace ward ripple", GraceHex, body, domeW * .95f, Alpha(bright, .45f), .3f, true, 130); ripple.startScale = 1; ripple.endScale = 1.6f; ripple.ease = 4; ripple.fadePower = 1.3f; ripple.spin = 20;
+            GraceWave(body, 7 * k, Alpha(gold, .6f), .4f, 3);
+            GraceGroundWave(ground, 8.2f * k, Alpha(gold, .9f), .5f);
             for (int i = 0; i < 6; i++)
             {
                 float side = i % 2 == 0 ? 1 : -1;
@@ -427,27 +419,26 @@ namespace PrototypeLab.Roguelike
                 dust.gravity = -.3f; dust.endScale = 2.1f;
             }
 
-            // Light shards and sparks burst off the dome surface.
-            int shards = Budget(Mathf.RoundToInt(18 * k));
+            // Painted crystal slivers of light and needles burst off the dome surface.
+            int shards = Budget(Mathf.RoundToInt(16 * k));
             for (int i = 0; i < shards; i++)
             {
                 float angle = Mathf.Lerp(12, 168, (i + Range(.1f, .9f)) / shards);
                 Vector2 normal = Direction(angle), at = ground + new Vector2(normal.x * domeW * .5f, normal.y * domeH);
                 bool lit = i % 3 == 0;
-                var piece = Spawn("Grace ward shard", GraceFacet, at, Range(.28f, .5f) * k, lit ? Alpha(bright, .95f) : Alpha(Color.Lerp(pigment, bright, Range(0, .35f)), .95f), Range(.55f, .9f), lit, lit ? 129 : 120);
-                piece.velocity = normal * Range(4, 8) * k + Vector2.up; piece.gravity = 10; piece.drag = 1.2f; piece.spin = Range(-600, 600); piece.angle = Range(0, 360); piece.hold = .35f; piece.fadePower = 1.3f;
+                var piece = Spawn("Grace ward shard", GraceFacet, at, Range(.34f, .56f) * k, lit ? Alpha(bright, 1) : Alpha(Color.Lerp(amber, gold, Range(0, .5f)), .9f), Range(.55f, .9f), true, lit ? 129 : 121);
+                piece.velocity = normal * Range(4, 8) * k + Vector2.up; piece.gravity = 10; piece.drag = 1.2f; piece.spin = Range(-600, 600); piece.angle = Range(0, 360); piece.hold = .35f; piece.fadePower = 1.2f;
             }
             for (int i = 0; i < 10; i++)
             {
                 Vector2 normal = Direction(Range(10, 170)), at = ground + new Vector2(normal.x * domeW * .5f, normal.y * domeH);
-                Spark(at, normal * Range(5, 9) * k, i % 2 == 0 ? Color.white : bright, Range(.25f, .42f), Range(.25f, .4f), 6, 3);
+                Spark(at, normal * Range(5, 9) * k, i % 2 == 0 ? Color.white : bright, Range(.3f, .48f), Range(.25f, .4f), 6, 3);
             }
 
-            // The seal and a warm floor glow linger; motes drift up the dome walls; glints twinkle on its surface.
-            var sealInk = Spawn("Grace ward seal ink", runeRing, ground, 5 * k, Alpha(bronze, .8f), 1.2f, false, 25);
-            GraceFlat(sealInk, .32f); sealInk.spin = 30; sealInk.fadeIn = .03f; sealInk.startScale = .7f; sealInk.endScale = 1; sealInk.ease = 6; sealInk.hold = .4f; sealInk.fadePower = 1.4f;
+            // The seal lingers in a pool of light; motes drift up the dome walls; sparkles twinkle on its surface.
+            var pool = GraceGroundBloom(ground, 5.6f * k, Alpha(gold, .45f), 1.2f);
+            pool.startScale = .7f; pool.endScale = 1; pool.ease = 6; pool.hold = .4f; pool.fadePower = 1.4f;
             RuneCircle(ground, 4.8f * k, Alpha(bright, .9f), 1.2f, 30, true);
-            GroundGlow(ground, 6 * k, Alpha(gold, .3f), 1.2f);
             for (int i = 0; i < 8; i++)
             {
                 Vector2 normal = Direction(Range(15, 165));
@@ -456,86 +447,76 @@ namespace PrototypeLab.Roguelike
             for (int i = 0; i < 5; i++)
             {
                 Vector2 normal = Direction(Range(25, 155));
-                GraceLater(Glint(ground + new Vector2(normal.x * domeW * .5f, normal.y * domeH), Range(.8f, 1.2f) * k, Alpha(Warm, .95f), .28f, Range(0, 45)), Range(.12f, .8f));
+                GraceLater(GraceTwinkle(ground + new Vector2(normal.x * domeW * .5f, normal.y * domeH), Range(.8f, 1.2f) * k, Alpha(bright, 1), .28f), Range(.12f, .8f));
             }
             if (grade < 2) return;
-            // Level two: a thicker shell, a second gold rim glowing on the dome as it holds, over an umber twin so the doubled
-            // shell reads on pale skies too.
-            var rimInk = GraceDomeLayer(ground, domeW * 1.05f, domeH * 1.05f, Alpha(GraceUmber, .4f), 1.5f, false, 118);
-            var rim = GraceDomeLayer(ground, domeW * 1.03f, domeH * 1.03f, Alpha(gold, .35f), 1.5f, true, 122); rim.pulse = .03f;
-            foreach (var clip in new[] { rimInk, rim }) { clip.startScale = .92f; clip.endScale = 1; clip.ease = 6; clip.hold = .45f; clip.fadePower = 1.5f; }
+            // Level two: a thicker shell, a second gold rim of light standing on the dome as it holds.
+            var rim = GraceDomeLayer(ground, domeW * 1.05f, domeH * 1.05f, Alpha(gold, .85f), 1.5f, true, 122, GraceDomeRim);
+            rim.startScale = .94f; rim.endScale = 1; rim.ease = 6; rim.hold = .45f; rim.fadePower = 1.3f;
             if (grade < 3) return;
             // Awakened (the ward bursts when it breaks): a second gold-white shell stands just outside the first, a white-gold star
             // pulses on the apex, and cracks of light run across the surface and hold there: the ward is primed to burst.
-            var outerInk = GraceDomeLayer(ground, domeW * 1.11f, domeH * 1.11f, Alpha(GraceUmber, .35f), 1.6f, false, 117);
-            var outer = GraceDomeLayer(ground, domeW * 1.08f, domeH * 1.08f, Alpha(GraceAwake, .25f), 1.6f, true, 123); outer.pulse = .04f;
-            foreach (var clip in new[] { outerInk, outer }) { clip.startScale = .85f; clip.endScale = 1; clip.ease = 5; clip.fadeIn = .08f; clip.hold = .5f; clip.fadePower = 1.4f; }
-            var primed = GraceLater(Glint(apex + Vector2.up * .35f * k, 2.2f * k, Alpha(GraceAwake, 1), 1.3f, 0), .12f);
-            primed.spin = 0; primed.startScale = .3f; primed.endScale = 1; primed.ease = 4; primed.pulse = .12f; primed.hold = .6f; primed.fadePower = 1.4f;
-            var beaconGlow = GraceLater(Spawn("Grace ward primed glow", glow, apex + Vector2.up * .35f * k, 1.6f * k, Alpha(GraceAwake, .55f), 1.3f, true, 130), .12f);
-            beaconGlow.pulse = .15f; beaconGlow.hold = .6f; beaconGlow.fadePower = 1.4f;
+            var outer = GraceDomeLayer(ground, domeW * 1.12f, domeH * 1.12f, Alpha(GraceAwake, .7f), 1.6f, true, 123, GraceDomeRim);
+            outer.startScale = .88f; outer.endScale = 1; outer.ease = 6; outer.fadeIn = .04f; outer.hold = .5f; outer.fadePower = 1.3f;
+            var primed = GraceLater(GraceTwinkle(apex + Vector2.up * .35f * k, 2 * k, Alpha(GraceAwake, 1), 1.3f), .12f);
+            primed.spin = 0; primed.pulse = .12f; primed.hold = .6f; primed.fadePower = 1.3f;
             for (int i = 0; i < 6; i++)
             {
                 float a0 = (30 + i * 24 + Range(-8, 8)) * Mathf.Deg2Rad, a1 = a0 + Range(-.3f, .3f);
                 Vector2 p0 = ground + new Vector2(Mathf.Cos(a0) * domeW * .5f, Mathf.Sin(a0) * domeH) * .98f, p1 = ground + new Vector2(Mathf.Cos(a1) * domeW * .34f, Mathf.Sin(a1) * domeH * .7f);
-                float delay = .12f + i * .06f;
-                var veinInk = GraceLater(GraceInkLine(p0, p1, .3f, Alpha(GraceUmber, .75f), 1.2f, 120), delay);
-                var vein = GraceLater(Line(p0, p1, .16f, Alpha(GraceAwake, 1), 1.2f, 131), delay);
-                foreach (var clip in new[] { veinInk, vein }) { clip.axisStart = new Vector2(.1f, 1); clip.axisEnd = Vector2.one; clip.ease = 6; clip.hold = .6f; clip.fadePower = 1.5f; }
-                vein.flicker = .3f;
+                var vein = GraceLater(Line(p0, p1, .18f, Alpha(GraceAwake, 1), 1.2f, 131), .12f + i * .06f);
+                vein.axisStart = new Vector2(.1f, 1); vein.axisEnd = Vector2.one; vein.ease = 6; vein.hold = .6f; vein.fadePower = 1.4f; vein.flicker = .2f;
             }
         }
 
         /// <summary>A level-three ward bursting as it breaks (<paramref name="pos"/> is 0.8 above the hero's feet): the dome flashes
-        /// white and cracks, flies apart in amber plates and light shards, and a shock runs along the floor to the burst's reach.</summary>
+        /// white and cracks, a gold blast billows behind the hero, a spark bursts, the shell flies apart in plates and slivers of
+        /// light, and a shock front runs along the floor to the burst's reach.</summary>
         private void GraceShieldShatter(Vector2 pos, float radius, Color tint)
         {
             float R = Mathf.Clamp(radius, 1.5f, 4.5f), k = Mathf.Clamp(R / 2.6f, .7f, 1.5f);
-            Color main = GraceVivid(tint, GoldLight), gold = Color.Lerp(main, GoldLight, .15f), bright = Color.Lerp(gold, Warm, .5f);
-            Color bronze = GraceDeep(main, .3f, .68f, -.04f), pigment = GraceDeep(main, .78f, .92f, -.035f), plateTone = GraceDeep(main, .95f, .97f, -.03f);
+            Color main = GraceVivid(tint, GoldLight), gold = Color.Lerp(main, GoldLight, .15f), bright = Color.Lerp(gold, Warm, .5f), amber = Color.Lerp(gold, new Color(1, .6f, .12f), .35f);
             Vector2 feet = pos + Vector2.down * .8f, body = feet + Vector2.up * 1.1f;
             float domeW = GraceDomeWidth, domeH = GraceDomeHeight;
-            var shade = Underlay(body, R * 2.2f, .3f, .4f); shade.hold = .2f;
-            // The dome's last moment: a white flash of the whole shell that swells as it gives way, over a bronze copy.
-            var crackFlash = GraceDomeLayer(feet, domeW, domeH, Alpha(Color.white, .6f), .16f, true, 132); crackFlash.startScale = 1; crackFlash.endScale = 1.12f; crackFlash.ease = 3; crackFlash.fadePower = 1.4f;
-            var shellInk = GraceDomeLayer(feet, domeW * 1.02f, domeH * 1.02f, Alpha(bronze, .6f), .22f, false, 119); shellInk.startScale = 1; shellInk.endScale = 1.2f; shellInk.ease = 3; shellInk.fadePower = 1.5f;
-            // Cracks race from the heart to the shell.
+            var shade = Underlay(body, R * 2, .24f, .4f); shade.hold = .2f;
+            // The dome's last moment: a white flash of the whole shell that swells as it gives way, inside its gold halo.
+            var crackFlash = GraceDomeLayer(feet, domeW, domeH, Color.white, .14f, true, 132); crackFlash.startScale = 1; crackFlash.endScale = 1.12f; crackFlash.ease = 4; crackFlash.fadePower = 1.3f;
+            var shellGlow = GraceDomeLayer(feet, domeW * 1.12f, domeH * 1.12f, Alpha(gold, .6f), .25f, true, 26, GraceDomeGlow); shellGlow.startScale = 1; shellGlow.endScale = 1.25f; shellGlow.ease = 4; shellGlow.fadePower = 1.4f;
+            // Cracks of light race from the heart to the shell.
             for (int i = 0; i < 7; i++)
             {
                 float a = (18 + i * 24 + Range(-8, 8)) * Mathf.Deg2Rad;
                 Vector2 rim = feet + new Vector2(Mathf.Cos(a) * domeW * .5f, Mathf.Sin(a) * domeH) * .97f, mid = Vector2.Lerp(body, rim, .5f) + Inside(.3f);
                 foreach (var seg in new[] { new[] { body, mid }, new[] { mid, rim } })
                 {
-                    var crackInk = GraceInkLine(seg[0], seg[1], .2f, Alpha(bronze, .8f), .2f, 120); crackInk.fadePower = 1.4f;
-                    var crackLight = Line(seg[0], seg[1], .09f, Alpha(Color.Lerp(Warm, Color.white, .5f), 1), .16f, 132, 1.1f); crackLight.fadePower = 1.4f;
+                    var crackLight = Line(seg[0], seg[1], .13f, Alpha(bright, 1), .18f, 132, 1.1f); crackLight.fadePower = 1.3f;
                 }
             }
-            var heart = Spawn("Grace ward break heart", core, body, 1.3f * k, Color.white, .12f, true, 133); heart.startScale = .5f; heart.endScale = 1.8f; heart.ease = 2.5f; heart.fadePower = 1.5f;
-            var bloom = Flash(body, 3.2f * k, Alpha(bright, .8f), .24f); bloom.ramp = Ramp(Color.white, gold);
-            GracePigment(ImpactLines(body, R * 2.8f, Alpha(pigment, .8f), .3f), 119);
-            ImpactLines(body, R * 2.5f, Alpha(bright, .75f), .26f);
-            // The burst's reach: gold rings on the floor whose rims land on the radius, over bronze ink.
+            var heart = Spawn("Grace ward break heart", core, body, 1.2f * k, Color.white, .12f, true, 133); heart.startScale = .5f; heart.endScale = 1.8f; heart.ease = 4; heart.fadePower = 1.3f;
+            Blast(body, 3.8f * k, Alpha(bright, 1), .6f, 28);
+            GraceStar(body, 4 * k, Alpha(Warm, 1), .26f, 133);
+            ImpactLines(body, R * 2.5f, Alpha(bright, .95f), .26f);
+            // The burst's reach: a gold shock front on the floor whose rim lands on the radius, and painted wedges.
             float reach = R * 2 / .74f;
-            GroundWave(feet + Vector2.up * .05f, reach, Alpha(gold, .95f), .45f);
-            var reachInk = GraceRing(feet, reach * 1.02f, Alpha(bronze, .7f), .5f, 3, false, 24); GraceFlat(reachInk, .34f);
-            var floorFlash = Spawn("Grace ward break floor", glow, feet + Vector2.up * .05f, reach * .8f, Alpha(bright, .5f), .35f, true, 26);
-            floorFlash.scale.y *= .3f; floorFlash.root.transform.localScale = floorFlash.scale; floorFlash.startScale = .3f; floorFlash.endScale = 1; floorFlash.ease = 3; floorFlash.fadePower = 1.5f;
-            // The shell flies apart: amber plates tumble out from where they sat on the dome, with light shards among them.
+            GraceGroundWave(feet + Vector2.up * .05f, reach, Alpha(gold, .95f), .45f);
+            var floorBurst = Spawn("Grace ward break floor", burst, feet + Vector2.up * .05f, reach * .85f, Alpha(bright, 1), .32f, true, 26);
+            GraceFlat(floorBurst, .3f); floorBurst.angle = Range(0, 360); floorBurst.startScale = .4f; floorBurst.endScale = 1; floorBurst.ease = 5; floorBurst.fadePower = 1.3f;
+            // The shell flies apart: plates of gold light tumble out from where they sat on the dome, with crystal slivers.
             int plates = Budget(10);
             for (int i = 0; i < plates; i++)
             {
                 float a = Mathf.Lerp(14, 166, (i + .5f) / plates) + Range(-6, 6);
                 Vector2 normal = Direction(a), at = feet + new Vector2(normal.x * domeW * .5f, normal.y * domeH) * .95f;
                 bool lit = i % 3 == 0;
-                var plate = Spawn("Grace ward plate shard", GracePlate, at, Range(.6f, .85f) * k, lit ? Alpha(Warm, .9f) : plateTone, Range(.5f, .7f), lit, lit ? 130 : 120);
-                plate.velocity = normal * Range(3.5f, 5.5f) * k + Vector2.up * .8f; plate.gravity = 9; plate.drag = 1.6f; plate.spin = Range(-700, 700); plate.angle = Range(0, 360); plate.hold = .3f; plate.fadePower = 1.3f;
+                var plate = Spawn("Grace ward plate shard", GracePlate, at, Range(.65f, .9f) * k, lit ? Alpha(bright, 1) : Alpha(amber, .9f), Range(.5f, .7f), true, lit ? 130 : 121);
+                plate.velocity = normal * Range(3.5f, 5.5f) * k + Vector2.up * .8f; plate.gravity = 9; plate.drag = 1.6f; plate.spin = Range(-700, 700); plate.angle = Range(0, 360); plate.hold = .3f; plate.fadePower = 1.2f;
             }
             int facets = Budget(8);
             for (int i = 0; i < facets; i++)
             {
                 Vector2 normal = Direction(Range(10, 170));
-                var piece = Spawn("Grace ward facet", GraceFacet, body + normal * .4f, Range(.3f, .5f) * k, i % 2 == 0 ? Alpha(bright, .95f) : Alpha(pigment, .95f), Range(.45f, .7f), i % 2 == 0, i % 2 == 0 ? 129 : 120);
-                piece.velocity = normal * Range(5, 8) * k; piece.gravity = 8; piece.drag = 1.4f; piece.spin = Range(-600, 600); piece.angle = Range(0, 360); piece.fadePower = 1.3f;
+                var piece = Spawn("Grace ward facet", GraceFacet, body + normal * .4f, Range(.36f, .56f) * k, i % 2 == 0 ? Alpha(bright, 1) : Alpha(amber, .9f), Range(.45f, .7f), true, i % 2 == 0 ? 129 : 121);
+                piece.velocity = normal * Range(5, 8) * k; piece.gravity = 8; piece.drag = 1.4f; piece.spin = Range(-600, 600); piece.angle = Range(0, 360); piece.fadePower = 1.2f;
             }
             for (int i = 0; i < 4; i++)
             {
@@ -546,134 +527,136 @@ namespace PrototypeLab.Roguelike
             for (int i = 0; i < 3; i++) GraceLater(GraceRise(feet + new Vector2(Range(-1, 1) * R * .6f, .1f), i % 2 == 0 ? Warm : gold, k), Range(.1f, .35f));
         }
 
-        /// <summary>A shield soaking up a hit on the hero; frequent, so it stays tiny (9 clips, 0.24 s).</summary>
+        /// <summary>A shield soaking up a hit on the hero; frequent, so it stays tiny (9 clips, 0.24 s): a hex ward flashes
+        /// where it is struck and a spark flares on the impact.</summary>
         public void ShieldBlock(Vector2 pos, Color tint)
         {
             EnsureTextures();
-            Color gold = GraceVivid(tint, GoldLight), bright = Color.Lerp(gold, Warm, .5f), pigment = GraceDeep(gold, .85f, .55f, -.03f);
-            var lattice = Spawn("Grace block lattice", hex, pos, 2.3f, Alpha(bright, .95f), .22f, true, 130); lattice.startScale = .82f; lattice.endScale = 1.15f; lattice.ease = 3; lattice.fadePower = 1.6f;
-            var ink = Spawn("Grace block pigment", hex, pos, 2.4f, pigment, .2f, false, 119); ink.startScale = .82f; ink.endScale = 1.15f; ink.ease = 3; ink.fadePower = 1.6f;
+            Color gold = GraceVivid(tint, GoldLight), bright = Color.Lerp(gold, Warm, .5f);
+            var lattice = Spawn("Grace block lattice", GraceHex, pos, 2.3f, Alpha(bright, 1), .2f, true, 130); lattice.startScale = .82f; lattice.endScale = 1.12f; lattice.ease = 5; lattice.fadePower = 1.4f;
             Vector2 normal = Direction(Range(20, 160)), hit = pos + normal * 1.05f;
-            var flash = Spawn("Grace block flash", glow, hit, .95f, new Color(1, 1, 1, .9f), .1f, true, 132); flash.endScale = 1.7f; flash.ease = 1;
-            Glint(hit, 1.3f, Color.white, .18f, Range(0, 45));
-            Wave(hit, 1.15f, Alpha(bright, .9f), .16f, 3);
-            for (int i = 0; i < 4; i++) Spark(hit, normal * Range(3, 6) + Direction(Range(0, 360)) * 2, i % 2 == 0 ? Color.white : bright, Range(.2f, .3f), Range(.16f, .24f), 6, 3);
+            GraceStar(hit, 1.4f, Alpha(Warm, 1), .14f, 132);
+            GraceTwinkle(hit, 1.2f, Alpha(bright, 1), .18f);
+            GraceWave(hit, 1.15f, Alpha(bright, .9f), .16f, 3);
+            for (int i = 0; i < 4; i++) Spark(hit, normal * Range(3, 6) + Direction(Range(0, 360)) * 2, i % 2 == 0 ? Color.white : bright, Range(.24f, .34f), Range(.16f, .24f), 6, 3);
         }
 
         // ---------------------------------------------------------------- life drain
 
         private void CastLifeDrain(CastInfo c)
         {
+            MysticEnsure();
             float k = Mathf.Clamp(c.size / 1.43f, .8f, 1.6f), w = c.windup, release = Mathf.Max(0, w - .02f);
             Color life = Color.Lerp(GraceVivid(c.tint, LifeLight), LifeLight, .3f);
             Vector2 hand = c.pos + new Vector2(c.facing * .8f, .1f), ground = c.pos + Vector2.down;
             if (w < .2f)
             {
-                // An instant echo: the drain itself follows at once, so the echo only flicks a small vortex open.
-                var curl = Anchored(c.anchor, hand, "Grace drain echo swirl", swirl, 1.9f * k, Alpha(GraceCrimson, .8f), w + .12f, 125);
-                curl.spin = -680; curl.startScale = .3f; curl.endScale = 1; curl.ease = 2; curl.fadeIn = .03f; curl.hold = .6f; curl.fadePower = 1.6f;
-                var pit = Anchored(c.anchor, hand, "Grace drain echo core", core, .55f * k, GraceVoid, w + .1f, 127, false);
-                pit.startScale = .3f; pit.endScale = 1; pit.ease = 2; pit.fadeIn = .03f; pit.hold = .6f; pit.fadePower = 1.6f;
+                // An instant echo: the drain itself follows at once, so the echo only flicks a small whirl open round a plasma heart.
+                var curl = Anchored(c.anchor, hand, "Grace drain echo swirl", MysticSpiral, 1.9f * k, Alpha(GraceCrimson, .9f), w + .12f, 125);
+                curl.spin = 680;
+                var pit = GraceAnchoredPlasma(c.anchor, hand, "Grace drain echo heart", .75f * k, Alpha(GraceCrimson, 1), w + .1f, 127);
+                foreach (var clip in new[] { curl, pit }) { clip.startScale = .3f; clip.endScale = 1; clip.ease = 2; clip.fadeIn = .03f; clip.hold = .6f; clip.fadePower = 1.6f; }
                 Converge(hand, 5, 1.8f * k, life, w, .5f);
                 return;
             }
             float total = w + .6f, hold = w / total;
-            // Higher levels open a bigger vortex (more souls follow from the particle budget).
+            // Higher levels open a bigger whirl (more souls follow from the particle budget).
             int grade = Grade; k *= GraceLevel(1.1f, 1.2f);
 
-            // A black-crimson vortex opens in the hand: dark smoke arms turning one way, crimson and life light the other,
-            // around a black core with a crimson rim.
-            var shadow = Underlay(hand, 4.2f * k, .5f, total); shadow.hold = hold; shadow.fadePower = 1.5f;
-            var abyss = Anchored(c.anchor, hand, "Grace drain abyss", swirl, 4.2f * k, GraceVoid, total, 28, false);
-            abyss.spin = -480; abyss.angle = Range(0, 360); abyss.startScale = .25f; abyss.endScale = 1; abyss.ease = 2.5f; abyss.fadeIn = .05f; abyss.hold = hold; abyss.fadePower = 1.6f;
-            var veil = Anchored(c.anchor, hand, "Grace drain blood arms", swirl, 3.5f * k, GraceBlood, total, 29, false);
-            veil.spin = -560; veil.angle = Range(0, 360); veil.startScale = .25f; veil.endScale = 1; veil.ease = 2.5f; veil.fadeIn = .05f; veil.hold = hold; veil.fadePower = 1.6f;
-            var crimson = Anchored(c.anchor, hand, "Grace drain crimson swirl", swirl, 2.9f * k, Alpha(GraceCrimson, .75f), total, 125);
-            crimson.spin = -680; crimson.angle = Range(0, 360); crimson.startScale = .25f; crimson.endScale = 1; crimson.ease = 2.5f; crimson.fadeIn = .05f; crimson.hold = hold; crimson.fadePower = 1.6f;
-            var spirit = Anchored(c.anchor, hand, "Grace drain life swirl", swirl, 1.8f * k, Alpha(life, .8f), total, 126);
-            spirit.spin = 560; spirit.startScale = .3f; spirit.endScale = 1; spirit.ease = 2.5f; spirit.fadeIn = .05f; spirit.hold = hold; spirit.fadePower = 1.6f;
-            var eye = Anchored(c.anchor, hand, "Grace drain core", core, .8f * k, GraceVoid, total, 127, false);
-            eye.startScale = .3f; eye.endScale = 1; eye.ease = 2; eye.fadeIn = .05f; eye.hold = hold; eye.fadePower = 1.6f; eye.pulse = .07f;
-            var rim = Anchored(c.anchor, hand, "Grace drain rim", ring, 1.3f * k, Alpha(GraceCrimson, .95f), total, 128);
-            rim.startScale = .3f; rim.endScale = 1; rim.ease = 2; rim.fadeIn = .05f; rim.hold = hold; rim.fadePower = 1.6f; rim.pulse = .09f;
+            // A painted blood whirl opens in the hand: crimson light strokes and pale life strokes turning against each other in a
+            // crimson bloom, round a plasma heart with a white-hot core and a crimson rim.
+            var shadow = Underlay(hand, 3.4f * k, .26f, total); shadow.hold = hold; shadow.fadePower = 1.5f;
+            var bloom = Anchored(c.anchor, hand, "Grace drain bloom", glow, 3.2f * k, Alpha(GraceCrimson, .55f), total, 28); bloom.pulse = .05f;
+            var crimson = Anchored(c.anchor, hand, "Grace drain crimson whirl", MysticSpiral, 2.7f * k, Alpha(GraceCrimson, .95f), total, 125);
+            crimson.spin = 640; crimson.angle = Range(0, 360);
+            var spirit = Anchored(c.anchor, hand, "Grace drain life whirl", MysticSpiral, 1.7f * k, Alpha(life, .9f), total, 126);
+            spirit.spin = -520; spirit.angle = Range(0, 360);
+            var heart = GraceAnchoredPlasma(c.anchor, hand, "Grace drain heart", 1.2f * k, Alpha(GraceCrimson, 1), total, 127);
+            var hotCore = Anchored(c.anchor, hand, "Grace drain core", core, .34f * k, Alpha(GraceSoulHot, 1), total, 128); hotCore.pulse = .1f;
+            var rim = Anchored(c.anchor, hand, "Grace drain rim", GraceShock, 1.4f * k, Alpha(GraceCrimson, 1), total, 129); rim.pulse = .09f;
+            foreach (var clip in new[] { bloom, crimson, spirit, heart, hotCore, rim }) { clip.startScale = .25f; clip.endScale = 1; clip.ease = 2.5f; clip.fadeIn = .05f; clip.hold = hold; clip.fadePower = 1.5f; }
 
-            // Blood smoke, crimson souls and life motes spiral into the vortex.
-            int fumes = Budget(6);
+            // Crimson smoke, plasma soul motes, soul comets and life motes spiral into the whirl.
+            int fumes = Budget(3);
             for (int i = 0; i < fumes; i++)
             {
-                var fume = Puff(hand, Range(.9f, 1.3f) * k, Alpha(GraceBlood, .7f), Vector2.zero, w * Range(.8f, 1), 116);
+                var fume = Puff(hand, Range(.9f, 1.3f) * k, GraceSmoke, Vector2.zero, w * Range(.8f, 1), 116);
                 fume.orbitCenter = hand; fume.orbitAngle = i * 360f / fumes + Range(-15, 15); fume.orbit = -Range(300, 420);
                 fume.orbitRadius = Range(2, 2.8f) * k; fume.orbitRadiusEnd = .1f; fume.orbitPower = 1.3f;
-                fume.startScale = 1; fume.endScale = .3f; fume.fadeIn = .1f; fume.hold = .6f; fume.fadePower = 1.4f;
+                fume.startScale = 1; fume.endScale = .3f; fume.fadeIn = .08f; fume.hold = .6f; fume.fadePower = 1.3f;
             }
             Converge(hand, 10, 3 * k, life, w, .55f);
             int souls = Budget(10);
             for (int i = 0; i < souls; i++)
             {
-                bool dark = i % 2 == 0;
-                var soul = Spawn("Grace drain soul", GraceSoul, hand, Range(.9f, 1.3f) * k, dark ? GraceBlood : Alpha(GraceCrimson, .95f), w * Range(.75f, 1), !dark, dark ? 118 : 127);
+                bool mote = i % 2 == 0;
+                var soul = mote ? GracePlasma(hand, Range(.5f, .7f) * k, Alpha(GraceCrimson, 1), w * Range(.75f, 1), 127)
+                    : Spawn("Grace drain soul", GraceSoul, hand, Range(.9f, 1.3f) * k, Alpha(i % 4 == 1 ? GraceSoulHot : GraceCrimson, 1), w * Range(.75f, 1), true, 128);
                 soul.orbitCenter = hand; soul.orbitAngle = Range(0, 360); soul.orbit = -Range(260, 380); soul.orbitRadius = Range(2.2f, 3.2f) * k; soul.orbitRadiusEnd = 0; soul.orbitPower = 1.5f;
-                soul.alignVelocity = true; soul.fadeIn = .08f; soul.hold = .75f; soul.endScale = .5f; soul.ease = 1;
+                soul.alignVelocity = !mote; soul.fadeIn = .06f; soul.hold = .75f; soul.endScale = .5f; soul.ease = 1;
             }
 
-            // A crimson sigil under the caster.
-            var sigInk = Spawn("Grace drain sigil ink", sigil, ground, 4.2f * k, GraceBlood, total, false, 25);
-            GraceFlat(sigInk, .34f); sigInk.spin = -40; sigInk.fadeIn = .06f; sigInk.startScale = .6f; sigInk.endScale = 1; sigInk.ease = 3; sigInk.hold = hold; sigInk.fadePower = 1.5f;
-            var sig = GroundSigil(ground, 4 * k, Alpha(GraceCrimson, .85f), total, -40); sig.hold = hold;
+            // A crimson sigil burns under the caster in a pool of crimson light.
+            var pool = GraceGroundBloom(ground, 4.6f * k, Alpha(GraceCrimson, .4f), total);
+            var sig = Spawn("Grace drain sigil", sigil, ground, 4 * k, Alpha(GraceCrimson, .9f), total, true, 27); GraceFlat(sig, .34f); sig.spin = -40;
+            foreach (var clip in new[] { pool, sig }) { clip.fadeIn = .06f; clip.startScale = .6f; clip.endScale = 1; clip.ease = 3; clip.hold = hold; clip.fadePower = 1.5f; }
 
-            // A blood sigil turns behind the caster (behind the actors, so the hero stays readable).
+            // A blood sigil turns behind the caster in a soft crimson bloom (behind the actors, so the hero stays readable).
             Vector2 back = c.pos + Vector2.up * .25f;
-            var ritualInk = Spawn("Grace drain ritual ink", sigil, back, 3.6f * k, Alpha(GraceBlood, .7f), total, false, 26);
-            ritualInk.spin = 60; ritualInk.startScale = .3f; ritualInk.endScale = 1; ritualInk.ease = 2; ritualInk.fadeIn = .06f; ritualInk.hold = hold; ritualInk.fadePower = 1.6f;
-            var ritual = Spawn("Grace drain ritual", sigil, back, 3.5f * k, Alpha(GraceCrimson, .75f), total, true, 27);
-            ritual.spin = 60; ritual.startScale = .3f; ritual.endScale = 1; ritual.ease = 2; ritual.fadeIn = .06f; ritual.hold = hold; ritual.fadePower = 1.6f;
+            var ritualGlow = Spawn("Grace drain ritual bloom", glow, back, 4.2f * k, Alpha(GraceCrimson, .32f), total, true, 25);
+            var ritual = Spawn("Grace drain ritual", sigil, back, 3.5f * k, Alpha(GraceCrimson, .8f), total, true, 27); ritual.spin = 60;
+            foreach (var clip in new[] { ritualGlow, ritual }) { clip.startScale = .3f; clip.endScale = 1; clip.ease = 2; clip.fadeIn = .06f; clip.hold = hold; clip.fadePower = 1.6f; }
 
             // The victim is branded with a turning crimson rune and starts to bleed light toward the hand.
             Vector2 mark = c.target + Vector2.down * .25f, toHand = hand - mark;
             if (toHand.magnitude > 1)
             {
-                // Two dark tendrils reach out of the vortex and hook the victim.
-                Vector2 reach = -toHand, normal = new Vector2(-reach.y, reach.x) / reach.magnitude;
+                // Two luminous crimson tendrils (a thorned ribbon of light with a hot thread inside) reach out of the whirl and
+                // hook the victim.
+                float reach = w * .55f, tendrilLife = w + .25f;
                 for (int strand = 0; strand < 2; strand++)
                 {
-                    Vector2 previous = hand; float sign = strand == 0 ? 1 : -1, phase = Range(0, 6.28f);
-                    for (int i = 1; i <= 6; i++)
+                    int variant = strand;
+                    float thick = (strand == 0 ? .95f : .75f) * k;
+                    var vine = MysticVine(hand, mark, MysticTendril[variant], thick, Alpha(GraceCrimson, .75f), tendrilLife, true, 126);
+                    var thread = MysticVine(hand, mark, MysticTendrilLight[variant], thick, Alpha(GraceSoulHot, 1), tendrilLife - .05f, true, 127);
+                    foreach (var clip in new[] { vine, thread })
                     {
-                        float t = i / 6f, delay = t * w * .55f;
-                        Vector2 point = hand + reach * t + normal * sign * Mathf.Sin(t * Mathf.PI * 2 + phase) * .38f * Mathf.Sin(t * Mathf.PI);
-                        var tendril = GraceLater(GraceInkLine(previous, point, .26f, GraceBlood, w - delay + .25f, 117), delay); tendril.hold = .6f; tendril.fadePower = 1.4f;
-                        var vein = GraceLater(Line(previous, point, .1f, Alpha(GraceCrimson, .9f), w - delay + .2f, 127, 1.1f), delay); vein.hold = .6f; vein.flicker = .25f;
-                        previous = point;
+                        if (strand == 1) clip.scale.y *= -1;
+                        clip.axisStart = new Vector2(.03f, 1); clip.axisEnd = Vector2.one; clip.ease = GracePop(clip.life, reach); clip.hold = .6f; clip.fadePower = 1.3f;
                     }
+                    thread.flicker = .15f;
                 }
                 float brandLife = w + .3f;
-                var brandShade = Underlay(mark, 2.8f * k, .35f, brandLife); brandShade.hold = .6f;
-                var brandInk = Spawn("Grace drain brand ink", runeRing, mark, 2.5f * k, GraceBlood, brandLife, false, 117);
-                brandInk.spin = 220; brandInk.fadeIn = .08f; brandInk.startScale = .6f; brandInk.endScale = 1; brandInk.ease = 4; brandInk.hold = .5f; brandInk.fadePower = 1.4f;
-                var brand = RuneCircle(mark, 2.3f * k, Alpha(GraceCrimson, .95f), brandLife, 220, false, 126); brand.hold = .5f;
+                var brandShade = Underlay(mark, 2.6f * k, .22f, brandLife); brandShade.hold = .6f;
+                var brandGlow = Spawn("Grace drain brand bloom", glow, mark, 3 * k, Alpha(GraceCrimson, .45f), brandLife, true, 124);
+                brandGlow.fadeIn = .06f; brandGlow.startScale = .6f; brandGlow.endScale = 1; brandGlow.ease = 5; brandGlow.hold = .5f; brandGlow.fadePower = 1.4f;
+                var brand = RuneCircle(mark, 2.3f * k, Alpha(GraceCrimson, 1), brandLife, 220, false, 126); brand.hold = .5f;
                 for (int i = 0; i < 6; i++)
                 {
                     bool green = i % 2 == 0;
-                    var seep = GraceLater(Spawn("Grace drain seep", GraceSoul, mark + Inside(.35f), Range(.7f, 1), green ? Alpha(life, .9f) : GraceBlood, w * .6f, green, green ? 127 : 118), Range(.04f, w * .4f));
-                    seep.velocity = toHand / (w * .6f) * Range(.45f, .75f); seep.alignVelocity = true; seep.fadeIn = .06f; seep.endScale = .6f; seep.ease = 1;
+                    var seep = green ? Spawn("Grace drain seep", GraceSoul, mark + Inside(.35f), Range(.7f, 1), Alpha(life, 1), w * .6f, true, 127)
+                        : GracePlasma(mark + Inside(.35f), Range(.4f, .55f), Alpha(GraceCrimson, 1), w * .6f, 127);
+                    GraceLater(seep, Range(.04f, w * .4f));
+                    seep.velocity = toHand / (w * .6f) * Range(.45f, .75f); seep.alignVelocity = green; seep.fadeIn = .05f; seep.endScale = .6f; seep.ease = 1;
                 }
             }
 
             if (grade >= 3)
             {
-                // Awakened (the drain heals twice as much): a gold-white ring of life turns round the vortex's rim.
+                // Awakened (the drain heals twice as much): a gold-white ring of life turns round the whirl's rim.
                 var crown = Anchored(c.anchor, hand, "Grace drain awakened rim", runeRing, 2.4f * k, Alpha(Color.Lerp(GraceAwake, LifeLight, .3f), .9f), total, 129);
-                var crownInk = Anchored(c.anchor, hand, "Grace drain awakened rim ink", runeRing, 2.5f * k, GraceUmber, total, 117, false);
-                foreach (var clip in new[] { crown, crownInk }) { clip.spin = 200; clip.startScale = .3f; clip.endScale = 1; clip.ease = 2.5f; clip.fadeIn = .08f; clip.hold = hold; clip.fadePower = 1.6f; }
+                crown.spin = 200; crown.startScale = .3f; crown.endScale = 1; crown.ease = 2.5f; crown.fadeIn = .08f; crown.hold = hold; crown.fadePower = 1.6f;
             }
 
-            // Release: the ring implodes, then the vortex snaps with a crimson flash (the drained life comes back later).
-            var implode = GraceLater(Spawn("Grace drain implode", ring, hand, 4.4f * k, Alpha(GraceCrimson, .95f), .18f, true, 131), Mathf.Max(0, w - .16f));
+            // Release: the ring implodes, then the whirl snaps with a crimson spark and a shock front (the drained life comes back
+            // later).
+            var implode = GraceLater(Spawn("Grace drain implode", GraceShock, hand, 4.2f * k, Alpha(GraceCrimson, 1), .16f, true, 131), Mathf.Max(0, w - .15f));
             implode.startScale = 1; implode.endScale = .12f; implode.ease = 1.5f; implode.fadePower = .6f;
-            var snap = GraceLater(Spawn("Grace drain snap", core, hand, .8f * k, Color.white, .12f, true, 133), release); snap.startScale = .4f; snap.endScale = 1.6f; snap.ease = 2.5f; snap.fadePower = 1.5f;
-            var bloomOut = GraceLater(Flash(hand, 2.4f * k, Alpha(GraceCrimson, .8f), .26f), release); bloomOut.ramp = Ramp(Color.white, GraceCrimson);
-            GraceLater(GracePigment(ImpactLines(hand, 4.6f * k, Alpha(GraceBlood, .85f), .26f), 118), release);
-            GraceLater(ImpactLines(hand, 4 * k, Alpha(GraceCrimson, .85f), .24f), release);
+            var snap = GraceLater(Spawn("Grace drain snap", core, hand, .75f * k, Color.white, .1f, true, 133), release); snap.startScale = .4f; snap.endScale = 1.5f; snap.ease = 4; snap.fadePower = 1.3f;
+            GraceStar(hand, 2.6f * k, Alpha(GraceCrimson, 1), .24f, 132, release);
+            GraceWave(hand, 3.2f * k, Alpha(GraceCrimson, .9f), .3f, 3, 131, release);
+            GraceLater(ImpactLines(hand, 4 * k, Alpha(GraceCrimson, 1), .22f), release);
         }
 
         private void ImpactLifeDrain(Vector2 pos, float radius, Color tint, int facing)
@@ -681,205 +664,158 @@ namespace PrototypeLab.Roguelike
             float k = Mathf.Clamp(radius * 1.35f, 1, 3);
             Color life = Color.Lerp(GraceVivid(tint, LifeLight), LifeLight, .3f), hot = Color.Lerp(life, Color.white, .45f);
             GraceRip(pos, k);
-            // A ghost is torn upward out of the body, followed by wavering soul streaks.
-            for (int layer = 0; layer < 2; layer++)
-            {
-                bool lit = layer == 1;
-                var ghost = Spawn(lit ? "Grace torn ghost" : "Grace torn ghost ink", GraceSoul, pos + Vector2.up * .3f * k, (lit ? 1.7f : 2) * k, lit ? Alpha(hot, .9f) : GraceBlood, .5f, lit, lit ? 128 : 117);
-                ghost.angle = 90; ghost.velocity = Vector2.up * 4 * k; ghost.drag = 2.5f;
-                ghost.axisStart = new Vector2(.5f, 1.2f); ghost.axisEnd = new Vector2(1.5f, .75f); ghost.ease = 2; ghost.fadeIn = .03f; ghost.fadePower = 1.4f;
-            }
-            int souls = Budget(Mathf.RoundToInt(7 * k));
+            // A ghost of light is torn upward out of the body, followed by wavering life comets and plasma soul motes.
+            var ghost = Spawn("Grace torn ghost", GraceSoul, pos + Vector2.up * .3f * k, 1.8f * k, Alpha(hot, 1), .5f, true, 128);
+            ghost.angle = 90; ghost.velocity = Vector2.up * 4 * k; ghost.drag = 2.5f;
+            ghost.axisStart = new Vector2(.5f, 1.2f); ghost.axisEnd = new Vector2(1.5f, .75f); ghost.ease = 3; ghost.hold = .2f; ghost.fadePower = 1.3f;
+            int souls = Budget(Mathf.RoundToInt(6 * k));
             for (int i = 0; i < souls; i++)
             {
                 bool green = i % 3 != 0;
-                var soul = GraceLater(Spawn("Grace torn soul", GraceSoul, pos + Inside(.3f * k), Range(.6f, .9f) * k, green ? Alpha(hot, .95f) : GraceBlood, Range(.5f, .8f), green, green ? 129 : 118), Range(0, .12f));
+                var soul = green ? Spawn("Grace torn soul", GraceSoul, pos + Inside(.3f * k), Range(.6f, .9f) * k, Alpha(hot, 1), Range(.5f, .8f), true, 129)
+                    : GracePlasma(pos + Inside(.3f * k), Range(.4f, .55f) * k, Alpha(GraceCrimson, 1), Range(.5f, .8f), 128);
+                GraceLater(soul, Range(0, .12f));
                 soul.orbitCenter = soul.position; soul.velocity = new Vector2(Range(-1, 1), Range(3.5f, 5.5f)) * k; soul.drag = 1.2f;
                 soul.orbitAngle = Range(0, 360); soul.orbit = (i % 2 == 0 ? 1 : -1) * Range(500, 700); soul.orbitRadius = .25f * k; soul.orbitRadiusEnd = .05f;
-                soul.alignVelocity = true; soul.fadeIn = .05f; soul.hold = .3f; soul.fadePower = 1.4f; soul.endScale = .5f; soul.ease = 1;
+                soul.alignVelocity = green; soul.fadeIn = .04f; soul.hold = .3f; soul.fadePower = 1.3f; soul.endScale = .5f; soul.ease = 1;
             }
-            var lift = Spawn("Grace soul glow", glow, pos + Vector2.up * .4f * k, 1.8f * k, Alpha(life, .7f), .6f, true, 124); lift.velocity = Vector2.up * 1.6f * k; lift.drag = 1.5f; lift.fadeIn = .05f; lift.fadePower = 1.4f;
-            GraceLater(Wave(pos, 3.2f * k, Alpha(life, .8f), .36f, 3), .05f);
+            GraceWave(pos, 3.2f * k, Alpha(life, .9f), .34f, 3, 131, .05f);
         }
 
         private void TrailLifeDrain(Vector2 from, Vector2 to, Color tint)
         {
             Vector2 delta = to - from; float length = delta.magnitude; if (length < .05f) return;
             Vector2 dir = delta / length, side = new Vector2(-dir.y, dir.x);
-            Color life = Color.Lerp(GraceVivid(tint, LifeLight), LifeLight, .3f), hot = Color.Lerp(life, Color.white, .5f), pigment = GraceDeep(life, .55f, .85f);
+            Color life = Color.Lerp(GraceVivid(tint, LifeLight), LifeLight, .3f), hot = Color.Lerp(life, Color.white, .5f);
             // Higher levels pull a thicker, wider river.
             int grade = Grade; float gl = GraceLevel(1.12f, 1.25f);
-            float travel = Mathf.Clamp(length / 13, .15f, .42f), amp = Mathf.Clamp(length * .24f, .45f, 1.1f) * gl, turns = Mathf.Clamp(length / 3, .8f, 1.6f), flow = .7f;
-            float strandLife = flow + .25f, angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+            float travel = Mathf.Clamp(length / 13, .15f, .42f), flow = .7f, thick = Mathf.Clamp(length * .26f, .9f, 1.7f) * gl;
+            float amp = thick * .28f, winding = 360 * 1.25f / travel, angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
 
-            // The victim: the soul is ripped out in a dark burst and its ghost is torn loose toward the caster; dark smoke
-            // keeps bleeding from the wound.
+            // The victim: the soul is ripped out in a crimson blast and its ghost is torn loose toward the caster; crimson smoke
+            // keeps curling from the wound.
             GraceRip(from, 1.35f);
-            for (int layer = 0; layer < 2; layer++)
-            {
-                bool lit = layer == 1;
-                var ghost = Spawn(lit ? "Grace torn spirit" : "Grace torn spirit ink", GraceSoul, from + dir * .4f, lit ? 2.2f : 2.6f, lit ? Alpha(hot, .9f) : GraceBlood, .42f, lit, lit ? 128 : 117);
-                ghost.angle = angle; ghost.velocity = dir * Mathf.Min(length, 4) * 1.8f; ghost.drag = 2.2f;
-                ghost.axisStart = new Vector2(.5f, 1.2f); ghost.axisEnd = new Vector2(1.7f, .7f); ghost.ease = 2; ghost.fadeIn = .03f; ghost.fadePower = 1.4f;
-            }
+            var ghost = Spawn("Grace torn spirit", GraceSoul, from + dir * .4f, 2.3f, Alpha(hot, 1), .42f, true, 128);
+            ghost.angle = angle; ghost.velocity = dir * Mathf.Min(length, 4) * 1.8f; ghost.drag = 2.2f;
+            ghost.axisStart = new Vector2(.5f, 1.2f); ghost.axisEnd = new Vector2(1.7f, .7f); ghost.ease = 3; ghost.hold = .15f; ghost.fadePower = 1.3f;
             for (int i = 0; i < 2; i++)
             {
-                var wound = GraceLater(Puff(from + Inside(.25f), Range(.8f, 1.1f), GraceBlood, new Vector2(Range(-.4f, .4f), Range(.6f, 1.2f)), Range(.6f, .8f), 115), .15f + i * .2f);
+                var wound = GraceLater(Puff(from + Inside(.25f), Range(.8f, 1.1f), GraceSmoke, new Vector2(Range(-.4f, .4f), Range(.6f, 1.2f)), Range(.6f, .8f), 115), .15f + i * .2f);
                 wound.endScale = 2.2f; wound.drag = 1.5f;
             }
 
-            // The soul river: a dark channel with a life-white spine, wound by a thick life-green strand and a crimson strand
-            // (seamless flat-ended ribbons), revealed from the victim to the caster, holding while the souls flow, then fading.
-            int segments = Mathf.Max(5, Budget(Mathf.Clamp(Mathf.CeilToInt(turns * 6), 6, 10)));
-            for (int strand = 0; strand < 2; strand++)
-            {
-                Vector2 previous = GraceHelix(from, delta, side, 0, amp, turns, strand);
-                for (int i = 1; i <= segments; i++)
-                {
-                    float t = i / (float)segments; Vector2 point = GraceHelix(from, delta, side, t, amp, turns, strand);
-                    float delay = Mathf.Max(0, t - .5f / segments) * travel;
-                    if (strand == 0)
-                    {
-                        var stain = GraceLater(GraceStrand(previous, point, .95f * gl, Alpha(pigment, .85f), strandLife, false, 119), delay); stain.hold = .45f; stain.fadePower = 1.3f;
-                        var vein = GraceLater(GraceStrand(previous, point, .8f * gl, Alpha(life, .95f), strandLife, true, 126), delay); vein.hold = .45f; vein.fadePower = 1.4f; vein.flicker = .12f;
-                    }
-                    else
-                    {
-                        var ink = GraceLater(GraceStrand(previous, point, gl, GraceBlood, strandLife, false, 117), delay); ink.hold = .45f; ink.fadePower = 1.3f;
-                        var vein = GraceLater(GraceStrand(previous, point, .7f * gl, Alpha(GraceCrimson, .95f), strandLife, true, 127), delay); vein.hold = .45f; vein.fadePower = 1.4f; vein.flicker = .12f;
-                    }
-                    previous = point;
-                }
-            }
-            for (int i = 0; i < 3; i++)
-            {
-                Vector2 a = from + delta * (i / 3f), b = from + delta * ((i + 1) / 3f);
-                float delay = i / 3f * travel;
-                var axis = GraceLater(GraceStrand(a, b, 1.2f * gl, Alpha(GraceVoid, .75f), strandLife + .05f, false, 116), delay); axis.hold = .45f; axis.fadePower = 1.2f;
-                var vital = GraceLater(GraceStrand(a, b, .24f * gl, Alpha(grade >= 3 ? Color.Lerp(hot, GraceAwake, .5f) : hot, .95f), strandLife, true, 128), delay); vital.hold = .4f; vital.fadePower = 1.5f; vital.pulse = .1f;
-            }
-            var channel = GraceInkLine(from, to, 2.2f, Alpha(GraceBlood, .5f), strandLife + .1f, 115); channel.fadeIn = travel * .6f; channel.hold = .45f; channel.fadePower = 1.2f;
-            var sheen = Line(from, to, 1.6f, Alpha(life, .2f), strandLife, 125, 1.1f); sheen.fadeIn = travel * .6f; sheen.hold = .4f; sheen.fadePower = 1.3f;
+            // The soul river: a luminous crimson ribbon stretched from the victim to the caster (its strands wind and flow by
+            // themselves, white-hot at their hearts) in a soft crimson glow, with a thinner strand of life winding a quarter turn
+            // apart. It shoots across in the travel time, holds while the souls flow, then erodes from its thin edges.
+            float riverLife = travel + flow + .2f, riverHold = (travel + flow * .7f) / riverLife, grow = GracePop(riverLife, travel);
+            var glowRiver = GraceRiver(from, to, GraceRibbonFrames, thick * 2.6f, Alpha(GraceCrimson, .5f), riverLife, true, 124);
+            var crimsonRiver = GraceRiver(from, to, GraceStream, thick, Alpha(GraceCrimson, 1), riverLife, true, 126);
+            var vital = GraceRiver(from, to, GraceStreamShift, thick * .62f, Alpha(grade >= 3 ? Color.Lerp(life, GraceAwake, .3f) : life, 1), riverLife, true, 127);
+            foreach (var clip in new[] { glowRiver, crimsonRiver, vital }) { clip.axisStart = new Vector2(.03f, 1); clip.axisEnd = Vector2.one; clip.ease = grow; clip.hold = riverHold; clip.fadePower = 1.3f; }
 
-            // A wound glow on the victim pours a continuous river along the channel: life and crimson souls winding round
-            // each other, soft light motes and rolling blood smoke, each arriving at the caster.
-            float speed = length / travel, winding = 360 * turns * .5f / travel;
-            var wellspring = GraceLater(Spawn("Grace drain wellspring", glow, from, 1.8f, Alpha(GraceCrimson, .55f), flow, true, 124), travel * .3f);
-            wellspring.pulse = .1f; wellspring.fadeIn = .05f; wellspring.hold = .6f; wellspring.fadePower = 1.5f;
+            // Plasma soul motes, soul comets and needles pour along the river from the wound, winding round it, each arriving at
+            // the caster.
+            float speed = length / travel;
             int pour = 0;
-            // About 18 river particles are alive at once whatever the length of the stream.
-            Emitter(wellspring, Mathf.Clamp(18 / travel, 40, 64) * GraceLevel(1.1f, 1.2f), 0, (owner, p) => GraceDrainFlow(from, dir, side, speed, travel, amp, winding, pour++, life, hot, pigment));
+            // About 14 river particles are alive at once whatever the length of the stream.
+            Emitter(vital, Mathf.Clamp(14 / travel, 30, 48) * GraceLevel(1.1f, 1.2f), 0, (owner, p) =>
+            {
+                if (owner.age > travel + flow) return;
+                GraceDrainFlow(from, dir, speed, travel, amp, winding, pour++, life, hot);
+            });
 
-            // The caster drinks it in: an imploding crimson ring, a life bloom with a pigment halo, a glint, a surge of
-            // life rising around the body, a second gulp when the last soul lands, and rising motes. A second river landing
-            // with the first (level two and up drain two victims) only adds its own gulp.
+            // The caster drinks it in: an imploding crimson ring, a spark of life, a column of life in a soft beam, shock fronts,
+            // a second gulp when the last soul lands and rising crosses. A second river landing with the first (level two and up
+            // drain two victims) only adds its own gulp.
             float arrive = travel * .85f;
             Vector2 feet = to + Vector2.down * .95f;
-            var gulp = GraceLater(Spawn("Grace drain gulp", ring, to, 3.8f, Alpha(GraceCrimson, .9f), .24f, true, 131), travel * .7f); gulp.startScale = 1; gulp.endScale = .15f; gulp.ease = 1.5f; gulp.fadePower = .8f;
-            if (GraceRecent(GraceDrinkMark, .3f, to, 1.5f)) { GraceLater(Glint(to, 1.8f, Alpha(hot, .95f), .24f), travel); return; }
-            var drinkTint = GraceLater(Spawn("Grace drain drink pigment", glow, to, 3.4f, Alpha(pigment, .5f), flow + .3f, false, 119), arrive); drinkTint.fadeIn = .06f; drinkTint.hold = .5f; drinkTint.fadePower = 1.5f; drinkTint.pulse = .06f;
-            var drink = GraceLater(Spawn("Grace drain drink", glow, to, 3.2f, Alpha(life, .85f), flow + .2f, true, 130), arrive); GraceDrinkMark = drink;
-            drink.ramp = Ramp(Color.white, life); drink.startScale = .5f; drink.endScale = 1.2f; drink.ease = 2; drink.hold = .4f; drink.fadePower = 1.5f; drink.pulse = .08f;
-            var surgeInk = GraceLater(GraceColumn(GraceShaft, feet, 1.9f, 3.8f, Alpha(pigment, .55f), flow, false, 26), arrive); surgeInk.hold = .35f; surgeInk.fadePower = 1.4f;
-            var surge = GraceLater(GraceColumn(pillar, feet, 1.7f, 4.4f, Alpha(life, .75f), flow * .85f, true, 27), arrive); surge.hold = .3f; surge.fadePower = 1.5f;
-            GraceLater(Wave(to, 4.4f, Alpha(life, .85f), .4f, 3), travel + .04f);
-            GraceLater(GraceRing(to, 4, Alpha(pigment, .8f), .38f, 3, false, 119), travel + .04f);
-            GraceLater(Glint(to, 2.6f, Color.white, .3f), travel);
-            var last = GraceLater(Spawn("Grace drain sated", core, to, .7f, Alpha(hot, .85f), .14f, true, 133), travel + flow); last.startScale = .4f; last.endScale = 1.6f; last.ease = 2.5f; last.fadePower = 1.5f;
-            GraceLater(Wave(to, 3.6f, Alpha(hot, .8f), .36f, 3), travel + flow);
+            var gulp = GraceLater(Spawn("Grace drain gulp", GraceShock, to, 3.6f, Alpha(GraceCrimson, 1), .22f, true, 131), travel * .7f); gulp.startScale = 1; gulp.endScale = .15f; gulp.ease = 1.5f; gulp.fadePower = .8f;
+            if (GraceRecent(GraceDrinkMark, .3f, to, 1.5f)) { GraceStar(to, 1.7f, Alpha(hot, 1), .2f, 132, travel); return; }
+            var drink = GraceStar(to, 3.2f, Alpha(life, 1), .3f, 132, arrive); GraceDrinkMark = drink;
+            GraceStar(to, 2, Alpha(hot, 1), .2f, 133, arrive);
+            var surgeGlow = GraceLater(GraceColumn(GraceBeam, feet, 3.4f, 4.6f, Alpha(life, .5f), flow, true, 26), arrive); surgeGlow.hold = .35f; surgeGlow.fadePower = 1.3f; surgeGlow.ease = 6;
+            var surge = GraceLater(GraceColumn(GracePillar, feet, 1.6f, 4.4f, Alpha(life, 1), flow * .85f, true, 27), arrive); surge.hold = .3f; surge.fadePower = 1.3f; surge.ease = 6;
+            GraceWave(to, 4.2f, Alpha(life, .9f), .38f, 3, 131, travel + .04f);
+            GraceCrossFlare(to, 2.6f, Alpha(hot, 1), .3f, travel);
+            var last = GraceLater(Spawn("Grace drain sated", core, to, .65f, Alpha(hot, 1), .12f, true, 133), travel + flow); last.startScale = .4f; last.endScale = 1.5f; last.ease = 4; last.fadePower = 1.3f;
+            GraceWave(to, 3.4f, Alpha(hot, .85f), .34f, 3, 131, travel + flow);
             for (int i = 0; i < 4; i++) GraceLater(GraceRise(to + Inside(.6f), i % 2 == 0 ? hot : life, 1.1f), travel + Range(0, flow));
             if (grade < 3) return;
             // Awakened (twice the healing): life overflows. A gold-white column climbs inside the green surge, a ring of life
             // crowns the hero's head and twin streams of light spiral up round the body.
-            var overflow = GraceLater(GraceColumn(pillar, feet, .9f, 5.2f, Alpha(GraceAwake, .8f), flow * .8f, true, 28), arrive + .05f); overflow.hold = .3f; overflow.fadePower = 1.5f;
-            // Twice the healing, shown literally: a second gulp blooms a beat after the first, with its own ring of life.
-            var second = GraceLater(Spawn("Grace drain second drink", glow, to, 3f, Alpha(Color.Lerp(life, GraceAwake, .45f), .85f), .45f, true, 130), arrive + .18f);
-            second.ramp = Ramp(Color.white, GraceAwake); second.startScale = .4f; second.endScale = 1.25f; second.ease = 2; second.fadePower = 1.5f;
-            var secondTint = GraceLater(Spawn("Grace drain second drink pigment", glow, to, 3.2f, Alpha(GraceUmber, .45f), .5f, false, 119), arrive + .18f);
-            secondTint.startScale = .5f; secondTint.endScale = 1.2f; secondTint.ease = 2; secondTint.fadePower = 1.5f;
-            GraceLater(Wave(to, 4.4f, Alpha(GraceAwake, .85f), .4f, 3), arrive + .2f);
-            GraceLater(GraceRing(to, 4.2f, Alpha(GraceUmber, .7f), .4f, 3, false, 119), arrive + .2f);
-            var crownInk = GraceLater(Spawn("Grace drain crown ink", runeRing, to + Vector2.up * 1.25f, 2.48f, GraceUmber, flow, false, 117), arrive);
+            var overflow = GraceLater(GraceColumn(GracePillar, feet, .8f, 5.2f, Alpha(GraceAwake, 1), flow * .8f, true, 28), arrive + .05f); overflow.hold = .3f; overflow.fadePower = 1.3f; overflow.ease = 6;
+            // Twice the healing, shown literally: a second gulp blooms a beat after the first, with its own shock front of life.
+            GraceStar(to, 3, Alpha(Color.Lerp(life, GraceAwake, .5f), 1), .32f, 132, arrive + .18f);
+            GraceWave(to, 4.4f, Alpha(GraceAwake, .9f), .38f, 3, 131, arrive + .2f);
             var crown = GraceLater(Spawn("Grace drain crown", runeRing, to + Vector2.up * 1.25f, 2.4f, Alpha(GraceAwake, .95f), flow, true, 131), arrive);
-            foreach (var clip in new[] { crownInk, crown }) { GraceFlat(clip, .32f); clip.spin = 160; clip.startScale = .3f; clip.endScale = 1; clip.ease = 3; clip.hold = .5f; clip.fadePower = 1.5f; }
+            GraceFlat(crown, .32f); crown.spin = 160; crown.startScale = .3f; crown.endScale = 1; crown.ease = 4; crown.hold = .5f; crown.fadePower = 1.4f;
             int spirals = Budget(6);
             for (int i = 0; i < spirals; i++)
             {
-                var mote = GraceLater(Spawn("Grace drain overflow", i % 2 == 0 ? wisp : glow, feet + Vector2.up * .3f, Range(.2f, .32f), Alpha(i % 3 == 0 ? GraceAwake : hot, .95f), flow + .2f, true, 131), arrive + i * .05f);
+                bool cross = i % 2 == 0;
+                var mote = GraceLater(Spawn("Grace drain overflow", cross ? GraceCross : fleck, feet + Vector2.up * .3f, Range(.24f, .36f), Alpha(i % 3 == 0 ? GraceAwake : hot, 1), flow + .2f, true, 131), arrive + i * .05f);
                 mote.orbitCenter = feet + Vector2.up * .3f; mote.velocity = Vector2.up * 2.6f; mote.orbitAngle = i * 360f / spirals; mote.orbit = (i % 2 == 0 ? 1 : -1) * 420;
-                mote.orbitRadius = .75f; mote.orbitRadiusEnd = .35f; mote.fadeIn = .05f; mote.hold = .5f; mote.fadePower = 1.4f; mote.flicker = .2f;
+                mote.orbitRadius = .75f; mote.orbitRadiusEnd = .35f; mote.fadeIn = .04f; mote.hold = .5f; mote.fadePower = 1.3f;
             }
         }
 
-        /// <summary>A short stream of life from a healer to the hero it heals: two winding strands over a pigment twin, motes
-        /// flowing along it, and a bloom, a ring and rising light on the hero when it arrives.</summary>
-        private void GraceLifeStream(Vector2 from, Vector2 to, Color life, Color hot, Color pigment)
+        /// <summary>A short stream of life from a healer to the hero it heals: a painted river in a soft glow, motes flowing
+        /// along it, and a spark, a shock front and rising crosses on the hero when it arrives.</summary>
+        private void GraceLifeStream(Vector2 from, Vector2 to, Color life, Color hot)
         {
-            Vector2 delta = to - from, side = new Vector2(-delta.y, delta.x).normalized; float length = delta.magnitude;
-            float travel = Mathf.Clamp(length / 14, .12f, .3f), amp = Mathf.Clamp(length * .12f, .25f, .6f);
-            const int segments = 5;
-            for (int strand = 0; strand < 2; strand++)
-            {
-                Vector2 previous = GraceHelix(from, delta, side, 0, amp, 1, strand);
-                for (int i = 1; i <= segments; i++)
-                {
-                    float t = i / (float)segments; Vector2 point = GraceHelix(from, delta, side, t, amp, 1, strand);
-                    float delay = (t - .5f / segments) * travel;
-                    if (strand == 0) { var tint = GraceLater(GraceStrand(previous, point, .55f, Alpha(pigment, .75f), .55f, false, 119), delay); tint.hold = .35f; tint.fadePower = 1.4f; }
-                    var vein = GraceLater(GraceStrand(previous, point, strand == 0 ? .38f : .26f, Alpha(strand == 0 ? life : hot, .95f), .5f, true, 127), delay); vein.hold = .35f; vein.fadePower = 1.5f;
-                    previous = point;
-                }
-            }
+            Vector2 delta = to - from; float length = delta.magnitude;
+            float travel = Mathf.Clamp(length / 14, .12f, .3f), thick = Mathf.Clamp(length * .14f, .5f, .9f), streamLife = travel + .4f;
+            var halo = GraceRiver(from, to, GraceRibbonFrames, thick * 2.4f, Alpha(life, .45f), streamLife, true, 126);
+            var stream = GraceRiver(from, to, GraceStreamShift, thick, Alpha(life, 1), streamLife, true, 127);
+            foreach (var clip in new[] { halo, stream }) { clip.axisStart = new Vector2(.03f, 1); clip.axisEnd = Vector2.one; clip.ease = GracePop(streamLife, travel); clip.hold = .55f; clip.fadePower = 1.3f; }
             for (int i = 0; i < 4; i++)
             {
-                var mote = GraceLater(Spawn("Grace life stream mote", wisp, from, Range(.22f, .34f), Alpha(i % 2 == 0 ? hot : life, .95f), travel, true, 129), i * .05f);
-                mote.velocity = delta / travel; mote.fadeIn = .03f; mote.hold = .7f; mote.fadePower = 1.4f;
+                var mote = GraceLater(Spawn("Grace life stream mote", i % 2 == 0 ? GraceCross : fleck, from, Range(.26f, .36f), Alpha(i % 2 == 0 ? hot : life, 1), travel, true, 129), i * .05f);
+                mote.velocity = delta / travel; mote.spin = 300; mote.hold = .7f; mote.fadePower = 1.3f;
             }
-            var bloom = GraceLater(Flash(to, 2.2f, Alpha(life, .8f), .3f), travel); bloom.ramp = Ramp(Color.white, life);
-            GraceLater(Wave(to, 2.8f, Alpha(hot, .8f), .35f, 3), travel);
-            GraceLater(GraceRing(to, 2.6f, Alpha(pigment, .7f), .35f, 3, false, 119), travel);
+            GraceStar(to, 2.2f, Alpha(life, 1), .26f, 132, travel);
+            GraceWave(to, 2.8f, Alpha(hot, .85f), .34f, 3, 131, travel);
             for (int i = 0; i < 3; i++) GraceLater(GraceRise(to + Inside(.5f), i % 2 == 0 ? hot : life, 1), travel + Range(0, .25f));
         }
 
-        /// <summary>One particle of the soul river. Kinds alternate so life and crimson souls wind round each other.</summary>
-        private void GraceDrainFlow(Vector2 from, Vector2 dir, Vector2 side, float speed, float travel, float amp, float winding, int n, Color life, Color hot, Color pigment)
+        /// <summary>One particle of the soul river. Kinds alternate, so plasma soul motes, crimson comets and life comets wind
+        /// round each other.</summary>
+        private void GraceDrainFlow(Vector2 from, Vector2 dir, float speed, float travel, float amp, float winding, int n, Color life, Color hot)
         {
             int kind = n % 6;
-            if (kind == 5)
-            {
-                var fume = Puff(from + side * Range(-.25f, .25f), Range(.8f, 1.15f), Alpha(GraceBlood, .6f), dir * speed * Range(.55f, .7f), travel * 1.35f, 115);
-                fume.drag = .4f; fume.startScale = .6f; fume.endScale = 1.5f; fume.fadeIn = .04f; fume.fadePower = 1.5f;
-                return;
-            }
-            bool green = kind == 0 || kind == 2 || kind == 4, lit = kind == 0 || kind == 1 || kind == 4, mote = kind == 4;
-            Color tone = kind == 0 ? Alpha(hot, .95f) : kind == 1 ? Alpha(GraceCrimson, .95f) : kind == 2 ? Alpha(pigment, .9f) : kind == 3 ? GraceBlood : Alpha(life, .7f);
-            var soul = Spawn(mote ? "Grace river light" : "Grace river soul", mote ? glow : GraceSoul, from, mote ? Range(.8f, 1.1f) : Range(1.2f, 1.7f), tone, travel, lit, lit ? (mote ? 125 : 129) : 120);
+            bool plasma = kind == 2 || kind == 5, needle = kind == 4, green = kind == 0 || kind == 4;
+            Color tone = kind == 0 ? Alpha(hot, 1) : kind == 4 ? Alpha(life, 1) : kind == 1 ? Alpha(GraceSoulHot, 1) : Alpha(GraceCrimson, 1);
+            var soul = plasma ? GracePlasma(from, Range(.55f, .75f), tone, travel, 128)
+                : Spawn(needle ? "Grace river needle" : "Grace river soul", needle ? spark : GraceSoul, from, needle ? Range(.45f, .65f) : Range(1.1f, 1.5f), tone, travel, true, needle ? 128 : 129);
             soul.orbitCenter = from; soul.velocity = dir * speed; soul.orbitAngle = (green ? 0 : 180) + Range(-20, 20); soul.orbit = winding;
             soul.orbitRadius = amp * Range(.7f, .95f); soul.orbitRadiusEnd = .06f; soul.orbitPower = 1.6f;
-            soul.alignVelocity = !mote; soul.fadeIn = .03f; soul.hold = .7f; soul.fadePower = 1.4f; soul.startScale = 1; soul.endScale = .55f; soul.ease = 1;
+            soul.alignVelocity = !plasma; soul.fadeIn = .02f; soul.hold = .7f; soul.fadePower = 1.3f; soul.startScale = 1; soul.endScale = plasma ? .7f : .55f; soul.ease = 1;
         }
 
-        // A soul ripped out of a body: dark burst, crimson flash, impact lines and an imploding vortex.
+        // A soul ripped out of a body: a white heart, a crimson blast, a spark, wedges, a collapsing whirl and needles.
         private void GraceRip(Vector2 pos, float k)
         {
-            var shade = Underlay(pos, 3.2f * k, .48f, .6f); shade.hold = .3f;
-            var flash = Spawn("Grace rip flash", core, pos, .9f * k, Color.white, .12f, true, 133); flash.startScale = .5f; flash.endScale = 1.8f; flash.ease = 2.5f; flash.fadePower = 1.5f;
-            var blood = Spawn("Grace rip blood bloom", glow, pos, 3 * k, Alpha(GraceDeep(GraceCrimson, .55f, 1), .6f), .4f, false, 117); blood.startScale = .4f; blood.endScale = 1.1f; blood.ease = 3; blood.fadePower = 1.5f;
-            var bloom = Flash(pos, 2.6f * k, Alpha(GraceCrimson, .85f), .3f); bloom.ramp = Ramp(Color.white, GraceCrimson);
-            GracePigment(ImpactLines(pos, 4.8f * k, Alpha(GraceBlood, .9f), .3f), 118);
-            ImpactLines(pos, 4 * k, Alpha(GraceCrimson, .85f), .26f);
-            Glint(pos, 2.2f * k, Alpha(Color.Lerp(GraceCrimson, Color.white, .5f), .95f), .22f, 45);
-            var maw = Spawn("Grace rip maw", swirl, pos, 3 * k, GraceVoid, .6f, false, 116); maw.spin = 520; maw.angle = Range(0, 360); maw.startScale = 1.25f; maw.endScale = .35f; maw.ease = 2; maw.fadeIn = .03f; maw.fadePower = 1.2f;
-            var whirl = Swirl(pos, 2.4f * k, Alpha(GraceCrimson, .85f), .5f, 640); whirl.startScale = 1.2f; whirl.endScale = .3f; whirl.ease = 2;
-            int puffs = Budget(4);
-            for (int i = 0; i < puffs; i++) { var puff = Puff(pos + Inside(.3f * k), Range(.6f, 1) * k, GraceBlood, Direction(i * 90 + Range(-20, 20)) * Range(1.5f, 3) * k, Range(.45f, .7f), 115); puff.endScale = 2; }
-            for (int i = 0; i < 6; i++) Spark(pos, Direction(i * 60 + Range(-15, 15)) * Range(4, 7.5f) * k, i % 2 == 0 ? Color.white : GraceCrimson, Range(.24f, .4f), Range(.22f, .36f), 4, 3);
+            MysticEnsure();
+            var shade = Underlay(pos, 3 * k, .28f, .55f); shade.hold = .3f;
+            var flash = Spawn("Grace rip flash", core, pos, .85f * k, Color.white, .1f, true, 133); flash.startScale = .5f; flash.endScale = 1.7f; flash.ease = 4; flash.fadePower = 1.3f;
+            Blast(pos, 2.1f * k, Alpha(GraceCrimson, 1), .45f, 127);
+            GraceStar(pos, 2.4f * k, Alpha(GraceSoulHot, 1), .26f, 132);
+            ImpactLines(pos, 4 * k, Alpha(GraceCrimson, 1), .24f);
+            var whirl = Spawn("Grace rip whirl", MysticSpiral, pos, 1.7f * k, Alpha(GraceCrimson, .95f), .32f, true, 129); whirl.spin = 640; whirl.angle = Range(0, 360); whirl.startScale = 1.15f; whirl.endScale = .3f; whirl.ease = 2; whirl.fadePower = 1.2f;
+            for (int i = 0; i < 7; i++) Spark(pos, Direction(i * 360f / 7 + Range(-15, 15)) * Range(4, 8) * k, i % 2 == 0 ? Color.white : GraceCrimson, Range(.3f, .46f), Range(.22f, .36f), 4, 3);
         }
 
         // ---------------------------------------------------------------- shared helpers
 
         /// <summary>A grace skill's growth with its level: 1 at level one, <paramref name="two"/> and <paramref name="three"/> above.</summary>
         private float GraceLevel(float two, float three) { return Grade >= 3 ? three : Grade == 2 ? two : 1; }
+
+        /// <summary>The ease that makes a scale change finish within <paramref name="seconds"/> of a clip's <paramref name="life"/>.</summary>
+        private static float GracePop(float life, float seconds)
+        {
+            float f = Mathf.Clamp(seconds / Mathf.Max(.01f, life), .01f, .9f);
+            return Mathf.Clamp(Mathf.Log(.04f) / Mathf.Log(1 - f), 1, 80);
+        }
 
         /// <summary>True while <paramref name="clip"/> is alive, younger than <paramref name="window"/> and near <paramref name="pos"/>.</summary>
         private bool GraceRecent(Clip clip, float window, Vector2 pos, float distance)
@@ -895,24 +831,68 @@ namespace PrototypeLab.Roguelike
             return go.transform;
         }
 
-        private Clip GraceRise(Vector2 at, Color color, float scale)
+        /// <summary>A hit flash for releases, locks, blocks and drinks: the hand-drawn spark (it flares, splits into shards and
+        /// scatters) over a soft bloom, starting after <paramref name="delay"/>. Returns the spark.</summary>
+        private Clip GraceStar(Vector2 pos, float width, Color color, float life, int order = 132, float delay = 0)
         {
-            bool streakMote = Chance(.35f);
-            var mote = Spawn("Grace rising light", streakMote ? spark : wisp, at, (streakMote ? Range(.3f, .5f) : Range(.14f, .28f)) * scale, Alpha(color, .95f), Range(.55f, 1), true, 131);
-            mote.velocity = new Vector2(Range(-.25f, .25f), Range(1.6f, 3.4f) * Mathf.Max(.7f, scale)); mote.drag = .3f; mote.fadeIn = .08f; mote.endScale = .35f; mote.ease = 1; mote.flicker = .25f;
-            mote.alignVelocity = streakMote;
+            var star = SparkFlip(pos, width, color, life, order);
+            var bloom = Spawn("Grace spark bloom", glow, pos, width * 1.15f, Alpha(color, color.a * .4f), star.life, true, order - 3);
+            bloom.startScale = .6f; bloom.endScale = 1.2f; bloom.ease = 3; bloom.fadePower = 1.6f;
+            if (delay > 0) { GraceLater(star, delay); GraceLater(bloom, delay); }
+            return star;
+        }
+
+        /// <summary>A tall holy cross of two spindle strokes (white-cored), snapping open after <paramref name="delay"/>.</summary>
+        private void GraceCrossFlare(Vector2 pos, float height, Color color, float life, float delay)
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                bool upright = i == 0;
+                var ray = GraceLater(Spawn("Grace cross flare", streak, pos + (upright ? Vector2.up * height * .08f : Vector2.zero), upright ? height : height * .55f, color, life * (upright ? 1 : .8f), true, 132), delay);
+                ray.scale.y *= upright ? .2f : .26f; ray.angle = upright ? 90 : 0; ray.startScale = .3f; ray.endScale = 1; ray.ease = 7; ray.hold = .3f; ray.fadePower = 1.2f;
+            }
+        }
+
+        /// <summary>A holy cross mote that pops open, holds and erodes.</summary>
+        private Clip GraceCrossPop(Vector2 pos, float width, Color color, float life)
+        {
+            var cross = Spawn("Grace cross", GraceCross, pos, width, color, life, true, 133);
+            cross.startScale = .3f; cross.endScale = 1; cross.ease = 6; cross.hold = .35f; cross.fadePower = 1.2f; cross.angle = Range(-12, 12);
+            return cross;
+        }
+
+        /// <summary>A four-point sparkle that snaps open on a surface.</summary>
+        private Clip GraceTwinkle(Vector2 pos, float width, Color color, float life)
+        {
+            var mote = Spawn("Grace twinkle", fleck, pos, width, color, life, true, 133);
+            mote.startScale = .2f; mote.endScale = 1; mote.ease = 6; mote.hold = .3f; mote.fadePower = 1.3f; mote.angle = Range(-15, 15);
             return mote;
         }
 
-        /// <summary>A rising healing mote: mostly light, sometimes a saturated leaf that keeps its colour on pale floors.</summary>
-        private Clip GraceHealMote(Vector2 at, Color light, Color pigment, float scale)
+        /// <summary>A rising mote of grace: a holy cross that pops open and drifts up, or a needle of light.</summary>
+        private Clip GraceRise(Vector2 at, Color color, float scale)
+        {
+            bool cross = Chance(.45f);
+            var mote = Spawn(cross ? "Grace rising cross" : "Grace rising light", cross ? GraceCross : spark, at, (cross ? Range(.26f, .4f) : Range(.32f, .5f)) * scale, Alpha(color, 1), Range(.55f, 1), true, 131);
+            mote.velocity = new Vector2(Range(-.25f, .25f), Range(1.6f, 3.4f) * Mathf.Max(.7f, scale)); mote.drag = .3f; mote.hold = .45f; mote.fadePower = 1.2f;
+            if (cross) { mote.startScale = .35f; mote.endScale = 1; mote.ease = 6; }
+            else { mote.alignVelocity = true; mote.endScale = .35f; mote.ease = 1; mote.fadeIn = .04f; }
+            return mote;
+        }
+
+        /// <summary>A rising healing mote: mostly light, sometimes a painted leaf.</summary>
+        private Clip GraceHealMote(Vector2 at, Color light, Color leafTone, float scale)
         {
             if (!Chance(.3f)) return GraceRise(at, light, scale);
-            var leaf = Spawn("Grace rising leaf", petal, at, Range(.22f, .34f) * scale, Alpha(pigment, .95f), Range(.6f, 1), false, 121);
+            var leaf = Spawn("Grace rising leaf", GraceLeaf, at, Range(.3f, .42f) * scale, Alpha(leafTone, .95f), Range(.6f, 1), false, 121);
             leaf.velocity = new Vector2(Range(-.4f, .4f), Range(1.4f, 2.8f) * Mathf.Max(.7f, scale)); leaf.drag = .4f; leaf.spin = Range(-360, 360); leaf.angle = Range(0, 360);
-            leaf.fadeIn = .08f; leaf.hold = .4f; leaf.fadePower = 1.3f; leaf.startScale = .5f; leaf.endScale = 1;
+            leaf.fadeIn = .05f; leaf.hold = .4f; leaf.fadePower = 1.3f; leaf.startScale = .5f; leaf.endScale = 1; leaf.ease = 4;
             return leaf;
         }
+
+        /// <summary>The tone painted leaves take for a heal colour: the same hue, deep and saturated, which their soft shading
+        /// lightens toward the upper left.</summary>
+        private static Color GraceLeafTone(Color main) { return GraceDeep(main, .88f, .95f); }
 
         private Clip GraceColumn(Sprite sprite, Vector2 ground, float width, float height, Color color, float life, bool additive, int order)
         {
@@ -922,46 +902,79 @@ namespace PrototypeLab.Roguelike
             return clip;
         }
 
-        private Clip GraceDomeLayer(Vector2 ground, float width, float height, Color color, float life, bool additive, int order)
+        private Clip GraceDomeLayer(Vector2 ground, float width, float height, Color color, float life, bool additive, int order, Sprite sprite = null)
         {
-            var clip = Spawn("Grace dome", GraceDome, ground, width, color, life, additive, order);
+            var clip = Spawn("Grace dome", sprite ?? GraceDome, ground, width, color, life, additive, order);
             clip.scale.y *= height / width; clip.root.transform.localScale = clip.scale;
             return clip;
         }
 
-        /// <summary>An expanding ring; alpha-blended rings keep their colour on bright backdrops.</summary>
-        private Clip GraceRing(Vector2 pos, float width, Color color, float life, float ease, bool additive, int order)
+        /// <summary>A pool of soft light lying on the floor under a seal, behind the actors.</summary>
+        private Clip GraceGroundBloom(Vector2 ground, float width, Color color, float life)
         {
-            var clip = Spawn("Grace ring", ring, pos, width, color, life, additive, order);
-            clip.startScale = .12f; clip.endScale = 1; clip.ease = ease; clip.fadePower = 1.2f; return clip;
-        }
-
-        /// <summary>A strand segment drawn with the flat-ended ribbon, so consecutive segments join without beading.</summary>
-        private Clip GraceStrand(Vector2 a, Vector2 b, float thickness, Color color, float life, bool additive, int order)
-        {
-            Vector2 delta = b - a; float length = Mathf.Max(.02f, delta.magnitude) * 1.14f;
-            var clip = Spawn("Grace strand", GraceRibbon, (a + b) * .5f, length, color, life, additive, order);
-            clip.scale = new Vector3(length / GraceRibbon.bounds.size.x, thickness / GraceRibbon.bounds.size.y, 1);
-            clip.angle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg; clip.ease = 1;
-            clip.root.transform.localScale = clip.scale; clip.root.transform.localRotation = Quaternion.Euler(0, 0, clip.angle);
+            var clip = Spawn("Grace floor bloom", glow, ground, width, color, life, true, 25); clip.scale.y *= .32f; clip.fadeIn = .05f; clip.fadePower = 1.4f;
             return clip;
         }
 
-        private Clip GraceInkLine(Vector2 a, Vector2 b, float thickness, Color color, float life, int order)
+        /// <summary>A free plasma orb (the shared looped flipbook: swirling filaments, a lit rim, flares): a soul mote.</summary>
+        private Clip GracePlasma(Vector2 pos, float width, Color color, float life, int order)
         {
-            var clip = Line(a, b, thickness, color, life, order, 1.1f); clip.renderer.sharedMaterial = AlphaBlend; return clip;
+            var clip = Spawn("Grace plasma mote", plasmaFrames[0], pos, width, color, life, true, order);
+            clip.frames = plasmaFrames; clip.fps = 16; clip.loop = true; clip.angle = Range(0, 360);
+            return clip;
         }
 
-        /// <summary>Turns an additive clip into an alpha-blended pigment layer drawn under the light.</summary>
-        private static Clip GracePigment(Clip clip, int order)
+        /// <summary>A timed plasma orb riding on a caster's hand (or a free one when there is no anchor).</summary>
+        private Clip GraceAnchoredPlasma(Transform anchor, Vector2 at, string name, float width, Color color, float life, int order)
         {
-            clip.renderer.sharedMaterial = AlphaBlend; clip.renderer.sortingOrder = order; return clip;
+            var clip = Anchored(anchor, at, name, plasmaFrames[0], width, color, life, order);
+            clip.frames = plasmaFrames; clip.fps = 16; clip.loop = true;
+            return clip;
         }
 
+        /// <summary>A painted river stretched from <paramref name="from"/> to <paramref name="to"/>: the frames wind and flow on
+        /// their own, so one clip draws the whole stream with no joints. It grows from <paramref name="from"/> (its pivot).</summary>
+        private Clip GraceRiver(Vector2 from, Vector2 to, Sprite[] frames, float thickness, Color color, float life, bool additive, int order)
+        {
+            Vector2 delta = to - from; float length = Mathf.Max(.05f, delta.magnitude);
+            var clip = Spawn("Grace river", frames[0], from, length, color, life, additive, order);
+            clip.frames = frames; clip.fps = 16; clip.loop = true;
+            Vector3 size = frames[0].bounds.size;
+            clip.scale = new Vector3(length / size.x, thickness / size.y, 1); clip.root.transform.localScale = clip.scale;
+            clip.angle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg; clip.root.transform.localRotation = Quaternion.Euler(0, 0, clip.angle);
+            clip.ease = 1;
+            return clip;
+        }
+
+        /// <summary>An expanding shock front (the shared flipbook: a thick ring racing out, thinning and breaking into arcs), sized
+        /// so its rim ends where a painted ring of <paramref name="width"/> would (0.78 of the half-width), after <paramref name="delay"/>.</summary>
+        private Clip GraceWave(Vector2 pos, float width, Color color, float life, float ease, int order = 131, float delay = 0)
+        {
+            var wave = ShockFlip(pos, width * .89f, color, life, order); wave.startScale = .3f; wave.endScale = 1; wave.ease = Mathf.Max(ease, 3); wave.fadePower = .9f;
+            if (delay > 0) GraceLater(wave, delay);
+            return wave;
+        }
+
+        /// <summary>A shock front running out along the floor (laid flat, so its arcs turn in the ground plane).</summary>
+        private Clip GraceGroundWave(Vector2 pos, float width, Color color, float life, float delay = 0)
+        {
+            var wave = GraceWave(pos, width, color, life, 3.5f, 116, delay); LayFlat(wave, .34f);
+            return wave;
+        }
+
+        /// <summary>Holds a clip back for <paramref name="delay"/> seconds (on top of any delay it already has).</summary>
         private static Clip GraceLater(Clip clip, float delay)
         {
-            if (delay > 0) { clip.age = -delay; if (clip.renderer) clip.renderer.enabled = false; }
+            if (delay > 0) { clip.age -= delay; if (clip.renderer) clip.renderer.enabled = false; }
             return clip;
+        }
+
+        /// <summary>Holds back every clip spawned since <paramref name="mark"/> (a count of clips taken before), so a
+        /// multi-layer builder such as Blast can start later as one piece.</summary>
+        private void GraceDefer(int mark, float delay)
+        {
+            if (delay <= 0) return;
+            for (int i = mark; i < clips.Count; i++) GraceLater(clips[i], delay);
         }
 
         private void GraceFlat(Clip clip, float squash) { LayFlat(clip, squash); }
@@ -972,12 +985,6 @@ namespace PrototypeLab.Roguelike
             Vector2 o = owner.root.transform.position; return o + new Vector2(p.x - o.x, (p.y - o.y) * .3f);
         }
 
-        private static Vector2 GraceHelix(Vector2 from, Vector2 delta, Vector2 side, float t, float amp, float turns, int strand)
-        {
-            float envelope = Mathf.Pow(Mathf.Sin(Mathf.PI * (t * .9f + .05f)), .55f);
-            return from + delta * t + side * Mathf.Sin(t * turns * 2 * Mathf.PI + strand * Mathf.PI) * amp * envelope;
-        }
-
         /// <summary>The tint when it is a real colour, otherwise the family fallback.</summary>
         private static Color GraceVivid(Color tint, Color fallback)
         {
@@ -986,7 +993,7 @@ namespace PrototypeLab.Roguelike
             return Color.HSVToRGB(h, Mathf.Max(s, .45f), Mathf.Max(v, .9f));
         }
 
-        /// <summary>A deep, saturated version of a colour for alpha-blended contrast layers.</summary>
+        /// <summary>A deep, saturated version of a colour.</summary>
         private static Color GraceDeep(Color color, float value, float alpha, float hueShift = 0)
         {
             float h, s, v; Color.RGBToHSV(color, out h, out s, out v);
@@ -995,102 +1002,255 @@ namespace PrototypeLab.Roguelike
 
         // ---------------------------------------------------------------- textures
 
+        /// <summary>A painted line's light level: 1 on the line falling straight to 0 at <paramref name="width"/>, so the painted
+        /// ramp gives it a white core, a pale band and a coloured edge.</summary>
+        private static float GraceLine(float distance, float width) { return Mathf.Clamp01(1 - Mathf.Abs(distance) / width); }
+
+        /// <summary>The soft light on a painted blade (a leaf or a petal), lit from the upper left: each half bulges a little
+        /// away from the midrib and the blade curls away toward its ends. <paramref name="across"/> runs from -1 (lower edge)
+        /// through the midrib (0) to 1 (upper edge); <paramref name="along"/> from -1 to 1 end to end.</summary>
+        private static float GraceBladeLight(float across, float along)
+        {
+            float s = Mathf.Abs(across) * 2 - 1, side = across >= 0 ? 1 : -1;
+            float ny = side * s * .55f, nx = along * .4f, nz = Mathf.Sqrt(Mathf.Max(0, 1 - nx * nx - ny * ny));
+            return Mathf.Clamp01(-.45f * nx + .55f * ny + .7f * nz);
+        }
+
+        private static Sprite[] GraceSheet(string name, int frames, int width, int height, Vector2 pivot, FrameShade shade)
+        {
+            var sprites = new Sprite[frames];
+            for (int f = 0; f < frames; f++) { int frame = f; sprites[f] = Build(name + " " + f, width, height, (u, v) => shade(u, v, frame), pivot); }
+            return sprites;
+        }
+
+        // Light shapes here are level profiles for the painted light material (a crisp outer edge, a smooth fall-off, a white-hot
+        // centre, brush streaks along the stroke). Painted objects (the leaf) carry soft shading in rgb, lit from the upper left.
+        // The beam, ribbon and dome halos are soft blooms (added to the soft set) that glow under the strokes.
         private static void BuildGraceTextures()
         {
-            // A hexagonal barrier dome standing on the floor (bottom pivot): bright rim, fresnel edge, lattice that thins
-            // toward the middle so the hero inside stays readable, a soft sheen and a line hugging the ground.
+            // A glowing barrier dome standing on the floor (bottom pivot): a rim band whose light rises smoothly to a white outer
+            // edge (brightest on the upper left), a faint body that thickens toward the rim, a faint hexagonal lattice that fades
+            // out toward the middle (the hero inside stays readable), a soft sheen and a band hugging the floor.
             GraceDome = Build("Grace dome", 256, 256, (u, v) =>
             {
                 float h = (v + 1) * .5f, r = Mathf.Sqrt(u * u + h * h);
                 if (r > 1) return Color.clear;
-                float inside = (1 - Smooth(.955f, .99f, r)) * Smooth(0, .025f, h);
-                float rim = Gauss(r - .955f, .018f) + Gauss(r - .95f, .07f) * .3f, fresnel = Mathf.Pow(r, 5) * .45f;
-                float lattice = Gauss(HexEdge(u, h, .12f), .012f) * (.2f + .8f * Mathf.Pow(r, 2.5f));
-                float sheen = Gauss(Mathf.Sqrt(Sq(u + .38f) + Sq(h - .62f)), .18f) * .25f;
-                float a = (rim + fresnel + lattice * .75f + sheen + .03f) * inside + Gauss(h, .03f) * (1 - Smooth(.8f, 1, Mathf.Abs(u))) * .5f;
-                return White(Mathf.Clamp01(a));
+                float th = Mathf.Atan2(h, u), streaks = .8f + .4f * (RingNoise(th, r, 2.2f, 16) - .5f);
+                float lit = .75f + .25f * Mathf.Clamp01(Mathf.Cos(th - 2.2f));
+                float rim = Mathf.Pow(Smooth(.78f, .975f, r), 1.6f) * (1 - Smooth(.972f, .99f, r)) * streaks * lit;
+                float shell = Mathf.Pow(Smooth(.62f, .97f, r), 2.5f) * .24f * (.85f + .3f * (Fbm(u * 3 + 2, h * 3 + 5, 2) - .5f));
+                float lattice = GraceLine(HexEdge(u, h, .13f), .02f) * (.08f + .26f * r * r * r) * (1 - Smooth(.9f, .95f, r));
+                float sheen = Gauss(r - .86f, .05f) * Gauss(th - 2.1f, .35f) * .35f;
+                float floor = GraceLine(h, .04f) * (1 - Smooth(.8f, .97f, Mathf.Abs(u))) * .7f;
+                return White(Mathf.Max(Mathf.Max(rim, shell + lattice + sheen), floor));
             }, new Vector2(.5f, 0));
 
-            // A soul streak: a round head with a wavering, wispy tail (drawn along +x so it aligns with its velocity).
+            // The dome's rim band alone (bottom pivot), for the snap and the extra shells of higher levels: a second lattice at
+            // another size would only tangle with the first.
+            GraceDomeRim = Build("Grace dome rim", 256, 256, (u, v) =>
+            {
+                float h = (v + 1) * .5f, r = Mathf.Sqrt(u * u + h * h);
+                if (r > 1) return Color.clear;
+                float streaks = .8f + .4f * (RingNoise(Mathf.Atan2(h, u), r, 2.6f, 18) - .5f);
+                return White(Mathf.Clamp01((r - .84f) / .14f) * (1 - Smooth(.972f, .988f, r)) * streaks * Smooth(0, .02f, h));
+            }, new Vector2(.5f, 0));
+
+            // The dome's soft halo (bottom pivot, a bloom): light hugging the rim, spilling a little inside and out.
+            GraceDomeGlow = Build("Grace dome glow", 192, 192, (u, v) =>
+            {
+                float h = (v + 1) * .5f, r = Mathf.Sqrt(u * u + h * h);
+                float halo = Gauss(r - .88f, .1f) * .8f + Gauss(r - .8f, .3f) * .25f;
+                return White(Mathf.Clamp01(halo) * Smooth(0, .06f, h) * (1 - Smooth(.92f, 1, Mathf.Max(Mathf.Abs(u), h))));
+            }, new Vector2(.5f, 0));
+
+            // A broad soft beam of light standing on the floor (bottom pivot, a bloom) for columns and pillars.
+            GraceBeam = Build("Grace beam glow", 64, 256, (u, v) =>
+            {
+                float h = (v + 1) * .5f;
+                return White(Gauss(u, .42f) * Smooth(0, .05f, h) * (1 - Smooth(.25f, 1, h)) * (1 - Smooth(.9f, 1, Mathf.Abs(u))));
+            }, new Vector2(.5f, 0));
+
+            // A soft ribbon of glow along +x (pivot at its start, a bloom) under rivers and tendrils.
+            GraceRibbon = Build("Grace ribbon glow", 256, 64, (u, v) =>
+            {
+                float x = (u + 1) * .5f;
+                return White(Gauss(v, .42f) * Smooth(0, .1f, x) * (1 - Smooth(.88f, 1, x)) * (1 - Smooth(.9f, 1, Mathf.Abs(v))));
+            }, new Vector2(0, .5f));
+            GraceRibbonFrames = new[] { GraceRibbon };
+            soft.Add(GraceDomeGlow); soft.Add(GraceBeam); soft.Add(GraceRibbon);
+
+            // A flat hexagonal ward disc: lattice lines brightening toward a painted rim band with a white outer edge.
+            GraceHex = Build("Grace hex ward", 256, 256, (u, v) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v); if (r > .99f) return Color.clear;
+                float rim = Mathf.Clamp01((r - .76f) / .18f) * (1 - Smooth(.94f, .958f, r)) * (.8f + .4f * (RingNoise(Mathf.Atan2(v, u), r, 2, 16) - .5f));
+                float lattice = GraceLine(HexEdge(u, v, .2f), .032f) * (.3f + .7f * r * r) * (1 - Smooth(.88f, .93f, r));
+                return White(Mathf.Max(rim, lattice));
+            });
+
+            // A soul comet along +x: a round head with a white heart and a tapering, wavering tail streaked along its length.
             GraceSoul = Build("Grace soul", 128, 64, (u, v) =>
             {
-                float x = u, y = v * .5f, d = Mathf.Sqrt(Sq(x - .5f) + y * y);
-                float head = Gauss(d, .17f), t = Mathf.Clamp01((.5f - x) / 1.4f);
-                float width = .17f * Mathf.Pow(1 - t, 1.1f) + .012f, wave = Mathf.Sin(t * 8.5f) * .045f * t;
-                float tail = x < .5f ? Gauss(y - wave, width) * Mathf.Pow(1 - t, 1.4f) * (.75f + .5f * Fbm(x * 3 + 5, y * 6 + 2, 2)) : 0;
-                float a = Mathf.Max(head, tail * .85f) + Gauss(d, .07f) * .3f;
-                return White(Mathf.Clamp01(a) * (1 - Smooth(.86f, .99f, Mathf.Abs(u))) * (1 - Smooth(.8f, .99f, Mathf.Abs(v))));
+                float y = v * .5f, d = Mathf.Sqrt(Sq(u - .5f) + y * y);
+                float head = Mathf.Clamp01(1 - d / .2f) * 1.1f;
+                float t = Mathf.Clamp01((.5f - u) / 1.4f), half = .19f * Mathf.Pow(1 - t, 1.2f) + .006f, wave = Mathf.Sin(t * 8.5f) * .05f * t;
+                float tail = u < .5f ? Mathf.Clamp01(1 - Mathf.Abs(y - wave) / half) * (1 - t * .5f) * (.8f + .45f * (Fbm(u * 2 + 5, (y - wave) * 14 + 2, 2) - .5f)) : 0;
+                return White(Mathf.Clamp01(Mathf.Max(head, tail)) * (1 - Smooth(.9f, .99f, Mathf.Abs(u))));
             });
 
-            // A faceted light shard: a tall diamond with four differently lit faces and a bright ridge.
+            // A painted crystal sliver lit from within: soft faces (the left one in the light), a white ridge, a refraction
+            // streak, a lit rim on the upper left and a glow in its heart; no flat facet tones.
             GraceFacet = Build("Grace facet", 48, 96, (u, v) =>
             {
-                float d = Mathf.Abs(u) / .8f + Mathf.Abs(v) / .95f, inside = 1 - Smooth(.86f, .96f, d);
-                float face = u < 0 ? (v > 0 ? 1 : .86f) : (v > 0 ? .74f : .62f);
-                float l = Mathf.Clamp01(face + Gauss(u, .06f) * .25f + Gauss(d - .86f, .05f) * .3f);
-                return new Color(l, l, l, inside);
+                float d = Mathf.Abs(u) / .8f + Mathf.Abs(v) / .95f, inside = 1 - Smooth(.9f, .96f, d);
+                if (inside <= 0) return Color.clear;
+                float faces = .38f + .3f * Smooth(.5f, -.6f, u) + .12f * v;
+                float ridge = Gauss(u + .06f * v, .1f) * .45f * (1 - d * .5f);
+                float refraction = Gauss(u * .9f + v * .45f - .12f, .07f) * .3f;
+                float rim = Gauss(d - .86f, .06f) * (u < 0 ? .4f : .15f);
+                float heart = Gauss(Mathf.Sqrt(u * u + Sq(v + .1f)), .35f) * .2f;
+                return White(inside * Mathf.Clamp01(faces + ridge + refraction + rim + heart));
             });
 
-            // A light shaft (bottom pivot) with a flat, streaked body so the column keeps a clear silhouette.
-            GraceShaft = Build("Grace shaft", 64, 256, (u, v) =>
+            // A painted light pillar (bottom pivot): a white spine, a smooth fall-off to ragged streaky sides, vertical brush streaks,
+            // and a top that breaks into thinning fingers instead of fading.
+            GracePillar = Build("Grace pillar", 96, 384, (u, v) =>
             {
-                float h = (v + 1) * .5f, body = 1 - Smooth(.42f, .95f, Mathf.Abs(u));
-                float streaks = .68f + .32f * Mathf.PerlinNoise(u * 5 + 11, h * 1.6f + 3);
-                float rise = Smooth(0, .03f, h) * (1 - Smooth(.4f, 1, h));
-                return White(Mathf.Clamp01((body * streaks + Gauss(u, .18f) * .35f) * rise));
+                float h = (v + 1) * .5f;
+                float half = .8f + .1f * (Fbm(h * 2.5f + 4, 3, 2) - .5f) * 2;
+                float across = Mathf.Clamp01(1 - Mathf.Abs(u) / half);
+                float streaks = .78f + .44f * (Fbm(u * 10 + 3, h * 1.3f + 1, 2) - .5f);
+                float top = .55f + .4f * Fbm(u * 7 + 9, 2, 2);
+                float rise = Smooth(0, .015f, h) * Mathf.Clamp01((top - h) / .22f);
+                return White(Mathf.Clamp01(Mathf.Pow(across, .9f) * streaks * rise * 1.12f));
             }, new Vector2(.5f, 0));
 
-            // A bevelled hexagonal ward plate (flat top and bottom): a shaded face, a bright bevelled rim and a small inner
-            // hexagon. Tinted dark amber it reads on pale skies; drawn additively it flashes as a lit cell.
+            // A painted shock ring: a hard white outer edge with colour streaking back a short, uneven way inward; the inside
+            // stays empty, so a ring never fills in as a flat disc while it is small.
+            // Its outer edge sits where the shared ring's does (.78 of the half-width), so it is sized the same way.
+            GraceShock = Build("Grace shock ring", 256, 256, (u, v) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v); if (r > .82f) return Color.clear;
+                float th = Mathf.Atan2(v, u), depth = Mathf.Max(0, .78f - r);
+                float streaks = RingNoise(th, r, 1.6f, 14), reach = .06f + .14f * RingNoise(th, 0, 3.2f, 0) * (.6f + .8f * streaks);
+                float outside = 1 - Smooth(-.004f, .006f, r - .78f);
+                return White(outside * Mathf.Clamp01(1 - depth / reach) * (.8f + .45f * (streaks - .5f)));
+            });
+
+            // A ward plate of light: a hexagonal tile with a soft pillow of light, a bevel that brightens to white on the upper
+            // left, a faint inner hexagon, a sheen and a little brush grain; no flat faces.
             GracePlate = Build("Grace plate", 96, 96, (u, v) =>
             {
                 float x = Mathf.Abs(u), y = Mathf.Abs(v), d = Mathf.Max(x * .866f + y * .5f, y);
-                float inside = 1 - Smooth(.8f, .84f, d);
+                float inside = 1 - Smooth(.8f, .83f, d);
                 if (inside <= 0) return Color.clear;
-                float rim = Smooth(.62f, .74f, d), inner = Gauss(d - .36f, .03f);
-                float l = Mathf.Clamp01(.5f + .16f * (v - u * .4f) + rim * .5f + inner * .4f);
-                return new Color(l, l, l, inside * Mathf.Lerp(.85f, 1, rim));
+                float lit = Mathf.Clamp01(.55f - u * .35f + v * .4f);
+                float pillow = Mathf.Sqrt(Mathf.Max(0, 1 - Sq(d / .83f)));
+                float bevel = Smooth(.6f, .8f, d) * (.4f + .6f * lit);
+                float body = (.24f + .2f * pillow * lit) * (.88f + .24f * (Fbm(u * 4 + 3, v * 4 + 1, 2) - .5f));
+                float inner = GraceLine(d - .4f, .03f) * .2f;
+                float shine = Gauss(Mathf.Sqrt(Sq(u + .28f) + Sq(v - .3f)), .14f) * .4f;
+                return White(inside * Mathf.Clamp01(Mathf.Max(bevel * .85f, body + inner + shine)));
             });
 
-            // A soft energy ribbon (along +x) with a brighter core and ends that fade to half exactly where segments overlap,
-            // so a chain of segments reads as one continuous strand.
-            GraceRibbon = Build("Grace ribbon", 128, 32, (u, v) =>
+            // A holy cross mote: a plus with tapering arms and a white heart.
+            GraceCross = Build("Grace cross", 64, 64, (u, v) =>
             {
-                float ends = 1 - Smooth(.76f, .99f, Mathf.Abs(u));
-                float body = Gauss(v, .42f) * .75f + Gauss(v, .16f) * .45f;
-                float grain = .82f + .18f * Mathf.PerlinNoise(u * 4 + 7, v * 1.5f + 2);
-                return White(Mathf.Clamp01(body * grain) * ends * (1 - Smooth(.85f, 1, Mathf.Abs(v))));
+                float au = Mathf.Abs(u), av = Mathf.Abs(v);
+                float armH = Mathf.Clamp01(1 - av / (.28f * (1 - .45f * au))) * Mathf.Clamp01((.95f - au) / .3f);
+                float armV = Mathf.Clamp01(1 - au / (.28f * (1 - .45f * av))) * Mathf.Clamp01((.95f - av) / .3f);
+                return White(Mathf.Clamp01(Mathf.Max(armH, armV) * 1.15f));
             });
 
-            // A lotus seal: two rings of petal outlines with veins, pearls between the petal tips and a ticked outer band.
+            // A painted leaf along +x (pointed at both ends): a blade cupped a little on each side of a pale midrib, lit softly
+            // from the upper left, with faint side veins, a lit upper rim and brush grain. Shading only (it takes any tint); alpha
+            // rises toward the midrib, so a leaf erodes from its rim as it fades.
+            GraceLeaf = Build("Grace leaf", 96, 48, (u, v) =>
+            {
+                float half = .9f * Mathf.Pow(Mathf.Max(0, 1 - u * u), .75f) * (1 - .2f * u);
+                float inside = 1 - Smooth(half - .07f, half + .01f, Mathf.Abs(v));
+                if (inside <= 0) return Color.clear;
+                float rib = .1f * Mathf.Sin(u * 2.4f), across = Mathf.Clamp((v - rib) / Mathf.Max(.05f, half), -1, 1);
+                float light = .42f + .55f * GraceBladeLight(across, u);
+                float veins = Mathf.Pow(Mathf.Abs(Mathf.Sin((u - Mathf.Abs(across) * .35f) * 9)), 12) * .07f * (1 - Mathf.Abs(across));
+                light += GraceLine(v - rib, .045f) * .22f * (1 - Mathf.Abs(u)) + veins;
+                light += Gauss(Mathf.Abs(across) - .93f, .06f) * (across > 0 ? .18f : .05f);
+                light *= .9f + .2f * (Fbm(u * 5 + 3, v * 9 + 1, 2) - .5f);
+                float l = Mathf.Clamp01(light);
+                return new Color(l, l, l, inside * (.62f + .38f * (1 - Mathf.Abs(across))));
+            });
+
+            // One painted brush ring: the stroke starts with a thick press, runs round and tapers past its start; a hard bright
+            // outer edge, colour falling off inward, streaks along the stroke.
+            GraceBrushRing = Build("Grace brush ring", 384, 384, (u, v) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v); if (r > .99f) return Color.clear;
+                float th = Mathf.Atan2(v, u), t = Mathf.Repeat(th / (2 * Mathf.PI), 1), best = 0;
+                for (int lap = 0; lap < 2; lap++)
+                {
+                    float s = t + lap; if (s > 1.14f) continue;
+                    float thick = .12f * (1 - .8f * Mathf.Pow(s / 1.14f, 1.4f)) + .01f, outer = .95f - .025f * s;
+                    float depth = (outer - r) / thick; if (depth > 1) continue;
+                    float edge = 1 - Smooth(-.004f, .006f, r - outer);
+                    float ends = Smooth(0, .015f, s) * (1 - Smooth(1.06f, 1.14f, s));
+                    float streaks = .78f + .46f * (RingNoise(th, r, 1.8f, 24) - .5f);
+                    best = Mathf.Max(best, Mathf.Clamp01(1 - depth) * edge * ends * streaks);
+                }
+                return White(best);
+            });
+
+            // A painted soul river along +x (from the victim at -u to the caster at +u, pivot at the victim): two strands wind
+            // round each other with a white heart and streaks running along them, swelling where they come toward the viewer; a
+            // pale spine runs down the middle. The frames shift the winding so the river flows.
+            GraceStream = GraceSheet("Grace river", 8, 512, 96, new Vector2(0, .5f), (u, v, f) =>
+            {
+                float x = (u + 1) * .5f, phase = f / 8f * 2 * Mathf.PI;
+                float env = Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Clamp01(x * .92f + .04f)), .6f), level = 0;
+                for (int s = 0; s < 2; s++)
+                {
+                    float psi = x * 2 * Mathf.PI * 2.5f - phase + s * Mathf.PI;
+                    float y = Mathf.Sin(psi) * .55f * env;
+                    float half = (.21f + .1f * Mathf.Cos(psi)) * (.3f + .7f * env) + .015f;
+                    float across = Mathf.Clamp01(1 - Mathf.Abs(v - y) / half);
+                    float streak = .76f + .5f * (Fbm(Mathf.Cos(psi) * 1.3f + 5 + s * 3, Mathf.Sin(psi) * 1.3f + (v - y) * 11 + 2, 2) - .5f);
+                    level = Mathf.Max(level, across * streak * (s == 0 ? 1.1f : .84f));
+                }
+                float spine = Mathf.Clamp01(1 - Mathf.Abs(v) / .05f) * .62f * env;
+                return White(Mathf.Clamp01(Mathf.Max(level, spine)) * Smooth(0, .04f, x) * (1 - Smooth(.95f, 1, x)));
+            });
+            // The same river a quarter turn on, so a second stream winds between the first one's strands.
+            GraceStreamShift = new Sprite[GraceStream.Length];
+            for (int i = 0; i < GraceStream.Length; i++) GraceStreamShift[i] = GraceStream[(i + 2) % GraceStream.Length];
+
+            // A crisp lotus seal: a painted outer band with a white edge, thin rings, two rows of petal outlines with a midrib,
+            // pearls between the petal tips and a dot at the heart. Lines only, no fill.
             GraceMandala = Build("Grace lotus seal", 384, 384, (u, v) =>
             {
-                float r = Mathf.Sqrt(u * u + v * v); if (r > 1) return Color.clear;
+                float r = Mathf.Sqrt(u * u + v * v); if (r > .99f) return Color.clear;
                 float th = Mathf.Atan2(v, u);
-                float a = Gauss(r - .93f, .012f) + Gauss(r - .875f, .008f) * .85f + Gauss(r - .27f, .01f) * .9f + Gauss(r - .21f, .007f) * .6f;
+                float a = Mathf.Clamp01((r - .87f) / .09f) * (1 - Smooth(.955f, .97f, r)) * (.78f + .44f * (RingNoise(th, r, 2, 20) - .5f));
+                a = Mathf.Max(a, GraceLine(r - .835f, .011f) * .8f);
+                a = Mathf.Max(a, GraceLine(r - .27f, .015f) * .9f);
                 for (int layer = 0; layer < 2; layer++)
                 {
-                    float step = 2 * Mathf.PI / 8, offset = layer == 0 ? 0 : step * .5f, tip = layer == 0 ? .84f : .6f, root = .27f;
+                    float step = 2 * Mathf.PI / 8, offset = layer == 0 ? 0 : step * .5f, tip = layer == 0 ? .8f : .6f, root = .27f;
                     float local = Mathf.Repeat(th - offset + step * .5f, step) - step * .5f, t = (r - root) / (tip - root);
                     if (t < 0 || t > 1.05f) continue;
                     float half = step * (layer == 0 ? .5f : .42f) * Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Clamp01(t)), .75f);
-                    a += Gauss((Mathf.Abs(local) - half) * r, .011f) * (layer == 0 ? .95f : .7f);
-                    if (Mathf.Abs(local) < half) a += .1f + Gauss(local * r, .006f) * .35f * (1 - Mathf.Clamp01(t));
+                    a = Mathf.Max(a, GraceLine((Mathf.Abs(local) - half) * r, .014f) * (layer == 0 ? .95f : .72f));
+                    if (Mathf.Abs(local) < half) a = Mathf.Max(a, GraceLine(local * r, .008f) * .5f * (1 - Mathf.Clamp01(t)));
                 }
                 float pearl = Mathf.Repeat(th, Mathf.PI / 4) - Mathf.PI / 8;
-                a += Gauss(Mathf.Sqrt(Sq(pearl * .9f) + Sq(r - .9f)), .022f) * .9f;
-                float tick = Mathf.Abs(Mathf.Repeat(th * Mathf.Rad2Deg + 3.75f, 7.5f) - 3.75f);
-                a += (1 - Smooth(.5f, 1.2f, tick)) * Smooth(.882f, .888f, r) * (1 - Smooth(.912f, .918f, r)) * .6f;
-                a += (1 - Smooth(.05f, .85f, r)) * .06f + Gauss(r, .08f) * .5f;
-                return White(Mathf.Clamp01(a) * (1 - Smooth(.95f, .995f, r)));
+                a = Mathf.Max(a, GraceLine(Mathf.Sqrt(Sq(pearl * .82f) + Sq(r - .835f)), .03f) * .95f);
+                a = Mathf.Max(a, GraceLine(r, .07f));
+                return White(a);
             });
 
-            // Four runic glyphs (Algiz, Tiwaz, Ingwaz, Sowilo) inside a thin ring.
+            // Four runic glyphs (Algiz, Tiwaz, Ingwaz, Sowilo) inside a thin ring, as white-cored strokes.
             GraceGlyphs = Sheet("Grace glyph", 4, 64, 64, (u, v, f) =>
             {
                 float d = GraceGlyphDistance(u, v, f), r = Mathf.Sqrt(u * u + v * v);
-                float a = Gauss(d, .075f) + Gauss(d, .2f) * .3f + Gauss(r - .76f, .035f) * .55f;
-                return White(Mathf.Clamp01(a) * Window(r));
+                return White(Mathf.Max(GraceLine(d, .11f), GraceLine(r - .8f, .05f) * .65f) * (1 - Smooth(.9f, .98f, r)));
             });
         }
 
@@ -1124,60 +1284,57 @@ namespace PrototypeLab.Roguelike
             }
             return d;
         }
+
         // ---------------------------------------------------------------- field of life
 
         /// <summary>A lasting field of life (level-three heal pulse, Raphael's oath; it heals the hero standing in it every half
-        /// second). A lotus seal lies on the floor with its outer ring on the field's edge, over a soft green-gold glow and a dark
-        /// green stain that keeps it on pale floors; a faint column of light breathes over it, a ring of life runs out to the edge
-        /// with every heal, and motes and leaves drift up off it.</summary>
+        /// second). A lotus seal lies on the floor in a pool of soft light with its outer band on the field's edge, a painted
+        /// brush ring and a rune ring turn inside it, a faint column of light breathes over it in a soft beam, a shock front of
+        /// life runs out to the edge with every heal, and crosses and leaves drift up off it.</summary>
         private void ZoneHealPulse(Transform root, float radius, float life)
         {
             float R = Mathf.Clamp(radius, .8f, 4.5f), k = Mathf.Clamp(R / 2.2f, .5f, 1.6f);
             Color green = LifeLight, gold = Color.Lerp(LifeLight, GoldLight, .45f), hot = Color.Lerp(LifeLight, Warm, .6f);
-            Color deep = GraceDeep(LifeLight, .3f, .8f), pigment = GraceDeep(LifeLight, .6f, .9f);
+            Color leafTone = GraceLeafTone(LifeLight);
             // The zone root rides 0.6 above the field's centre on the floor.
             var floor = GracePlane(root, new Vector2(0, -.58f), .3f);
-            float seal = R * 2 / .93f;
-            var stain = Attach(floor, "Grace field stain", glow, R * 2.5f, Alpha(deep, .35f), 24, false);
-            var glowPool = Attach(floor, "Grace field glow", glow, R * 2.7f, Alpha(gold, .5f), 26); glowPool.pulse = .05f;
-            var ink = Attach(floor, "Grace field seal ink", GraceMandala, seal * 1.02f, Alpha(deep, .75f), 25, false); ink.spin = 12;
+            float seal = R * 2 / .96f;
+            var pool = Attach(floor, "Grace field bloom", glow, seal * 1.25f, Alpha(green, .42f), 25);
             var lotus = Attach(floor, "Grace field seal", GraceMandala, seal, Alpha(green, .85f), 27); lotus.spin = 12;
             var runes = Attach(floor, "Grace field runes", runeRing, R * 1.15f, Alpha(gold, .8f), 27); runes.spin = -28;
-            // A faint column of life breathing over the field, behind the actors.
-            var column = Attach(root, "Grace field column", GraceShaft, R * .95f, Alpha(green, .22f), 26, true, new Vector2(0, -.6f));
-            column.scale.y = 3.4f * k / GraceShaft.bounds.size.y; column.pulse = .04f;
-            var columnInk = Attach(root, "Grace field column ink", GraceShaft, R * 1.1f, Alpha(pigment, .16f), 25, false, new Vector2(0, -.6f));
-            columnInk.scale.y = 3 * k / GraceShaft.bounds.size.y;
-            var layers = new[] { stain, glowPool, ink, lotus, runes, column, columnInk };
-            float hold = Mathf.Clamp01(1 - .7f / life), pop = Mathf.Log(.05f) / Mathf.Log(1 - Mathf.Clamp(.35f / life, .02f, .5f));
-            foreach (var clip in layers) { clip.life = life; clip.loop = false; clip.fadeIn = .2f; clip.hold = hold; clip.fadePower = 1.4f; clip.startScale = .4f; clip.endScale = 1; clip.ease = pop; }
-            foreach (var clip in new[] { column, columnInk }) { clip.startScale = 1; clip.axisStart = new Vector2(.4f, .15f); clip.axisEnd = Vector2.one; }
-            // With every heal (twice a second) a ring of life runs out to the field's edge, and now and then a glint sparkles on it.
+            var band = Attach(floor, "Grace field ring", GraceBrushRing, R * 1.55f, Alpha(hot, .8f), 26); band.spin = 40;
+            // A faint column of light breathing over the field inside a soft beam, behind the actors.
+            var beam = Attach(root, "Grace field beam", GraceBeam, R * 1.6f, Alpha(green, .3f), 25, true, new Vector2(0, -.6f));
+            beam.scale.y = 3.8f * k / GraceBeam.bounds.size.y; beam.pulse = .05f;
+            var column = Attach(root, "Grace field column", GracePillar, R * .75f, Alpha(green, .32f), 26, true, new Vector2(0, -.6f));
+            column.scale.y = 3.4f * k / GracePillar.bounds.size.y; column.pulse = .04f;
+            var layers = new[] { pool, lotus, runes, band, beam, column };
+            float hold = Mathf.Clamp01(1 - .7f / life), pop = Mathf.Log(.05f) / Mathf.Log(1 - Mathf.Clamp(.3f / life, .02f, .5f));
+            foreach (var clip in layers) { clip.life = life; clip.loop = false; clip.fadeIn = .12f; clip.hold = hold; clip.fadePower = 1.3f; clip.startScale = .4f; clip.endScale = 1; clip.ease = pop; }
+            foreach (var clip in new[] { beam, column }) { clip.startScale = 1; clip.axisStart = new Vector2(.4f, .15f); clip.axisEnd = Vector2.one; }
+            // With every heal (twice a second) a shock front of life runs out to the field's edge, and now and then a cross pops.
             int beat = 0; float ringWidth = R * 2 / .74f;
-            Emitter(glowPool, 2, 0, (owner, p) =>
+            Emitter(runes, 2, 0, (owner, p) =>
             {
                 if (owner.age > owner.life - .5f) return;
                 Vector2 at = owner.root.transform.position;
-                var wave = Spawn("Grace field breath", ring, at + Vector2.up * .02f, ringWidth, Alpha(hot, .7f), .7f, true, 26);
-                var waveInk = Spawn("Grace field breath ink", ring, at, ringWidth * 1.02f, Alpha(pigment, .45f), .75f, false, 24);
-                foreach (var clip in new[] { wave, waveInk }) { clip.scale.y *= .3f; clip.root.transform.localScale = clip.scale; clip.startScale = .2f; clip.endScale = 1; clip.ease = 2.2f; clip.fadePower = 1.3f; }
-                var bloom = Spawn("Grace field bloom", glow, at + Vector2.up * .1f, R * 1.4f, Alpha(green, .3f), .5f, true, 26);
-                bloom.scale.y *= .4f; bloom.root.transform.localScale = bloom.scale; bloom.startScale = .5f; bloom.endScale = 1.1f; bloom.ease = 2; bloom.fadePower = 1.5f;
-                if (beat++ % 2 == 0) Glint(at + new Vector2(Range(-.7f, .7f) * R, Range(.3f, 1.6f)), Range(.7f, 1), Alpha(Color.Lerp(hot, Color.white, .4f), .95f), .3f, Range(0, 45));
+                var wave = GraceGroundWave(at + Vector2.up * .02f, ringWidth, Alpha(hot, .85f), .6f); wave.renderer.sortingOrder = 26; wave.startScale = .2f; wave.ease = 2.4f;
+                if (beat++ % 2 == 0) GraceCrossPop(at + new Vector2(Range(-.7f, .7f) * R, Range(.3f, 1.6f)), Range(.55f, .8f), Alpha(hot, 1), .34f);
             });
-            // Motes and leaves drift up off the whole field.
+            // Crosses, needles and leaves drift up off the whole field.
             float spread = R * .9f;
-            Emitter(lotus, 9 + 4 * k, 0, (owner, p) =>
+            Emitter(lotus, 8 + 4 * k, 0, (owner, p) =>
             {
                 if (owner.age > owner.life - .4f) return;
                 Vector2 at = (Vector2)owner.root.transform.position + new Vector2(Range(-spread, spread), Range(-.15f, .15f));
-                GraceHealMote(at, Chance(.35f) ? hot : green, pigment, .9f);
+                GraceHealMote(at, Chance(.35f) ? hot : green, leafTone, .9f);
             });
-            Bundle(root, lotus, stain, glowPool, ink, runes, column, columnInk);
-            // The field opens: a bloom and a ring out to its edge.
+            Bundle(root, lotus, pool, runes, band, beam, column);
+            // The field opens: a shock front out to its edge and a spark laid on the floor.
             Vector2 centre = (Vector2)root.position + new Vector2(0, -.58f);
-            var open = GroundWave(centre, ringWidth, Alpha(gold, .9f), .45f); open.startScale = .15f;
-            var flash = Spawn("Grace field open", glow, centre + Vector2.up * .3f, R * 1.6f, Alpha(hot, .6f), .3f, true, 128); flash.scale.y *= .5f; flash.startScale = .4f; flash.endScale = 1.2f; flash.ease = 2; flash.fadePower = 1.5f;
+            var open = GraceGroundWave(centre, ringWidth, Alpha(gold, .9f), .45f); open.startScale = .15f;
+            var flash = SparkFlip(centre + Vector2.up * .05f, R * 1.8f, Alpha(hot, 1), .26f, 27);
+            GraceFlat(flash, .35f);
         }
     }
 }

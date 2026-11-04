@@ -16,6 +16,8 @@ namespace PrototypeLab.Roguelike
         internal readonly List<Pickup> pickups=new List<Pickup>();
         private readonly List<Shard> shards=new List<Shard>();
         internal const float PickupReach=.8f,MagnetRadius=2.1f,PickupGravity=22,HomingSpeed=22;
+        // Once the floor is cleared a wounded hero draws hearts from further off, so one is not left behind at the exit.
+        internal const float ClearedHeartRadius=6;
         // The paintings are drawn at 96 texels per unit and shown a little larger so they read beside the heroes.
         internal const float CacheScale=1.2f,CoinScale=1.4f,HeartScale=1.2f;
         internal int GoldCollected{get;private set;}
@@ -98,14 +100,20 @@ namespace PrototypeLab.Roguelike
             bool hit=false;
             for(int i=caches.Count-1;i>=0;i--)
             {
-                var cache=caches[i];float dx=cache.pos.x-hero.pos.x;
-                if(dx*hero.facing<-.5f||Mathf.Abs(dx)>reach+.45f||cache.pos.y+cache.height<hero.pos.y-.2f||cache.pos.y>hero.pos.y+1.9f)continue;
-                hit=true;cache.hits+=heavy?2:1;
-                if(cache.hits>=cache.definition.Hits){BreakCache(cache);continue;}
-                cache.wobble=1;cache.flash=.12f;Sound(hitSound,.35f);
-                if(vfx!=null){vfx.Hit(cache.pos+new Vector2(-hero.facing*.25f,cache.height*.55f),ChipColor(cache.definition));vfx.Dust(cache.pos,0,.35f);}
+                var cache=caches[i];
+                // The blade's band spans from just under the feet to above the head, so any overlap with the vessel counts.
+                if(!SwingReaches(cache.pos+Vector2.up*(cache.height*.5f+.05f),reach+.45f,.5f,1.05f+cache.height*.5f))continue;
+                hit=true;ChipCache(cache,heavy?2:1);
             }
             return hit;
+        }
+        /// <summary><paramref name="blows"/> light blows on a vessel (a heavy one counts two): it wobbles, or breaks on its last.</summary>
+        private void ChipCache(Cache cache,int blows)
+        {
+            cache.hits+=blows;
+            if(cache.hits>=cache.definition.Hits){BreakCache(cache);return;}
+            cache.wobble=1;cache.flash=.12f;Sound(hitSound,.35f);
+            if(vfx!=null){vfx.Hit(cache.pos+new Vector2(-hero.facing*.25f,cache.height*.55f),ChipColor(cache.definition));vfx.Dust(cache.pos,0,.35f);}
         }
         private static Color ChipColor(TowerCacheDefinition definition)
         {Color c;return ColorUtility.TryParseHtmlString("#"+definition.ChipHex,out c)?c:TowerWorld.Gold;}
@@ -178,8 +186,8 @@ namespace PrototypeLab.Roguelike
                 var p=pickups[i];p.age+=dt;
                 bool heart=p.kind==LootKind.Heart,wanted=!heart||hero.hp<PlayerMaxHealth-.5f;
                 float distance=Vector2.Distance(heroCenter,p.pos);
-                // Close loot is drawn in at once; after the floor is cleared every landed coin flies to the hero.
-                if(wanted&&p.age>.3f&&(distance<MagnetRadius||!heart&&p.landed&&run.IsFloorCleared))p.homing=true;
+                // Close loot is drawn in at once; after the floor is cleared every landed coin flies to the hero and hearts reach further.
+                if(wanted&&p.age>.3f&&(distance<(heart&&run.IsFloorCleared?ClearedHeartRadius:MagnetRadius)||!heart&&p.landed&&run.IsFloorCleared))p.homing=true;
                 if(!wanted)p.homing=false;
                 if(p.homing)
                 {

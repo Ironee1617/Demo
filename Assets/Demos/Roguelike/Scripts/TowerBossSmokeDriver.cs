@@ -14,8 +14,9 @@ namespace PrototypeLab.Roguelike
         {
             public string mode = "towerBossSmoke", finishedUtc;
             public bool success, floorCountsMonotone, regularCountsMatch, bossCadence, bossesGroundTargetable, regularHealthScaling, regularDamageScaling, regularMovementScaling, regularBulletScaling, regularAttackRateScaling, bossHealthScaling;
-            public bool patternsDistinct, aimLocked, preparationBeforeDamage, preparationHasNoOverlays, patternDelays, crownGap, spiralGap, slamCollision, attackMotionsDistinct, pauseFreezesBoss, resetCleansBoss;
+            public bool patternsDistinct, aimLocked, preparationBeforeDamage, preparationHasNoOverlays, patternDelays, crownGap, spiralGap, spiralStandingHit, spiralJumpLane, slamCollision, attackMotionsDistinct, pauseFreezesBoss, resetCleansBoss;
             public bool lockedAimAfterKnockback;
+            public bool slamGroggy, approachByPattern;
             public bool actualBossKilled, bossDeathWaitsForAdds, actualAddsKilled, rewardExactlyOnce, cameraNoShake;
             public int sampledFloors, sampledBosses, actualCombatKills, healthRefills;
             public float restoredHealth;
@@ -89,7 +90,33 @@ namespace PrototypeLab.Roguelike
             typeof(TowerRun).GetField("<Floor>k__BackingField", Hidden).SetValue(game.run, floor); Call("SpawnFloor");
             game.view.transform.position = new Vector3(0, 0, -10);
         }
-        private void ResetControls() { game.MoveOverride = 0; game.AttackOverride = game.JumpOverride = game.DropOverride = game.DashOverride = game.FocusOverride = false; }
+        private void ResetControls() { game.MoveOverride = 0; game.AttackOverride = game.JumpOverride = game.DropOverride = game.DashOverride = false; }
+        // TwinSpiral's lane on floor 10 as VerifyBossPatterns saw it; the knockback fixture's cast of the same seed must match.
+        private float spiralCorridor = float.NaN;
+        /// <summary>TwinSpiral's bolt angles (off the locked aim) over <paramref name="steps"/> waves around a lane turned <paramref name="corridor"/> degrees.</summary>
+        private static List<float> SpiralAngles(float corridor, int steps)
+        {
+            var angles = new List<float>();
+            for (int step = 0; step < steps; step++) for (int arm = 0; arm < 2; arm++) foreach (float spread in new[] { -5f, 5f })
+            {
+                float angle = TowerGame.SpiralArmStart + step * 22.5f + arm * 180 + spread;
+                if (Mathf.Abs(Mathf.DeltaAngle(corridor, angle)) >= TowerGame.SpiralCorridorHalf) angles.Add(Mathf.DeltaAngle(0, angle));
+            }
+            return angles;
+        }
+        /// <summary>How far from <paramref name="point"/> a bolt leaving <paramref name="origin"/> along <paramref name="velocity"/> passes.</summary>
+        private static float PassDistance(Vector2 origin, Vector2 velocity, Vector2 point)
+        { Vector2 along = velocity.normalized; return Vector2.Distance(origin + along * Mathf.Max(0, Vector2.Dot(point - origin, along)), point); }
+        /// <summary>
+        /// The spiral's reach checks need the boss and the hero on one level: a level copy of the floor (same platforms and
+        /// length, without the hills between them), as the combat fixtures use.
+        /// </summary>
+        private void LevelFloor()
+        {
+            var world = (TowerWorld)typeof(TowerGame).GetField("world", Hidden).GetValue(game); var layout = world.CurrentLayout;
+            var ground = new TowerSurface(new[] { TowerTerrainGenerator.TerrainLeft, TowerTerrainGenerator.TerrainRight }, new[] { TowerWorld.Ground, TowerWorld.Ground });
+            world.SetTheme(game.run.Theme.Id, game.run.Floor, game.seed, new TowerFloorLayout(layout.Id, layout.Archetype, layout.Floor, ground, new List<TowerPlatform>(layout.Platforms), layout.ExitX));
+        }
         private void ClearEnemies()
         { foreach (var actor in game.enemies) if (actor.root) { actor.root.SetActive(false); Destroy(actor.root); } game.enemies.Clear(); }
         private void ClearShots()
@@ -134,6 +161,7 @@ namespace PrototypeLab.Roguelike
             float[] first = MeasureRegular(1), final = MeasureRegular(25);
             for (int i = 0; i < 4; i++) Require(final[i] > first[i], "A measured normal combat stat did not increase: " + i);
             Require(Mathf.Abs(final[4] - first[4]) < .001f && final[5] < first[5], "Higher-floor normal attacks must keep preparation time and recover faster.");
+            Require(Mathf.Abs(first[4] - TowerGame.RangedWindup) < .001f, "The sampled fan did not wind up for the ranged " + TowerGame.RangedWindup + " s: " + first[4]);
             report.regularDamageScaling = report.regularMovementScaling = report.regularBulletScaling = report.regularAttackRateScaling = true;
         }
         private float[] MeasureRegular(int floor)
@@ -154,7 +182,32 @@ namespace PrototypeLab.Roguelike
         }
         private IEnumerator PatternsAndMotions()
         {
-            yield return VerifyBossPatterns(); yield return VerifyLockedAimAfterKnockback(); yield return PauseResetAndCamera();
+            yield return VerifyBossPatterns(); VerifyApproachReach(); yield return VerifyLockedAimAfterKnockback(); yield return PauseResetAndCamera();
+        }
+        private void VerifyApproachReach()
+        {
+            // An engaged boss walks in to where its next technique bites: mid range for a volley, close for the slam.
+            // The last sample puts the 15th-floor boss one step past its opening slam: the slam stays its current pattern,
+            // but its signature volley comes next, so it must hold at volley reach instead of closing in for a slam.
+            var peek = typeof(TowerGame).GetMethod("PeekBossPattern", BindingFlags.Static | BindingFlags.NonPublic);
+            foreach (int[] sample in new[] { new[] { 5, 0 }, new[] { 15, 0 }, new[] { 15, 1 } })
+            {
+                int floor = sample[0], cycle = sample[1];
+                SetFloor(floor); var boss = Boss; Place(game.hero, new Vector2(0, TowerWorld.Ground)); Place(boss, new Vector2(9, TowerWorld.Ground));
+                object state = ((IDictionary)typeof(TowerGame).GetField("bossCombat", Hidden).GetValue(game))[boss];
+                state.GetType().GetField("cycle").SetValue(state, cycle);
+                boss.cooldown = 999;
+                for (int i = 0; i < 600; i++) Call("TickBoss", boss, .02f);
+                string current = (string)Call("BossPatternName", boss), next = peek.Invoke(null, new object[] { boss, state }).ToString();
+                bool slamNext = floor == 15 && cycle == 0;
+                float gap = boss.pos.x - game.hero.pos.x, reach = slamNext ? TowerGame.BossSlamReach : TowerGame.BossVolleyReach;
+                Require(current == (floor == 15 ? "LeapingSlam" : "CrownVolley") && (slamNext ? next == "LeapingSlam" : next != "LeapingSlam") && (cycle == 0) == (next == current),
+                    "Approach fixture on floor " + floor + ", cycle " + cycle + " had current " + current + " and next " + next + ".");
+                Require((string)Call("BossStageName", boss) == "Approach" && gap <= reach + .001f && gap > reach - .1f,
+                    "A boss facing " + next + " (current " + current + ") stopped " + gap.ToString("F2") + " from the hero instead of " + reach + ".");
+                report.patternChecks.Add("approach before " + next + " (current " + current + "): stopped " + gap.ToString("F2") + " away (reach " + reach + ")");
+            }
+            report.approachByPattern = true;
         }
         private void RequireNoPreparationOverlay(HashSet<SpriteRenderer> before)
         {
@@ -199,7 +252,11 @@ namespace PrototypeLab.Roguelike
                 ResetControls();
                 // Ally hits resolve after TickBoss, so allow the next real update to settle the pushed actor.
                 yield return null; game.enabled = false;
-                Require(boss.pos.x > beforeX + .1f && boss.hp < beforeHp, patternName + " / " + attackerName + " did not cause real knockback.");
+                // Bosses keep TowerGame.BossPushScale of an ordinary push: they still give some ground (a light slash .35 and
+                // Michael's .22 become about .05 and .03), but far less than those blows move any other enemy.
+                float pushed = boss.pos.x - beforeX;
+                Require(pushed > .01f && pushed < .2f && boss.hp < beforeHp,
+                    patternName + " / " + attackerName + " did not cause a small real boss knockback (" + pushed.ToString("F3") + ").");
                 Require((float)Call("BossTelegraphRemaining", boss) > 0 && (Vector2)Call("BossLockedAim", boss) == aim,
                     "Knockback cancelled preparation or changed the locked aim.");
                 RequireNoPreviewObjects(); ClearShots();
@@ -207,7 +264,16 @@ namespace PrototypeLab.Roguelike
                 {
                     RequireNoPreviewObjects(); Call("TickBoss", boss, .02f);
                 }
-                Require((int)Call("BossReleaseCount", boss) == 1 && Shots.Count == (pattern == 0 ? 5 : 4), "A pushed boss failed to release its normal first volley.");
+                // The spiral's first wave (90/100 and their opposites, from SpiralArmStart) loses any bolt inside its lane turned
+                // upward off the aim; the lane is fixed by the seed, floor, cast and the hero's side, so this cast of floor 10
+                // matches the one VerifyBossPatterns saw.
+                List<float> spiral = null;
+                if (pattern == 1)
+                {
+                    float corridor = game.BossSpiralCorridor(boss); spiral = SpiralAngles(corridor, 1); spiral.Sort();
+                    Require(corridor == spiralCorridor, "TwinSpiral's lane was not fixed by the boss's seed: " + corridor + " vs " + spiralCorridor);
+                }
+                Require((int)Call("BossReleaseCount", boss) == 1 && Shots.Count == (pattern == 0 ? 5 : spiral.Count), "A pushed boss failed to release its normal first volley.");
                 Require((Vector2)Call("BossLockedAim", boss) == aim, "A pushed boss changed its aim at release.");
                 Vector2 origin = boss.pos + Vector2.up * 1.4f, direction = (aim + Vector2.up - origin).normalized;
                 float maxPositionError = 0, maxAngleError = 0; var angles = new List<float>();
@@ -216,7 +282,7 @@ namespace PrototypeLab.Roguelike
                     maxPositionError = Mathf.Max(maxPositionError, Vector2.Distance(Field<Vector2>(shot, "pos"), origin));
                     angles.Add(Vector2.SignedAngle(direction, Field<Vector2>(shot, "velocity")));
                 }
-                angles.Sort(); float[] expectedAngles = pattern == 0 ? new[] { -38f, -22f, -6f, 10f, 26f } : new[] { -95f, -85f, 85f, 95f };
+                angles.Sort(); float[] expectedAngles = pattern == 0 ? new[] { -38f, -22f, -6f, 10f, 26f } : spiral.ToArray();
                 for (int i = 0; i < angles.Count; i++) maxAngleError = Mathf.Max(maxAngleError, Mathf.Abs(Mathf.DeltaAngle(expectedAngles[i], angles[i])));
                 string result = patternName + " / " + attackerName + ": push=" + (boss.pos.x - beforeX).ToString("F3") +
                     ", projectile origin error=" + maxPositionError.ToString("F3") + ", locked-aim angle error=" + maxAngleError.ToString("F3") + ", preview objects=0";
@@ -230,7 +296,8 @@ namespace PrototypeLab.Roguelike
             string[] names = { "CrownVolley", "TwinSpiral", "LeapingSlam" }; float[][] poses = new float[3][];
             for (int pattern = 0; pattern < 3; pattern++)
             {
-                SetFloor(5 + pattern * 5); var boss = Boss; Place(game.hero, new Vector2(0, TowerWorld.Ground)); Place(boss, new Vector2(4, TowerWorld.Ground));
+                SetFloor(5 + pattern * 5); if (pattern == 1) LevelFloor();
+                var boss = Boss; Place(game.hero, new Vector2(0, TowerWorld.Ground)); Place(boss, new Vector2(4, TowerWorld.Ground));
                 boss.cooldown = 0; game.invulnerable = 0; ClearShots();
                 var renderers = new HashSet<SpriteRenderer>(game.GetComponentsInChildren<SpriteRenderer>(true)); Call("TickBoss", boss, .01f);
                 Require((string)Call("BossPatternName", boss) == names[pattern], "Incorrect initial boss pattern for floor " + game.run.Floor);
@@ -247,7 +314,7 @@ namespace PrototypeLab.Roguelike
                     float remaining = (float)Call("BossTelegraphRemaining", boss); game.menu = true; game.enabled = true; yield return Wait(.2f); game.enabled = false;
                     Require((float)Call("BossTelegraphRemaining", boss) == remaining && (int)Call("BossReleaseCount", boss) == 0, "Pause advanced boss preparation or projectiles."); report.pauseFreezesBoss = true; game.menu = false;
                 }
-                int lastRelease = 0; var times = new List<float>(); var bullets = new HashSet<object>(); var velocities = new List<Vector2>(); var origins = new List<Vector2>();
+                int lastRelease = 0; var times = new List<float>(); var bullets = new HashSet<object>(); var velocities = new List<Vector2>(); var origins = new List<Vector2>(); var radii = new List<float>();
                 bool captured = false; float beforeLandingHp = game.hero.hp;
                 for (int frame = 0; frame < 350; frame++)
                 {
@@ -263,13 +330,14 @@ namespace PrototypeLab.Roguelike
                         times.Add((float)Call("BossLastReleaseAt", boss)); lastRelease = released;
                     }
                     foreach (object shot in Shots) if (bullets.Add(shot))
-                    { velocities.Add(Field<Vector2>(shot, "velocity")); origins.Add(Field<Vector2>(shot, "pos")); Require(Field<float>(shot, "damage") > 8, "Boss projectile damage was missing."); }
+                    { velocities.Add(Field<Vector2>(shot, "velocity")); origins.Add(Field<Vector2>(shot, "pos")); radii.Add(Field<float>(shot, "hitRadius")); Require(Field<float>(shot, "damage") > 8, "Boss projectile damage was missing."); }
                     if (stage == "Recovery") break;
                 }
                 Require((Vector2)Call("BossLockedAim", boss) == aim && times.Count > 0 && times[0] >= preparation, "Boss release ignored its locked aim or preparation delay.");
                 if (pattern == 0)
                 {
                     Require(times.Count == 3 && bullets.Count == 15, "CrownVolley must release three five-ray fans.");
+                    foreach (var velocity in velocities) Require(Mathf.Abs(velocity.magnitude - TowerGame.BossBoltSpeed * boss.bulletSpeedScale) < .01f, "Crown bolts did not fly at the boss bolt speed: " + velocity.magnitude);
                     Require(Mathf.Abs(times[1] - times[0] - .4f) < .025f && Mathf.Abs(times[2] - times[1] - .4f) < .025f, "Crown volley intervals drifted.");
                     Vector2 direction = (aim + Vector2.up - origins[0]).normalized; var firstAngles = new List<float>();
                     for (int i = 0; i < 5; i++) firstAngles.Add(Vector2.SignedAngle(direction, velocities[i])); firstAngles.Sort();
@@ -278,11 +346,41 @@ namespace PrototypeLab.Roguelike
                 }
                 else if (pattern == 1)
                 {
-                    Require(times.Count == 8 && bullets.Count == 22, "TwinSpiral must release eight rotating pairs with its safe corridor.");
+                    // The 105-degree lane stays open for the whole cast but is turned 62.5-80 degrees upward off the locked aim
+                    // (clockwise here, with the hero on the boss's left), by an angle the seed fixes; the bolts missing from the
+                    // eight rotating pairs are exactly those inside it.
+                    float corridor = game.BossSpiralCorridor(boss); spiralCorridor = corridor;
+                    Vector2 direction = (aim + Vector2.up - origins[0]).normalized, lane = Quaternion.Euler(0, 0, corridor) * direction;
+                    Require(Mathf.Abs(corridor) >= TowerGame.SpiralCorridorMin - .001f && Mathf.Abs(corridor) <= TowerGame.SpiralCorridorMax + .001f && lane.y > .5f,
+                        "TwinSpiral's lane was not turned " + TowerGame.SpiralCorridorMin + "-" + TowerGame.SpiralCorridorMax + " degrees upward off the aim: " + corridor + ", lane centre " + lane);
+                    int expected = SpiralAngles(corridor, 8).Count;
+                    Require(times.Count == 8 && bullets.Count == expected && expected < 32, "TwinSpiral must release eight rotating pairs around its turned corridor: " + bullets.Count + " of " + expected);
                     for (int i = 1; i < times.Count; i++) Require(Mathf.Abs(times[i] - times[i - 1] - .22f) < .025f, "Spiral interval drifted.");
-                    Vector2 direction = (aim + Vector2.up - origins[0]).normalized;
-                    foreach (var velocity in velocities) Require(Mathf.Abs(Vector2.SignedAngle(direction, velocity)) >= 52.4f, "A spiral bullet filled the persistent safe corridor.");
-                    report.spiralGap = true; Call("TickShots", .6f); Call("TickEffects", .6f); yield return Capture("spiral", "보스 전용 탄막 · 안전 통로가 있는 쌍나선");
+                    foreach (var velocity in velocities)
+                    {
+                        Require(Mathf.Abs(Mathf.DeltaAngle(corridor, Vector2.SignedAngle(direction, velocity))) >= TowerGame.SpiralCorridorHalf - .1f, "A spiral bullet filled the turned safe corridor.");
+                        Require(Mathf.Abs(velocity.magnitude - TowerGame.BossBoltSpeed * boss.bulletSpeedScale) < .01f, "Spiral bolts did not fly at the boss bolt speed: " + velocity.magnitude);
+                    }
+                    // Standing still is no answer: a bolt of the cast runs through the chest of a hero left at the locked point.
+                    // A full jump there is: its apex lies inside the lane and every bolt of the cast passes clear of it.
+                    Vector2 standing = aim + Vector2.up * TowerGame.ChestHeight;
+                    Vector2 apex = standing + Vector2.up * (TowerPhysics.JumpVelocity * TowerPhysics.JumpVelocity / (2 * TowerPhysics.Gravity));
+                    float standingGap = float.MaxValue, apexGap = float.MaxValue;
+                    for (int i = 0; i < velocities.Count; i++)
+                    {
+                        float contact = TowerGame.PlayerBulletHitRadius + radii[i];
+                        standingGap = Mathf.Min(standingGap, PassDistance(origins[i], velocities[i], standing) - contact);
+                        apexGap = Mathf.Min(apexGap, PassDistance(origins[i], velocities[i], apex) - contact);
+                    }
+                    float apexAngle = Vector2.SignedAngle(direction, apex - origins[0]);
+                    Require(standingGap < 0, "No TwinSpiral bolt crossed a hero standing at the locked aim: the nearest passed " + standingGap.ToString("F2") + " beyond contact.");
+                    report.spiralStandingHit = true;
+                    Require(Mathf.Abs(Mathf.DeltaAngle(corridor, apexAngle)) < TowerGame.SpiralCorridorHalf && apexGap > 0,
+                        "A full jump at the locked aim did not rise into the TwinSpiral lane clear of its bolts: apex " + apexAngle.ToString("F1") + " degrees off the aim, clearance " + apexGap.ToString("F2"));
+                    report.spiralJumpLane = true;
+                    report.patternChecks.Add("TwinSpiral lane turned " + corridor.ToString("F1") + " degrees off the aim; " + expected + " bolts outside it; a bolt crosses the standing chest (" + standingGap.ToString("F2") +
+                        " past contact); a full jump's apex " + apexAngle.ToString("F1") + " degrees off the aim clears every bolt by " + apexGap.ToString("F2"));
+                    report.spiralGap = true; Call("TickShots", .6f); Call("TickEffects", .6f); yield return Capture("spiral", "보스 전용 탄막 · 조준점 위로 비킨 안전 통로의 쌍나선");
                 }
                 else
                 {
@@ -291,6 +389,18 @@ namespace PrototypeLab.Roguelike
                     // Waves leave from the ground under the landed boss, which follows the generated hills.
                     float landedGround = ((TowerWorld)typeof(TowerGame).GetField("world", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game)).GroundAt(boss.pos.x);
                     Require(Mathf.Abs(boss.pos.y - landedGround) < .01f && Mathf.Abs(origins[0].y - (landedGround + .65f)) < .01f && Mathf.Abs(origins[2].y - (landedGround + 1.05f)) < .01f, "Slam wave heights did not change between bursts."); report.slamCollision = true;
+                    foreach (var velocity in velocities) Require(Mathf.Abs(velocity.magnitude - TowerGame.BossWaveSpeed * boss.bulletSpeedScale) < .01f, "Slam ground waves did not run at the wave speed: " + velocity.magnitude);
+                    // After its last waves the boss reels: no next technique, heavier blows taken, then back to its cycle.
+                    Require(Mathf.Abs(game.BossGroggyRemaining(boss) - TowerGame.BossGroggySeconds) < .001f && Mathf.Abs(game.BossDamageTakenScale(boss) - TowerGame.BossGroggyDamage) < .001f,
+                        "The slam's last waves did not leave the boss reeling with heavier blows taken.");
+                    float reeled = 0;
+                    while (game.BossGroggyRemaining(boss) > 0)
+                    {
+                        Require(reeled < 2 && game.BossStageName(boss) == "Recovery" && boss.windup <= 0 && game.BossReleaseCount(boss) == 2 && Shots.Count == 4, "A reeling boss began its next technique.");
+                        Call("TickBoss", boss, .02f); reeled += .02f;
+                    }
+                    Require(Mathf.Abs(reeled - TowerGame.BossGroggySeconds) < .03f && game.BossDamageTakenScale(boss) == 1, "The boss reeled for " + reeled.ToString("F2") + " s or kept taking heavier blows.");
+                    report.slamGroggy = true;
                 }
                 RequireNoPreviewObjects();
                 report.patternChecks.Add(names[pattern] + ": preparation=" + preparation + ", releases=" + times.Count + ", projectiles=" + bullets.Count + ", no preparation overlays / locked aim / delay / gap PASS");

@@ -24,6 +24,8 @@ namespace PrototypeLab.Roguelike
         private readonly Dictionary<SkillState,SkillClock> skillClocks=new Dictionary<SkillState,SkillClock>();
         private readonly List<SkillArea> skillAreas=new List<SkillArea>();
         private float playerShield,shieldTime,regenerationClock;
+        // The hero's automatic casts never hold the body, so two of them keep at least this gap to stay apart on screen.
+        private const float HeroCastGap=.15f;private float heroCastGap;
         internal float PlayerShield { get { return playerShield; } }
         internal float SkillRemaining(string ownerId,string skillId)
         {
@@ -61,13 +63,26 @@ namespace PrototypeLab.Roguelike
         private void EnsureSkillClocks(HeroState state)
         {foreach(var s in state.Skills)if(!skillClocks.ContainsKey(s))skillClocks.Add(s,new SkillClock{owner=state,skill=s});}
         private void ResetSkills()
-        {skillClocks.Clear();ClearFloorSkillEffects();if(hero!=null)hero.castRemaining=0;foreach(var actor in allies)actor.castRemaining=0;playerShield=0;shieldTime=0;regenerationClock=0;shieldNova=0;}
+        {skillClocks.Clear();ClearFloorSkillEffects();if(hero!=null)hero.castRemaining=0;foreach(var actor in allies)actor.castRemaining=0;playerShield=0;shieldTime=0;regenerationClock=0;shieldNova=0;heroCastGap=0;}
         private void ClearFloorSkillEffects()
         {foreach(var area in skillAreas)if(area.root)Destroy(area.root);skillAreas.Clear();CancelPendingSkills();ClearSkillMoves();if(vfx!=null)vfx.Clear();}
         private void CancelPendingSkills()
         {foreach(var pending in pendingSkills){pending.clock.pending=false;if(pending.source!=null)pending.source.castRemaining=0;}pendingSkills.Clear();}
+        // A dash cuts the practice range's posed casts. Elsewhere the hero's casts hold nothing and release where they began,
+        // except a held dash strike: it would pull the dodging hero back onto its target, so the dash drops it and refunds it.
         private void CancelPlayerCast()
-        {for(int i=pendingSkills.Count-1;i>=0;i--)if(pendingSkills[i].source==hero){pendingSkills[i].clock.pending=false;pendingSkills.RemoveAt(i);}hero.castRemaining=0;hero.attackPose=0;}
+        {
+            for(int i=pendingSkills.Count-1;i>=0;i--)
+            {
+                var pending=pendingSkills[i];if(pending.source!=hero)continue;
+                if(practice){pending.clock.pending=false;pendingSkills.RemoveAt(i);}
+                else if(pending.clock.skill.Definition.Effect==SkillEffect.DashStrike){pending.clock.pending=false;pending.clock.remaining=0;pendingSkills.RemoveAt(i);}
+            }
+            hero.castRemaining=0;hero.attackPose=0;
+        }
+        // The hero's automatic casts leave the body free: no wind-up pose, no turn and no lock on the sword, gun or aim.
+        // The practice range keeps its posed wind-up, which previews every skill's cast.
+        private bool FreeCast(Fighter source){return source==hero&&!practice;}
         private Fighter ActorFor(string id){return id=="player"?hero:allies.Find(a=>a.id==id);}
         private Fighter ClosestEnemy(Vector2 pos,float range=13,HeroState owner=null)
         {Fighter best=null;foreach(var e in enemies){float d=Vector2.Distance(pos,e.pos);if(CanTarget(e,owner)&&d<range){range=d;best=e;}}return best;}
@@ -81,11 +96,13 @@ namespace PrototypeLab.Roguelike
             EnsureSkillClocks(run.Player);foreach(var c in run.Companions)EnsureSkillClocks(c);
             TickSkillStatuses(dt);TickSkillMoves(dt);
             TickPendingSkills(dt);
+            heroCastGap=Mathf.Max(0,heroCastGap-dt);
             foreach(var clock in skillClocks.Values)
             {
                 clock.remaining=Mathf.Max(0,clock.remaining-dt);
                 if(clock.remaining>0||clock.pending||!IsCurrentHero(clock.owner))continue;
-                var source=ActorFor(clock.owner.Id);if(source==null||source.basicPending||source.castRemaining>0||(source==hero&&(attackTimer>0||dashTime>0)))continue;
+                // A ready hero skill waits out a dash; it no longer waits for the sword, only for the gap after the last cast.
+                var source=ActorFor(clock.owner.Id);if(source==null||source.basicPending||source.castRemaining>0||(source==hero&&(dashTime>0||(FreeCast(source)?heroCastGap>0:attackTimer>0))))continue;
                 var effect=clock.skill.Definition.Effect;
                 var target=source==hero?ClosestEnemy(source.pos,13,clock.owner):source.combatTarget;
                 if(source!=hero&&!ValidAllyTarget(target,(CompanionState)clock.owner))target=null;
@@ -107,11 +124,14 @@ namespace PrototypeLab.Roguelike
         {
             var effect=clock.skill.Definition.Effect;
             float duration=effect==SkillEffect.Meteor?.72f:effect==SkillEffect.DashStrike?.34f:effect==SkillEffect.ShieldPulse||effect==SkillEffect.HealPulse?.55f:.46f;
-            source.facing=target.pos.x>=source.pos.x?1:-1;source.castRemaining=duration;source.attackPose=duration;
-            source.art.PlayCast(effect,duration);clock.remaining=clock.skill.Cooldown;clock.pending=true;clock.lastStarted=elapsed;clock.castDuration=duration;
+            bool free=FreeCast(source);
+            if(free){source.castRemaining=source.attackPose=0;heroCastGap=HeroCastGap;}
+            else{source.facing=target.pos.x>=source.pos.x?1:-1;source.castRemaining=duration;source.attackPose=duration;source.art.PlayCast(effect,duration);}
+            clock.remaining=clock.skill.Cooldown;clock.pending=true;clock.lastStarted=elapsed;clock.castDuration=duration;
             float release=source.art.CastReleaseTime(effect,duration);
             pendingSkills.Add(new PendingSkill{clock=clock,source=source,target=target,remaining=release});
-            if(vfx!=null){vfx.Grade=clock.skill.Level;vfx.Cast(effect,source.pos+Vector2.up,Mathf.Min(1.3f,clock.skill.Radius*.3f),SkillColor(effect),release,source.facing,source.root.transform,target.pos+Vector2.up*.7f);vfx.Grade=1;}
+            // A free cast draws its flare at release (CastScaledSkill), so it is not drawn twice.
+            if(!free&&vfx!=null){vfx.Grade=clock.skill.Level;vfx.Cast(effect,source.pos+Vector2.up,Mathf.Min(1.3f,clock.skill.Radius*.3f),SkillColor(effect),release,source.facing,source.root.transform,target.pos+Vector2.up*.7f);vfx.Grade=1;}
         }
         private void TickPendingSkills(float dt)
         {
@@ -160,12 +180,19 @@ namespace PrototypeLab.Roguelike
             var d=skill.Definition;var color=SkillColor(d.Effect);float damage=owner.Damage*skill.Power*scale;
             int level=skill.Level;bool awake=skill.Awakened;
             Vector2 origin=source.pos+Vector2.up*(source==hero?.95f:.78f),aim=target.pos+Vector2.up*.7f;
-            source.attackPose=.4f;source.facing=target.pos.x>=source.pos.x?1:-1;
+            // A free hero cast turns only for its own release: the skill aims at its target, then the hero faces where it did.
+            bool free=FreeCast(source);int heldFacing=source.facing;
+            if(!free)source.attackPose=.4f;
+            source.facing=target.pos.x>=source.pos.x?1:-1;
             // Every hit, shot and area of this cast carries its skill: reactions, statuses and the drawn grade read it.
             bool wasStriking=striking;var wasEffect=strikeEffect;int wasLevel=strikeLevel;
             striking=true;strikeEffect=d.Effect;strikeLevel=level;if(vfx!=null)vfx.Grade=level;
             if(source.castRemaining<=0&&vfx!=null)vfx.Cast(d.Effect,origin,Mathf.Min(1.3f,skill.Radius*.3f),color,.12f,source.facing,source.root.transform,aim);
-            FloatText(source.pos+Vector2.up*2.3f,level>1?d.Name+"  Lv."+level:d.Name,awake?TowerWorld.Gold:color);Sound(chimeSound,.2f);
+            // The player's and awakened casts keep their full name; a companion's ordinary cast gets a small tag in its colour.
+            string castName=level>1?d.Name+"  Lv."+level:d.Name;
+            if(owner==run.Player||awake)FloatText(source.pos+Vector2.up*2.3f,castName,awake?TowerWorld.Gold:color);
+            else CompanionCastLabel(source.pos+Vector2.up*2.3f,castName,CompanionTint(owner as CompanionState));
+            Sound(chimeSound,.2f);
             switch(d.Effect)
             {
                 case SkillEffect.Fireball:
@@ -239,12 +266,14 @@ namespace PrototypeLab.Roguelike
                     break;
                 default:CastOddSkill(owner,skill,source,target,damage,color,origin,aim);break;
             }
+            if(free)source.facing=heldFacing;
             striking=wasStriking;strikeEffect=wasEffect;strikeLevel=wasLevel;if(vfx!=null)vfx.Grade=1;
             SkillJuice(d.Effect,owner,scale);
             OnPassiveSkillCast(owner,skill,source,target,scale);
         }
-        // Action feel for skills: the camera kicks and time briefly catches on big skill moments.
-        // Companions' casts and echoes shake less and never stop time, so a full party stays readable.
+        // Action feel for skills: the camera kicks on big skill moments. Companions' casts and echoes shake less, so a full
+        // party stays readable. Time only catches on the practice range's casts, which the player starts; the hero's
+        // automatic casts in a climb never stop it.
         private void SkillJuice(SkillEffect effect,HeroState owner,float scale)
         {
             float shake,seconds,stop=0;
@@ -262,12 +291,12 @@ namespace PrototypeLab.Roguelike
             }
             bool player=owner==run.Player&&scale>=1;
             Shake(shake*(player?1:.5f)*Mathf.Clamp01(scale),seconds);
-            if(player&&stop>0)HitStop(stop);
+            if(player&&practice&&stop>0)HitStop(stop);
         }
         private void AreaJuice(SkillArea area)
         {
             float weight=area.owner==run.Player?1:.55f;
-            if(area.effect==SkillEffect.Meteor){Shake(.32f*weight,.42f);if(area.owner==run.Player)HitStop(.06f);}
+            if(area.effect==SkillEffect.Meteor){Shake(.32f*weight,.42f);if(area.owner==run.Player&&practice)HitStop(.06f);}
             else if(area.effect==SkillEffect.BladeStorm)Shake(.05f*weight,.08f);
         }
         private void LimitLastShotRange(float distance,float speed)
@@ -332,10 +361,13 @@ namespace PrototypeLab.Roguelike
             if(!CanTarget(enemy,owner))return 0;
             damage*=PassiveDamageScale(enemy,owner)*SkillReactionScale(enemy,owner);
             bool critical=owner!=null&&(forcedCritical||PassiveSureshot(enemy,owner)||UnityEngine.Random.value<owner.CritChance);if(critical)damage*=run.Passives.CriticalMultiplier(owner);
+            // DamageEnemy reads who struck and whether it is a damage-over-time tick (TowerAction.cs); nested strikes restore it.
+            var heldOwner=lastStrikeOwner;bool heldDot=lastStrikeDot;lastStrikeOwner=owner;lastStrikeDot=dotStrike;dotStrike=false;
             float dealt=Mathf.Min(enemy.hp,damage);criticalHit=critical;DamageEnemy(enemy,damage,push);
             if(owner!=null&&owner.LifeSteal>0)HealPlayer(dealt*owner.LifeSteal,false);
             AfterSkillStrike(enemy,owner,damage);
             AfterPassiveStrike(enemy,owner);
+            lastStrikeOwner=heldOwner;lastStrikeDot=heldDot;
             return dealt;
         }
         private void HealPlayer(float amount,bool show)

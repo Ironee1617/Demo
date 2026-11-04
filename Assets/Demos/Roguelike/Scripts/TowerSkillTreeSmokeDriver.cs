@@ -124,6 +124,11 @@ namespace PrototypeLab.Roguelike
             report.augmentsResetOnReturn = game.village && report.levelAfterReturn == 1 && game.run.Player.Traits.Count == 0 && game.run.Player.Skills.Count == 0 && game.campaign.SkillPoints == 12;
             Require(report.augmentsResetOnReturn, "Returning home kept augments (level " + report.levelAfterReturn + ") or lost points (" + game.campaign.SkillPoints + ")");
             Check("augments reset on return, 12 points kept");
+            // A hero past the tutorial comes home at the gate, with the gate (not a god) the nearest thing to use.
+            Require(Mathf.Abs(game.hero.pos.x - TowerGame.ReturnSpawnX) < .05f, "Returning from a restored myth started the hero at x " + game.hero.pos.x + " instead of by the gate.");
+            string returnPrompt = (string)Call("SpotPrompt") ?? "";
+            Require(returnPrompt.StartsWith("서약의 탑"), "Returning from a restored myth offered '" + returnPrompt + "' instead of the gate.");
+            Check("home by the gate after a chapter");
 
             // The tree screen: learn down the arcane spine into the might branch with the chapter's points.
             report.villageDamageBefore = game.run.Player.Damage;

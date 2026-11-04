@@ -21,6 +21,9 @@
 
 # Local crash and editor state
 sysinfo.txt
+/Assets/_Recovery/
+/Assets/_Recovery.meta
+/.scratch/
 *.pidb
 *.booproj
 
@@ -42,6 +45,15 @@ sysinfo.txt
 /Artifacts/TowerUIRefresh/
 /Artifacts/TowerEdenCute/
 /Artifacts/TowerEdenBalanced/
+/Artifacts/TowerAim/
+/Artifacts/TowerDraft/
+/Artifacts/TowerPace/
+/Artifacts/TowerPixelGods/
+/Artifacts/TowerSpineChars/
+/Artifacts/TowerStory/
+/Artifacts/TowerUI/
+/Artifacts/TowerVfx/
+/Artifacts/TowerWeapon/
 
 # Local art backups and generated visual validation output.
 /Artifacts/Cartoon*/

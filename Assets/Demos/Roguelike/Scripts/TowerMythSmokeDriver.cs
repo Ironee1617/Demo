@@ -71,7 +71,8 @@ namespace PrototypeLab.Roguelike
             // Every climb opens with a companion-only card set drawn from all mythologies.
             game.progress = new TowerProgress(); game.SmokeControlled = false; game.NewRun(15); game.intro = true;
             yield return Capture("title");
-            game.StartClimb();
+            // A real title leads into the campaign; the free climb behind it is entered under fixture control only.
+            game.SmokeControlled = true; game.StartClimb(); game.SmokeControlled = false;
             report.openingRecruit = !game.intro && game.run.IsRewardPending && game.run.IsRecruitOffer && game.run.Offers.Count == TowerRun.OfferSlots;
             foreach (var offer in game.run.Offers) report.openingRecruit &= offer.Kind == RewardKind.Recruit;
             Require(report.openingRecruit, "A new climb did not open with a companion-only recruit.");

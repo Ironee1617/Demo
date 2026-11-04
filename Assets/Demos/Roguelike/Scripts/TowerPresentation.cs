@@ -27,12 +27,14 @@ namespace PrototypeLab.Roguelike
         private void StartPlayerAttack()
         {
             if(elapsed-lastAttackAt>1)comboIndex=0;
-            float duration=Mathf.Clamp(PlayerAttackInterval*.85f,.18f,.42f);
-            slashCooldown=PlayerAttackInterval;attackTimer=duration;pendingSlash=true;
+            // Quick, quick, heavy: the beat scales the swing after its clamp, so the finisher keeps its full length.
+            float beat=SwingBeat(comboIndex),duration=Mathf.Clamp(PlayerAttackInterval*.85f,.18f,.42f)*beat;
+            slashCooldown=PlayerAttackInterval*beat;attackTimer=duration;pendingSlash=true;
             playerHitRemaining=duration-hero.art.AttackHitTime(duration);
-            BeginAttackMotion(comboIndex,duration);
-            hero.art.PlayAttack(duration,comboIndex);comboIndex=(comboIndex+1)%3;lastAttackAt=elapsed;
-            LastPlayerAttackStartedAt=elapsed;LastPlayerAttackDuration=duration;Sound(slashSound,.35f);
+            AimSwing();BeginAttackMotion(comboIndex,duration);
+            if(MouseAims)hero.art.PlayAimedAttack(duration,comboIndex,attackAim,swingRising);else hero.art.PlayAttack(duration,comboIndex);
+            comboIndex=(comboIndex+1)%3;lastAttackAt=elapsed;
+            LastPlayerAttackStartedAt=elapsed;LastPlayerAttackDuration=duration;Sound(swingCue,.35f);
         }
         private void TickPlayerAttack(float dt)
         {

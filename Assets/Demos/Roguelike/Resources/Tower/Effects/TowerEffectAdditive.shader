@@ -1,12 +1,14 @@
 // Additive light shader for the tower's high-resolution combat effects.
 // Vertex colour (SpriteRenderer.color) and _Color (MaterialPropertyBlock on afterimage meshes)
 // both tint the sprite; alpha scales the emitted light so fades never leave a dark halo.
+// _Gain scales the whole light (the soft blooms sit under the cel-shaded strokes at a lower gain).
 Shader "PrototypeLab/Tower/EffectAdditive"
 {
     Properties
     {
         [PerRendererData] _MainTex ("Sprite Texture", 2D) = "white" {}
         _Color ("Tint", Color) = (1,1,1,1)
+        _Gain ("Gain", Float) = 1
     }
     SubShader
     {
@@ -27,6 +29,7 @@ Shader "PrototypeLab/Tower/EffectAdditive"
 
             sampler2D _MainTex;
             fixed4 _Color;
+            float _Gain;
 
             v2f vert(appdata_t v)
             {
@@ -40,7 +43,7 @@ Shader "PrototypeLab/Tower/EffectAdditive"
             fixed4 frag(v2f i) : SV_Target
             {
                 fixed4 c = tex2D(_MainTex, i.texcoord) * i.color;
-                c.rgb *= c.a;
+                c.rgb *= c.a * _Gain;
                 c.a = 0;
                 return c;
             }

@@ -4,8 +4,8 @@ using UnityEngine;
 namespace PrototypeLab.Roguelike
 {
     // Floor traps laid out by the terrain generator: spike strips, flame vents, rockfall zones, bolt-spitting totems
-    // and launch pads. Traps threaten only the hero. Clearing a floor quiets the vents, rockfalls and totems while the
-    // spikes stay sharp; rest and shop floors keep only their launch pads.
+    // and launch pads. Traps threaten only the hero. Clearing a floor quiets the spikes, vents, rockfalls and totems, so the
+    // walk to the exit (and the clear playing out before its cards) is safe; rest and shop floors keep only their launch pads.
     public sealed partial class TowerGame
     {
         internal const float VentPeriod=3.4f,VentWarning=.65f,VentBurst=1.05f,VentHeight=2.7f,VentReach=.55f;
@@ -91,7 +91,7 @@ namespace PrototypeLab.Roguelike
             foreach(var trap in traps)
                 switch(trap.spec.Kind)
                 {
-                    case TowerHazardKind.Spikes:if(armed)TickSpikes(trap,scale);break;
+                    case TowerHazardKind.Spikes:if(live)TickSpikes(trap,scale);break;
                     case TowerHazardKind.FlameVent:TickVent(trap,dt,live,scale);break;
                     case TowerHazardKind.Rockfall:TickRockfall(trap,dt,live,scale,palette);break;
                     case TowerHazardKind.BoltTotem:TickTotem(trap,dt,live,scale,palette);break;
@@ -99,7 +99,7 @@ namespace PrototypeLab.Roguelike
                 }
         }
 
-        private void HurtByTrap(float damage){TrapHits++;HurtHero(damage*PassiveTrapScale);}
+        private void HurtByTrap(float damage){TrapHits++;HurtHeroBy(PaceHit.Trap,damage*PassiveTrapScale);}
         private bool HeroExposed{get{return hero.hp>0&&invulnerable<=0;}}
 
         // Standing on the strip hurts and throws the hero up off it.
@@ -131,7 +131,8 @@ namespace PrototypeLab.Roguelike
                 trap.emit-=dt;
                 if(trap.emit<=0){trap.emit=burst?.04f:.09f;if(burst)vfx.VentFlame(mouth,VentHeight);else vfx.VentWarning(mouth);}
             }
-            if(burst&&HeroExposed&&Mathf.Abs(hero.pos.x-mouth.x)<VentReach&&hero.pos.y<mouth.y+VentHeight&&hero.pos.y+1.5f>mouth.y)HurtByTrap(VentDamage*scale);
+            // A dash just begun through the flame readies the counter alone (TryPrimeTrapDodge).
+            if(burst&&Mathf.Abs(hero.pos.x-mouth.x)<VentReach&&hero.pos.y<mouth.y+VentHeight&&hero.pos.y+1.5f>mouth.y){if(HeroExposed)HurtByTrap(VentDamage*scale);else TryPrimeTrapDodge();}
         }
 
         // Stepping into the zone marks a spot under the hero: a growing shadow and trickling grit, then the boulder.
@@ -158,11 +159,13 @@ namespace PrototypeLab.Roguelike
             }
             float fall=Mathf.Clamp01((trap.rockTime-RockWarning)/RockFall),y=ground+.36f+RockDrop*(1-fall*fall);
             trap.rock.gameObject.SetActive(true);trap.rock.position=new Vector3(trap.rockX,y,0);trap.rock.rotation=Quaternion.Euler(0,0,-trap.rockTime*240);
-            if(!trap.rockHit&&HeroExposed&&Mathf.Abs(hero.pos.x-trap.rockX)<.62f&&y-.32f<hero.pos.y+1.7f&&y+.32f>hero.pos.y){trap.rockHit=true;HurtByTrap(RockDamage*scale);}
+            // A boulder already falling when the floor clears still lands, but harmlessly: the clear plays out live before its
+            // cards, and a fall then must not leave the hero dead under them.
+            if(live&&!trap.rockHit&&Mathf.Abs(hero.pos.x-trap.rockX)<.62f&&y-.32f<hero.pos.y+1.7f&&y+.32f>hero.pos.y){if(HeroExposed){trap.rockHit=true;HurtByTrap(RockDamage*scale);}else TryPrimeTrapDodge();}
             if(fall<1)return;
             if(vfx!=null)vfx.RockImpact(new Vector2(trap.rockX,ground),palette.stone);
             if(Mathf.Abs(hero.pos.x-trap.rockX)<9){Shake(.08f,.12f);Sound(hitSound,.5f);}
-            if(!trap.rockHit&&HeroExposed&&Mathf.Abs(hero.pos.x-trap.rockX)<.8f&&hero.pos.y<ground+1.1f){trap.rockHit=true;HurtByTrap(RockDamage*scale);}
+            if(live&&!trap.rockHit&&Mathf.Abs(hero.pos.x-trap.rockX)<.8f&&hero.pos.y<ground+1.1f){if(HeroExposed){trap.rockHit=true;HurtByTrap(RockDamage*scale);}else TryPrimeTrapDodge();}
             EndRockfall(trap);trap.cooldown=RockCooldown;
         }
         private static void EndRockfall(Trap trap)
@@ -181,7 +184,7 @@ namespace PrototypeLab.Roguelike
             trap.core.color=live?Color.Lerp(palette.rune,Color.white,charge*.7f):Color.Lerp(palette.rune,Color.black,.55f);
             if(trap.clock<TotemPeriod)return;
             trap.clock=0;
-            Fire(gem,hero.pos+Vector2.up*.9f,TotemBoltSpeed,TotemDamage*scale,true,palette.rune);StyleHostileLastShot(.16f);
+            Fire(gem,hero.pos+Vector2.up*.9f,TotemBoltSpeed,TotemDamage*scale,true,palette.rune);StyleHostileLastShot(.16f);shots[shots.Count-1].trap=true;
             if(vfx!=null)vfx.Hit(gem,palette.rune);
             Sound(hitSound,.2f);
         }
@@ -193,13 +196,16 @@ namespace PrototypeLab.Roguelike
             foreach(var trap in traps)
             {
                 if(trap.spec.Kind!=TowerHazardKind.BoltTotem||trap.broken)continue;
-                float dx=trap.spec.X-hero.pos.x;
-                if(dx*hero.facing<-.4f||Mathf.Abs(dx)>reach+.3f||Mathf.Abs(trap.baseY+.8f-(hero.pos.y+.9f))>1.9f)continue;
-                struck=true;trap.hits+=heavy?2:1;
-                if(vfx!=null)vfx.Hit(new Vector2(trap.spec.X,trap.baseY+.9f),TowerHazardArt.For(run.Theme.Id).stone);
-                if(trap.hits>=TotemHits)BreakTotem(trap);
+                if(!SwingReaches(new Vector2(trap.spec.X,trap.baseY+.8f),reach+.3f,.4f,1.9f))continue;
+                struck=true;ChipTotem(trap,heavy?2:1);
             }
             return struck;
+        }
+        private void ChipTotem(Trap trap,int blows)
+        {
+            trap.hits+=blows;
+            if(vfx!=null)vfx.Hit(new Vector2(trap.spec.X,trap.baseY+.9f),TowerHazardArt.For(run.Theme.Id).stone);
+            if(trap.hits>=TotemHits)BreakTotem(trap);
         }
         private void BreakTotem(Trap trap)
         {

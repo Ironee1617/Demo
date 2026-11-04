@@ -318,9 +318,30 @@ public static class TowerRunTests
         Test("remaining player passives expose useful live stats with safe cooldown and chance bounds", () => {
             var hero = new TowerRun().Player;
             Apply(hero, "player.reach"); Apply(hero, "player.precision"); Apply(hero, "player.vampire"); Apply(hero, "player.renewal"); Apply(hero, "player.evasion"); Apply(hero, "player.grace");
-            Close(hero.Range, 2.6f * 1.1f, "range"); Close(hero.CritChance, .06f, "crit"); Close(hero.LifeSteal, .03f, "vampirism"); Close(hero.Regeneration, 1, "regeneration"); Close(hero.DodgeCooldownMultiplier, .92f, "dodge cooldown"); Close(hero.HealingMultiplier, 1.15f, "healing");
+            Close(hero.Range, 2.6f * 1.1f, "range"); Close(hero.CritChance, .06f, "crit"); Close(hero.LifeSteal, .03f, "vampirism"); Close(hero.Regeneration, 1, "regeneration"); Close(hero.HealingMultiplier, 1.15f, "healing");
+            Check(hero.MaxDashCharges == 3 && hero.DodgeCooldownMultiplier == 1, "the diamond evasion card adds a dash charge instead of a dodge cooldown");
             for (int i = 0; i < 30; i++) { Apply(hero, "player.focus"); Apply(hero, "player.evasion"); Apply(hero, "player.precision"); Apply(hero, "player.vampire"); }
-            Check(hero.CooldownMultiplier >= .25f && hero.DodgeCooldownMultiplier >= .25f && hero.CritChance <= .8f && hero.LifeSteal <= .6f, "passive caps");
+            Check(hero.CooldownMultiplier >= .25f && hero.DodgeCooldownMultiplier >= .25f && hero.MaxDashCharges == HeroState.DashChargeCap && hero.CritChance <= .8f && hero.LifeSteal <= .6f, "passive caps");
+        });
+        Test("dash charges start at two, stop at three from every source and never recharge faster than 0.75 seconds", () => {
+            var hero = new TowerRun().Player;
+            Check(HeroState.BaseDashCharges == 2 && HeroState.DashChargeCap == 3 && hero.MaxDashCharges == 2, "two charges to start");
+            Close(hero.DashRechargeTime, .9f, "one charge returns in 0.9 seconds");
+            var evasion = TowerRun.GetAugment("player.evasion");
+            Check(evasion.Tier == RewardTier.Diamond && evasion.Stat == HeroStat.DashCharges && hero.CanImproveTrait(evasion), "the diamond card adds a charge");
+            Check(evasion.Description.Contains("대시 최대 충전 +1") && evasion.Description.Contains("최대 3회"), "the card names its cap: " + evasion.Description);
+            Apply(hero, "player.evasion");
+            Check(hero.MaxDashCharges == 3 && !hero.CanImproveTrait(evasion) && hero.StatText(HeroStat.DashCharges) == "3회", "one card reaches the cap");
+            // Tree nodes and synergies add through the same stat and stop at the same cap; the dodge cooldown keeps its own floor.
+            hero.ExternalBonus = stat => stat == HeroStat.DashCharges ? 2 : stat == HeroStat.DodgeCooldown ? .75f : 0;
+            Check(hero.MaxDashCharges == HeroState.DashChargeCap, "every source together stops at three");
+            Close(hero.DodgeCooldownMultiplier, .25f, "dodge cooldown floor"); Close(hero.DashRechargeTime, HeroState.MinDashRecharge, "recharge floor");
+            hero.ExternalBonus = stat => stat == HeroStat.DodgeCooldown ? .1f : 0;
+            Close(hero.DashRechargeTime, .81f, "dodge cooldown still shortens the recharge above the floor");
+            hero.ExternalBonus = stat => stat == HeroStat.DodgeCooldown ? .2f : 0;
+            Close(hero.DashRechargeTime, .75f, "a -20% dodge cooldown (0.72 seconds) already meets the floor");
+            var fresh = new TowerRun().Player; fresh.ExternalBonus = stat => stat == HeroStat.DodgeCooldown ? .5f : 0;
+            Check(HeroState.MinDashRecharge == .75f && fresh.MaxDashCharges == 2 && Math.Abs(fresh.DashRechargeTime - .75f) < .0001f, "the full tree's -50% stops at 0.75 seconds");
         });
         Test("trait cards preview effective before and after values including the final partial gain at each cap", () => {
             var hero = new TowerRun().Player;
@@ -340,7 +361,7 @@ public static class TowerRunTests
         });
         Test("capped traits leave initial choices and rerolls while uncapped repeatable traits stay eligible", () => {
             string[] cappedIds = { "player.precision", "player.vampire", "player.focus", "player.evasion" };
-            int[] capLevels = { 14, 20, 15, 10 };
+            int[] capLevels = { 14, 20, 15, 1 };
             foreach (double roll in new[] { .6, .9 }) {
                 var run = new TowerRun(new ControlledRandom(roll), 20, false);
                 for (int stat = 0; stat < cappedIds.Length; stat++) {
@@ -526,6 +547,59 @@ public static class TowerRunTests
             float health = vitality.Player.MaxHealth; int before = wallet.Gold;
             Check(vitality.Buy(ShopItem.Vitality, wallet) && wallet.Gold == before - TowerRun.VitalityPrice && Math.Abs(vitality.Player.MaxHealth - health - TowerRun.VitalityHealth) < .001f, "vitality raises max health");
             Check(!vitality.Buy(ShopItem.Heal, wallet) && wallet.Gold == before - TowerRun.VitalityPrice, "a heal after vitality is refused");
+        });
+        Test("a rest floor tempers one owned level-one skill to level two once, never awakens, and falls back to one gold stat", () => {
+            Func<int, TowerRun> toRest = seed => {
+                var run = new TowerRun(seed, 100, false);
+                for (int floor = 1; floor <= 5; floor++) { run.ClearFloor(); if (run.IsRewardPending) run.ChooseOffer(run.Offers[0].Id); if (floor < 5) run.AdvanceFloor(); }
+                Check(!run.BeginTempering(), "only a rest floor tempers");
+                Check(run.AdvanceFloor(FloorType.Rest) && run.FloorType == FloorType.Rest && !run.BeginTempering(), "tempering waits for the rest floor's clear");
+                Check(run.ClearFloor() && !run.IsRewardPending && !run.Tempered, "a rest floor clears without cards");
+                return run;
+            };
+            var skills = new List<AugmentDefinition>();
+            foreach (var a in TowerRun.Augments) if (a.OwnerId == "player" && a.Kind == RewardKind.Skill) skills.Add(a);
+            var rest = toRest(41);
+            Check(rest.TemperableSkills == 1, "the fifth floor's skill waits at level one");
+            var fresh = skills.FindAll(a => rest.Player.GetSkill(a.Id) == null);
+            for (int i = 0; i < 3; i++) Apply(rest.Player, fresh[i].Id);
+            Apply(rest.Player, fresh[3].Id); Apply(rest.Player, fresh[3].Id);
+            Check(rest.TemperableSkills == 4, "four skills at level one and one already at level two");
+            Check(rest.BeginTempering() && rest.IsRewardPending && rest.IsTempering && !rest.IsEliteReward && rest.Draft == RewardDraft.Skills && rest.Offers.Count == 3, "three tempering cards");
+            Check(!rest.BeginTempering() && !rest.AdvanceFloor(), "the tempering cards wait for a choice");
+            Check(rest.Reroll(0), "a tempering card rerolls into the remaining level-one skill");
+            var seen = new HashSet<string>();
+            foreach (var o in rest.Offers)
+            {
+                var skill = rest.Player.GetSkill(o.AugmentId);
+                Check(o.Kind == RewardKind.Skill && skill != null && skill.Level == 1 && o.NextLevel == TowerRun.TemperedLevel && seen.Add(o.AugmentId), "only owned level-one skills, each once: " + o.AugmentId);
+            }
+            string chosen = rest.Offers[1].AugmentId;
+            Check(rest.ChooseOffer(rest.Offers[1].Id) && !rest.IsRewardPending && !rest.IsTempering && rest.Player.GetSkill(chosen).Level == TowerRun.TemperedLevel, "the chosen skill reaches level two");
+            Check(rest.Player.GetSkill(fresh[3].Id).Level == 2 && rest.TemperableSkills == 3, "a level-two skill is never tempered toward its awakening");
+            Check(rest.Tempered && !rest.BeginTempering(), "the campfire tempers once");
+            Check(rest.AdvanceFloor() && !rest.Tempered, "the next floor starts untempered");
+
+            var capped = toRest(43);
+            var owned = new List<string>(); foreach (var s in capped.Player.Skills) owned.Add(s.Definition.Id);
+            foreach (string id in owned) Apply(capped.Player, id);
+            var spare = skills.Find(a => capped.Player.GetSkill(a.Id) == null); Apply(capped.Player, spare.Id); Apply(capped.Player, spare.Id);
+            Check(capped.TemperableSkills == 0 && capped.OpenSkills > 0, "every owned skill is at level two");
+            Check(capped.BeginTempering() && capped.IsTempering && capped.Draft == RewardDraft.Stats && capped.Offers.Count == 1, "a single stat card replaces the skills");
+            Check(capped.Offers[0].Kind == RewardKind.Trait && capped.Offers[0].Tier == RewardTier.Gold, "the campfire's stat is gold");
+            Check(capped.Reroll(0) && capped.Offers.Count == 1 && capped.Offers[0].Kind == RewardKind.Trait && capped.Offers[0].Tier == RewardTier.Gold, "its reroll stays a gold stat");
+            Check(capped.ChooseOffer(capped.Offers[0].Id) && !capped.IsTempering, "take the gold stat");
+            foreach (var s in capped.Player.Skills) Check(s.Level == 2, "tempering leaves level-two skills short of their awakening");
+
+            var party = toRest(47); Recruit(party, "zeus");
+            AugmentDefinition zeusSkill = null;
+            foreach (var a in TowerRun.Augments) if (zeusSkill == null && a.OwnerId == "zeus" && a.Kind == RewardKind.Skill) zeusSkill = a;
+            Apply(party.GetCompanion("zeus"), zeusSkill.Id);
+            owned.Clear(); foreach (var s in party.Player.Skills) owned.Add(s.Definition.Id);
+            foreach (string id in owned) Apply(party.Player, id);
+            Check(party.TemperableSkills == 1 && party.BeginTempering() && party.Offers.Count == 1 && party.Offers[0].AugmentId == zeusSkill.Id && party.Offers[0].OwnerId == "zeus", "a companion's level-one skill is tempered too");
+            Check(!party.CanReroll(0), "no other level-one skill to reroll into");
+            Check(party.DismissCompanion("zeus") && party.IsRewardPending && party.IsTempering && party.Draft == RewardDraft.Stats && party.Offers.Count == 1 && party.Offers[0].Tier == RewardTier.Gold && party.Offers[0].OwnerId == "player", "dismissal turns the tempering to its gold stat");
         });
         Test("two or three companions of one mythology unlock its synergy for the right heroes", () => {
             var run = new TowerRun(3, 100, false);

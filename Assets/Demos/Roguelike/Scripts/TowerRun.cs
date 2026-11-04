@@ -9,7 +9,7 @@ namespace PrototypeLab.Roguelike
     public enum CompanionRole { Vanguard, Archer, Mage, Healer }
     public enum RewardKind { Recruit, Skill, Trait, Upgrade = Trait, Oath = 3 }
     public enum UpgradeStat { Damage, Haste, Ability }
-    public enum HeroStat { Damage, MaxHealth, Armor, MoveSpeed, AttackSpeed, Range, CritChance, LifeSteal, Cooldown, SkillPower, Projectiles, Regeneration, DodgeCooldown, Area, Healing }
+    public enum HeroStat { Damage, MaxHealth, Armor, MoveSpeed, AttackSpeed, Range, CritChance, LifeSteal, Cooldown, SkillPower, Projectiles, Regeneration, DodgeCooldown, Area, Healing, DashCharges }
     // The first sixteen are the original effects; the rest are companions' narrower, stranger tools (see TowerSkillBuilds).
     public enum SkillEffect { Fireball, IceNova, ChainLightning, Meteor, ArcaneVolley, Shockwave, BladeStorm, DashStrike, MultiShot, PierceShot, RainArrows, PoisonCloud, HealPulse, ShieldPulse, LifeDrain, Sentry,
         Boomerang, Ricochet, HuntMark, Hook, Quake, Orbit, Decoy, Mine, Vortex, Curse, WarBanner, Bloom }
@@ -81,17 +81,17 @@ namespace PrototypeLab.Roguelike
         {
             Id = id; OwnerId = owner; Name = name; Tier = tier; Kind = RewardKind.Trait;
             Stat = stat; Value = value;
-            Description = StatName(stat) + " " + FormatValue(stat, value) + " · 반복 선택 시 누적";
+            Description = StatName(stat) + " " + FormatValue(stat, value) + (stat == HeroStat.DashCharges ? " · 최대 " + HeroState.DashChargeCap + "회" : " · 반복 선택 시 누적");
         }
         public static string StatName(HeroStat stat)
         {
-            string[] names = { "공격력", "최대 체력", "방어력", "이동 속도", "공격 속도", "기본 공격 사거리", "치명타 확률", "생명력 흡수", "스킬 재사용 감소", "스킬 위력", "추가 투사체", "초당 체력 재생", "회피 재사용 감소", "스킬 범위", "치유 / 보호막 위력" };
+            string[] names = { "공격력", "최대 체력", "방어력", "이동 속도", "공격 속도", "기본 공격 사거리", "치명타 확률", "생명력 흡수", "스킬 재사용 감소", "스킬 위력", "추가 투사체", "초당 체력 재생", "회피 충전 시간 감소", "스킬 범위", "치유 / 보호막 위력", "대시 최대 충전" };
             return names[(int)stat];
         }
         internal static string Number(float value) { return value.ToString("0.##", CultureInfo.InvariantCulture); }
         public static string FormatValue(HeroStat stat, float value)
         {
-            bool flat = stat == HeroStat.Armor || stat == HeroStat.Projectiles || stat == HeroStat.Regeneration;
+            bool flat = stat == HeroStat.Armor || stat == HeroStat.Projectiles || stat == HeroStat.Regeneration || stat == HeroStat.DashCharges;
             return "+" + Number(flat ? value : value * 100) + (flat ? stat == HeroStat.Regeneration ? " HP/s" : "" : "%");
         }
     }
@@ -160,6 +160,10 @@ namespace PrototypeLab.Roguelike
     {
         // Stat cards arrive every floor, so extra projectiles stop at three to keep volleys readable.
         public const int MaxProjectileBonus = 3;
+        // The dash holds two charges; every source together (cards, the tree, synergies) stops at three. Each charge comes
+        // back in .9 seconds times the dodge cooldown, never faster than .75 so invulnerability covers about a third of a fight.
+        public const int BaseDashCharges = 2, DashChargeCap = 3;
+        public const float DashRechargeBase = .9f, MinDashRecharge = .75f;
         private readonly float baseDamage, baseHealth, baseArmor, baseMoveSpeed, baseInterval, baseRange;
         private float vitality;
         // Run-level bonuses that do not come from cards, such as mythology synergies.
@@ -193,6 +197,8 @@ namespace PrototypeLab.Roguelike
         public int ProjectileBonus { get { return (int)StatValue(HeroStat.Projectiles); } }
         public float Regeneration { get { return StatValue(HeroStat.Regeneration); } }
         public float DodgeCooldownMultiplier { get { return StatValue(HeroStat.DodgeCooldown); } }
+        public int MaxDashCharges { get { return (int)StatValue(HeroStat.DashCharges); } }
+        public float DashRechargeTime { get { return Math.Max(MinDashRecharge, DashRechargeBase * DodgeCooldownMultiplier); } }
         public float AreaMultiplier { get { return StatValue(HeroStat.Area); } }
         public float HealingMultiplier { get { return StatValue(HeroStat.Healing); } }
         internal HeroState(string id, string name, float damage, float health, float armor, float moveSpeed, float interval, float range)
@@ -228,6 +234,7 @@ namespace PrototypeLab.Roguelike
                 case HeroStat.Area:
                 case HeroStat.Healing: return 1 + bonus;
                 case HeroStat.Projectiles: return Math.Min(MaxProjectileBonus, (int)bonus);
+                case HeroStat.DashCharges: return Math.Max(1, Math.Min(DashChargeCap, BaseDashCharges + (int)bonus));
                 default: return bonus;
             }
         }
@@ -267,6 +274,7 @@ namespace PrototypeLab.Roguelike
                 case HeroStat.Area:
                 case HeroStat.Healing: return AugmentDefinition.Number(value) + "배";
                 case HeroStat.Projectiles: return "+" + (int)value;
+                case HeroStat.DashCharges: return (int)value + "회";
                 case HeroStat.Regeneration: return AugmentDefinition.Number(value) + " HP/s";
                 default: return AugmentDefinition.Number(value);
             }
@@ -351,6 +359,8 @@ namespace PrototypeLab.Roguelike
         // Gold prices; a floor's breakable caches scatter about fifteen gold and an elite floor pays two floors' worth on top.
         public const int AugmentPrice = 50, HealPrice = 20, VitalityPrice = 40, EliteBounty = 30;
         public const float RestHealFraction = .5f, ShopHealFraction = .35f, VitalityHealth = 15;
+        // A rest floor's campfire tempers a skill this far and no further: the level-three awakening stays a card's reward.
+        public const int TemperedLevel = 2;
         // A free climb opens with one recruit; these floors grant the second and third. A chapter past them
         // drafts that many companions before its first fight instead.
         public static readonly IReadOnlyList<int> RecruitFloors = Array.AsReadOnly(new[] { 30, 60 });
@@ -385,6 +395,21 @@ namespace PrototypeLab.Roguelike
         public RewardDraft Draft { get; private set; }
         /// <summary>The pending cards are an elite floor's spoils: gold-or-better skills, or diamond stats once nothing is left to learn.</summary>
         public bool IsEliteReward { get; private set; }
+        /// <summary>The pending cards are a rest floor's tempering: owned level-one skills to level two, or one gold stat once none is left.</summary>
+        public bool IsTempering { get; private set; }
+        /// <summary>This rest floor's campfire has already tempered; it tempers once.</summary>
+        public bool Tempered { get; private set; }
+        /// <summary>Owned skills a campfire could temper: every learned party skill still below <see cref="TemperedLevel"/>.</summary>
+        public int TemperableSkills
+        {
+            get
+            {
+                int open = 0;
+                foreach (var skill in Player.Skills) if (skill.Level < TemperedLevel) open++;
+                foreach (var companion in companions) foreach (var skill in companion.Skills) if (skill.Level < TemperedLevel) open++;
+                return open;
+            }
+        }
         /// <summary>Most companions this climb may hold: three, or the slots a campaign chapter drafts.</summary>
         public int CompanionLimit { get; private set; }
         /// <summary>Gods who could still be recruited: the chapter's pool in a campaign draft, else every mythology.</summary>
@@ -413,6 +438,11 @@ namespace PrototypeLab.Roguelike
         public bool IsComplete { get { return IsFloorCleared && Floor >= MaxFloor && !IsRewardPending; } }
         // The last floor of each five-floor block opens extra exits to elite, rest and shop floors.
         public bool IsBranchFloor { get { return !IsOathTrial && Floor % RewardInterval == 0 && Floor < MaxFloor; } }
+        /// <summary>
+        /// Whether clearing normal floor <paramref name="floor"/> deals skill cards: every RewardInterval-th floor but a
+        /// chapter's last, whose expedition ends there. A free climb's recruit floor may still deal its recruit instead.
+        /// </summary>
+        public bool DealsSkillCards(int floor) { return floor % RewardInterval == 0 && !(IsCampaign && floor >= MaxFloor); }
         public HeroState Player { get; private set; }
         /// <summary>The party's passives: counters, stacks and clocks that last the whole climb.</summary>
         public TowerPassiveState Passives { get; private set; }
@@ -527,8 +557,9 @@ namespace PrototypeLab.Roguelike
                 bool skills = Floor % RewardInterval == 0;
                 if (skills && !IsCampaign && IsRecruitFloor(Floor) && companions.Count < MaxCompanions) BeginReward(true);
                 else if (!skills) BeginReward(false, RewardDraft.Stats);
-                // Fifth floors deal skills alone; once every owned skill is at level three they deal nothing.
-                else if (OpenSkills > 0) BeginReward(false, RewardDraft.Skills);
+                // Fifth floors deal skills alone; once every owned skill is at level three they deal nothing. A chapter's last
+                // floor deals none either: its expedition ends there and the village resets every augment.
+                else if (OpenSkills > 0 && DealsSkillCards(Floor)) BeginReward(false, RewardDraft.Skills);
             }
             else if (FloorType == FloorType.Shop) OpenShop();
             return true;
@@ -537,7 +568,18 @@ namespace PrototypeLab.Roguelike
         {
             if (!IsFloorCleared || IsRewardPending || IsComplete) return false;
             if (next != FloorType.Normal && !IsBranchFloor) return false;
-            Floor++; IsFloorCleared = false; FloorType = next; shop.Clear(); ShopTraded = false;
+            Floor++; IsFloorCleared = false; FloorType = next; shop.Clear(); ShopTraded = false; Tempered = false;
+            return true;
+        }
+        /// <summary>
+        /// A cleared rest floor's alternative to its heal: one owned level-one skill rises to level two, chosen from up to
+        /// <see cref="OfferSlots"/> cards, or a single gold stat card once no skill is left below level two. Once per rest floor.
+        /// </summary>
+        public bool BeginTempering()
+        {
+            if (FloorType != FloorType.Rest || !IsFloorCleared || IsRewardPending || IsComplete || Tempered) return false;
+            Tempered = true;
+            BeginReward(false, TemperableSkills > 0 ? RewardDraft.Skills : RewardDraft.Stats, false, true);
             return true;
         }
         // A small draft pool may have no god or skill left to deal in place of a card; the campaign's opening
@@ -545,7 +587,7 @@ namespace PrototypeLab.Roguelike
         public bool CanReroll(int slot)
         {
             return IsRewardPending && slot >= 0 && slot < offers.Count && slot < OfferSlots && !rerolled[slot] &&
-                (IsRecruitOffer ? OpenRecruits > offers.Count : Draft != RewardDraft.Skills || OpenSkills > offers.Count);
+                (IsRecruitOffer ? OpenRecruits > offers.Count : Draft != RewardDraft.Skills || (IsTempering ? TemperableSkills : OpenSkills) > offers.Count);
         }
         public bool Reroll(int slot)
         {
@@ -575,7 +617,7 @@ namespace PrototypeLab.Roguelike
                 var augment = GetAugment(offer.AugmentId);
                 if (hero == null || augment == null || !hero.Apply(augment)) return false;
             }
-            IsRewardPending = false; IsRecruitOffer = false; IsEliteReward = false; offers.Clear(); return true;
+            IsRewardPending = false; IsRecruitOffer = false; IsEliteReward = false; IsTempering = false; offers.Clear(); return true;
         }
         public bool DismissCompanion(string id)
         {
@@ -586,9 +628,11 @@ namespace PrototypeLab.Roguelike
             {
                 // Elite spoils whose last learnable skills left with the companion turn to diamond stats.
                 if (IsEliteReward && Draft == RewardDraft.Skills && OpenSkills == 0) Draft = RewardDraft.Stats;
+                // A tempering whose last level-one skills left with the companion turns to its gold stat.
+                if (IsTempering && Draft == RewardDraft.Skills && TemperableSkills == 0) Draft = RewardDraft.Stats;
                 GenerateOffers();
                 // A skill floor whose last learnable skills left with the companion has nothing to deal.
-                if (offers.Count == 0) { IsRewardPending = false; IsRecruitOffer = false; IsEliteReward = false; }
+                if (offers.Count == 0) { IsRewardPending = false; IsRecruitOffer = false; IsEliteReward = false; IsTempering = false; }
             }
             return true;
         }
@@ -616,9 +660,9 @@ namespace PrototypeLab.Roguelike
             shop.Add(new ShopOffer(ShopItem.Heal, "회복의 물약", "최대 생명력의 " + AugmentDefinition.Number(ShopHealFraction * 100) + "%를 회복합니다.", HealPrice));
             shop.Add(new ShopOffer(ShopItem.Vitality, "생명의 정수", "이번 등반 동안 최대 생명력 +" + AugmentDefinition.Number(VitalityHealth) + "\n늘어난 만큼 회복합니다.", VitalityPrice));
         }
-        private void BeginReward(bool recruit, RewardDraft draft = RewardDraft.Mixed, bool elite = false)
+        private void BeginReward(bool recruit, RewardDraft draft = RewardDraft.Mixed, bool elite = false, bool tempering = false)
         {
-            IsRewardPending = true; IsRecruitOffer = recruit; IsEliteReward = elite && !recruit; Draft = recruit ? RewardDraft.Mixed : draft;
+            IsRewardPending = true; IsRecruitOffer = recruit; IsEliteReward = elite && !recruit; IsTempering = tempering && !recruit; Draft = recruit ? RewardDraft.Mixed : draft;
             Array.Clear(rerolled, 0, rerolled.Length); GenerateOffers();
         }
         private bool CanRecruit(CompanionDefinition definition)
@@ -674,7 +718,9 @@ namespace PrototypeLab.Roguelike
         private void GenerateOffers()
         {
             offers.Clear();
+            // A campfire's tempering shows its level-one skills, or the single gold stat card that replaces them.
             int count = IsRecruitOffer ? recruitPool != null ? OpenRecruits : Math.Min(OfferSlots, OpenRecruits) :
+                IsTempering ? Draft == RewardDraft.Skills ? Math.Min(OfferSlots, TemperableSkills) : 1 :
                 Draft == RewardDraft.Skills ? Math.Min(OfferSlots, OpenSkills) : OfferSlots;
             for (int slot = 0; slot < count; slot++) offers.Add(CreateOffer(slot, null));
         }
@@ -723,8 +769,10 @@ namespace PrototypeLab.Roguelike
                     return new RewardOffer(nextOfferId++, slot, available[random.Next(available.Count)], Oath.CompanionId);
             }
             // Elite spoils skip silver: skills roll gold or diamond in the usual two-to-one ratio, stats are always diamond.
+            // A campfire's stat card is always gold; its skill cards ignore rarity.
             double roll = random.NextDouble();
-            RewardTier tier = !IsEliteReward ? RollTier(roll) : Draft == RewardDraft.Stats ? RewardTier.Diamond : RollTier(.4 + roll * .6);
+            RewardTier tier = IsTempering ? RewardTier.Gold : !IsEliteReward ? RollTier(roll) : Draft == RewardDraft.Stats ? RewardTier.Diamond : RollTier(.4 + roll * .6);
+            bool tempering = IsTempering && Draft == RewardDraft.Skills;
             Predicate<string> dealt = id => id == previousAugment || offers.Exists(o => o.Slot != slot && o.AugmentId == id);
             var candidates = new List<Candidate>();
             // Regular cards no longer recruit; only the oath trial keeps its angels in the mixed pool.
@@ -739,6 +787,8 @@ namespace PrototypeLab.Roguelike
                 if (owner == null || dealt(definition.Id)) continue;
                 var skill = owner.GetSkill(definition.Id);
                 if (definition.Kind == RewardKind.Skill && skill != null && skill.Level >= 3) continue;
+                // Tempering raises only skills already learned and still below level two; it never awakens level three.
+                if (tempering && (skill == null || skill.Level >= TemperedLevel)) continue;
                 open.Add(definition);
             }
             // Prefer useful growth; extreme custom-length runs can exhaust every distinct useful identity.
@@ -748,7 +798,7 @@ namespace PrototypeLab.Roguelike
             // Fifth floors never deal stats; a stat floor deals skills only once no stat is left at any tier.
             RewardKind kind = Draft == RewardDraft.Skills ? RewardKind.Skill : RewardKind.Trait;
             Predicate<AugmentDefinition> ofKind = a => Draft == RewardDraft.Mixed || a.Kind == kind;
-            var dealable = open.FindAll(a => a.Tier == tier && ofKind(a));
+            var dealable = tempering ? open : open.FindAll(a => a.Tier == tier && ofKind(a));
             // Elite spoils borrow the other high tier before falling back to silver.
             if (dealable.Count == 0 && IsEliteReward) dealable = open.FindAll(a => a.Tier >= RewardTier.Gold && ofKind(a));
             if (dealable.Count == 0) dealable = open.FindAll(ofKind);

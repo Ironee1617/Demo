@@ -5,11 +5,15 @@ using UnityEngine;
 namespace PrototypeLab.Roguelike
 {
     // Hunting tools: the returning war disc, the bouncing hot slug, the hunter's mark and the chain hook.
-    // Every solid shape is three layers built from one distance field in a single pass: a dark outline and a shaded,
-    // saturated body (alpha, so they hold on the pale Olympus sky) under a white-hot additive core (so they glow in the
-    // dark depths). Bursts pair additive light with saturated alpha flare lines and rings for the same reason.
-    // Skill level grows density, glow and secondary layers; level three adds a gold-white edge and runes. Rings that mark
-    // an area keep its gameplay radius.
+    // The disc, the chain and the hook are painted metal: smooth light from the upper left over rounded edges, brushed grain,
+    // a pale rim on the lit edges, a coloured bounce on the shadowed ones and sharp specular glints, with a thin edge of the
+    // metal's own deep hue where an outline would be. A light layer of glints and glowing edges lies over each, a soft bloom
+    // under it. Energy (the slug, the brand, the reticle, sight lines, wakes and lashes) is painted light: a level profile
+    // that the light material ramps from a deep edge through the hue to a white core, over a deep saturated copy of the same
+    // silhouette (never wider, never near-black) that keeps it on the pale sky, over a bloom. Hits use the hand-animated
+    // flipbooks: hit sparks flare and scatter, shock fronts race out and break, and the slug and the mark end in small blasts.
+    // Skill level grows density, glow and secondary layers; level three adds gold edges and runes. Rings that mark an area
+    // keep its gameplay radius.
     // A caster keeps walking while it winds up, so every wind-up rides along with its caster, and the release burst is
     // booked rather than timed: it fires when the shot or the trail actually leaves, at the hand where the caster is then
     // (a cast cancelled by a dash never shows one).
@@ -17,19 +21,21 @@ namespace PrototypeLab.Roguelike
     {
         // ---------------------------------------------------------------- palette, textures and rigs
 
-        private static readonly Color HuntDiscLight = new Color(1, .8f, .42f), HuntDiscHot = new Color(1, .95f, .8f), HuntDiscBody = new Color(.96f, .6f, .14f, .96f),
-            HuntDiscInk = new Color(.24f, .1f, .01f, .86f), HuntDiscFlare = new Color(1, .46f, .05f, .7f),
-            HuntSlugLight = new Color(1, .9f, .58f), HuntSlugHot = new Color(1, .99f, .92f), HuntSlugBody = new Color(1, .78f, .22f, .95f),
-            HuntSlugInk = new Color(.32f, .14f, 0, .82f), HuntSlugFlare = new Color(1, .58f, .08f, .72f),
-            HuntMarkLight = new Color(1, .3f, .3f), HuntMarkHot = new Color(1, .5f, .45f), HuntMarkBody = new Color(.9f, .08f, .14f, .93f),
-            HuntMarkInk = new Color(.2f, 0, .03f, .84f), HuntMarkFlare = new Color(.78f, .02f, .1f, .64f),
-            HuntSteelLight = new Color(.7f, .85f, 1), HuntSteelHot = new Color(.9f, .97f, 1), HuntSteelBody = new Color(.36f, .45f, .6f, .97f),
-            HuntSteelInk = new Color(.03f, .06f, .13f, .88f), HuntSteelFlare = new Color(.14f, .32f, .72f, .62f),
-            HuntEmber = new Color(1, .76f, .4f), HuntGold = new Color(1, .9f, .58f), HuntGoldInk = new Color(.42f, .26f, .02f, .7f);
+        private static readonly Color HuntDiscLight = new Color(1, .8f, .42f), HuntDiscHot = new Color(1, .95f, .8f), HuntDiscDeep = new Color(.86f, .38f, .03f, .45f),
+            HuntSlugLight = new Color(1, .9f, .58f), HuntSlugHot = new Color(1, .99f, .92f), HuntSlugBolt = new Color(1, .76f, .32f), HuntSlugFire = new Color(1, .58f, .16f), HuntSlugDeep = new Color(.92f, .46f, .03f, .45f),
+            HuntMarkLight = new Color(1, .22f, .24f), HuntMarkHot = new Color(1, .55f, .5f), HuntMarkDeep = new Color(.72f, .04f, .1f, .7f),
+            HuntSteelLight = new Color(.7f, .85f, 1), HuntSteelHot = new Color(.9f, .97f, 1), HuntSteelDeep = new Color(.16f, .34f, .78f, .45f),
+            HuntEmber = new Color(1, .76f, .4f), HuntGold = new Color(1, .9f, .58f),
+            // painted smoke kicked out of each tool's hits: grey with a breath of the tool's hue, never black
+            HuntDiscSmoke = new Color(.52f, .4f, .3f, .45f), HuntSlugSmoke = new Color(.54f, .42f, .3f, .42f),
+            HuntMarkSmoke = new Color(.5f, .22f, .24f, .45f), HuntSteelSmoke = new Color(.4f, .45f, .55f, .45f);
 
-        // Sets are [0] dark outline, [1] shaded body, [2] hot core, all the same size and drawn on top of each other.
-        private static Sprite[] HuntDiscSet, HuntChainSet, HuntHookSet, HuntReticleSet, HuntChevronSet, HuntSlugSet;
-        private static Sprite HuntDiscBlur;
+        // Painted objects come as [0] the painted body (ink, baked shading) and [1] its light layer (glints and glowing edges).
+        // Light shapes come as [0] the light level and [1] its solid silhouette, which the deep contrast copy is drawn from, so
+        // that copy is exactly as wide as the light and never rims it in a darker line.
+        private static Sprite[] HuntDiscSet, HuntChainSet, HuntHookSet, HuntReticleSet, HuntChevronSet, HuntSlugSet, HuntBrandSet, HuntDiscBlurSet;
+        // The disc's sheen: it stays lit from the upper left while the blades turn under it.
+        private static Sprite HuntDiscSheen;
 
         private sealed class HuntDiscRig { public Transform root; public int grade; }
         // A wake behind a shot whose front stays put while it grows with the distance flown, so it never pokes out behind the shooter.
@@ -61,7 +67,7 @@ namespace PrototypeLab.Roguelike
         private Vector2 HuntMarkOrigin, HuntMarkFrom;
         private TowerGame HuntGame;
 
-        // ---------------------------------------------------------------- textures (built on a skill's first use)
+        // ---------------------------------------------------------------- textures (built at load)
 
         private static Sprite HuntSprite(string name, int width, int height, Color32[] colors)
         {
@@ -70,59 +76,104 @@ namespace PrototypeLab.Roguelike
             return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(.5f, .5f), PixelsPerUnit, 0, SpriteMeshType.FullRect);
         }
 
-        /// <summary>One pass over a distance field gives an outline, a shaded body and a hot core. <paramref name="shape"/>(x, y)
-        /// returns (signed distance, body light, core light); x spans -1..1 across the width and y keeps the same scale.
-        /// A strip that tiles end to end (<paramref name="tile"/>) keeps its ends unfaded. A square shape with four-fold
-        /// symmetry (<paramref name="fourfold"/>, shading included) is evaluated on one quadrant and turned into the other three,
-        /// so a skill's first cast builds its textures in a few milliseconds.</summary>
-        private static Sprite[] HuntLayers(string name, int width, int height, float ink, bool tile, bool fourfold, Func<float, float, Vector3> shape)
+        private struct HuntTexel
         {
-            var outline = new Color32[width * height]; var body = new Color32[width * height]; var hot = new Color32[width * height];
-            float aspect = height / (float)width;
-            fourfold &= width == height && width % 2 == 0;
-            int x0 = fourfold ? width / 2 : 0, y0 = fourfold ? height / 2 : 0;
-            for (int y = y0; y < height; y++)
-            {
-                float v = (y + .5f) / height * 2 - 1;
-                for (int x = x0; x < width; x++)
-                {
-                    float u = (x + .5f) / width * 2 - 1;
-                    Vector3 s = shape(u, v * aspect);
-                    float window = (tile ? 1 : 1 - Smooth(.92f, 1, Mathf.Abs(u))) * (1 - Smooth(.9f, 1, Mathf.Abs(v)));
-                    float edge = Mathf.Max(1 - Smooth(ink - .012f, ink + .01f, s.x), (1 - Smooth(ink, ink * 2.6f, s.x)) * .35f) * window;
-                    float fill = (1 - Smooth(-.012f, .006f, s.x)) * window;
-                    // the core only lights the body and a hair beyond its edge
-                    float heat = s.z * window * (1 - Smooth(0, .02f, s.x));
-                    byte l = (byte)(Mathf.Clamp01(s.y) * 255);
-                    var a = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(edge) * 255));
-                    var b = new Color32(l, l, l, (byte)(Mathf.Clamp01(fill) * 255));
-                    var c = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(heat) * 255));
-                    int w1 = width - 1, i0 = y * width + x;
-                    outline[i0] = a; body[i0] = b; hot[i0] = c;
-                    if (!fourfold) continue;
-                    int i1 = x * width + (w1 - y), i2 = (w1 - y) * width + (w1 - x), i3 = (w1 - x) * width + y;
-                    outline[i1] = outline[i2] = outline[i3] = a; body[i1] = body[i2] = body[i3] = b; hot[i1] = hot[i2] = hot[i3] = c;
-                }
-            }
-            return new[] { HuntSprite(name + " outline", width, height, outline), HuntSprite(name + " body", width, height, body), HuntSprite(name + " core", width, height, hot) };
+            public Color body; public float light;
+            public HuntTexel(Color body, float light) { this.body = body; this.light = light; }
         }
 
-        /// <summary>A single white light texture with four-fold symmetry, evaluated on one quadrant.</summary>
-        private static Sprite HuntFourfold(string name, int size, Func<float, float, float> alpha)
+        /// <summary>Paints an object in one pass: <paramref name="shade"/>(x, y) gives the painted body colour (alpha = cover) and
+        /// the light layer's level there; x spans -1..1 across the width and y keeps the same scale. Empty texels take the
+        /// <paramref name="bleed"/> colour, so filtering never darkens the silhouette's edge into an outline. A strip that tiles
+        /// end to end (<paramref name="tile"/>) keeps its ends unfaded.</summary>
+        private static Sprite[] HuntPaint(string name, int width, int height, bool tile, Color bleed, Func<float, float, HuntTexel> shade)
         {
-            var colors = new Color32[size * size]; int half = size / 2, w1 = size - 1;
-            for (int y = half; y < size; y++)
+            var body = new Color32[width * height]; var light = new Color32[width * height];
+            float aspect = height / (float)width;
+            for (int y = 0; y < height; y++)
             {
-                float v = (y + .5f) / size * 2 - 1;
-                for (int x = half; x < size; x++)
+                float v = (y + .5f) / height * 2 - 1;
+                for (int x = 0; x < width; x++)
                 {
-                    float u = (x + .5f) / size * 2 - 1;
-                    var c = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(alpha(u, v)) * 255));
-                    colors[y * size + x] = c; colors[x * size + (w1 - y)] = c; colors[(w1 - y) * size + (w1 - x)] = c; colors[(w1 - x) * size + y] = c;
+                    float u = (x + .5f) / width * 2 - 1;
+                    var s = shade(u, v * aspect);
+                    float window = (tile ? 1 : 1 - Smooth(.92f, 1, Mathf.Abs(u))) * (1 - Smooth(.9f, 1, Mathf.Abs(v)));
+                    Color b = s.body; b.a *= window;
+                    if (b.a < .004f) b = new Color(bleed.r, bleed.g, bleed.b, 0);
+                    body[y * width + x] = b;
+                    light[y * width + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(s.light * window) * 255));
                 }
             }
-            return HuntSprite(name, size, size, colors);
+            return new[] { HuntSprite(name, width, height, body), HuntSprite(name + " light", width, height, light) };
         }
+
+        /// <summary>A shape of light: [0] its level (<paramref name="level"/>(x, y), x across -1..1, y at the same scale) and [1] its
+        /// solid silhouette at the same size.</summary>
+        private static Sprite[] HuntLight(string name, int width, int height, Func<float, float, float> level)
+        {
+            var lit = new Color32[width * height]; var solid = new Color32[width * height];
+            float aspect = height / (float)width;
+            for (int y = 0; y < height; y++)
+            {
+                float v = (y + .5f) / height * 2 - 1;
+                for (int x = 0; x < width; x++)
+                {
+                    float u = (x + .5f) / width * 2 - 1;
+                    float l = Mathf.Clamp01(level(u, v * aspect)) * (1 - Smooth(.94f, 1, Mathf.Abs(u))) * (1 - Smooth(.92f, 1, Mathf.Abs(v)));
+                    lit[y * width + x] = new Color32(255, 255, 255, (byte)(l * 255));
+                    solid[y * width + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(l * 9) * 255));
+                }
+            }
+            return new[] { HuntSprite(name, width, height, lit), HuntSprite(name + " solid", width, height, solid) };
+        }
+
+        /// <summary>Painted metal at a point of a solid (distance <paramref name="d"/>, outward direction gx, gy): smooth light from
+        /// the upper left over edges rounded across <paramref name="round"/> units, brushed <paramref name="grain"/>, a pale rim on
+        /// the lit edges, a coloured bounce on the shadowed ones and a specular glint where the rounding faces the light. No
+        /// outline: a thin edge of the metal's own deep hue lines the shadowed side. <paramref name="glint"/> returns the specular
+        /// light and the lit rim for the light layer.</summary>
+        private static Color HuntMetal(float d, float gx, float gy, float round, float grain, Color shadow, Color mid, Color lit, Color edge, Color bounce, out float glint)
+        {
+            float depth = Mathf.Max(0, -d), lean = (1 - Smooth(0, round, depth)) * .9f;
+            float nx = gx * lean, ny = gy * lean, nz = Mathf.Sqrt(Mathf.Max(0, 1 - lean * lean));
+            float diffuse = Mathf.Clamp01(-.5f * nx + .6f * ny + .62f * nz);
+            float spec = Mathf.Pow(Mathf.Clamp01(-.28f * nx + .34f * ny + .9f * nz), 30);
+            float l = (.1f + .95f * diffuse) * (.86f + .28f * (grain - .5f));
+            Color c = Color.Lerp(shadow, mid, Smooth(.15f, .55f, l));
+            c = Color.Lerp(c, lit, Smooth(.55f, .9f, l));
+            float rim = Gauss(depth - .012f, .014f), litSide = Mathf.Clamp01(-gx * .64f + gy * .77f), darkSide = Mathf.Clamp01(gx * .64f - gy * .77f);
+            c = Color.Lerp(c, bounce, rim * darkSide * .65f);
+            c = Color.Lerp(c, edge, Gauss(depth, .012f) * (1 - litSide) * .7f);
+            c = Color.Lerp(c, new Color(1, .99f, .95f), Mathf.Clamp01(spec * 1.2f + rim * litSide * .35f));
+            glint = Mathf.Clamp01(spec * 1.2f);
+            c.a = 1 - Smooth(-.01f, .006f, d);
+            return c;
+        }
+
+        /// <summary>Painted steel (cool blue-grey, a cyan bounce, a deep blue edge) for a solid given by its distance field.</summary>
+        private static HuntTexel HuntSteel(Func<float, float, float> field, float x, float y, float round)
+        {
+            float d = field(x, y); if (d > .02f) return new HuntTexel(Color.clear, 0);
+            const float e = .008f;
+            float gx = field(x + e, y) - field(x - e, y), gy = field(x, y + e) - field(x, y - e), gl = Mathf.Sqrt(gx * gx + gy * gy);
+            if (gl > 1e-6f) { gx /= gl; gy /= gl; }
+            float glint;
+            var c = HuntMetal(d, gx, gy, round, Fbm(x * 5 + 3, y * 15 + 5, 2), new Color(.13f, .18f, .32f), new Color(.3f, .39f, .55f), new Color(.64f, .74f, .9f),
+                new Color(.12f, .25f, .58f), new Color(.4f, .76f, 1), out glint);
+            return new HuntTexel(c, glint * (1 - Smooth(-.004f, .008f, d)));
+        }
+
+        /// <summary>The light level of a painted stroke from its distance field: a deep edge rising to <paramref name="peak"/> on its
+        /// spine over <paramref name="spine"/> units, with brush grain.</summary>
+        private static float HuntLevel(float d, float spine, float peak, float grain)
+        {
+            float inside = 1 - Smooth(-.008f, .006f, d); if (inside <= 0) return 0;
+            return inside * (.16f + (peak - .16f) * Smooth(0, spine, -d)) * (.88f + .26f * (grain - .5f));
+        }
+
+        /// <summary>The light level across a painted stroke (0 on its spine, 1 at its edge): a thin white line down the middle,
+        /// a narrow pale band, a wide saturated body and a deep rim, so the stroke reads mostly as its colour.</summary>
+        private static float HuntStroke(float across) { return Mathf.Max(.98f - 1.5f * across, .46f - .36f * across); }
 
         private static float HuntTaper(float px, float py, float ax, float ay, float bx, float by, float r0, float r1)
         {
@@ -130,109 +181,139 @@ namespace PrototypeLab.Roguelike
             return Mathf.Sqrt(Sq(px - (ax + dx * t)) + Sq(py - (ay + dy * t))) - Mathf.Lerp(r0, r1, t);
         }
 
-        // A chakram: eight hooked blades on a rim, four spokes, a hub ring and a gem. The blades' tips lead a clockwise spin.
-        private static Vector3 HuntDiscShape(float x, float y)
+        // A chakram: a solid disc carrying eight hooked blades whose tips lead a clockwise spin, its face a recessed plate with
+        // four raised spokes, a raised hub ring and a gem. outer is the distance to the blades' cutting contour, t where a point
+        // sits along its blade (0 at the tip), spoke the distance to the raised spokes.
+        private static float HuntDiscField(float x, float y, out float outer, out float t, out float spoke)
         {
             float r = Mathf.Sqrt(x * x + y * y), th = Mathf.Atan2(y, x);
-            float t = Mathf.Repeat(th / (2 * Mathf.PI) * 8, 1), tooth = .6f + .28f * Mathf.Pow(1 - t, 1.7f), face = .785f * r;
-            float outside = r - tooth, outer;
+            t = Mathf.Repeat(th / (2 * Mathf.PI) * 8, 1);
+            float tooth = .6f + .28f * Mathf.Pow(1 - t, 1.7f), face = .785f * r, outside = r - tooth;
             if (outside > 0) outer = r < .88f ? Mathf.Min(outside * .8f, (1 - t) * face) : outside * .8f;
             else outer = -Mathf.Min(-outside * .8f, t * face);
-            float rim = Mathf.Max(outer, .5f - r), spoke = 1e9f;
+            spoke = 1e9f;
             for (int k = 0; k < 4; k++)
             {
                 float a = (45 + k * 90) * Mathf.Deg2Rad, ca = Mathf.Cos(a), sa = Mathf.Sin(a);
-                spoke = Mathf.Min(spoke, SegmentDistance(x, y, ca * .2f, sa * .2f, ca * .56f, sa * .56f) - .05f);
+                spoke = Mathf.Min(spoke, SegmentDistance(x, y, ca * .16f, sa * .16f, ca * .44f, sa * .44f) - .05f);
             }
-            float hub = Mathf.Abs(r - .24f) - .055f, gem = r - .085f;
-            float d = Mathf.Min(Mathf.Min(rim, spoke), Mathf.Min(hub, gem)), depth = Mathf.Max(0, -d);
-            float sheen = .5f + .5f * Mathf.Cos(th * 4 - .8f);
-            float light = .5f + .32f * Gauss(depth - .015f, .03f) + .22f * sheen * Smooth(.45f, .7f, r) + (gem < 0 ? .4f : 0);
-            float edge = Gauss(outer + .03f, .028f) * Smooth(.52f, .6f, r);
-            float core = (d < 0 ? .16f : 0) + edge * .95f + (1 - Smooth(.04f, .1f, r)) + Gauss(hub + .025f, .02f) * .45f;
-            return new Vector3(d, light, core);
+            return Mathf.Min(outer, r - .6f);
         }
 
         // A strip of four chain links (face-on rings alternating with edge-on bars) that tiles end to end along +x.
-        private static Vector3 HuntChainShape(float x, float y)
+        private static float HuntChainField(float x, float y)
         {
-            float X = x * 2, Y = y * 2, best = 1e9f;
+            float best = 1e9f;
             for (int j = -1; j <= 4; j++)
             {
-                float c = -1.5f + j, d;
-                if ((j & 1) == 0) { float q = Mathf.Sqrt(Sq((X - c) / .58f) + Sq(Y / .28f)); d = Mathf.Abs(q - 1) * .3f - .075f; }
-                else d = SegmentDistance(X, Y, c - .56f, 0, c + .56f, 0) - .095f;
+                float c = -.75f + j * .5f, d;
+                if ((j & 1) == 0) { float q = Mathf.Sqrt(Sq((x - c) / .3f) + Sq(y / .15f)); d = Mathf.Abs(q - 1) * .17f - .06f; }
+                else d = SegmentDistance(x, y, c - .27f, 0, c + .27f, 0) - .07f;
                 best = Mathf.Min(best, d);
             }
-            float depth = Mathf.Max(0, -best);
-            float light = .42f + .38f * Mathf.Clamp01(.5f + Y * 1.3f) + .35f * Gauss(depth - .03f, .03f) * Mathf.Clamp01(.4f + Y * 1.5f);
-            float core = Gauss(depth - .03f, .025f) * Mathf.Clamp01(.2f + Y * 2.2f) * .95f;
-            return new Vector3(best * .5f, light, core);
+            return best;
         }
 
         // A harpoon hook pointing +x: an eye for the chain, a shaft, a spear point and a barbed J curling down and back.
-        private static Vector3 HuntHookShape(float x, float y)
+        private static float HuntHookField(float x, float y)
         {
-            if (y > .32f || y < -.84f) return new Vector3(1, .5f, 0);
-            float eye = Mathf.Abs(Mathf.Sqrt(Sq(x + .74f) + y * y) - .11f) - .045f;
-            float shaft = SegmentDistance(x, y, -.63f, 0, .34f, 0) - .07f;
-            float halfWidth = .14f * Mathf.Clamp01(1 - (x - .26f) / .64f);
+            if (y > .36f || y < -.86f) return 1;
+            float eye = Mathf.Abs(Mathf.Sqrt(Sq(x + .74f) + y * y) - .12f) - .07f;
+            float shaft = SegmentDistance(x, y, -.62f, 0, .34f, 0) - .1f;
+            float halfWidth = .2f * Mathf.Clamp01(1 - (x - .26f) / .64f);
             float point = Mathf.Max(Mathf.Max(Mathf.Abs(y) - halfWidth, .26f - x), x - .9f) * .92f;
             float hx = x - .1f, hy = y + .3f, hr = Mathf.Sqrt(hx * hx + hy * hy);
             float s = Mathf.Repeat(90 - Mathf.Atan2(hy, hx) * Mathf.Rad2Deg, 360);
             const float sweep = 235;
             float endA = (90 - sweep) * Mathf.Deg2Rad;
             float ex = .1f + Mathf.Cos(endA) * .3f, ey = -.3f + Mathf.Sin(endA) * .3f, tx = Mathf.Sin(endA), ty = -Mathf.Cos(endA);
-            float curl = s <= sweep ? Mathf.Abs(hr - .3f) - Mathf.Lerp(.075f, .035f, s / sweep) : Mathf.Sqrt(Sq(x - ex) + Sq(y - ey)) - .035f;
-            float barb = HuntTaper(x, y, ex, ey, ex + tx * .2f, ey + ty * .2f, .045f, .004f);
-            float d = Mathf.Min(Mathf.Min(Mathf.Min(eye, shaft), Mathf.Min(point, curl)), barb), depth = Mathf.Max(0, -d);
-            float light = .5f + .32f * Mathf.Clamp01(.5f + y * 1.4f) + .3f * Gauss(depth - .03f, .03f);
-            float core = Gauss(depth - .028f, .022f) * .85f + (d < 0 ? Gauss(x - .82f, .08f) * .6f : 0);
-            return new Vector3(d, light, core);
+            float curl = s <= sweep ? Mathf.Abs(hr - .3f) - Mathf.Lerp(.105f, .055f, s / sweep) : Mathf.Sqrt(Sq(x - ex) + Sq(y - ey)) - .055f;
+            float barb = HuntTaper(x, y, ex, ey, ex + tx * .24f, ey + ty * .24f, .066f, .008f);
+            return Mathf.Min(Mathf.Min(Mathf.Min(eye, shaft), Mathf.Min(point, curl)), barb);
         }
 
         // A reticle: a ring broken at the cardinals where four pointed ticks cross it, an inner ring and a centre dot.
-        private static Vector3 HuntReticleShape(float x, float y)
+        private static float HuntReticleField(float x, float y)
         {
             float r = Mathf.Sqrt(x * x + y * y), deg = Mathf.Atan2(y, x) * Mathf.Rad2Deg;
             float cd = Mathf.Abs(Mathf.Repeat(deg + 45, 90) - 45), rad = cd * Mathf.Deg2Rad;
-            float arc = Mathf.Max(Mathf.Abs(r - .72f) - .045f, (16 - cd) * Mathf.Deg2Rad * r);
-            float along = r * Mathf.Cos(rad), across = r * Mathf.Sin(rad), half = .1f * Mathf.Clamp01((along - .46f) / .44f);
-            float tick = Mathf.Max(Mathf.Max(across - half, .46f - along), along - .9f) * .9f;
-            float inner = Mathf.Abs(r - .3f) - .024f, dot = r - .055f;
-            float d = Mathf.Min(Mathf.Min(arc, tick), Mathf.Min(inner, dot)), depth = Mathf.Max(0, -d);
-            return new Vector3(d, .72f + .3f * Gauss(depth - .02f, .02f), Gauss(depth - .018f, .016f) * .9f + (1 - Smooth(.03f, .06f, r)));
+            float arc = Mathf.Max(Mathf.Abs(r - .72f) - .055f, (16 - cd) * Mathf.Deg2Rad * r);
+            float along = r * Mathf.Cos(rad), across = r * Mathf.Sin(rad), half = .12f * Mathf.Clamp01((along - .46f) / .44f);
+            float tick = Mathf.Max(Mathf.Max(across - half, .46f - along), along - .92f) * .9f;
+            float inner = Mathf.Abs(r - .3f) - .032f, dot = r - .07f;
+            return Mathf.Min(Mathf.Min(arc, tick), Mathf.Min(inner, dot));
         }
 
         // A chevron pointing +x (a jaw of the reticle, the head of the mark's arrow).
-        private static Vector3 HuntChevronShape(float x, float y)
+        private static float HuntChevronField(float x, float y)
         {
-            float d = Mathf.Min(HuntTaper(x, y, -.55f, .6f, .6f, 0, .1f, .15f), HuntTaper(x, y, -.55f, -.6f, .6f, 0, .1f, .15f)), depth = Mathf.Max(0, -d);
-            return new Vector3(d, .7f + .3f * Gauss(depth - .03f, .03f), Gauss(depth - .03f, .025f) * .9f);
-        }
-
-        // A hot slug pointing +x: a rounded body and an ogive nose.
-        private static Vector3 HuntSlugShape(float x, float y)
-        {
-            float body = SegmentDistance(x, y, -.55f, 0, .2f, 0) - .24f, nose = (Mathf.Sqrt(Sq((x - .2f) / .62f) + Sq(y / .24f)) - 1) * .24f;
-            float d = Mathf.Min(body, nose);
-            float core = (1 - Smooth(-.1f, 0, d)) * .35f + (d < 0 ? Gauss(y, .07f) * Smooth(-.7f, .5f, x) * .75f : 0);
-            return new Vector3(d, .62f + .38f * Mathf.Clamp01(.5f + y * 2.2f), core);
+            return Mathf.Min(HuntTaper(x, y, -.55f, .6f, .6f, 0, .12f, .17f), HuntTaper(x, y, -.55f, -.6f, .6f, 0, .12f, .17f));
         }
 
         private static void HuntDiscTextures()
         {
             if (HuntDiscSet != null) return;
-            HuntDiscSet = HuntLayers("Hunt war disc", 128, 128, .05f, false, true, HuntDiscShape);
-            // Four comet arcs and an inner trace whose bright heads lead a clockwise spin: the disc's motion blur.
-            HuntDiscBlur = HuntFourfold("Hunt disc blur", 96, (u, v) =>
+            // The disc, painted: polished bronze-gold whose rounded edges are lit the same on every blade (the light from the upper
+            // left is the fixed sheen drawn over the spinning disc), concentric turning marks, blades bright toward their leading
+            // tips and deep toward their roots, a mid-gold rim band, a deep recessed plate inside an engraved groove with raised
+            // spokes and a raised hub ring catching the light, a thin deep amber edge in place of an outline and a hot amber gem.
+            // Its light layer is the glowing cutting edges, the gem's white heat and a glint along the hub ring.
+            HuntDiscSet = HuntPaint("Hunt war disc", 160, 160, false, new Color(.86f, .48f, .1f), (x, y) =>
             {
-                float r = Mathf.Sqrt(u * u + v * v); if (r > 1) return 0;
-                float th = Mathf.Atan2(v, u) / (2 * Mathf.PI);
-                float t = Mathf.Repeat(th * 4, 1), tail = Mathf.Pow(1 - t, 2.2f) * Smooth(0, .04f, t);
-                float t2 = Mathf.Repeat(th * 4 + .37f, 1), tail2 = Mathf.Pow(1 - t2, 3) * Smooth(0, .05f, t2);
-                float a = Gauss(r - .8f, .055f) * tail + Gauss(r - .8f, .14f) * tail * .3f + Gauss(r - .5f, .04f) * tail2 * .5f;
-                return Mathf.Clamp01(a) * Window(r);
+                float outer, t, spoke, d = HuntDiscField(x, y, out outer, out t, out spoke);
+                if (d > .03f) return new HuntTexel(Color.clear, 0);
+                float r = Mathf.Sqrt(x * x + y * y), depth = Mathf.Max(0, -d), hub = Mathf.Abs(r - .24f) - .055f;
+                float lean = 1 - Smooth(0, .08f, depth), face = Mathf.Sqrt(Mathf.Max(0, 1 - lean * lean * .8f));
+                float lathe = Fbm(r * 11 + 3, 2.3f, 2), blade = Smooth(.58f, .64f, r), plate = 1 - Smooth(.42f, .45f, r);
+                float tone = Mathf.Lerp(.55f, Mathf.Lerp(.36f, .72f, Mathf.Pow(1 - t, 1.4f)), blade);
+                tone = Mathf.Lerp(tone, .3f + .06f * r / .44f, plate);
+                if (spoke < 0) tone = Mathf.Lerp(tone, .5f, plate);
+                if (hub < 0) tone = .6f;
+                float l = tone * (.72f + .3f * face) * (.86f + .28f * (lathe - .5f)) + .36f * Gauss(depth - .03f, .018f);
+                l += (spoke < .005f ? .3f * Gauss(spoke + .022f, .014f) * plate : 0) + .3f * Gauss(hub + .025f, .014f);
+                l += .22f * Gauss(r - .458f, .009f) - .22f * Gauss(r - .44f, .011f);
+                Color c = Color.Lerp(new Color(.42f, .17f, .03f), new Color(.86f, .48f, .1f), Smooth(.15f, .5f, l));
+                c = Color.Lerp(c, new Color(1, .8f, .4f), Smooth(.5f, .8f, l));
+                c = Color.Lerp(c, new Color(1, .96f, .85f), Smooth(.8f, 1, l));
+                c = Color.Lerp(c, new Color(.66f, .28f, .03f), Gauss(depth, .016f) * .7f);
+                c = Color.Lerp(c, new Color(1, .74f, .3f), 1 - Smooth(.06f, .095f, r));
+                c.a = 1 - Smooth(-.012f, .006f, d);
+                float lit = Mathf.Max(Gauss(outer + .03f, .022f) * Smooth(.58f, .65f, r) * .85f, (1 - Smooth(.02f, .085f, r)) * 1.05f);
+                lit = Mathf.Max(lit, Gauss(hub + .025f, .016f) * .45f);
+                return new HuntTexel(c, lit * (1 - Smooth(-.004f, .01f, d)));
+            });
+            // The sheen over the solid rim band (always metal under it, whatever the blades' turn): a bright crescent of
+            // reflected light on the upper left, a dimmer one opposite and a star glint on the lit rim.
+            HuntDiscSheen = Build("Hunt disc sheen", 128, 128, (u, v) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v); if (r > .9f) return Color.clear;
+                float deg = Mathf.Atan2(v, u) * Mathf.Rad2Deg;
+                float band = Smooth(.46f, .49f, r) * (1 - Smooth(.57f, .6f, r));
+                float key = Gauss(Mathf.DeltaAngle(deg, 128), 32), back = Gauss(Mathf.DeltaAngle(deg, -52), 18) * .45f;
+                float level = band * (key * .92f + back) * (.85f + .3f * (Fbm(deg * .04f + 3, r * 14, 2) - .5f));
+                float gx = u - Mathf.Cos(128 * Mathf.Deg2Rad) * .53f, gy = v - Mathf.Sin(128 * Mathf.Deg2Rad) * .53f;
+                float star = Gauss(gx, .024f) * Sq(Mathf.Max(0, 1 - Mathf.Abs(gy) / .3f)) + Gauss(gy, .024f) * Sq(Mathf.Max(0, 1 - Mathf.Abs(gx) / .3f)) + Gauss(Mathf.Sqrt(gx * gx + gy * gy), .045f);
+                return White(Mathf.Clamp01(Mathf.Max(level, star)));
+            });
+            // The spinning rim's motion: two painted sweeps of unequal length whose blunt heads lead a clockwise spin and
+            // whose tails taper to dry points counter-clockwise behind them. Each has a razor outer edge (white-hot along the
+            // head), a level falling off inward and brush streaks running round the stroke.
+            HuntDiscBlurSet = HuntLight("Hunt disc sweep", 128, 128, (u, v) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v); if (r > .97f || r < .28f) return 0;
+                float th = Mathf.Atan2(v, u), deg = th * Mathf.Rad2Deg, best = 0;
+                float streaks = RingNoise(th, r, 1.6f, 17);
+                for (int k = 0; k < 2; k++)
+                {
+                    float head = k == 0 ? 0 : 196, span = k == 0 ? 175 : 112;
+                    float behind = Mathf.Repeat(deg - head, 360); if (behind > span) continue;
+                    float t = behind / span, outer = (k == 0 ? .92f : .86f) - .07f * t;
+                    float thick = (k == 0 ? .34f : .24f) * Mathf.Pow(1 - t, 1.2f) + .008f;
+                    float depth = (outer - r) / thick; if (depth < -.06f || depth > 1) continue;
+                    float edge = 1 - Smooth(-.06f, 0, -depth), cap = Smooth(0, 7, behind);
+                    best = Mathf.Max(best, edge * cap * HuntStroke(Mathf.Max(0, depth)) * (.82f + .45f * (streaks - .5f)) * (1 - .45f * t));
+                }
+                return best;
             });
         }
 
@@ -240,22 +321,68 @@ namespace PrototypeLab.Roguelike
         {
             if (HuntChainSet != null) return;
             HuntDiscTextures();
-            // a heavier outline than the other shapes: the links must read as dark iron against a pale sky
-            HuntChainSet = HuntLayers("Hunt chain", 128, 32, .05f, true, false, HuntChainShape);
-            HuntHookSet = HuntLayers("Hunt hook", 96, 96, .055f, false, false, HuntHookShape);
+            // Painted steel: each link a rounded bar of metal lit from the upper left, glinting along its lit flank.
+            HuntChainSet = HuntPaint("Hunt chain", 128, 32, true, new Color(.3f, .39f, .55f), (x, y) => HuntSteel(HuntChainField, x, y, .065f));
+            HuntHookSet = HuntPaint("Hunt hook", 128, 128, false, new Color(.3f, .39f, .55f), (x, y) =>
+            {
+                var texel = HuntSteel(HuntHookField, x, y, .09f);
+                // the spear point burns white at its tip
+                if (texel.body.a > .5f) texel.light = Mathf.Max(texel.light, Gauss(x - .84f, .07f) * .85f);
+                return texel;
+            });
         }
 
         private static void HuntMarkTextures()
         {
             if (HuntReticleSet != null) return;
-            HuntReticleSet = HuntLayers("Hunt reticle", 128, 128, .05f, false, true, HuntReticleShape);
-            HuntChevronSet = HuntLayers("Hunt chevron", 64, 64, .08f, false, false, HuntChevronShape);
+            HuntReticleSet = HuntLight("Hunt reticle", 128, 128, (x, y) =>
+                Mathf.Max(HuntLevel(HuntReticleField(x, y), .045f, .74f, Fbm(x * 3 + 7, y * 3 + 2, 2)), (1 - Smooth(.025f, .07f, Mathf.Sqrt(x * x + y * y))) * 1.05f));
+            HuntChevronSet = HuntLight("Hunt chevron", 64, 64, (x, y) => HuntLevel(HuntChevronField(x, y), .1f, .95f, Fbm(x * 2 + 5, y * 2 + 1, 2)));
+            // The hunter's brand, laid on like one brush glyph: a bold ring that lands at the upper left, swells, and runs on
+            // past its start into a dry tail; four fangs of uneven length biting in on the diagonals; a diamond eye. Every
+            // stroke is a light level (hard outer edge, a white line down its middle) with streaks running along it.
+            HuntBrandSet = HuntLight("Hunt brand", 256, 256, (u, v) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v); if (r > .99f) return 0;
+                float th = Mathf.Atan2(v, u), deg = Mathf.Repeat(th * Mathf.Rad2Deg - 118, 360), best = 0;
+                for (int lap = 0; lap < 2; lap++)
+                {
+                    float s = deg + lap * 360; if (s > 392) continue;
+                    float t = s / 392, half = .125f * Mathf.Sin(Mathf.PI * Mathf.Pow(t, .62f)) + .003f, centre = .7f - .045f * t;
+                    float across = Mathf.Abs(r - centre) / half; if (across > 1.06f) continue;
+                    float streaks = RingNoise(th, r, 1.3f, 24);
+                    best = Mathf.Max(best, (1 - Smooth(.94f, 1.03f, across)) * HuntStroke(across) * (.86f + .4f * (streaks - .5f)));
+                }
+                for (int k = 0; k < 4; k++)
+                {
+                    float angle = (45 + 90 * k + (k == 1 ? 7 : k == 3 ? -5 : 0)) * Mathf.Deg2Rad, ca = Mathf.Cos(angle), sa = Mathf.Sin(angle);
+                    float along = u * ca + v * sa, side = -u * sa + v * ca, tip = k % 2 == 0 ? .4f : .47f;
+                    if (along < tip || along > .97f) continue;
+                    float t = (along - tip) / (.97f - tip), half = .19f * Mathf.Pow(t, .85f) + .003f, across = Mathf.Abs(side) / half;
+                    if (across > 1.06f) continue;
+                    float streaks = Fbm(along * 3 + k * 5, side * 26 + 3, 2);
+                    best = Mathf.Max(best, (1 - Smooth(.93f, 1.03f, across)) * (1 - Smooth(.9f, .97f, along)) * HuntStroke(across) * Mathf.Lerp(1.08f, .8f, t) * (.86f + .4f * (streaks - .5f)));
+                }
+                float eye = (Mathf.Abs(u) + Mathf.Abs(v) * 1.25f) / .16f;
+                if (eye < 1.05f) best = Mathf.Max(best, (1 - Smooth(.93f, 1.03f, eye)) * (1.15f - eye * .9f));
+                return best;
+            });
         }
 
         private static void HuntSlugTextures()
         {
             if (HuntSlugSet != null) return;
-            HuntSlugSet = HuntLayers("Hunt slug", 64, 32, .07f, false, false, HuntSlugShape);
+            // A hot slug pointing +x, painted as a bolt of light: an ogive head burning white down its spine, a gold body and a
+            // tail that thins to a point, with heat streaks running along it.
+            HuntSlugSet = HuntLight("Hunt slug", 128, 64, (x, y) =>
+            {
+                float half = x > .3f ? .25f * Mathf.Sqrt(Mathf.Max(0, 1 - Sq((x - .3f) / .62f))) : .25f * Mathf.Pow(Mathf.Clamp01((x + .96f) / 1.26f), .85f);
+                if (half < .004f) return 0;
+                float across = Mathf.Abs(y) / half; if (across > 1.05f) return 0;
+                float heat = Smooth(-.85f, .45f, x), grain = Fbm(x * 2.6f + 3, y / half * 1.4f + 7, 2);
+                float body = Mathf.Pow(Mathf.Max(0, 1 - across), .7f) * (.3f + .78f * heat);
+                return (1 - Smooth(.94f, 1.04f, across)) * (.14f + .95f * body) * (.86f + .3f * (grain - .5f));
+            });
         }
 
         // ---------------------------------------------------------------- small helpers
@@ -297,22 +424,24 @@ namespace PrototypeLab.Roguelike
             clip.velocity += ride * 18; clip.drag = 18; return clip;
         }
 
-        /// <summary>A three-layer shape (outline, body, hot core) riding on <paramref name="anchor"/>, or free when there is none.</summary>
-        private Clip[] HuntShape(Transform anchor, Sprite[] set, Vector2 pos, float angle, float width, float life, Color ink, Color body, Color hot, int order)
+        /// <summary>A painted object riding on <paramref name="anchor"/> (or free): [0] the painted body, [1] its light layer (glints
+        /// and glowing edges) and, when <paramref name="bloom"/> has alpha, [2] a soft bloom under it.</summary>
+        private Clip[] HuntObject(Transform anchor, Sprite[] set, Vector2 pos, float angle, float width, float life, Color shine, Color bloom, int order)
         {
-            return HuntShape(anchor, set, pos, angle, width, life, ink, body, hot, order - 10, order - 9, order);
+            var body = HuntTurn(Anchored(anchor, pos, "Hunt painted object", set[0], width, Color.white, life, order - 1, false), angle);
+            var lit = HuntTurn(Anchored(anchor, pos, "Hunt painted object light", set[1], width, shine, life, order), angle);
+            if (bloom.a <= 0) return new[] { body, lit };
+            return new[] { body, lit, Anchored(anchor, pos, "Hunt painted object bloom", glow, width * 1.8f, bloom, life, order - 4) };
         }
 
-        private Clip[] HuntShape(Transform anchor, Sprite[] set, Vector2 pos, float angle, float width, float life, Color ink, Color body, Color hot, int inkOrder, int bodyOrder, int hotOrder)
+        /// <summary>A shape of painted light riding on <paramref name="anchor"/> (or free): [0] the light, then a deep saturated copy
+        /// of its silhouette under it when <paramref name="deep"/> has alpha, then a soft bloom when <paramref name="bloom"/> is above 0.</summary>
+        private List<Clip> HuntGlyph(Transform anchor, Sprite[] set, Vector2 pos, float angle, float width, float life, Color light, Color deep, float bloom, int order)
         {
-            var shape = new[]
-            {
-                Anchored(anchor, pos, "Hunt shape outline", set[0], width, ink, life, inkOrder, false),
-                Anchored(anchor, pos, "Hunt shape body", set[1], width, body, life, bodyOrder, false),
-                Anchored(anchor, pos, "Hunt shape core", set[2], width, hot, life, hotOrder, true),
-            };
-            foreach (var clip in shape) HuntTurn(clip, angle);
-            return shape;
+            var list = new List<Clip> { HuntTurn(Anchored(anchor, pos, "Hunt light shape", set[0], width, light, life, order), angle) };
+            if (deep.a > 0) list.Add(HuntTurn(Anchored(anchor, pos, "Hunt light shape depth", set[1], width, deep, life, order - 1, false), angle));
+            if (bloom > 0) list.Add(Anchored(anchor, pos, "Hunt light shape bloom", glow, width * 1.35f, Alpha(light, bloom), life, order - 2));
+            return list;
         }
 
         /// <summary>True while <paramref name="clip"/> is alive, younger than <paramref name="window"/> and near <paramref name="pos"/>.</summary>
@@ -337,25 +466,63 @@ namespace PrototypeLab.Roguelike
             return best;
         }
 
-        /// <summary>A sonic ring standing across <paramref name="dir"/>, opening as it rides forward.</summary>
+        /// <summary>A hit: the hand-animated spark (a flare that splits into shards and scatters) in the tool's hue over a bloom.</summary>
+        private Clip HuntSpark(Vector2 pos, float width, Color light, float life, int order = 133)
+        {
+            var bloom = Spawn("Hunt hit bloom", glow, pos, width * 1.4f, Alpha(light, .55f), Mathf.Max(.2f, life * 1.8f), true, order - 4);
+            bloom.endScale = 1.35f; bloom.ease = 1; bloom.fadePower = 1.4f;
+            return SparkFlip(pos, width, Alpha(light, 1), life, order);
+        }
+
+        /// <summary>A sonic shock front standing across <paramref name="dir"/>: the shock flipbook squashed into a ring seen edge-on,
+        /// opening and breaking into arcs as it rides forward.</summary>
         private Clip HuntBoom(Vector2 pos, Vector2 dir, float width, Color color, float life, float speed, bool additive = true, int order = 130)
         {
-            var clip = Spawn("Hunt sonic ring", ring, pos, width, color, life, additive, order);
-            clip.scale.x *= .3f; clip.root.transform.localScale = clip.scale; HuntTurn(clip, HuntAngle(dir));
-            clip.startScale = .25f; clip.endScale = 1; clip.ease = 3; clip.fadePower = 1.3f; clip.velocity = dir * speed; clip.drag = 5; return clip;
+            var clip = Spawn("Hunt sonic ring", shockFrames[0], pos, width, color, life, additive, order);
+            clip.frames = shockFrames; clip.loop = false;
+            clip.scale.x *= .32f; clip.root.transform.localScale = clip.scale; HuntTurn(clip, HuntAngle(dir));
+            clip.startScale = .45f; clip.endScale = 1; clip.ease = 3; clip.hold = .4f; clip.fadePower = 1; clip.velocity = dir * speed; clip.drag = 5; return clip;
         }
 
-        /// <summary>Burst lines drawn in a saturated alpha colour, so a burst keeps its shape on pale skies.</summary>
-        private Clip HuntFlareLines(Vector2 pos, float width, Color color, float life, int order = 118)
+        /// <summary>A soft bloom stretched along a segment: the glow round a lash, a shaft or a muzzle tongue.</summary>
+        private Clip HuntGlowLine(Vector2 a, Vector2 b, float thickness, Color color, float life, int order)
         {
-            var clip = Spawn("Hunt flare lines", burst, pos, width, color, life, false, order);
-            clip.angle = Range(0, 360); clip.startScale = .5f; clip.endScale = 1.15f; clip.ease = 3; clip.fadePower = 1.3f; return clip;
+            Vector2 delta = b - a; float length = Mathf.Max(.05f, delta.magnitude);
+            var clip = Spawn("Hunt glow line", glow, (a + b) * .5f, length, color, life, true, order);
+            clip.scale = new Vector3(length * 1.45f / glow.bounds.size.x, thickness / glow.bounds.size.y, 1); clip.root.transform.localScale = clip.scale;
+            clip.ease = 1; clip.fadePower = 1.3f;
+            return HuntTurn(clip, HuntAngle(delta));
         }
 
-        private Clip HuntFlareRing(Vector2 pos, float width, Color color, float life, int order = 117)
+        /// <summary>Needle sparks flung in a cone of ±<paramref name="spread"/> degrees round <paramref name="dir"/> at uneven speeds, white and the hue.</summary>
+        private void HuntNeedles(Vector2 pos, Vector2 dir, float spread, int count, float speed, Color light, float life, float size = .34f, float gravity = 5)
         {
-            var clip = Spawn("Hunt flare ring", ring, pos, width, color, life, false, order);
-            clip.startScale = .15f; clip.endScale = 1; clip.ease = 3; clip.fadePower = 1.2f; return clip;
+            float a = HuntAngle(dir);
+            for (int i = 0, n = Budget(count); i < n; i++)
+                Spark(pos + Inside(.08f), Direction(a + Range(-spread, spread)) * speed * Range(.45f, 1.1f), i % 3 == 0 ? Color.white : i % 3 == 1 ? light : Color.Lerp(light, Color.white, .45f),
+                    size * Range(.6f, 1.3f), life * Range(.6f, 1), gravity, 2.6f);
+        }
+
+        /// <summary>Painted smoke knocked out of a hit: a few puffs set round the struck point (most of them along <paramref name="dir"/>,
+        /// one thrown back), already open when they appear so they frame the spark instead of hiding under it.</summary>
+        private void HuntInk(Vector2 pos, Vector2 dir, float size, Color color, int count, float life)
+        {
+            float a = HuntAngle(dir);
+            for (int i = 0, n = Budget(count); i < n; i++)
+            {
+                Vector2 d = Direction(a + (i == 2 ? 180 : 0) + Range(-65, 65));
+                var ink = Puff(pos + d * size * Range(.4f, .75f), size * Range(.75f, 1.1f), color, d * size * Range(1.4f, 2.8f) + Vector2.up * size * .5f, life * Range(.8f, 1.1f), 117);
+                ink.startScale = .8f; ink.endScale = 1.35f; ink.fadeIn = 0; ink.hold = .3f; ink.fadePower = 1.2f;
+            }
+        }
+
+        /// <summary>A painted crescent sweep (PaintArc: the coloured stroke and its white leading edge) carried along by
+        /// <paramref name="velocity"/>; returns both strokes.</summary>
+        private Clip[] HuntArc(Vector2 pos, float width, float angle, Color color, float life, int order, Vector2 velocity, float drag)
+        {
+            var arc = PaintArc(pos, width, angle, color, life, order); var edge = clips[clips.Count - 1];
+            foreach (var x in new[] { arc, edge }) { x.velocity = velocity; x.drag = drag; }
+            return new[] { arc, edge };
         }
 
         // ---------------------------------------------------------------- per-frame control, wind-ups that follow, booked releases
@@ -484,63 +651,62 @@ namespace PrototypeLab.Roguelike
             // The disc forms at the height the thrown disc leaves from (the small hero's eye line) but a step ahead of the face,
             // so the throw barely jumps and the caster's face stays clear.
             Vector2 hand = c.pos + new Vector2(f * .95f, -.05f), feet = c.pos + Vector2.down;
-            float width = 1.05f * gs;
+            float width = 1.2f * gs;
             HuntExpect(SkillEffect.Boomerang, c, hand, light, w < .2f ? gs * .75f : gs, g);
             if (w < .2f) return;
             int mark = clips.Count;
             Underlay(hand, 2.6f * gs, .22f, w + .1f).fadeIn = .1f;
-            // the war disc forming in the throwing hand, spinning up from a spark
-            var disc = HuntShape(c.anchor, HuntDiscSet, hand, 0, width, w + .03f, HuntDiscInk, HuntDiscBody, Alpha(HuntDiscHot, .95f), 128);
-            foreach (var x in disc) { x.spin = -f * 720; x.fadeIn = w * .3f; x.startScale = .15f; x.endScale = 1; x.ease = 2.4f; x.hold = .9f; x.fadePower = 2; if (f < 0) HuntMirror(x); }
-            var blur = Anchored(c.anchor, hand, "Disc spin blur", HuntDiscBlur, width * 1.35f, Alpha(light, g >= 3 ? .55f : .75f), w + .03f, 126);
-            var blurTone = Anchored(c.anchor, hand, "Disc spin blur tone", HuntDiscBlur, width * 1.38f, Alpha(HuntDiscFlare, .5f), w + .03f, 117, false);
-            foreach (var x in new[] { blur, blurTone }) { x.spin = -f * 1500; x.fadeIn = w * .4f; x.startScale = .3f; x.endScale = 1; x.ease = 2; x.hold = .9f; x.fadePower = 2; if (f < 0) HuntMirror(x); }
+            // the war disc forming in the throwing hand, spinning up from a spark: painted gold whose cutting edges glow, under
+            // a sheen that stays lit from the upper left while the blades turn
+            var disc = new List<Clip>(HuntObject(c.anchor, HuntDiscSet, hand, 0, width, w + .03f, Alpha(HuntDiscHot, .95f), Alpha(light, .45f), 128));
+            disc.Add(Anchored(c.anchor, hand, "Disc sheen", HuntDiscSheen, width, Alpha(HuntDiscHot, .9f), w + .03f, 129));
+            foreach (var x in disc) { x.fadeIn = w * .3f; x.startScale = .15f; x.endScale = 1; x.ease = 2.4f; x.hold = .9f; x.fadePower = 2; }
+            for (int i = 0; i < 2; i++) { disc[i].spin = -f * 720; if (f < 0) HuntMirror(disc[i]); }
+            var blur = Anchored(c.anchor, hand, "Disc spin blur", HuntDiscBlurSet[0], width * 1.35f, Alpha(light, g >= 3 ? .6f : .8f), w + .03f, 126);
+            var blurDeep = Anchored(c.anchor, hand, "Disc spin blur depth", HuntDiscBlurSet[1], width * 1.35f, HuntDiscDeep, w + .03f, 117, false);
+            foreach (var x in new[] { blur, blurDeep }) { x.spin = -f * 1500; x.fadeIn = w * .4f; x.startScale = .3f; x.endScale = 1; x.ease = 2; x.hold = .9f; x.fadePower = 2; if (f < 0) HuntMirror(x); }
             // the disc's glow and the awakened rune sit behind the caster, so they light the air around it without washing it out
-            var halo = Anchored(c.anchor, hand, "Disc halo", glow, 2.2f * gs, Alpha(light, .5f), w + .05f, 28);
+            var halo = Anchored(c.anchor, hand, "Disc halo", glow, 2.3f * gs, Alpha(light, .34f), w + .05f, 28);
             halo.startScale = .2f; halo.endScale = 1; halo.ease = 1.5f; halo.pulse = .08f; halo.hold = .85f; halo.fadePower = 2;
             Converge(hand, 10, 2.2f * gs, light, w, .5f);
-            // bronze sparks flung off the rim as it spins up
-            Emitter(disc[2], 26 * gs, 0, (owner, p) =>
+            // gold sparks flung off the rim as it spins up
+            Emitter(disc[1], 26 * gs, 0, (owner, p) =>
             {
                 float grow = Mathf.Clamp01(owner.age / Mathf.Max(.05f, w)), a = Range(0, 360);
                 Vector2 rim = (Vector2)owner.root.transform.position + Direction(a) * width * .42f * grow;
-                var sp = Spark(rim, Direction(a - f * 90) * Range(2.5f, 5) + Vector2.up * .6f, Chance(.35f) ? Color.white : light, Range(.16f, .26f), Range(.16f, .26f), 3, 2.5f);
-                if (Chance(.4f)) { HuntOpaque(sp); sp.color = Alpha(HuntDiscFlare, .85f); }
+                Spark(rim, Direction(a - f * 90) * Range(2.5f, 5) + Vector2.up * .6f, Chance(.35f) ? Color.white : Chance(.5f) ? HuntEmber : light, Range(.16f, .26f), Range(.16f, .26f), 3, 2.5f);
             });
             // footing, and the awakened disc's gold edge and rune
-            GroundGlow(feet, 3.4f * gs, Alpha(light, .32f), w + .3f);
+            GroundGlow(feet, 3.4f * gs, Alpha(light, .24f), w + .3f);
             if (g >= 2) { var seal = RuneCircle(feet, 2.8f * gs, Alpha(light, .75f), w + .35f, f * 70, true); seal.startScale = .5f; }
             if (g >= 3)
             {
                 Vector2 crownAt = hand + new Vector2(f * .3f, 0);
-                var crown = Anchored(c.anchor, crownAt, "Disc awakened rune", runeRing, width * 1.6f, Alpha(HuntGold, .5f), w + .05f, 28);
-                var crownTone = Anchored(c.anchor, crownAt, "Disc awakened rune tone", runeRing, width * 1.62f, Alpha(HuntGoldInk, .4f), w + .05f, 27, false);
-                foreach (var x in new[] { crown, crownTone }) { x.spin = f * 160; x.startScale = .4f; x.endScale = 1; x.ease = 3; x.fadeIn = .1f; x.hold = .85f; x.fadePower = 2; }
-                var edge = Anchored(c.anchor, hand, "Disc awakened edge", ring, width * 1.22f, Alpha(HuntGold, .85f), w + .03f, 127);
-                edge.startScale = .15f; edge.endScale = 1; edge.ease = 2.4f; edge.pulse = .06f; edge.hold = .9f; edge.fadeIn = w * .3f; edge.fadePower = 2;
+                var crown = Anchored(c.anchor, crownAt, "Disc awakened rune", runeRing, width * 1.6f, Alpha(HuntGold, .55f), w + .05f, 28);
+                crown.spin = f * 160; crown.startScale = .4f; crown.endScale = 1; crown.ease = 3; crown.fadeIn = .1f; crown.hold = .85f; crown.fadePower = 2;
+                // a gold copy of the glowing edges just outside the blades, turning with the metal
+                var gilt = Anchored(c.anchor, hand, "Disc awakened edge", HuntDiscSet[1], width * 1.1f, Alpha(HuntGold, .9f), w + .03f, 126);
+                gilt.spin = -f * 720; if (f < 0) HuntMirror(gilt);
+                gilt.startScale = .15f; gilt.endScale = 1; gilt.ease = 2.4f; gilt.hold = .9f; gilt.fadeIn = w * .3f; gilt.fadePower = 2;
             }
             HuntFollow(c.anchor, mark);
         }
 
-        /// <summary>The throw: a hot flash, a sweep of the arm opening along the throw, sonic rings, a spark cone and a kick of dust.</summary>
+        /// <summary>The throw: a hit spark, a painted sweep of the arm opening along the throw (tilted with the spin) over its deep
+        /// copy, burst lines stretched along the throw, sonic shock fronts, a cone of needles and a kick of dust.</summary>
         private void HuntDiscRelease(Vector2 pos, Vector2 dir, Color light, float s, int g, Vector2 feet)
         {
             float a = HuntAngle(dir); int f = dir.x >= 0 ? 1 : -1;
-            var flash = Spawn("Disc throw flash", glow, pos, 1.1f * s, Alpha(HuntDiscHot, .8f), .12f, true, 132);
-            flash.startScale = .5f; flash.endScale = 1.4f; flash.ease = 2; flash.fadePower = 1.5f;
-            Glint(pos, 1.6f * s, Alpha(HuntDiscHot, 1), .18f, a);
-            HuntFlareLines(pos, 2.8f * s, HuntDiscFlare, .18f);
-            var sweep = Crescent(pos + dir * .5f, 2.3f * s, Alpha(light, .85f), .22f, a, 130); sweep.velocity = dir * 6; sweep.drag = 4;
-            var sweepTone = HuntOpaque(Crescent(pos + dir * .5f, 2.4f * s, Alpha(HuntDiscFlare, .6f), .2f, a, 117)); sweepTone.velocity = dir * 6; sweepTone.drag = 4;
-            HuntBoom(pos + dir * .4f, dir, 1.9f * s, Alpha(HuntDiscHot, .85f), .24f, 9);
-            HuntBoom(pos + dir * .4f, dir, 2f * s, Alpha(HuntDiscFlare, .55f), .22f, 9, false, 117);
-            for (int i = 0, n = Budget(7); i < n; i++)
-                Spark(pos, Direction(a + Range(-40, 40)) * Range(4, 10) * s, i % 3 == 0 ? Color.white : light, Range(.22f, .38f), Range(.18f, .3f), 4, 2.5f);
-            if (g >= 3)
-            {
-                var gold = Spawn("Disc throw gold ring", ring, pos, 1.6f * s, Alpha(HuntGold, .75f), .26f, true, 131);
-                gold.startScale = .3f; gold.endScale = 1; gold.ease = 3; gold.fadePower = 1.4f;
-            }
+            HuntSpark(pos, 1.9f * s, Color.Lerp(light, HuntDiscHot, .35f), .14f, 133);
+            var lines = ImpactLines(pos + dir * .4f, 2.8f * s, Alpha(light, .85f), .18f); lines.angle = a; lines.scale.y *= .55f;
+            float tilt = a - f * 14;
+            HuntArc(pos + dir * .55f, 2.7f * s, tilt, Alpha(light, .95f), .26f, 130, dir * 6, 4);
+            var sweepDeep = HuntOpaque(Crescent(pos + dir * .55f, 2.65f * s, HuntDiscDeep, .22f, tilt, 128)); sweepDeep.velocity = dir * 6; sweepDeep.drag = 4;
+            sweepDeep.startScale = .82f; sweepDeep.endScale = 1.06f; sweepDeep.ease = 6; sweepDeep.hold = .25f;
+            HuntBoom(pos + dir * .4f, dir, 2.1f * s, Alpha(HuntDiscHot, .9f), .26f, 9);
+            HuntBoom(pos + dir * .4f, dir, 2.1f * s, HuntDiscDeep, .24f, 9, false, 127);
+            HuntNeedles(pos + dir * .2f, dir, 34, 9, 10 * s, light, .28f, .38f, 4);
+            if (g >= 3) ShockFlip(pos, 1.9f * s, Alpha(HuntGold, .85f), .28f, 131);
             for (int i = 0, n = Budget(3); i < n; i++)
                 Puff(feet + new Vector2(-f * Range(.1f, .5f), .1f), Range(.5f, .8f), DustTone, new Vector2(-f * Range(1.5f, 3), Range(.2f, .7f)), Range(.4f, .6f), 118);
         }
@@ -556,44 +722,47 @@ namespace PrototypeLab.Roguelike
                 Vector2 hand, body; var booked = HuntClaim(SkillEffect.Boomerang, at, out hand, out body);
                 if (booked != null) HuntDiscRelease(hand + dir * .3f, dir, booked.light, booked.s, booked.g, body + Vector2.down);
             }
-            float width = (signature ? 1.05f : .8f) * gs, spin = -side * 1080, start = Range(0, 360);
-            // The root keeps its launch rotation on the way back, so everything that turns spins on its own.
-            // From level two the level's own aura rides on the disc too, so the metal is drawn over all of its light (the core
-            // highlights stay on top): the bladed silhouette must never white out.
-            bool over = g >= 2;
-            var hot = Attach(root, "War disc core", HuntDiscSet[2], width, Alpha(HuntDiscHot, over ? .8f : .95f), over ? 130 : 125);
-            var ink = Attach(root, "War disc outline", HuntDiscSet[0], width, HuntDiscInk, over ? 128 : 118, false);
-            var body0 = Attach(root, "War disc body", HuntDiscSet[1], width, HuntDiscBody, over ? 129 : 119, false);
-            var blur = Attach(root, "War disc blur", HuntDiscBlur, width * 1.35f, Alpha(light, g >= 3 ? .5f : g == 2 ? .55f : .75f), 123);
-            var blurTone = Attach(root, "War disc blur tone", HuntDiscBlur, width * 1.38f, Alpha(HuntDiscFlare, .6f), 117, false);
-            var halo = Attach(root, "War disc halo", glow, width * 2.2f, Alpha(light, g >= 3 ? .12f : g == 2 ? .22f : .36f), 116); halo.pulse = .08f;
-            var layers = new List<Clip> { ink, body0, blur, blurTone, halo };
-            foreach (var x in new[] { hot, ink, body0 }) { x.spin = spin; x.angle = start; }
-            foreach (var x in new[] { blur, blurTone }) { x.spin = spin * 1.6f; x.angle = start; }
-            if (side < 0) foreach (var x in new[] { hot, ink, body0, blur, blurTone }) HuntMirror(x);
+            float width = (signature ? 1.25f : .9f) * gs, spin = -side * 1080, start = Range(0, 360);
+            // The root keeps its launch rotation on the way back, so everything that turns spins on its own. The painted metal is
+            // drawn over all of the disc's light (and the level's aura, from level two), so the bladed silhouette never whites out;
+            // only its glowing edges and the fixed sheen lie on top of it.
+            var body0 = Attach(root, "War disc", HuntDiscSet[0], width, Color.white, 129, false);
+            var edge = Attach(root, "War disc edges", HuntDiscSet[1], width, Alpha(HuntDiscHot, .95f), 130);
+            // the sheen stays lit from the upper left whichever way the root was launched
+            var sheen = Attach(root, "War disc sheen", HuntDiscSheen, width, Alpha(HuntDiscHot, .9f), 131); sheen.angle = -root.eulerAngles.z;
+            var blur = Attach(root, "War disc blur", HuntDiscBlurSet[0], width * 1.4f, Alpha(light, g >= 3 ? .45f : g == 2 ? .6f : .8f), 124);
+            var blurDeep = Attach(root, "War disc blur depth", HuntDiscBlurSet[1], width * 1.4f, HuntDiscDeep, 117, false);
+            var halo = Attach(root, "War disc glow", glow, width * 2.3f, Alpha(light, g >= 3 ? .2f : g == 2 ? .3f : .42f), 116); halo.pulse = .08f;
+            var layers = new List<Clip> { edge, sheen, blur, blurDeep, halo };
+            foreach (var x in new[] { body0, edge }) { x.spin = spin; x.angle = start; }
+            foreach (var x in new[] { blur, blurDeep }) { x.spin = spin * 1.6f; x.angle = start; }
+            if (side < 0) foreach (var x in new[] { body0, edge, blur, blurDeep }) HuntMirror(x);
             if (g >= 2)
             {
-                var outer = Attach(root, "War disc outer blur", HuntDiscBlur, width * 1.75f, Alpha(light, g >= 3 ? .15f : .26f), 122);
+                var outer = Attach(root, "War disc outer blur", HuntDiscBlurSet[0], width * 1.75f, Alpha(light, g >= 3 ? .12f : .2f), 122);
                 outer.spin = spin * 1.25f; outer.angle = start + 60; if (side < 0) HuntMirror(outer); layers.Add(outer);
             }
             if (g >= 3)
             {
-                // the awakened disc's gold-white edge rings the blades just under the metal; a faint rune turns around it
-                var edge = Attach(root, "War disc awakened edge", ring, width * 1.22f, Alpha(HuntGold, .9f), 127); edge.pulse = .05f; layers.Add(edge);
+                // the awakened disc's gold edge: a gold copy of the glowing edges just outside the blades, turning with the metal;
+                // a faint rune turns around it
+                var gilt = Attach(root, "War disc awakened edge", HuntDiscSet[1], width * 1.1f, Alpha(HuntGold, .9f), 128); gilt.spin = spin; gilt.angle = start;
+                if (side < 0) HuntMirror(gilt); layers.Add(gilt);
                 var rune = Attach(root, "War disc awakened rune", runeRing, width * 1.65f, Alpha(HuntGold, .3f), 120); rune.spin = -spin * .2f; layers.Add(rune);
-                var runeTone = Attach(root, "War disc awakened rune tone", runeRing, width * 1.68f, Alpha(HuntGoldInk, .5f), 115, false); runeTone.spin = rune.spin; layers.Add(runeTone);
             }
             // the disc leaves from inside the thrower's chest: let it fade in over its first .06 s
-            hot.fadeIn = .06f; foreach (var x in layers) x.fadeIn = .06f;
+            body0.fadeIn = .06f; foreach (var x in layers) x.fadeIn = .06f;
             var rig = new HuntDiscRig { root = root, grade = g };
             HuntDiscs.RemoveAll(x => !x.root); HuntDiscs.Add(rig);
-            // The trail: two points of the rim trace a double cycloid behind the disc (its circular afterimage), over a soft smear,
-            // with fading copies of the disc and sparks thrown off the rim. Drawn at about sixty steps a second at any frame rate.
+            // The trail: two points of the rim trace a double cycloid behind the disc (a gold stroke over its deep copy and a
+            // white-hot thread), painted crescents of the trailing rim peel off behind it and erode (tilted back and forth with
+            // the spin), a soft glow lingers along the flight, echoes of the glowing edges flicker between the sweeps and needles
+            // are thrown off the rim. Drawn at sixty steps a second.
             Vector2 drawn = at; float phase = start, rim = width * .4f, acc = 0; int beat = 0;
             HuntControl(halo, (owner, dt) =>
             {
                 if (!root) return;
-                acc += dt; if (acc < 1 / 90f) return;
+                acc += dt; if (acc < 1 / 60f) return;
                 float span = acc; acc = 0;
                 Vector2 now = root.position, step = now - drawn;
                 if (owner.age < .05f || step.sqrMagnitude < 1e-6f) { drawn = now; return; }
@@ -601,42 +770,46 @@ namespace PrototypeLab.Roguelike
                 for (int k = 0; k < 2; k++)
                 {
                     Vector2 a0 = drawn + Direction(before + k * 180) * rim, a1 = now + Direction(phase + k * 180) * rim;
-                    var trace = Line(a0, a1, (k == 0 ? .12f : .085f) * gs, k == 0 ? Alpha(HuntDiscBody, .9f) : Alpha(Color.Lerp(light, HuntDiscHot, .4f), .95f), .28f, k == 0 ? 116 : 122, 1.4f);
-                    if (k == 0) HuntOpaque(trace);
-                    trace.fadePower = 1.4f; trace.axisEnd = new Vector2(1, .25f);
+                    var trace = Line(a0, a1, (k == 0 ? .15f : .08f) * gs, k == 0 ? Alpha(light, .95f) : Alpha(HuntDiscHot, 1), .22f, k == 0 ? 121 : 122, 1.4f);
+                    trace.hold = .15f; trace.fadePower = 1.2f; trace.axisEnd = new Vector2(1, .3f);
+                    if (k == 0) { var deep = HuntOpaque(Line(a0, a1, .15f * gs, HuntDiscDeep, .2f, 115, 1.4f)); deep.fadePower = 1.2f; deep.axisEnd = new Vector2(1, .3f); }
                 }
-                var smear = Line(drawn, now, width * .75f, Alpha(light, g >= 2 ? .12f : .18f), .2f, 120, 1.5f); smear.fadePower = 1.5f;
                 beat++;
-                if (beat % 2 == 0)
-                {
-                    // a fading copy of the disc every other step: a stroboscopic afterimage along the flight
-                    var ghost = Spawn("War disc afterimage", HuntDiscSet[1], now, width, Alpha(HuntDiscFlare, .5f), .2f, false, 115);
-                    ghost.endScale = 1.12f; ghost.ease = 1; ghost.fadePower = 1.4f; if (side < 0) HuntMirror(ghost); HuntTurn(ghost, body0.angle);
-                    if (beat % 4 == 0)
-                    {
-                        var lit = Spawn("War disc light echo", HuntDiscSet[2], now, width, Alpha(light, .45f), .12f, true, 121);
-                        lit.endScale = 1.1f; lit.ease = 1; lit.fadePower = 1.5f; if (side < 0) HuntMirror(lit); HuntTurn(lit, body0.angle);
-                    }
-                }
                 if (beat % 3 == 0)
                 {
+                    var wake = Spawn("War disc glow wake", glow, now - travel * width * .2f, width * 1.4f, Alpha(light, .24f), .22f, true, 114);
+                    wake.endScale = .45f; wake.ease = 1; wake.fadePower = 1.2f;
+                }
+                // fewer and softer sweeps once the level's aura rides on the disc too, so the stack never whites out
+                int every = g >= 2 ? 4 : 3;
+                if (beat % every == 0)
+                {
+                    float tilt = HuntAngle(-travel) + ((beat / every) % 2 == 0 ? 22 : -16) * side;
+                    Vector2 c0 = now - travel * width * .12f;
+                    var sweep = Spawn("War disc sweep", crescent, c0, width * 1.45f, Alpha(Color.Lerp(light, HuntDiscHot, .2f), g >= 3 ? .55f : g == 2 ? .7f : .9f), .18f, true, 121);
+                    var sweepDeep = Spawn("War disc sweep depth", crescent, c0, width * 1.45f, HuntDiscDeep, .16f, false, 115);
+                    foreach (var x in new[] { sweep, sweepDeep }) { HuntTurn(x, tilt); x.scale.y *= 1.1f; x.startScale = .8f; x.endScale = 1.08f; x.ease = 6; x.hold = .2f; x.fadePower = 1.15f; x.velocity = -travel * .6f; }
+                }
+                if (beat % 3 == 1 && beat % every != 0)
+                {
+                    // an echo of the glowing edges between the sweeps: a stroboscopic afterimage of light along the flight
+                    var echo = Spawn("War disc light echo", HuntDiscSet[1], now, width, Alpha(light, .65f), .16f, true, 120);
+                    echo.endScale = 1.12f; echo.ease = 1; echo.fadePower = 1.4f; if (side < 0) HuntMirror(echo); HuntTurn(echo, body0.angle);
                     float a = Range(0, 360);
-                    Spark(now + Direction(a) * rim, Direction(a - side * 90) * Range(3, 6) + travel * Range(1, 3), Chance(.3f) ? Color.white : light, Range(.18f, .3f), Range(.16f, .26f), 4, 2.5f);
+                    Spark(now + Direction(a) * rim, Direction(a - side * 90) * Range(3, 6) + travel * Range(1, 3), Chance(.3f) ? Color.white : light, Range(.2f, .34f), Range(.16f, .26f), 4, 2.5f);
                 }
                 drawn = now;
             });
-            Bundle(root, hot, layers.ToArray());
+            Bundle(root, body0, layers.ToArray());
             HuntWatch(root, 6, end => HuntDiscCatch(end, light, gs));
         }
 
-        // The disc caught (or gone): a small ring of light where it vanished, kept small since it is caught at the thrower's chest.
+        // The disc caught (or gone): a small spark and shock front where it vanished, kept small since it is caught at the thrower's chest.
         private void HuntDiscCatch(Vector2 pos, Color light, float s)
         {
-            var flash = Spawn("Disc catch flash", glow, pos, 1f * s, Alpha(HuntDiscHot, .7f), .12f, true, 132); flash.endScale = 1.4f; flash.ease = 1; flash.fadePower = 1.5f;
-            Glint(pos, 1.5f * s, Alpha(HuntDiscHot, .95f), .16f, 20);
-            var band = Spawn("Disc catch ring", ring, pos, 1.4f * s, Alpha(light, .8f), .2f, true, 130); band.startScale = .3f; band.endScale = 1; band.ease = 3; band.fadePower = 1.3f;
-            HuntFlareRing(pos, 1.5f * s, Alpha(HuntDiscFlare, .5f), .2f);
-            for (int i = 0, n = Budget(5); i < n; i++) Spark(pos, Direction(Range(0, 360)) * Range(2, 5) * s, i % 2 == 0 ? Color.white : light, Range(.16f, .26f), Range(.16f, .24f), 3, 3);
+            HuntSpark(pos, 1.1f * s, Color.Lerp(light, HuntDiscHot, .5f), .12f, 132);
+            ShockFlip(pos, 1.5f * s, Alpha(light, .85f), .22f, 130);
+            Needles(pos, 5, 4 * s, light, .22f, .28f);
         }
 
         // Called for every enemy the disc passes through (it never stops): a sharp metallic cut.
@@ -651,55 +824,47 @@ namespace PrototypeLab.Roguelike
             // two discs crossing one body together: the second is a sharp echo, not another white-out
             bool echo = HuntRecent(HuntDiscHitMark, .07f, pos, .8f);
             if (!echo) Underlay(pos, 2f * gs, .22f, .24f);
-            var flash = Spawn("Disc cut flash", glow, pos, (echo ? .8f : 1.2f) * gs, Alpha(HuntDiscHot, .95f), .08f, true, 133); flash.endScale = 1.5f; flash.ease = 1; flash.fadePower = 1.6f;
-            if (!echo) HuntDiscHitMark = flash;
-            // the rim's cut: a crescent bulging along the disc's travel, over a saturated copy for pale skies
-            float cut = a + Range(-20, 20);
-            var slash = Crescent(pos, 1.9f * gs, Alpha(Color.Lerp(light, HuntDiscHot, .5f), .95f), .16f, cut, 131); slash.scale.y *= 1.15f;
-            var slashTone = HuntOpaque(Crescent(pos, 2f * gs, Alpha(HuntDiscFlare, .75f), .16f, cut, 118)); slashTone.scale.y *= 1.15f;
+            var star = HuntSpark(pos, (echo ? 1.1f : 1.7f) * gs, Color.Lerp(light, HuntDiscHot, .15f), .14f, 133);
+            if (!echo) HuntDiscHitMark = star;
+            // the rim's cut: a painted crescent bulging along the disc's travel, its white edge leading, over its deep copy
+            // (it grows half as fast as the disc with the level: the awakened disc's own light already crowds the hit)
+            float cut = a + Range(-20, 20), cs = 1 + (gs - 1) * .5f;
+            var slash = PaintArc(pos, 2f * cs, cut, Alpha(light, .95f), .22f, 130); slash.scale.y *= 1.15f;
+            var slashDeep = HuntOpaque(Crescent(pos, 2f * cs, HuntDiscDeep, .2f, cut, 128)); slashDeep.scale.y *= 1.15f;
+            slashDeep.startScale = .82f; slashDeep.endScale = 1.06f; slashDeep.ease = 6; slashDeep.hold = .25f;
             Vector2 across = Direction(a + 90 + Range(-25, 25));
-            var cutLine = Line(pos - across * .75f * gs, pos + across * .75f * gs, .07f, Color.white, .1f, 132); cutLine.startScale = .3f; cutLine.endScale = 1; cutLine.ease = 4;
-            Glint(pos, 1.4f * gs, Alpha(HuntDiscHot, 1), .14f, a + 45);
+            var cutLine = Line(pos - across * .8f * gs, pos + across * .8f * gs, .09f, Color.white, .1f, 132); cutLine.startScale = .3f; cutLine.endScale = 1; cutLine.ease = 6;
             if (!echo)
             {
-                var band = Spawn("Disc cut ring", ring, pos, 1f * gs, Alpha(light, .85f), .16f, true, 130); band.startScale = .2f; band.endScale = 1; band.ease = 3; band.fadePower = 1.3f;
-                HuntFlareLines(pos, 1.8f * gs, Alpha(HuntDiscFlare, .75f), .15f);
+                // one shock front (the awakened disc's is gold), burst lines and a little warm smoke
+                ShockFlip(pos, (g >= 3 ? 1.6f : 1.3f) * gs, Alpha(g >= 3 ? HuntGold : light, .9f), g >= 3 ? .26f : .22f, 131);
+                ImpactLines(pos, 2f * gs, Alpha(light, .9f), .16f);
+                HuntInk(pos, direction, .5f * gs, HuntDiscSmoke, 2, .42f);
             }
-            for (int i = 0, count = Budget(echo ? 3 : 7); i < count; i++)
-            {
-                bool sideways = i % 3 == 2;
-                Vector2 v = sideways ? n * (i % 2 == 0 ? 1 : -1) * Range(3, 6) + direction * Range(1, 3) : Direction(a + Range(-40, 40)) * Range(4, 9);
-                var sp = Spark(pos, v * gs, i % 3 == 0 ? Color.white : i % 3 == 1 ? HuntEmber : light, Range(.2f, .34f), Range(.16f, .28f), 7, 2.5f);
-                if (i % 4 == 3) { HuntOpaque(sp); sp.color = Alpha(HuntDiscFlare, .9f); }
-            }
-            if (g >= 3 && !echo)
-            {
-                var gold = Spawn("Disc cut gold ring", ring, pos, 1.5f * gs, Alpha(HuntGold, .85f), .22f, true, 131); gold.startScale = .3f; gold.endScale = 1; gold.ease = 3; gold.fadePower = 1.4f;
-                Glint(pos, 1.9f, Alpha(HuntGold, .9f), .18f, a);
-            }
+            // needles thrown on along the travel, a few flung sideways off the rim
+            HuntNeedles(pos, direction, 38, echo ? 3 : 7, 9 * gs, light, .26f, .36f, 7);
+            if (!echo) for (int i = 0; i < 2; i++) Spark(pos, (n * (i == 0 ? 1 : -1) * Range(3, 6) + direction * Range(1, 3)) * gs, HuntEmber, Range(.24f, .34f), Range(.16f, .26f), 7, 2.5f);
             Grade = keep;
         }
 
-        // A ringing burst: thin metallic rings opening one after another to the burst's edge, the disc's ghost flung open, blade shards.
+        // A ringing burst: a gold blast, shock fronts opening one after another to the burst's edge, the disc flung open spinning, embers.
         private void ImpactBoomerang(Vector2 pos, float radius, Color tint, int facing)
         {
             HuntDiscTextures();
             int g = Grade; float gs = HuntScale(g), r = Mathf.Clamp(radius, .5f, 3.5f), s = .7f + r * .35f;
             Color light = HuntTone(HuntDiscLight, tint);
             Underlay(pos, r * 2.8f, .22f, .4f);
-            var flash = Spawn("Disc burst flash", glow, pos, 1.8f * s, Alpha(HuntDiscHot, .95f), .12f, true, 133); flash.endScale = 1.5f; flash.ease = 1; flash.fadePower = 1.5f;
-            var bloom = Spawn("Disc burst bloom", glow, pos, r * 3f, Alpha(light, .4f), .4f, true, 122); bloom.startScale = .6f; bloom.endScale = 1.2f; bloom.fadePower = 1.4f;
+            Blast(pos, 1.7f * s, light, .42f, 128);
+            HuntSpark(pos, 2.2f * s, HuntDiscHot, .16f, 134);
+            HuntInk(pos, Vector2.up, .7f * s, HuntDiscSmoke, 3, .5f);
             for (int i = 0; i < 3; i++)
             {
-                float width = r * 2.7f * (.6f + .2f * i);
-                var band = Wave(pos, width, Alpha(i == 0 ? HuntDiscHot : light, .9f - .2f * i), .3f + .08f * i, 3); band.age = -.05f * i; band.pulse = .05f;
-                var bandTone = HuntFlareRing(pos, width * 1.03f, Alpha(HuntDiscFlare, .55f - .12f * i), .3f + .08f * i); bandTone.age = band.age;
+                var band = Wave(pos, r * 2.7f * (.6f + .2f * i), Alpha(i == 0 ? HuntDiscHot : light, .9f - .2f * i), .3f + .08f * i, 3); band.age = -.05f * i;
             }
-            foreach (var x in HuntShape(null, HuntDiscSet, pos, Range(0, 360), 1.1f * gs, .32f, Alpha(HuntDiscInk, .6f), Alpha(HuntDiscBody, .8f), Alpha(HuntDiscHot, .9f), 128))
+            foreach (var x in HuntObject(null, HuntDiscSet, pos, Range(0, 360), 1.2f * gs, .32f, Alpha(HuntDiscHot, .9f), Color.clear, 131))
             { x.startScale = .8f; x.endScale = 1.8f; x.ease = 2; x.spin = -1400; x.fadePower = 1.4f; }
             ImpactLines(pos, r * 2.4f, Alpha(light, .8f), .22f);
-            HuntFlareLines(pos, r * 2.6f, HuntDiscFlare, .24f);
-            Shards(pos, 8, 6 * s, .3f * s, Alpha(HuntDiscHot, .9f), .45f);
+            EmberBurst(pos, 8, 6 * s, HuntEmber, .5f);
             for (int i = 0, n = Budget(10); i < n; i++)
                 Spark(pos, Direction(Range(0, 360)) * Range(4, 9) * s, i % 3 == 0 ? Color.white : i % 3 == 1 ? HuntEmber : light, Range(.22f, .36f), Range(.2f, .34f), 6, 2.4f);
             if (g >= 3) { var rune = RuneCircle(pos, r * 2.1f, Alpha(HuntGold, .85f), .6f, -120, false, 126); rune.startScale = .5f; }
@@ -720,51 +885,49 @@ namespace PrototypeLab.Roguelike
             var lockOn = Glint(c.target, 1f * gs, Alpha(HuntSlugHot, .9f), w * .5f, 45); lockOn.age = -w * .5f;
             int mark = clips.Count;
             Underlay(hand, 2.2f * gs, .28f, w + .08f).fadeIn = .1f;
-            // the heat glow sits ahead of the hand and kept soft, so the shooter's body never whites out
+            // the heat glow sits ahead of the hand, so the shooter's body never whites out
             Vector2 glowAt = hand + new Vector2(f * .25f, 0);
-            var heat = Anchored(c.anchor, glowAt, "Slug heat", glow, 1.2f * gs, Alpha(light, .5f), w + .04f, 126);
-            var heatTone = Anchored(c.anchor, glowAt, "Slug heat tone", glow, 1.1f * gs, Alpha(HuntSlugFlare, .4f), w + .04f, 116, false);
-            foreach (var x in new[] { heat, heatTone }) { x.startScale = .15f; x.endScale = 1; x.ease = 1.4f; x.pulse = .1f; x.hold = .85f; x.fadePower = 2; }
-            foreach (var x in HuntShape(c.anchor, HuntSlugSet, hand, a, .75f * gs, w + .03f, HuntSlugInk, HuntSlugBody, Alpha(HuntSlugHot, .95f), 128))
+            var heat = Anchored(c.anchor, glowAt, "Slug heat", glow, 1.4f * gs, Alpha(light, .42f), w + .04f, 126);
+            heat.startScale = .15f; heat.endScale = 1; heat.ease = 1.4f; heat.pulse = .1f; heat.hold = .85f; heat.fadePower = 2;
+            // the slug itself: a bolt of painted light heating from gold to a white-hot head, over its deep copy
+            foreach (var x in HuntGlyph(c.anchor, HuntSlugSet, hand, a, 1f * gs, w + .03f, Alpha(HuntSlugBolt, 1), HuntSlugDeep, 0, 128))
             { x.fadeIn = w * .4f; x.startScale = .3f; x.endScale = 1; x.ease = 2; x.hold = .9f; x.fadePower = 2; }
-            var star = Anchored(c.anchor, hand + new Vector2(f * .15f, 0), "Slug star", glint, .8f * gs, Alpha(HuntSlugHot, .95f), w + .04f, 129);
+            var star = Anchored(c.anchor, hand + new Vector2(f * .2f, 0), "Slug star", glint, .85f * gs, Alpha(HuntSlugHot, .95f), w + .04f, 129);
             star.spin = 260; star.startScale = .1f; star.endScale = 1; star.ease = 1.4f; star.hold = .85f; star.fadePower = 2;
             Converge(hand, 8, 1.6f * gs, light, w, .6f);
-            // accelerator rings standing across the aim, opening one after another
+            // accelerator rings standing across the aim, snapping open one after another: painted shock rings (the awakened
+            // slug's are gold rune rings), each over its deep copy
             int rings = g >= 2 ? 3 : 2;
             for (int i = 0; i < rings; i++)
             {
                 Vector2 at = hand + dir * (.55f + i * .45f);
                 float width = (1.5f - i * .25f) * gs, delay = i * w * .18f, span = Mathf.Max(.1f, w - delay + .05f);
-                var tone = Spawn("Slug accelerator tone", runeRing, at, width * 1.03f, Alpha(HuntSlugFlare, .75f), span, false, 117);
-                var lit = Spawn("Slug accelerator", runeRing, at, width, Alpha(g >= 3 ? HuntGold : light, .95f), span, true, 127);
-                foreach (var x in new[] { tone, lit }) { x.scale.x *= .36f; x.root.transform.localScale = x.scale; HuntTurn(x, a); x.age = -delay; x.fadeIn = .06f; x.startScale = .25f; x.endScale = 1; x.ease = 4; x.hold = .85f; x.fadePower = 2; }
-                lit.flicker = .12f;
+                Sprite face = g >= 3 ? runeRing : ring;
+                var deep = Spawn("Slug accelerator depth", face, at, width, HuntSlugDeep, span, false, 117);
+                var lit = Spawn("Slug accelerator", face, at, width, Alpha(g >= 3 ? HuntGold : light, .95f), span, true, 127);
+                foreach (var x in new[] { deep, lit }) { x.scale.x *= .36f; x.root.transform.localScale = x.scale; HuntTurn(x, a); x.age = -delay; x.fadeIn = .03f; x.startScale = .45f; x.endScale = 1; x.ease = 7; x.hold = .85f; x.fadePower = 2; }
             }
-            // a gold sight line to the prey, re-drawn from the hand as the shooter moves
-            var sight = Line(hand, c.target, .05f, Alpha(light, .65f), w, 126); sight.fadeIn = w * .6f; sight.flicker = .35f; sight.hold = .85f; sight.fadePower = 2;
-            var sightTone = HuntOpaque(Line(hand, c.target, .1f, Alpha(HuntSlugFlare, .6f), w, 116)); sightTone.fadeIn = w * .6f; sightTone.hold = .85f; sightTone.fadePower = 2;
+            // a gold sight line to the prey over its deep copy, re-drawn from the hand as the shooter moves
+            var sight = Line(hand, c.target, .06f, Alpha(light, .7f), w, 126); sight.fadeIn = w * .6f; sight.flicker = .35f; sight.hold = .85f; sight.fadePower = 2;
+            var sightDeep = HuntOpaque(Line(hand, c.target, .06f, HuntSlugDeep, w, 116)); sightDeep.fadeIn = w * .6f; sightDeep.hold = .85f; sightDeep.fadePower = 2;
             if (g >= 3) { var crown = RuneCircle(hand + new Vector2(f * .3f, 0), 1.7f * gs, Alpha(HuntGold, .7f), w + .05f, -f * 200, false, 28); crown.startScale = .3f; }
-            HuntFollow(c.anchor, mark, HuntSightOf(c.anchor, sight, hand, c.target), HuntSightOf(c.anchor, sightTone, hand, c.target));
+            HuntFollow(c.anchor, mark, HuntSightOf(c.anchor, sight, hand, c.target), HuntSightOf(c.anchor, sightDeep, hand, c.target));
         }
 
-        /// <summary>The shot: a white-hot muzzle flash, a hard star, sonic rings and a tight spark cone.</summary>
+        /// <summary>The shot: a hit spark at the muzzle, a long tongue of flame along the aim in its glow, sonic shock fronts, burst
+        /// lines stretched along the aim and a tight cone of needles.</summary>
         private void HuntMuzzle(Vector2 pos, Vector2 dir, Color light, float s, int g)
         {
             float a = HuntAngle(dir);
-            var flash = Spawn("Slug muzzle flash", glow, pos, 1.2f * s, Alpha(HuntSlugHot, .95f), .1f, true, 132); flash.endScale = 1.5f; flash.ease = 1; flash.fadePower = 1.5f;
-            Glint(pos, 1.5f * s, Alpha(HuntSlugHot, 1), .14f, a);
-            HuntBoom(pos + dir * .2f, dir, 1.3f * s, Alpha(HuntSlugHot, .9f), .2f, 8);
-            HuntBoom(pos + dir * .6f, dir, 1f * s, Alpha(light, .85f), .2f, 13).age = -.03f;
-            HuntBoom(pos + dir * .2f, dir, 1.4f * s, Alpha(HuntSlugFlare, .6f), .18f, 8, false, 117);
-            HuntFlareLines(pos, 1.7f * s, Alpha(HuntSlugFlare, .7f), .14f);
-            for (int i = 0, n = Budget(6); i < n; i++)
-                Spark(pos, Direction(a + Range(-24, 24)) * Range(6, 12) * s, i % 2 == 0 ? Color.white : light, Range(.2f, .32f), Range(.12f, .2f), 2, 3);
-            if (g >= 3)
-            {
-                var gold = Spawn("Slug gold ring", ring, pos, 1.6f * s, Alpha(HuntGold, .9f), .22f, true, 131);
-                gold.startScale = .3f; gold.endScale = 1; gold.ease = 3; gold.fadePower = 1.4f;
-            }
+            HuntSpark(pos, 1.7f * s, HuntSlugBolt, .12f, 132);
+            var tongue = Line(pos, pos + dir * 1.6f * s, .32f * s, Alpha(light, .95f), .11f, 131); tongue.startScale = .5f; tongue.endScale = 1; tongue.ease = 7; tongue.hold = .2f; tongue.fadePower = 1.2f;
+            HuntGlowLine(pos, pos + dir * 1.6f * s, .9f * s, Alpha(light, .5f), .16f, 128);
+            HuntBoom(pos + dir * .2f, dir, 1.4f * s, Alpha(HuntSlugHot, .9f), .2f, 8);
+            HuntBoom(pos + dir * .6f, dir, 1.05f * s, Alpha(light, .85f), .2f, 13).age = -.03f;
+            HuntBoom(pos + dir * .2f, dir, 1.4f * s, HuntSlugDeep, .18f, 8, false, 127);
+            var lines = ImpactLines(pos + dir * .3f, 1.9f * s, Alpha(light, .8f), .14f); lines.angle = a; lines.scale.y *= .55f;
+            HuntNeedles(pos, dir, 22, 6, 12 * s, light, .18f, .32f, 2);
+            if (g >= 3) ShockFlip(pos, 1.7f * s, Alpha(HuntGold, .9f), .24f, 131);
         }
 
         private void ProjectileRicochet(Transform root, Color tint, bool signature)
@@ -778,22 +941,21 @@ namespace PrototypeLab.Roguelike
                 Vector2 hand, body; var booked = HuntClaim(SkillEffect.Ricochet, at, out hand, out body);
                 if (booked != null) HuntMuzzle(hand + dir * .3f, dir, booked.light, booked.s, booked.g);
             }
-            float len = .72f * gs;
-            // the slug and its hard streak ride the root, which gameplay turns at every bounce
-            var hot = Attach(root, "Hot slug core", HuntSlugSet[2], len, Alpha(HuntSlugHot, 1), 126);
-            var body0 = Attach(root, "Hot slug body", HuntSlugSet[1], len, HuntSlugBody, 119, false);
-            var ink = Attach(root, "Hot slug outline", HuntSlugSet[0], len, HuntSlugInk, 118, false);
-            // from level two the level's aura rides on the slug too, so its own halo stays soft (a pale sky turns stacked light white)
-            float haloAlpha = g >= 2 ? .55f : .8f;
-            var halo = Attach(root, "Hot slug halo", glow, 1.2f * gs, Alpha(light, haloAlpha), 122); halo.pulse = .12f;
-            var haloTone = Attach(root, "Hot slug heat", glow, 1f * gs, Alpha(HuntSlugFlare, .35f), 117, false); haloTone.pulse = .1f;
-            var star = Attach(root, "Hot slug star", glint, .95f * gs, Alpha(HuntSlugHot, .9f), 127); star.spin = 700;
+            float len = 1.05f * gs;
+            // the slug and its wake ride the root, which gameplay turns at every bounce: a bolt of painted light over its deep copy,
+            // a glow round its head and a spinning star at its tip
+            var bolt = Attach(root, "Hot slug", HuntSlugSet[0], len, Alpha(HuntSlugBolt, 1), 126);
+            var depth = Attach(root, "Hot slug depth", HuntSlugSet[1], len, HuntSlugDeep, 119, false);
+            float haloAlpha = g >= 2 ? .36f : .48f;
+            var halo = Attach(root, "Hot slug glow", glow, 1.5f * gs, Alpha(light, haloAlpha), 118, true, new Vector2(len * .15f, 0)); halo.pulse = .12f;
+            var star = Attach(root, "Hot slug star", glint, .95f * gs, Alpha(HuntSlugHot, .85f), 127, true, new Vector2(len * .28f, 0)); star.spin = 700;
             var rig = new HuntSlugRig { root = root, grade = g, dir = dir, last = at, flownFrom = at, halo = halo, star = star, haloAlpha = haloAlpha };
-            HuntSlugTrail(root, rig, "Slug streak", 1.7f * gs, .16f, Alpha(HuntSlugHot, .95f), 124, true, .05f * gs);
-            HuntSlugTrail(root, rig, "Slug streak glow", 2.1f * gs, .45f, Alpha(light, .7f), 121, true, 0);
-            HuntSlugTrail(root, rig, "Slug streak tone", 2f * gs, .36f, Alpha(HuntSlugFlare, .85f), 116, false, 0);
-            HuntSlugTrail(root, rig, "Slug streak ink", 1.9f * gs, .55f, Alpha(HuntSlugInk, .3f), 115, false, .1f * gs);
-            var layers = new List<Clip> { body0, ink, halo, haloTone, star };
+            // the wake: a needle of white-hot light inside a gold spindle over its deep copy, all in a long soft glow
+            HuntSlugTrail(root, rig, "Slug streak", streak, 2f * gs, .17f, Alpha(HuntSlugHot, 1), 124, true, .05f * gs);
+            HuntSlugTrail(root, rig, "Slug streak sheath", streak, 2.3f * gs, .42f, Alpha(light, .95f), 121, true, 0);
+            HuntSlugTrail(root, rig, "Slug streak depth", streak, 2.3f * gs, .42f, HuntSlugDeep, 116, false, 0);
+            HuntSlugTrail(root, rig, "Slug streak glow", glow, 2.6f * gs, .22f, Alpha(light, .32f), 115, true, 0);
+            var layers = new List<Clip> { depth, halo, star };
             foreach (var t in rig.trails) layers.Add(t.clip);
             if (g >= 3)
             {
@@ -802,12 +964,12 @@ namespace PrototypeLab.Roguelike
                 rig.crownScale = rig.crown.scale;
             }
             // the slug leaves from inside the shooter's chest: let it fade in over its first .05 s
-            hot.fadeIn = .05f; foreach (var x in layers) x.fadeIn = .05f;
+            bolt.fadeIn = .05f; foreach (var x in layers) x.fadeIn = .05f;
             rig.haloScale = halo.scale; rig.starScale = star.scale;
             HuntSlugGrow(rig, 0);
             HuntSlugs.RemoveAll(x => !x.root); HuntSlugs.Add(rig);
-            // Every frame the streak is sized and the heading kept (a bounce reads it); at about sixty steps a second a tracer is
-            // drawn along the path (so every bounce leaves a hard angle) and motes are shed behind.
+            // Every frame the streak is sized and the heading kept (a bounce reads it); at sixty steps a second a tracer is drawn
+            // along the path (so every bounce leaves a hard angle) and needle sparks are shed behind.
             Vector2 drawn = at; float acc = 0; int beat = 0;
             HuntControl(halo, (owner, dt) =>
             {
@@ -816,29 +978,29 @@ namespace PrototypeLab.Roguelike
                 HuntSlugGrow(rig, (now - rig.flownFrom).magnitude);
                 if (step.sqrMagnitude > 1e-6f) rig.dir = step.normalized;
                 rig.last = now;
-                acc += dt; if (acc < 1 / 90f) return;
+                acc += dt; if (acc < 1 / 60f) return;
                 acc = 0;
                 if (owner.age > .04f && (now - drawn).sqrMagnitude > 1e-5f)
                 {
                     float esc = Mathf.Min(1.35f, 1 + (g >= 3 ? .2f : .06f) * rig.bounces);
-                    var trace = Line(drawn, now, .06f * gs * esc, Alpha(HuntSlugHot, .9f), .14f, 123, 1.2f); trace.fadePower = 1.4f; trace.axisEnd = new Vector2(1, .3f);
-                    var traceTone = HuntOpaque(Line(drawn, now, .13f * gs * esc, Alpha(HuntSlugFlare, .7f), .16f, 116, 1.2f)); traceTone.fadePower = 1.2f; traceTone.axisEnd = new Vector2(1, .3f);
+                    var trace = Line(drawn, now, .07f * gs * esc, Alpha(HuntSlugHot, 1), .15f, 123, 1.2f); trace.hold = .2f; trace.fadePower = 1.2f; trace.axisEnd = new Vector2(1, .3f);
+                    var traceLit = Line(drawn, now, .17f * gs * esc, Alpha(light, .75f), .17f, 120, 1.2f); traceLit.fadePower = 1.1f; traceLit.axisEnd = new Vector2(1, .3f);
                 }
                 drawn = now;
                 if (++beat % 3 == 0 && owner.age > .04f)
                 {
-                    var mote = Spawn("Slug mote", glow, now - rig.dir * Range(.3f, .9f), Range(.1f, .2f) * gs, Alpha(beat % 2 == 0 ? Color.white : light, .9f), Range(.2f, .3f), true, 124);
-                    mote.velocity = new Vector2(-rig.dir.y, rig.dir.x) * Range(-1.2f, 1.2f); mote.drag = 2.5f; mote.flicker = .5f; mote.endScale = .2f; mote.ease = 1;
+                    Vector2 across = new Vector2(-rig.dir.y, rig.dir.x) * (beat % 2 == 0 ? 1 : -1);
+                    Spark(now - rig.dir * Range(.3f, .8f), across * Range(1.5f, 3.5f) - rig.dir * Range(1, 3), beat % 2 == 0 ? Color.white : light, Range(.18f, .28f) * gs, Range(.14f, .22f), 3, 3);
                 }
             });
-            Bundle(root, hot, layers.ToArray());
+            Bundle(root, bolt, layers.ToArray());
             // The shot ends on its last target (just struck) or runs out of flight. Only now is it known which hit was the last,
             // since a bounce to a target straight ahead looks like a hit that goes on.
             HuntWatch(root, 4, last =>
             {
                 if (HuntRecent(rig.hitFlash, .12f, rig.hitAt, .2f)) { HuntSlugFinal(rig, light); return; }
-                var fizzle = Spawn("Slug fizzle", glow, last, .9f * gs, Alpha(HuntSlugHot, .8f), .12f, true, 131); fizzle.endScale = 1.4f; fizzle.ease = 1; fizzle.fadePower = 1.5f;
-                for (int i = 0; i < 4; i++) Spark(last, Direction(Range(0, 360)) * Range(2, 4), i % 2 == 0 ? Color.white : light, Range(.14f, .22f), Range(.14f, .2f), 4, 3);
+                HuntSpark(last, .9f * gs, HuntSlugBolt, .11f, 131);
+                HuntNeedles(last, rig.dir, 60, 4, 4, light, .2f, .24f, 4);
             });
         }
 
@@ -846,28 +1008,32 @@ namespace PrototypeLab.Roguelike
         /// shown as whiter light, more and faster sparks and a longer exit streak instead of a bigger burst, since every hit is single-target.</summary>
         private static float HuntSlugHeat(float esc) { return Mathf.Clamp01((esc - 1) / 1.2f); }
 
-        // The last target takes the slug: a fuller burst on top of the hit's ping, hotter after every bounce but no wider than a hit.
+        // The last target takes the slug: a fuller burst on top of the hit's ping (a blast driven on through the body), hotter
+        // after every bounce but no wider than a hit.
         private void HuntSlugFinal(HuntSlugRig rig, Color light)
         {
             int keep = Grade; Grade = rig.grade;
             float gs = HuntScale(rig.grade), s = gs * Mathf.Min(rig.esc, 1.35f), heat = HuntSlugHeat(rig.esc); Vector2 pos = rig.hitAt;
             Color hotLight = Color.Lerp(light, HuntSlugHot, heat * .7f);
-            ImpactLines(pos, 1.9f * s, Alpha(hotLight, .85f), .2f);
-            Wave(pos, 1.8f * s, Alpha(hotLight, .9f), .26f, 3);
-            HuntFlareRing(pos, 1.85f * s, Alpha(HuntSlugFlare, .6f), .26f);
-            var bloom = Spawn("Slug final bloom", glow, pos, 1.8f * gs, Alpha(light, .3f), .4f, true, 122); bloom.startScale = .6f; bloom.endScale = 1.3f; bloom.fadePower = 1.5f;
+            Vector2 on = HuntAim(rig.hitDir, Vector2.right); float onA = HuntAngle(on);
+            HuntSpark(pos, 2f * s, Color.Lerp(HuntSlugBolt, HuntSlugHot, heat * .6f), .16f, 133);
+            Blast(pos + on * .2f * s, 1.25f * s * (1 + .2f * heat), Color.Lerp(HuntSlugFire, HuntSlugBolt, heat * .6f), .34f, 129);
+            var wedges = ImpactLines(pos + on * .25f * s, 2.4f * s, Alpha(hotLight, .95f), .2f); wedges.angle = onA; wedges.scale.y *= .55f;
+            HuntBoom(pos + on * .3f, on, 1.7f * s, Alpha(hotLight, .9f), .22f, 7);
+            HuntBoom(pos + on * .3f, on, 1.7f * s, HuntSlugDeep, .2f, 7, false, 127);
+            HuntInk(pos, on, .55f * s, HuntSlugSmoke, 2, .45f);
             float reach = 1.6f * gs * (1 + heat);
-            var through = Line(pos, pos + rig.hitDir * reach, .1f * s, Alpha(HuntSlugHot, .9f), .14f + .06f * heat, 130); through.startScale = .3f; through.endScale = 1; through.ease = 4; through.velocity = rig.hitDir * 4;
-            var throughTone = HuntOpaque(Line(pos, pos + rig.hitDir * reach, .18f * s, Alpha(HuntSlugFlare, .6f), .16f + .06f * heat, 117)); throughTone.startScale = .3f; throughTone.endScale = 1; throughTone.ease = 4; throughTone.velocity = rig.hitDir * 4;
+            var through = Line(pos, pos + rig.hitDir * reach, .12f * s, Alpha(HuntSlugHot, .9f), .14f + .06f * heat, 130); through.startScale = .3f; through.endScale = 1; through.ease = 4; through.velocity = rig.hitDir * 4;
+            var throughDeep = HuntOpaque(Line(pos, pos + rig.hitDir * reach, .12f * s, HuntSlugDeep, .16f + .06f * heat, 117)); throughDeep.startScale = .3f; throughDeep.endScale = 1; throughDeep.ease = 4; throughDeep.velocity = rig.hitDir * 4;
             EmberBurst(pos, 5 + Mathf.Min(rig.bounces, 6), 4 * s * (1 + .3f * heat), hotLight, .6f, 4);
             if (rig.grade >= 3) Glint(pos, 1.5f * s, Alpha(Color.Lerp(HuntGold, Color.white, heat * .5f), .6f + .35f * heat), .22f, 45);
             Grade = keep;
         }
 
-        /// <summary>A streak layer behind the slug (front <paramref name="front"/> units behind its centre), grown by <see cref="HuntSlugGrow"/>.</summary>
-        private void HuntSlugTrail(Transform root, HuntSlugRig rig, string name, float length, float thickness, Color color, int order, bool additive, float front)
+        /// <summary>A wake layer behind the slug (front <paramref name="front"/> units behind its centre), grown by <see cref="HuntSlugGrow"/>.</summary>
+        private void HuntSlugTrail(Transform root, HuntSlugRig rig, string name, Sprite sprite, float length, float thickness, Color color, int order, bool additive, float front)
         {
-            var clip = Attach(root, name, streak, length, color, order, additive, new Vector2(-front - length * .5f, 0));
+            var clip = Attach(root, name, sprite, length, color, order, additive, new Vector2(-front - length * .5f, 0));
             clip.scale.y *= thickness;
             rig.trails.Add(new HuntTrailLayer { clip = clip, baseX = clip.scale.x, baseY = clip.scale.y, front = -front, length = length });
         }
@@ -895,7 +1061,7 @@ namespace PrototypeLab.Roguelike
             if (rig.crown != null) { rig.crown.scale = rig.crownScale * Mathf.Min(1 + .1f * rig.bounces, 1.4f); rig.crown.color = Alpha(Color.Lerp(HuntGold, Color.white, heat * .5f), Mathf.Min(.95f, .35f + .2f * rig.bounces)); }
         }
 
-        // Every bounce point and the final hit: a ping of white-hot light and a spark fan thrown off the struck face.
+        // Every bounce point and the final hit: a hit spark, a small gold blast and a spark fan thrown off the struck face.
         private void HitRicochet(Vector2 pos, Color tint, bool signature, Vector2 direction)
         {
             HuntSlugTextures();
@@ -910,27 +1076,27 @@ namespace PrototypeLab.Roguelike
             away = away.sqrMagnitude > .01f ? away.normalized : -direction;
             float aa = HuntAngle(away);
             Underlay(pos, 1.7f * s, .2f, .22f);
-            var flash = Spawn("Ricochet flash", glow, pos, 1.1f * s, Alpha(HuntSlugHot, 1), .08f, true, 133); flash.endScale = 1.5f; flash.ease = 1; flash.fadePower = 1.6f;
+            // the spark and a small blast at the struck point, wedge lines snapping out round it and a little smoke knocked off the face
+            var flash = HuntSpark(pos, 1.55f * s, Color.Lerp(HuntSlugBolt, HuntSlugHot, heat * .6f), .12f, 133);
             HuntSlugHitMark = flash;
-            Glint(pos, 1.3f * s, Alpha(HuntSlugHot, 1), .15f, aa + 45);
-            var bloom = Spawn("Ricochet bloom", glow, pos, 2f * gs, Alpha(light, .3f), .22f, true, 123); bloom.endScale = 1.3f; bloom.fadePower = 1.5f;
+            Blast(pos, .9f * s, Color.Lerp(HuntSlugFire, HuntSlugBolt, heat * .6f), .26f, 128);
+            var wedges = ImpactLines(pos, 1.8f * s, Alpha(light, .9f), .14f); wedges.angle = aa; wedges.scale.y *= .7f;
+            HuntInk(pos, away, .42f * s, HuntSlugSmoke, 1, .34f);
             if (bounce)
             {
                 // the deflection drawn as a hard chevron: the incoming streak meets the point, a bright scar marks the struck face
-                var inLine = Line(pos - incoming * 1.2f * s, pos, .07f * s, Alpha(HuntSlugHot, .95f), .12f, 130); inLine.axisEnd = new Vector2(1, .2f); inLine.fadePower = 1.5f;
-                var inTone = HuntOpaque(Line(pos - incoming * 1.2f * s, pos, .14f * s, Alpha(HuntSlugFlare, .8f), .13f, 117)); inTone.axisEnd = new Vector2(1, .2f);
+                var inLine = Line(pos - incoming * 1.2f * s, pos, .09f * s, Alpha(HuntSlugHot, 1), .12f, 130); inLine.axisEnd = new Vector2(1, .2f); inLine.fadePower = 1.3f;
+                var inDeep = HuntOpaque(Line(pos - incoming * 1.2f * s, pos, .09f * s, HuntSlugDeep, .13f, 117)); inDeep.axisEnd = new Vector2(1, .2f);
                 Vector2 faceDir = new Vector2(-away.y, away.x);
-                var face = Line(pos - faceDir * .45f * s, pos + faceDir * .45f * s, .06f, Alpha(HuntSlugHot, .9f), .1f, 131); face.startScale = .3f; face.endScale = 1; face.ease = 4;
+                var face = Line(pos - faceDir * .5f * s, pos + faceDir * .5f * s, .08f, Alpha(HuntSlugHot, 1), .1f, 131); face.startScale = .3f; face.endScale = 1; face.ease = 6;
             }
-            HuntFlareLines(pos, 1.7f * s, Alpha(HuntSlugFlare, .75f), .15f);
-            var band = Spawn("Ricochet ring", ring, pos, 1f * s, Alpha(light, .85f), .16f, true, 130); band.startScale = .2f; band.endScale = 1; band.ease = 3; band.fadePower = 1.3f;
+            ShockFlip(pos, 1.25f * s, Alpha(light, .85f), .2f, 130);
             // the heat shows in the spark fan: more of them, flying faster, whiter
             for (int i = 0, n = Budget(8 + 2 * Mathf.Min(k, 5)); i < n; i++)
             {
                 bool through = i % 5 == 4;
                 Vector2 v = Direction((through ? HuntAngle(direction) : aa) + Range(-50, 50)) * Range(5, 11) * gs * (1 + .5f * heat);
-                var sp = Spark(pos, v, i % 3 == 0 ? Color.white : i % 3 == 1 ? HuntSlugHot : light, Range(.2f, .34f) * gs, Range(.14f, .28f), 8, 2.4f);
-                if (i % 4 == 3) { HuntOpaque(sp); sp.color = Alpha(HuntSlugFlare, .9f); }
+                Spark(pos, v, i % 3 == 0 ? Color.white : i % 3 == 1 ? HuntSlugHot : light, Range(.2f, .34f) * gs, Range(.14f, .28f), 8, 2.4f);
             }
             if (rig != null) { rig.hitAt = pos; rig.hitDir = direction; rig.hitFlash = flash; }
             else
@@ -942,7 +1108,7 @@ namespace PrototypeLab.Roguelike
             if (g >= 3)
             {
                 Color gold = Color.Lerp(HuntGold, Color.white, heat * .5f);
-                var goldRing = Spawn("Ricochet gold ring", ring, pos, 1.3f * s, Alpha(gold, .85f), .22f, true, 131); goldRing.startScale = .3f; goldRing.endScale = 1; goldRing.ease = 3; goldRing.fadePower = 1.4f;
+                ShockFlip(pos, 1.5f * s, Alpha(gold, .85f), .24f, 131);
                 var rune = RuneCircle(pos, 1.3f * s, Alpha(gold, .6f + .3f * heat), .32f, 260 + 120 * k, false, 126); rune.startScale = .4f;
             }
             if (rig != null) { if (bounce) rig.flownFrom = pos; HuntEscalate(rig, HuntTone(HuntSlugLight, tint)); }
@@ -956,18 +1122,19 @@ namespace PrototypeLab.Roguelike
             int g = Grade; float gs = HuntScale(g), r = Mathf.Clamp(radius, .5f, 3.5f);
             Color light = HuntTone(HuntSlugLight, tint);
             Underlay(pos, r * 2.6f, .2f, .3f);
-            var flash = Spawn("Ricochet burst flash", glow, pos, 1.6f * gs, Alpha(HuntSlugHot, .95f), .1f, true, 133); flash.endScale = 1.5f; flash.ease = 1; flash.fadePower = 1.5f;
+            HuntSpark(pos, 1.9f * gs, HuntSlugBolt, .14f, 133);
+            Blast(pos, 1.3f * gs, HuntSlugFire, .36f, 128);
+            HuntInk(pos, Vector2.up, .6f * gs, HuntSlugSmoke, 3, .4f);
             Wave(pos, r * 2.7f, Alpha(light, .9f), .3f, 3);
-            HuntFlareRing(pos, r * 2.75f, Alpha(HuntSlugFlare, .55f), .3f);
-            HuntFlareLines(pos, r * 2.4f, HuntSlugFlare, .2f);
+            ImpactLines(pos, r * 2.4f, Alpha(light, .8f), .2f);
             for (int i = 0, n = Budget(5); i < n; i++)
             {
                 // a zigzag path: out, a hard turn, out again, inside the burst radius
                 Vector2 d1 = Direction(i * 72 + Range(-15, 15)), mid = pos + d1 * r * Range(.4f, .6f), d2 = Direction(HuntAngle(d1) + (i % 2 == 0 ? 55 : -55)), end = mid + d2 * r * .4f;
-                var l1 = Line(pos, mid, .06f * gs, Alpha(HuntSlugHot, .95f), .16f, 128); l1.fadePower = 1.5f;
-                var l2 = Line(mid, end, .06f * gs, Alpha(HuntSlugHot, .95f), .16f, 128); l2.fadePower = 1.5f; l2.age = -.04f;
-                var t1 = HuntOpaque(Line(pos, mid, .12f * gs, Alpha(HuntSlugFlare, .7f), .18f, 116)); t1.fadePower = 1.3f;
-                var t2 = HuntOpaque(Line(mid, end, .12f * gs, Alpha(HuntSlugFlare, .7f), .18f, 116)); t2.fadePower = 1.3f; t2.age = -.04f;
+                var l1 = Line(pos, mid, .07f * gs, Alpha(HuntSlugHot, .95f), .16f, 128); l1.fadePower = 1.5f;
+                var l2 = Line(mid, end, .07f * gs, Alpha(HuntSlugHot, .95f), .16f, 128); l2.fadePower = 1.5f; l2.age = -.04f;
+                var t1 = HuntOpaque(Line(pos, mid, .1f * gs, HuntSlugDeep, .18f, 116)); t1.fadePower = 1.3f;
+                var t2 = HuntOpaque(Line(mid, end, .1f * gs, HuntSlugDeep, .18f, 116)); t2.fadePower = 1.3f; t2.age = -.04f;
                 Glint(mid, .8f * gs, Alpha(HuntSlugHot, .9f), .12f, 45).age = -.03f;
             }
             if (g >= 3) { var rune = RuneCircle(pos, r * 2.1f, Alpha(HuntGold, .8f), .5f, 200, false, 126); rune.startScale = .5f; }
@@ -988,9 +1155,9 @@ namespace PrototypeLab.Roguelike
             {
                 Vector2 a0 = from + delta * (i / (float)n), a1 = from + delta * ((i + 1) / (float)n);
                 float delay = zip * i / n;
-                var hot = Line(a0, a1, .055f * gs, Alpha(g >= 3 ? HuntGold : HuntSlugHot, .95f), .16f, 127, 1.12f); hot.age = -delay; hot.fadePower = 1.5f;
-                var lit = Line(a0, a1, .24f * gs, Alpha(light, .45f), .2f, 122, 1.12f); lit.age = -delay; lit.fadePower = 1.4f;
-                var tone = HuntOpaque(Line(a0, a1, .12f * gs, Alpha(HuntSlugFlare, .7f), .2f, 116, 1.12f)); tone.age = -delay; tone.fadePower = 1.3f;
+                var hot = Line(a0, a1, .06f * gs, Alpha(g >= 3 ? HuntGold : HuntSlugHot, 1), .16f, 127, 1.12f); hot.age = -delay; hot.hold = .2f; hot.fadePower = 1.3f;
+                var lit = Line(a0, a1, .15f * gs, Alpha(light, .9f), .18f, 122, 1.12f); lit.age = -delay; lit.hold = .15f; lit.fadePower = 1.3f;
+                var deep = HuntOpaque(Line(a0, a1, .15f * gs, HuntSlugDeep, .2f, 116, 1.12f)); deep.age = -delay; deep.fadePower = 1.2f;
             }
             Vector2 across = new Vector2(-dir.y, dir.x);
             for (int i = 0, m = Budget(2); i < m; i++)
@@ -1013,51 +1180,44 @@ namespace PrototypeLab.Roguelike
             Vector2 hand = c.pos + new Vector2(f * .5f, .15f), dir = HuntAim(c.target - hand, new Vector2(f, 0)), at = hand + dir * .95f, feet = c.pos + Vector2.down;
             HuntExpect(SkillEffect.HuntMark, c, at, light, w < .2f ? .75f * gs : gs, g);
             if (w < .2f) return;
-            // on the prey (it stays with the prey): a faint reticle settling at the height the mark will strike
+            // on the prey (it stays with the prey): a faint reticle of crimson light settling at the height the mark will strike
             Vector2 prey = c.target + Vector2.up * .2f;
-            foreach (var x in HuntShape(null, HuntReticleSet, prey, 45, 1.9f, w + .02f, Alpha(HuntMarkInk, .45f), Alpha(HuntMarkBody, .55f), Alpha(HuntMarkHot, .45f), 127))
-            { x.spin = 90; x.fadeIn = w * .4f; x.startScale = 1.9f; x.endScale = 1.2f; x.ease = 1.5f; x.hold = .75f; x.fadePower = 2; }
+            foreach (var x in HuntGlyph(null, HuntReticleSet, prey, 45, 1.9f, w + .02f, Alpha(light, .7f), Alpha(HuntMarkDeep, .3f), .18f, 127))
+            { x.spin = 90; x.fadeIn = w * .4f; x.startScale = 1.45f; x.endScale = 1; x.ease = 1.5f; x.hold = .75f; x.fadePower = 2; }
             int mark = clips.Count;
             Underlay(at, 2.3f * gs, .22f, w + .1f).fadeIn = .1f;
-            // the sigil the hunter draws: a crimson reticle before the hand, turning and closing on the aim
-            foreach (var x in HuntShape(c.anchor, HuntReticleSet, at, 0, 1.25f * gs, w + .05f, HuntMarkInk, HuntMarkBody, Alpha(HuntMarkHot, .7f), 128))
-            { x.spin = -f * 140; x.fadeIn = .1f; x.startScale = 1.3f; x.endScale = .85f; x.ease = 1.5f; x.hold = .86f; x.fadePower = 2; }
-            var seal = Anchored(c.anchor, at, "Mark sigil ring", runeRing, 1.9f * gs, Alpha(light, .8f), w + .05f, 126);
-            var sealTone = Anchored(c.anchor, at, "Mark sigil ring tone", runeRing, 1.94f * gs, Alpha(HuntMarkFlare, .5f), w + .05f, 117, false);
-            foreach (var x in new[] { seal, sealTone }) { x.spin = f * 90; x.fadeIn = .1f; x.startScale = .55f; x.endScale = 1; x.ease = 3; x.hold = .85f; x.fadePower = 2; }
+            // the sigil the hunter draws: the brand laid on in a stroke before the hand, glowing crimson with a white-hot spine over
+            // its deep red copy, turning and closing on the aim
+            foreach (var x in HuntGlyph(c.anchor, HuntBrandSet, at, 0, 1.75f * gs, w + .05f, Alpha(light, .9f), HuntMarkDeep, .45f, 128))
+            { x.spin = -f * 110; x.fadeIn = .05f; x.startScale = 1.35f; x.endScale = .9f; x.ease = HuntPop(w + .05f, .12f); x.hold = .86f; x.fadePower = 2; if (f < 0) HuntMirror(x); }
+            // a rune ring turning round the brand from level two (the awakened one in gold); kept to one ring so the brand stays
+            // the shape that reads
             if (g >= 2)
             {
-                var inner = Anchored(c.anchor, at, "Mark sigil inner ring", ring, 1.1f * gs, Alpha(HuntMarkHot, .8f), w + .05f, 127);
-                inner.startScale = 1.8f; inner.endScale = .9f; inner.ease = 2; inner.pulse = .06f; inner.fadeIn = .12f; inner.hold = .85f; inner.fadePower = 2;
-            }
-            if (g >= 3)
-            {
-                var crown = Anchored(c.anchor, at, "Mark awakened rune", runeRing, 2.1f * gs, Alpha(HuntGold, .5f), w + .05f, 120);
-                crown.spin = -f * 60; crown.startScale = .4f; crown.endScale = 1; crown.ease = 3; crown.fadeIn = .1f; crown.hold = .85f; crown.fadePower = 2;
+                var seal = Anchored(c.anchor, at, g >= 3 ? "Mark awakened rune" : "Mark sigil ring", runeRing, 2.1f * gs, Alpha(g >= 3 ? HuntGold : light, .75f), w + .05f, 125);
+                seal.spin = f * 90; seal.fadeIn = .1f; seal.startScale = .55f; seal.endScale = 1; seal.ease = 3; seal.hold = .85f; seal.fadePower = 2;
             }
             Converge(at, 9, 1.8f * gs, light, w, .45f);
-            // the sight: a thin crimson line drawn to the prey, re-drawn from the sigil as the hunter moves
-            var sight = Line(at, prey, .05f, Alpha(light, .7f), w, 126); sight.fadeIn = w * .5f; sight.flicker = .35f; sight.hold = .85f; sight.fadePower = 2;
-            var sightTone = HuntOpaque(Line(at, prey, .09f, Alpha(HuntMarkFlare, .5f), w, 116)); sightTone.fadeIn = w * .5f; sightTone.hold = .85f; sightTone.fadePower = 2;
-            GroundGlow(feet, 3f * gs, Alpha(light, .28f), w + .3f);
-            HuntFollow(c.anchor, mark, HuntSightOf(c.anchor, sight, at, prey), HuntSightOf(c.anchor, sightTone, at, prey));
+            // the sight: a thin crimson line drawn to the prey over its deep copy, re-drawn from the sigil as the hunter moves
+            var sight = Line(at, prey, .06f, Alpha(light, .75f), w, 126); sight.fadeIn = w * .5f; sight.flicker = .35f; sight.hold = .85f; sight.fadePower = 2;
+            var sightDeep = HuntOpaque(Line(at, prey, .06f, HuntMarkDeep, w, 116)); sightDeep.fadeIn = w * .5f; sightDeep.hold = .85f; sightDeep.fadePower = 2;
+            GroundGlow(feet, 3f * gs, Alpha(light, .22f), w + .3f);
+            HuntFollow(c.anchor, mark, HuntSightOf(c.anchor, sight, at, prey), HuntSightOf(c.anchor, sightDeep, at, prey));
         }
 
-        /// <summary>The sigil loosing the mark: a crimson flash, a ring and short burst lines.</summary>
+        /// <summary>The sigil loosing the mark: a crimson hit spark, a shock front, burst lines and needles along the shot.</summary>
         private void HuntMarkFlash(Vector2 pos, Color light, float s, float angle, int g)
         {
-            var flash = Spawn("Mark loose flash", glow, pos, 1.4f * s, Alpha(HuntMarkHot, .9f), .1f, true, 132); flash.endScale = 1.5f; flash.ease = 1; flash.fadePower = 1.5f;
-            Glint(pos, 1.8f * s, Alpha(HuntMarkHot, 1), .15f, angle);
-            Wave(pos, 1.8f * s, Alpha(light, .9f), .22f, 3);
-            HuntFlareRing(pos, 1.9f * s, Alpha(HuntMarkFlare, .6f), .22f);
-            HuntFlareLines(pos, 2f * s, HuntMarkFlare, .16f);
-            for (int i = 0, n = Budget(5); i < n; i++)
-                Spark(pos, Direction(angle + Range(-30, 30)) * Range(4, 8) * s, i % 2 == 0 ? Color.white : light, Range(.18f, .3f), Range(.14f, .22f), 2, 3);
-            if (g >= 3) { var gold = Spawn("Mark loose gold ring", ring, pos, 2.2f * s, Alpha(HuntGold, .85f), .24f, true, 131); gold.startScale = .3f; gold.endScale = 1; gold.ease = 3; gold.fadePower = 1.4f; }
+            HuntSpark(pos, 1.8f * s, Color.Lerp(light, HuntMarkHot, .4f), .13f, 132);
+            Wave(pos, 1.8f * s, Alpha(light, .9f), .22f, 4);
+            ImpactLines(pos, 2f * s, Alpha(light, .8f), .16f);
+            HuntNeedles(pos, Direction(angle), 28, 5, 8 * s, light, .2f, .32f, 2);
+            if (g >= 3) ShockFlip(pos, 2.2f * s, Alpha(HuntGold, .85f), .26f, 131);
         }
 
-        // A thin arrow of red light that lands at once: a bright shaft over a dark line, thinning away, with a chevron head driven in.
-        // A cast's arrows leave from the sigil the hunter drew (the first of them looses it); a mark passed on leaves from its old prey.
+        // A thin arrow of red light that lands at once: a bright shaft in its glow over a deep red copy, thinning away, with a chevron
+        // head driven in. A cast's arrows leave from the sigil the hunter drew (the first of them looses it); a mark passed on leaves
+        // from its old prey.
         private void TrailHuntMark(Vector2 from, Vector2 to, Color tint)
         {
             HuntMarkTextures();
@@ -1078,18 +1238,18 @@ namespace PrototypeLab.Roguelike
             if (Vector2.Dot(to - start, to - from) <= 0) start = from;
             Vector2 delta = to - start; float length = delta.magnitude; if (length < .05f) return;
             Vector2 dir = delta / length; float a = HuntAngle(dir);
-            var ink = HuntOpaque(Line(start, to, .2f * gs, Alpha(HuntMarkInk, .6f), .24f, 116)); ink.axisEnd = new Vector2(1, .2f); ink.ease = 2;
-            var body0 = HuntOpaque(Line(start, to, .11f * gs, Alpha(HuntMarkBody, .9f), .26f, 117)); body0.axisEnd = new Vector2(1, .15f); body0.ease = 2;
-            var lit = Line(start, to, .34f * gs, Alpha(light, .5f), .22f, 125, 1.02f); lit.axisEnd = new Vector2(1, .1f); lit.ease = 2;
-            var hot = Line(start, to, .05f * gs, Alpha(g >= 3 ? HuntGold : HuntMarkHot, 1), .18f, 128, 1.01f); hot.axisEnd = new Vector2(1, .3f); hot.ease = 2;
-            foreach (var x in HuntShape(null, HuntChevronSet, to - dir * .12f, a, .55f * gs, .3f, HuntMarkInk, HuntMarkBody, Alpha(HuntMarkHot, .7f), 130))
+            HuntGlowLine(start, to, .55f * gs, Alpha(light, .4f), .24f, 115);
+            var deep = HuntOpaque(Line(start, to, .22f * gs, HuntMarkDeep, .26f, 117)); deep.axisEnd = new Vector2(1, .15f); deep.ease = 2;
+            var lit = Line(start, to, .22f * gs, Alpha(light, .95f), .22f, 125, 1.02f); lit.axisEnd = new Vector2(1, .15f); lit.ease = 2; lit.hold = .2f; lit.fadePower = 1.1f;
+            var hot = Line(start, to, .06f * gs, Alpha(g >= 3 ? HuntGold : HuntMarkHot, 1), .18f, 128, 1.01f); hot.axisEnd = new Vector2(1, .3f); hot.ease = 2;
+            foreach (var x in HuntGlyph(null, HuntChevronSet, to - dir * .12f, a, .62f * gs, .3f, Alpha(light, 1), HuntMarkDeep, .3f, 130))
             { x.velocity = dir * 2.5f; x.drag = 9; x.hold = .4f; x.fadePower = 1.5f; x.startScale = 1.3f; x.endScale = 1; x.ease = 4; }
             for (int i = 0, n = Budget(3); i < n; i++)
             {
                 Vector2 s0 = start + delta * Range(.1f, .6f) + new Vector2(-dir.y, dir.x) * Range(-.12f, .12f);
                 var race = Line(s0, s0 + dir * Range(.6f, 1.1f), .04f, i % 2 == 0 ? new Color(1, 1, 1, .8f) : Alpha(light, .85f), .12f, 126); race.velocity = dir * 16; race.fadePower = 1.5f;
             }
-            var muzzle = Spawn("Mark arrow flash", glow, start, .9f * gs, Alpha(HuntMarkHot, .8f), .1f, true, 131); muzzle.endScale = 1.4f; muzzle.ease = 1; muzzle.fadePower = 1.5f;
+            HuntSpark(start, .9f * gs, Color.Lerp(light, HuntMarkHot, .4f), .1f, 131);
         }
 
         // The reticle snapping shut on the prey (the lasting mark over its head is drawn by the status effects).
@@ -1098,18 +1258,16 @@ namespace PrototypeLab.Roguelike
             HuntMarkTextures();
             int g = Grade; float gs = HuntScale(g), r = Mathf.Clamp(radius, .5f, 2f);
             Color light = HuntTone(HuntMarkLight, tint);
-            float width = r * 2.1f, life = .75f;
+            // the reticle only drops and locks; the brand it leaves holds on after it
+            float width = r * 2.1f, life = .42f;
             const float snap = .11f;
             Underlay(pos, r * 2.8f, .26f, .55f);
-            // the reticle drops onto the prey and snaps shut, turning a quarter as it locks
-            var lockOn = new List<Clip>(HuntShape(null, HuntReticleSet, pos, 45, width, life, HuntMarkInk, HuntMarkBody, Alpha(HuntMarkHot, .7f), 129));
-            if (g >= 3)
-            {
-                var edge = Spawn("Mark awakened edge", HuntReticleSet[2], pos, width * 1.05f, Alpha(HuntGold, .5f), life, true, 130); HuntTurn(edge, 45); lockOn.Add(edge);
-            }
+            // the reticle of crimson light drops onto the prey and snaps shut, turning a quarter as it locks
+            var lockOn = HuntGlyph(null, HuntReticleSet, pos, 45, width, life, Alpha(light, .85f), HuntMarkDeep, .3f, 131);
+            if (g >= 3) lockOn.Add(HuntTurn(Spawn("Mark awakened edge", HuntReticleSet[0], pos, width * 1.05f, Alpha(HuntGold, .5f), life, true, 132), 45));
             float pop = HuntPop(life, snap);
-            foreach (var x in lockOn) { x.startScale = 1.6f; x.endScale = 1; x.ease = pop; x.fadeIn = .03f; x.hold = .55f; x.fadePower = 1.6f; }
-            HuntControl(lockOn[2], (owner, dt) =>
+            foreach (var x in lockOn) { x.startScale = 1.6f; x.endScale = 1; x.ease = pop; x.fadeIn = .03f; x.hold = .5f; x.fadePower = 1.3f; }
+            HuntControl(lockOn[0], (owner, dt) =>
             {
                 float turn = 45 * Sq(Mathf.Max(0, 1 - owner.age / snap));
                 foreach (var x in lockOn) HuntTurn(x, turn);
@@ -1119,20 +1277,27 @@ namespace PrototypeLab.Roguelike
             {
                 Vector2 dk = Direction(k * 90 + 45);
                 float outer = r * 1.9f, inner = r * .95f;
-                foreach (var x in HuntShape(null, HuntChevronSet, pos + dk * outer, k * 90 + 225, .42f * r * Mathf.Sqrt(gs), life * .8f, HuntMarkInk, HuntMarkBody, Alpha(HuntMarkHot, .7f), 131))
+                foreach (var x in HuntGlyph(null, HuntChevronSet, pos + dk * outer, k * 90 + 225, .46f * r * Mathf.Sqrt(gs), life * .8f, Alpha(light, 1), HuntMarkDeep, 0, 134))
                 { x.velocity = -dk * (outer - inner) * 18; x.drag = 18; x.hold = .4f; x.fadePower = 1.5f; x.fadeIn = .02f; }
             }
-            // the lock: a flash, a crimson ring and burst lines as the jaws meet
-            var flash = Spawn("Mark lock flash", glow, pos, 1.6f * r * gs, Alpha(HuntMarkHot, .95f), .1f, true, 133); flash.age = -snap; flash.endScale = 1.5f; flash.ease = 1; flash.fadePower = 1.5f;
-            Glint(pos, 2f * r * gs, Alpha(HuntMarkHot, 1), .2f, 0).age = -snap;
-            var shock = Wave(pos, width * 1.25f, Alpha(light, .9f), .3f, 3); shock.age = -snap;
-            HuntFlareRing(pos, width * 1.3f, Alpha(HuntMarkFlare, .6f), .3f).age = -snap;
-            HuntFlareLines(pos, width * 1.4f, HuntMarkFlare, .22f).age = -snap;
-            ImpactLines(pos, width * 1.3f, Alpha(light, .8f), .2f).age = -snap;
-            for (int i = 0, n = Budget(8); i < n; i++)
-                Spark(pos, Direction(i * 45 + Range(-12, 12)) * Range(3, 6) * r, i % 2 == 0 ? Color.white : light, Range(.18f, .28f), Range(.16f, .26f), 2, 3).age = -snap;
-            // a crimson glow held on the prey for a moment
-            var pool = Spawn("Mark glow", glow, pos, width * 1.3f, Alpha(light, .35f), .7f, true, 122); pool.fadeIn = .05f; pool.hold = .3f; pool.fadePower = 1.4f; pool.pulse = .08f;
+            // the lock as the jaws meet: a crimson hit spark and a blast, one long painted cut, the brand burned onto the prey (it
+            // pops, holds, then breaks up), wedge lines, needles thrown mostly away from the hunter and smoke kicked out behind
+            int lockFrom = clips.Count;
+            HuntSpark(pos, 2.4f * r * gs, Color.Lerp(light, HuntMarkHot, .35f), .16f, 136);
+            Blast(pos, 1.5f * r * gs, light, .4f, 124);
+            // the strike: one long painted cut slanting down across the prey, white down its spine, over its deep red copy (which
+            // lies over the reticle, so the cut reads across the glyph instead of melting into it)
+            int f = facing < 0 ? -1 : 1; Vector2 cut = Direction(f > 0 ? -36 : 216) * width * .95f;
+            var slash = Line(pos - cut, pos + cut, .3f * r * gs, Alpha(light, 1), .26f, 134);
+            var slashCore = Line(pos - cut * .9f, pos + cut * .9f, .09f * r * gs, Color.white, .2f, 135);
+            var slashDeep = HuntOpaque(Line(pos - cut, pos + cut, .3f * r * gs, HuntMarkDeep, .26f, 133));
+            foreach (var x in new[] { slash, slashCore, slashDeep }) { x.axisStart = new Vector2(.15f, 1); x.axisEnd = Vector2.one; x.ease = 9; x.hold = .3f; x.fadePower = 1.2f; }
+            foreach (var x in HuntGlyph(null, HuntBrandSet, pos, facing < 0 ? 12 : -12, width * 1.08f, .55f, Alpha(light, .9f), HuntMarkDeep, .5f, 129))
+            { x.startScale = .72f; x.endScale = 1; x.ease = 7; x.hold = .4f; x.fadePower = 1.2f; if (facing < 0) HuntMirror(x); }
+            ImpactLines(pos, width * 1.35f, Alpha(light, .9f), .2f);
+            HuntNeedles(pos, new Vector2(facing, facing == 0 ? 1 : .35f), facing == 0 ? 180 : 75, 8, 6 * r, light, .24f, .34f, 2);
+            HuntInk(pos, new Vector2(facing == 0 ? 1 : facing, .3f), .62f * r, HuntMarkSmoke, 3, .45f);
+            for (int i = lockFrom; i < clips.Count; i++) clips[i].age = -snap;
             // from the hunter's side, the mark's speed lines streaking in
             if (facing != 0)
                 for (int i = 0; i < 3; i++)
@@ -1165,46 +1330,47 @@ namespace PrototypeLab.Roguelike
             if (w < .2f) return;
             int mark = clips.Count;
             // the chain is whirled overhead, ahead of and above the head, so the thrower's face stays clear
-            Vector2 hub = c.pos + new Vector2(f * .6f, .8f); float R = .65f * gs, life = w + .02f, rate = -f * 880, start = f > 0 ? 210 : -30;
+            Vector2 hub = c.pos + new Vector2(f * .6f, .8f); float R = .7f * gs, life = w + .02f, rate = -f * 880, start = f > 0 ? 210 : -30;
             Underlay(hub, R * 3.4f, .2f, w + .08f).fadeIn = .1f;
-            // a straight run of links turning like a clock hand, the hook at its end
-            Color shine = g >= 3 ? Alpha(HuntGold, .7f) : Alpha(light, .6f);
+            // a straight run of painted links turning like a clock hand, the painted hook at its end in its own glow
+            Color shine = g >= 3 ? Alpha(HuntGold, .8f) : Alpha(HuntSteelHot, .85f);
             var spoke = new[]
             {
-                Spawn("Whirled chain outline", HuntChainSet[0], hub, R, HuntSteelInk, life, false, 117),
-                Spawn("Whirled chain", HuntChainSet[1], hub, R, HuntSteelBody, life, false, 118),
-                Spawn("Whirled chain shine", HuntChainSet[2], hub, R, shine, life, true, 124),
+                Spawn("Whirled chain", HuntChainSet[0], hub, R, Color.white, life, false, 118),
+                Spawn("Whirled chain shine", HuntChainSet[1], hub, R, shine, life, true, 124),
             };
             var head = new[]
             {
-                Spawn("Whirled hook outline", HuntHookSet[0], hub, .78f * gs, HuntSteelInk, life, false, 119),
-                Spawn("Whirled hook", HuntHookSet[1], hub, .78f * gs, HuntSteelBody, life, false, 120),
-                Spawn("Whirled hook shine", HuntHookSet[2], hub, .78f * gs, Alpha(HuntSteelHot, .9f), life, true, 126),
+                Spawn("Whirled hook", HuntHookSet[0], hub, 1.2f * gs, Color.white, life, false, 120),
+                Spawn("Whirled hook shine", HuntHookSet[1], hub, 1.2f * gs, Alpha(HuntSteelHot, .95f), life, true, 126),
+                Spawn("Whirled hook glow", glow, hub, 1.5f * gs, Alpha(light, .26f), life, true, 119),
             };
             foreach (var x in spoke) { HuntWhirl(x, hub, start, rate, R * .5f, 90 * f); x.startScale = .35f; x.endScale = 1; x.ease = 2.4f; }
             foreach (var x in head) { HuntWhirl(x, hub, start, rate, R, 0); if (f < 0) HuntMirrorY(x); }
-            // the turning chain leaves a fan of fading copies: the propeller blur of a whirled chain
-            Emitter(spoke[1], 60, 0, (owner, p) =>
+            // the turning chain leaves a fan of fading steel copies: the propeller blur of a whirled chain
+            Emitter(spoke[0], 45, 0, (owner, p) =>
             {
-                var ghost = Spawn("Whirled chain afterimage", HuntChainSet[1], p, R, Alpha(HuntSteelFlare, .5f), .08f, false, 115);
+                // none in the last moments, so no copy hangs over the thrower once the chain has flown
+                if (owner.age > owner.life - .07f) return;
+                var ghost = Spawn("Whirled chain afterimage", HuntChainSet[0], p, R, Alpha(light, .3f), .08f, false, 115);
                 ghost.scale = owner.root.transform.localScale; ghost.fadePower = 1.4f; HuntTurn(ghost, owner.angle + owner.angleOffset);
             });
-            var blur = Spawn("Chain whirl blur", HuntDiscBlur, hub, R * 2.5f, Alpha(light, .55f), life, true, 123);
-            var blurTone = Spawn("Chain whirl blur tone", HuntDiscBlur, hub, R * 2.55f, Alpha(HuntSteelFlare, .62f), life, false, 116);
-            foreach (var x in new[] { blur, blurTone }) { x.spin = rate; x.angle = start - 20; x.startScale = .35f; x.endScale = 1; x.ease = 2.2f; x.fadeIn = .1f; x.hold = .88f; x.fadePower = 2; if (f < 0) HuntMirror(x); }
-            var disk = Spawn("Chain whirl glow", glow, hub, R * 2.4f, Alpha(light, .3f), life, true, 28); disk.fadeIn = .1f; disk.hold = .85f; disk.pulse = .06f; disk.fadePower = 2;
+            var blur = Spawn("Chain whirl blur", HuntDiscBlurSet[0], hub, R * 2.5f, Alpha(light, .6f), life, true, 123);
+            var blurDeep = Spawn("Chain whirl blur depth", HuntDiscBlurSet[1], hub, R * 2.5f, HuntSteelDeep, life, false, 116);
+            foreach (var x in new[] { blur, blurDeep }) { x.spin = rate; x.angle = start - 20; x.startScale = .35f; x.endScale = 1; x.ease = 2.2f; x.fadeIn = .1f; x.hold = .88f; x.fadePower = 2; if (f < 0) HuntMirror(x); }
+            var disk = Spawn("Chain whirl glow", glow, hub, R * 2.4f, Alpha(light, .22f), life, true, 28); disk.fadeIn = .1f; disk.hold = .85f; disk.pulse = .06f; disk.fadePower = 2;
             // sparks thrown off the whirling hook
-            Emitter(head[2], 30 * gs, 0, (owner, p) =>
+            Emitter(head[1], 30 * gs, 0, (owner, p) =>
             {
                 Vector2 at = owner.root.transform.position, tangent = Direction(owner.angle);
                 Spark(at, tangent * Range(3, 6) + Vector2.up * Range(0, 1.5f), Chance(.4f) ? HuntEmber : Color.white, Range(.16f, .26f), Range(.16f, .26f), 6, 2.5f);
             });
             Converge(hub, 8, 1.8f * gs, light, w, .4f);
-            GroundGlow(feet, 3.2f * gs, Alpha(light, .3f), w + .3f);
+            GroundGlow(feet, 3.2f * gs, Alpha(light, .22f), w + .3f);
             if (g >= 2) { var seal = RuneCircle(feet, 2.8f * gs, Alpha(light, .7f), w + .35f, f * 80, true); seal.startScale = .5f; }
             if (g >= 3)
             {
-                var crown = Spawn("Whirl gold rune", runeRing, hub, R * 2.4f, Alpha(HuntGold, .6f), life, true, 120);
+                var crown = Spawn("Whirl gold rune", runeRing, hub, R * 2.4f, Alpha(HuntGold, .6f), life, true, 121);
                 crown.spin = -rate * .2f; crown.startScale = .4f; crown.endScale = 1; crown.ease = 3; crown.fadeIn = .1f; crown.hold = .85f; crown.fadePower = 2;
             }
             HuntFollow(c.anchor, mark);
@@ -1219,22 +1385,20 @@ namespace PrototypeLab.Roguelike
             HuntTurn(clip, start + 90 * Mathf.Sign(rate));
         }
 
-        /// <summary>The throw's whip crack at the hand: a flash, a glint, sonic rings and sparks along the throw.</summary>
+        /// <summary>The throw's whip crack at the hand: a steel-white hit spark, sonic shock fronts, burst lines and needles along the throw.</summary>
         private void HuntHookRelease(Vector2 hand, Vector2 dir, Color light, float s, int g)
         {
             float a = HuntAngle(dir); Vector2 at = hand + dir * .3f;
-            var flash = Spawn("Hook throw flash", glow, at, 1f * s, Alpha(HuntSteelHot, .75f), .1f, true, 132); flash.endScale = 1.5f; flash.ease = 1; flash.fadePower = 1.5f;
-            Glint(at, 1.5f * s, Alpha(HuntSteelHot, 1), .16f, a);
-            HuntBoom(hand + dir * .5f, dir, 1.6f * s, Alpha(HuntSteelHot, .85f), .22f, 10);
-            HuntBoom(hand + dir * .5f, dir, 1.7f * s, Alpha(HuntSteelFlare, .55f), .2f, 10, false, 117);
-            HuntFlareLines(at, 2f * s, Alpha(HuntSteelFlare, .7f), .16f);
-            for (int i = 0, n = Budget(6); i < n; i++)
-                Spark(at, Direction(a + Range(-30, 30)) * Range(5, 10) * s, i % 2 == 0 ? HuntEmber : Color.white, Range(.18f, .3f), Range(.14f, .24f), 4, 2.5f);
-            if (g >= 3) { var gold = Spawn("Hook throw gold ring", ring, at, 1.8f * s, Alpha(HuntGold, .85f), .22f, true, 131); gold.startScale = .3f; gold.endScale = 1; gold.ease = 3; gold.fadePower = 1.4f; }
+            HuntSpark(at, 1.5f * s, Color.Lerp(HuntSteelLight, HuntSteelHot, .3f), .12f, 132);
+            HuntBoom(hand + dir * .5f, dir, 1.7f * s, Alpha(HuntSteelHot, .85f), .22f, 10);
+            HuntBoom(hand + dir * .5f, dir, 1.7f * s, HuntSteelDeep, .2f, 10, false, 127);
+            var lines = ImpactLines(at + dir * .3f, 2.1f * s, Alpha(light, .8f), .16f); lines.angle = a; lines.scale.y *= .55f;
+            HuntNeedles(at, dir, 30, 6, 10 * s, HuntEmber, .2f, .32f, 4);
+            if (g >= 3) ShockFlip(at, 1.9f * s, Alpha(HuntGold, .85f), .24f, 131);
         }
 
-        // The chain shot to the enemy: links paid out from the hand to a barbed hook in the body, following the enemy
-        // as gameplay reels it in over .16 s with a whip running down the chain, then going slack and dropping away.
+        // The chain shot to the enemy: painted links paid out from the hand to a barbed hook in the body, following the enemy as
+        // gameplay reels it in over .16 s with a whip running down the chain, then going slack and dropping away.
         // A boss or a flyer is not moved: the chain snaps taut, ripples once and goes slack.
         private void TrailHook(Vector2 from, Vector2 to, Color tint)
         {
@@ -1257,26 +1421,26 @@ namespace PrototypeLab.Roguelike
             Vector2 end = !held && Mathf.Abs(delta0.x) > stop ? new Vector2(from.x + side * stop, to.y) : to;
             HuntHookTo = to; HuntHookEnd = end; HuntHookSide = side; HuntHookHeld = held; HuntHookBoss = boss;
             const float reel = .16f, slack = .32f;
-            float life = reel + slack, L = .9f * (1 + (gs - 1) * .5f), headW = .85f * gs;
+            float life = reel + slack, L = 1.1f * (1 + (gs - 1) * .5f), headW = 1.25f * gs;
             int count = Mathf.CeilToInt(length / L) + 1;
-            // dark iron with a thin cold shine: steel on a pale sky, not a bolt of lightning
-            Color shine = g >= 3 ? Alpha(HuntGold, .7f) : Alpha(light, .6f);
-            var tones = new[] { HuntSteelInk, HuntSteelBody, shine };
+            // painted steel links with a cold glint along each (gold once awakened)
+            Color shine = g >= 3 ? Alpha(HuntGold, .8f) : Alpha(HuntSteelHot, .85f);
+            var tones = new[] { Color.white, shine };
             var chain = new Clip[count][];
             for (int j = 0; j < count; j++)
             {
-                chain[j] = new Clip[3];
-                for (int q = 0; q < 3; q++)
+                chain[j] = new Clip[2];
+                for (int q = 0; q < 2; q++)
                 {
-                    var x = chain[j][q] = Spawn(q == 0 ? "Hook chain outline" : q == 1 ? "Hook chain" : "Hook chain shine", HuntChainSet[q], start, L, tones[q], life, q == 2, q == 0 ? 117 : q == 1 ? 118 : 124);
+                    var x = chain[j][q] = Spawn(q == 0 ? "Hook chain" : "Hook chain shine", HuntChainSet[q], start, L, tones[q], life, q == 1, q == 0 ? 118 : 124);
                     x.hold = reel / life; x.fadePower = 1.4f;
                 }
             }
-            Vector3 linkScale = chain[0][0].scale;
-            // the hook head is drawn over its own bite flash, so the barb stays readable as it strikes
-            var head = HuntShape(null, HuntHookSet, to, a, headW, life + .12f, HuntSteelInk, HuntSteelBody, Alpha(HuntSteelHot, .9f), 134, 135, 136);
+            // links thrown to the left are turned over, so their lit flank stays on top
+            Vector3 linkScale = chain[0][0].scale; if (side < 0) linkScale.y = -linkScale.y;
+            // the painted hook is drawn over its own bite spark, so the barb stays readable as it strikes
+            var head = HuntObject(null, HuntHookSet, to, a, headW, life + .12f, Alpha(HuntSteelHot, .95f), Alpha(light, .4f), 137);
             foreach (var x in head) { x.hold = (reel + .1f) / (life + .12f); x.fadePower = 1.5f; if (side < 0) HuntMirrorY(x); }
-            var headGlow = Spawn("Hook head glow", glow, to, 1.3f * gs, Alpha(light, .4f), reel + .14f, true, 122); headGlow.hold = .5f; headGlow.fadePower = 1.4f;
             Vector2 eyeOffset = dir * (.37f * headW);
             float whip = held ? .22f : .16f;
             Action<float> pose = t =>
@@ -1287,7 +1451,6 @@ namespace PrototypeLab.Roguelike
                 Vector2 along = spanLength > .01f ? span / spanLength : dir, across = new Vector2(-along.y, along.x);
                 float baseAngle = HuntAngle(along), amp = whip * gs * (1 - eased), phase = t * 38;
                 foreach (var x in head) HuntPlace(x, headAt, a);
-                HuntPlace(headGlow, headAt, 0);
                 for (int j = 0; j < count; j++)
                 {
                     float back = j * L, piece = Mathf.Min(L, spanLength - back);
@@ -1296,7 +1459,7 @@ namespace PrototypeLab.Roguelike
                     float envelope = Mathf.Sin(Mathf.PI * Mathf.Clamp01(fromHand / Mathf.Max(.01f, spanLength)));
                     float offset = amp * envelope * Mathf.Sin(fromHand * 2.2f - phase), slope = amp * envelope * 2.2f * Mathf.Cos(fromHand * 2.2f - phase);
                     Vector2 center = eye - along * (back + piece * .5f) + across * offset;
-                    for (int q = 0; q < 3; q++)
+                    for (int q = 0; q < 2; q++)
                     {
                         var x = chain[j][q];
                         x.scale = new Vector3(linkScale.x * Mathf.Max(.01f, piece) / L, linkScale.y, 1);
@@ -1308,26 +1471,34 @@ namespace PrototypeLab.Roguelike
             pose(0);
             // posed every frame while it hauls (so the chain keeps up with the reeled enemy at any frame rate), then dropped
             bool dropped = false; float acc = 0;
-            HuntControl(head[2], (owner, dt) =>
+            HuntControl(head[1], (owner, dt) =>
             {
                 float t = owner.age;
                 if (t <= reel + .01f)
                 {
                     pose(t);
-                    // the chain rattles as it hauls: sparks off the links
+                    // the chain rattles as it hauls: sparks off the links, and speed lines racing back along it toward the thrower
                     acc += dt;
                     if (acc >= 1 / 20f)
                     {
                         acc = 0;
                         float k = Mathf.Clamp01(t / reel), eased = 1 - (1 - k) * (1 - k);
                         Vector2 headAt = Vector2.Lerp(to, end, eased), pt = Vector2.Lerp(start, headAt, Range(.2f, .9f)), along = HuntAim(headAt - start, dir);
-                        Spark(pt, new Vector2(-along.y, along.x) * Range(-3, 3) - along * Range(2, 5), Chance(.5f) ? HuntEmber : Color.white, Range(.16f, .24f), Range(.14f, .22f), 6, 3);
+                        Vector2 across = new Vector2(-along.y, along.x);
+                        Spark(pt, across * Range(-3, 3) - along * Range(2, 5), Chance(.5f) ? HuntEmber : Color.white, Range(.18f, .26f), Range(.14f, .22f), 6, 3);
+                        if (!held)
+                            for (int i = 0; i < 2; i++)
+                            {
+                                Vector2 s0 = Vector2.Lerp(start, headAt, Range(.3f, 1)) + across * Range(.16f, .36f) * (i == 0 ? 1 : -1);
+                                var pull = Line(s0, s0 - along * Range(.7f, 1.3f), Range(.05f, .08f), i == 0 ? Color.white : Alpha(light, .95f), Range(.1f, .14f), 126);
+                                pull.velocity = -along * 14; pull.hold = .2f; pull.fadePower = 1.3f;
+                            }
                     }
                     return;
                 }
                 if (dropped) return;
                 dropped = true; pose(reel);
-                // the chain goes slack: its links drop and fade, shedding a few motes of steel light
+                // the chain goes slack: its links drop and fade, shedding a few glints of steel
                 foreach (var links in chain)
                 {
                     Vector2 v = new Vector2(Range(-.4f, .4f), Range(.3f, 1.2f)); float turn = Range(-60, 60);
@@ -1336,25 +1507,27 @@ namespace PrototypeLab.Roguelike
                 Vector2 restAt = end - eyeOffset;
                 for (int i = 0, n = 3; i < n; i++)
                 {
-                    var mote = Spawn("Chain mote", glow, Vector2.Lerp(start, restAt, Range(.15f, 1)), Range(.1f, .2f), Alpha(i % 2 == 0 ? HuntSteelHot : light, .9f), Range(.3f, .5f), true, 124);
-                    mote.velocity = new Vector2(Range(-.4f, .4f), Range(.4f, 1.2f)); mote.flicker = .5f; mote.endScale = .2f; mote.ease = 1;
+                    var mote = Spawn("Chain glint", fleck, Vector2.Lerp(start, restAt, Range(.15f, 1)), Range(.16f, .26f), Alpha(i % 2 == 0 ? HuntSteelHot : light, .95f), Range(.25f, .4f), true, 124);
+                    mote.velocity = new Vector2(Range(-.4f, .4f), Range(.4f, 1.2f)); mote.flicker = .4f; mote.endScale = .2f; mote.ease = 1; mote.angle = Range(-20, 20);
                 }
             });
-            // the shot itself: a faint lash of light down the chain (under the links' dark iron), speed lines and a sonic ring at the hand
-            var lash = Line(start, to, .5f * gs, Alpha(HuntSteelLight, .25f), .09f, 121, 1.02f); lash.fadePower = 1.6f;
-            var lashCore = Line(start, to, .04f * gs, new Color(1, 1, 1, .5f), .07f, 127, 1.01f); lashCore.fadePower = 1.6f;
-            var lashTone = HuntOpaque(Line(start, to, .2f * gs, Alpha(HuntSteelFlare, .55f), .09f, 116, 1.02f)); lashTone.fadePower = 1.6f;
-            for (int i = 0, n = Budget(3); i < n; i++)
+            // the shot itself: a luminous lash down the chain (a soft glow, a steel-blue stroke over its deep copy, all under the
+            // links) and a white thread that flashes over them, speed lines racing out with it and a shock front at the hand
+            HuntGlowLine(start, to, .6f * gs, Alpha(light, .45f), .14f, 115);
+            var lashDeep = HuntOpaque(Line(start, to, .16f * gs, HuntSteelDeep, .1f, 116, 1.02f)); lashDeep.fadePower = 1.4f;
+            var lashLit = Line(start, to, .16f * gs, Alpha(light, .95f), .11f, 117, 1.02f); lashLit.hold = .25f; lashLit.fadePower = 1.3f; lashLit.axisEnd = new Vector2(1, .3f);
+            var lashCore = Line(start, to, .06f * gs, Color.white, .08f, 127, 1.01f); lashCore.hold = .3f; lashCore.fadePower = 1.3f; lashCore.axisEnd = new Vector2(1, .3f);
+            for (int i = 0, n = Budget(4); i < n; i++)
             {
-                Vector2 s0 = start + dir * Range(.3f, length * .6f) + new Vector2(-dir.y, dir.x) * Range(-.25f, .25f);
-                var speed = Line(s0, s0 + dir * Range(.8f, 1.5f), Range(.04f, .07f), Alpha(i % 2 == 0 ? Color.white : light, .8f), Range(.1f, .14f), 126); speed.velocity = dir * 16; speed.fadePower = 1.5f;
+                Vector2 s0 = start + dir * Range(.3f, length * .6f) + new Vector2(-dir.y, dir.x) * Range(-.3f, .3f);
+                var speed = Line(s0, s0 + dir * Range(.8f, 1.6f), Range(.05f, .08f), i % 2 == 0 ? Color.white : Alpha(light, .95f), Range(.1f, .14f), 126); speed.velocity = dir * 16; speed.hold = .2f; speed.fadePower = 1.3f;
             }
-            HuntBoom(start + dir * .45f, dir, 1.3f * gs, Alpha(HuntSteelHot, .8f), .18f, 8);
+            HuntBoom(start + dir * .45f, dir, 1.4f * gs, Alpha(HuntSteelHot, .85f), .18f, 8);
         }
 
-        // The hook biting: sparks thrown on, a hot flash where it struck, and a short daze shock that rides in with the enemy.
-        // A boss is never dazed (only the bite is drawn) and a boss or a flyer is never moved (the shock stays on it).
-        // With no facing it is the level-three burst around the thrower: a heavier slam.
+        // The hook biting: a steel-white hit spark and shock front where it struck, sparks thrown on, and a short daze crackle that
+        // rides in with the enemy. A boss is never dazed (only the bite is drawn) and a boss or a flyer is never moved (it all stays
+        // on it). With no facing it is the level-three burst around the thrower: a heavier slam.
         private void ImpactHook(Vector2 pos, float radius, Color tint, int facing)
         {
             HuntChainTextures();
@@ -1364,33 +1537,30 @@ namespace PrototypeLab.Roguelike
             Vector2 ride = fresh && !HuntHookHeld ? HuntHookEnd - HuntHookTo : Vector2.zero;
             float r = Mathf.Clamp(radius, .5f, 1.6f), a = facing > 0 ? 0 : 180;
             Underlay(pos, 2f * r * gs, .22f, .25f);
-            var flash = Spawn("Hook bite flash", glow, pos, .8f * r * gs, Alpha(HuntSteelHot, .95f), .09f, true, 133); flash.endScale = 1.5f; flash.ease = 1; flash.fadePower = 1.6f;
-            Glint(pos, 1.8f * r * gs, Alpha(HuntSteelHot, 1), .14f, 30);
-            HuntFlareLines(pos, 2.2f * r * gs, HuntSteelFlare, .16f);
-            ImpactLines(pos, 2f * r * gs, Alpha(light, .8f), .16f);
+            // the catch: a steel-white spark where the barb bites, a shock front riding in with the prey, burst lines, sparks
+            // thrown on and a little cool smoke knocked out
+            HuntSpark(pos, 1.9f * r * gs, Color.Lerp(HuntSteelLight, HuntSteelHot, .3f), .15f, 133);
+            HuntRide(ShockFlip(pos, 1.7f * r * gs, Alpha(light, .9f), .24f, 131), ride);
+            ImpactLines(pos, 2f * r * gs, Alpha(light, .9f), .16f);
+            HuntInk(pos, new Vector2(facing, .25f), .5f * r * gs, HuntSteelSmoke, 2, .4f);
             for (int i = 0, n = Budget(7); i < n; i++)
-            {
-                var sp = Spark(pos, Direction(a + Range(-60, 60)) * Range(4, 9) + Vector2.up * Range(0, 2), i % 3 == 0 ? Color.white : i % 3 == 1 ? HuntEmber : light, Range(.2f, .32f), Range(.16f, .28f), 9, 2.4f);
-                if (i % 4 == 3) { HuntOpaque(sp); sp.color = Alpha(HuntSteelFlare, .9f); }
-            }
+                Spark(pos, Direction(a + Range(-60, 60)) * Range(4, 9) + Vector2.up * Range(0, 2), i % 3 == 0 ? Color.white : i % 3 == 1 ? HuntEmber : light, Range(.24f, .36f), Range(.16f, .28f), 9, 2.4f);
             if (!boss)
             {
-                // the daze rides in with the prey: a shock ring, a steel glow and crackles
-                HuntRide(Wave(pos, 1.8f * r * gs, Alpha(light, .9f), .22f, 3), ride);
-                HuntRide(HuntFlareRing(pos, 1.85f * r * gs, Alpha(HuntSteelFlare, .6f), .22f), ride);
-                var held = Spawn("Hook bite glow", glow, pos, 1.6f * r * gs, Alpha(light, .55f), .3f, true, 122); held.fadePower = 1.4f; HuntRide(held, ride);
+                // the daze rides in with the prey: a second, whiter pulse and crackles
+                var pulse = HuntRide(ShockFlip(pos, 1.3f * r * gs, Alpha(HuntSteelHot, .8f), .2f, 130), ride); pulse.age = -.05f;
                 for (int i = 0, n = 3; i < n; i++)
                 {
                     Vector2 p0 = pos + Inside(.25f * r), d = Direction(Range(0, 360)), p1 = p0 + d * Range(.25f, .4f) * r, p2 = p1 + Direction(HuntAngle(d) + Range(-70, 70)) * Range(.2f, .35f) * r;
                     float delay = Range(0, .06f);
-                    foreach (var seg in new[] { Line(p0, p1, .045f, Alpha(HuntSteelHot, .95f), .12f, 130), Line(p1, p2, .045f, Alpha(light, .95f), .12f, 130) })
+                    foreach (var seg in new[] { Line(p0, p1, .05f, Alpha(HuntSteelHot, .95f), .12f, 130), Line(p1, p2, .05f, Alpha(light, .95f), .12f, 130) })
                     { seg.age = -delay; seg.flicker = .5f; seg.fadePower = 1.4f; HuntRide(seg, ride); }
                 }
             }
             if (g >= 2) Sparkles(pos, 3, .5f * r, light);
             if (g >= 3)
             {
-                var gold = Spawn("Hook bite gold ring", ring, pos, 1.6f * r * gs, Alpha(HuntGold, .85f), .24f, true, 131); gold.startScale = .3f; gold.endScale = 1; gold.ease = 3; gold.fadePower = 1.4f; HuntRide(gold, ride);
+                HuntRide(ShockFlip(pos, 1.9f * r * gs, Alpha(HuntGold, .85f), .26f, 131), ride);
                 Glint(pos, 2.2f * r, Alpha(HuntGold, .9f), .18f, -30);
             }
         }
@@ -1406,34 +1576,33 @@ namespace PrototypeLab.Roguelike
             // around the thrower: the ground shock to the burst's edge, cracks and a shade behind the actors
             Underlay(ground + Vector2.up * .45f, R * 3f, .24f, .5f);
             GroundWave(ground + Vector2.up * .05f, R * 2.7f, Alpha(light, .95f), .4f);
-            HuntFlat(HuntFlareRing(ground, R * 2.75f, Alpha(HuntSteelFlare, .65f), .4f, 25), .34f);
-            var dark = Decal(ground, crack, R * 1.9f, new Color(.05f, .06f, .09f, .85f), 1.2f, false, 25); dark.angle = Range(-8, 8);
+            var dark = Decal(ground, crack, R * 1.9f, new Color(.1f, .12f, .18f, .8f), 1.2f, false, 25); dark.angle = Range(-8, 8);
             var hotCrack = Decal(ground, crack, R * 1.8f, Alpha(light, .8f), .8f, true, 26); hotCrack.angle = dark.angle; hotCrack.fadePower = 1.8f;
-            // the hook is already biting the ground by the prey, its barb curled toward the thrower, with the blur of its fall above
-            float headW = 1.1f * gs; Vector2 headAt = land + Vector2.up * (.42f * headW);
-            foreach (var x in HuntShape(null, HuntHookSet, headAt, -90, headW, .5f, HuntSteelInk, HuntSteelBody, Alpha(HuntSteelHot, .9f), 134, 135, 136))
+            // the hook is already biting the ground by the prey, its barb curled toward the thrower, with the light of its fall above
+            float headW = 1.35f * gs; Vector2 headAt = land + Vector2.up * (.42f * headW);
+            foreach (var x in HuntObject(null, HuntHookSet, headAt, -90, headW, .5f, Alpha(HuntSteelHot, .95f), Alpha(light, .4f), 137))
             { x.startScale = 1.25f; x.endScale = 1; x.ease = 6; x.hold = .5f; x.fadePower = 1.5f; if (side < 0) HuntMirrorY(x); }
             for (int j = 0; j < 2; j++)
             {
-                Vector2 at = headAt + Vector2.up * (.37f * headW + .4f + j * .8f);
-                foreach (var x in new[] { Spawn("Slam chain outline", HuntChainSet[0], at, .8f, HuntSteelInk, .24f, false, 132), Spawn("Slam chain", HuntChainSet[1], at, .8f, HuntSteelBody, .24f, false, 133) })
+                Vector2 at = headAt + Vector2.up * (.37f * headW + .45f + j * .9f);
+                foreach (var x in new[] { Spawn("Slam chain", HuntChainSet[0], at, .9f, Color.white, .24f, false, 133), Spawn("Slam chain shine", HuntChainSet[1], at, .9f, Alpha(HuntSteelHot, .85f), .24f, true, 134) })
                 { HuntTurn(x, 90); x.velocity = Vector2.down * 1.5f; x.hold = .3f; x.fadePower = 1.6f; }
             }
-            var fall = Line(headAt + Vector2.up * 2.8f, headAt + Vector2.up * .5f, .38f * gs, Alpha(light, .35f), .1f, 121); fall.fadePower = 2.5f; fall.axisEnd = new Vector2(1, .3f);
-            var fallTone = HuntOpaque(Line(headAt + Vector2.up * 2.8f, headAt + Vector2.up * .5f, .18f * gs, Alpha(HuntSteelFlare, .45f), .1f, 116)); fallTone.fadePower = 2.5f; fallTone.axisEnd = new Vector2(1, .3f);
-            // the bite on the prey: a small hot flash, a slim column of light, burst lines along the floor
-            var flash = Spawn("Hook slam flash", glow, top, 1.2f, Alpha(HuntSteelHot, .5f), .14f, true, 133); flash.startScale = .5f; flash.endScale = 1.4f; flash.ease = 2; flash.fadePower = 1.5f;
-            Pillar(land, .55f * gs, 2.3f * gs, Alpha(light, .5f), .28f);
-            HuntOpaque(Pillar(land, .8f * gs, 2f * gs, Alpha(HuntSteelFlare, .35f), .28f, 117));
-            var lines = HuntFlat(HuntFlareLines(top, R * 1.7f, HuntSteelFlare, .26f), .5f); lines.angle = 0;
-            var lit = HuntFlat(ImpactLines(top, R * 1.5f, Alpha(light, .7f), .22f), .5f); lit.angle = 0;
+            var fall = Line(headAt + Vector2.up * 2.8f, headAt + Vector2.up * .5f, .2f * gs, Alpha(light, .9f), .1f, 121); fall.fadePower = 1.6f; fall.axisEnd = new Vector2(1, .3f);
+            HuntGlowLine(headAt + Vector2.up * 2.8f, headAt + Vector2.up * .5f, .6f * gs, Alpha(light, .4f), .14f, 116);
+            // the bite on the prey: a hit spark over a steel-blue blast, a slim column of light, burst lines along the floor and smoke
+            HuntSpark(top, 1.7f, Color.Lerp(HuntSteelLight, HuntSteelHot, .3f), .15f, 135);
+            Blast(top, 1.4f * gs, light, .36f, 129);
+            HuntInk(land + Vector2.up * .3f, Vector2.up, .65f, HuntSteelSmoke, 3, .45f);
+            Pillar(land, .55f * gs, 2.3f * gs, Alpha(light, .55f), .28f);
+            var lit = HuntFlat(ImpactLines(top, R * 1.6f, Alpha(light, .75f), .22f), .5f); lit.angle = 0;
             // the chain lashing along the floor both ways, low and behind the fighters
             for (int i = 0; i < 6; i++)
             {
                 int way = i % 2 == 0 ? 1 : -1; float lean = Range(-4, 10);
                 Vector2 d = Direction(way > 0 ? lean : 180 - lean); float v = 4.1f * R * Range(.8f, 1.05f), turn = Range(-90, 90);
                 Vector2 from = land + Vector2.up * .2f + d * .3f;
-                foreach (var x in new[] { Spawn("Lashing chain outline", HuntChainSet[0], from, .8f * gs, HuntSteelInk, .45f, false, 27), Spawn("Lashing chain", HuntChainSet[1], from, .8f * gs, HuntSteelBody, .45f, false, 28) })
+                foreach (var x in new[] { Spawn("Lashing chain", HuntChainSet[0], from, .9f * gs, Color.white, .45f, false, 27), Spawn("Lashing chain shine", HuntChainSet[1], from, .9f * gs, Alpha(HuntSteelHot, .8f), .45f, true, 28) })
                 { HuntTurn(x, HuntAngle(d)); x.velocity = d * v; x.drag = 5; x.spin = turn; x.hold = .4f; x.fadePower = 1.4f; }
             }
             for (int i = 0, n = Budget(9); i < n; i++)

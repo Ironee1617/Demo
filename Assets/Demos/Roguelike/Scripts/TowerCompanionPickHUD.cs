@@ -20,14 +20,28 @@ namespace PrototypeLab.Roguelike
         private int PartyMythCount(string mythId)
         {int count=run.MythCount(mythId);foreach(string id in companionPicks)if(TowerRun.GetDefinition(id).MythId==mythId)count++;return count;}
 
+        // The companions of the last expedition that came home, won or lost; the next departure's pick starts from them.
+        private readonly List<string> lastParty=new List<string>();
+        private void RememberParty()
+        {
+            if(run==null||!run.IsCampaign||run.Companions.Count==0)return;
+            lastParty.Clear();foreach(var c in run.Companions)lastParty.Add(c.Id);
+        }
+        /// <summary>Chooses the last party's gods that this expedition still offers, in their old order, so one Enter departs.</summary>
+        private void PickLastParty()
+        {
+            pickRunId=run.RunId;companionPicks.Clear();
+            int needed=run.IsCompanionPick?PicksNeeded:0;
+            foreach(string id in lastParty)if(companionPicks.Count<needed&&!companionPicks.Contains(id)&&RecruitOfferFor(id)!=null)companionPicks.Add(id);
+        }
+
         private void DrawCompanionPick()
         {
             // Choices belong to one expedition and only to gods still on offer.
             if(pickRunId!=run.RunId){pickRunId=run.RunId;companionPicks.Clear();}
             companionPicks.RemoveAll(id=>RecruitOfferFor(id)==null);
             int needed=PicksNeeded;bool ready=companionPicks.Count==needed;
-            var e=Event.current;
-            if(ready&&GUI.enabled&&e.type==EventType.KeyDown&&(e.keyCode==KeyCode.Return||e.keyCode==KeyCode.KeypadEnter)){e.Use();ConfirmCompanionPick();return;}
+            if(ScreenKey(KeyScreen.CompanionPick)&&ready){ConfirmCompanionPick();return;}
             var chapter=run.Chapter;
             MenuBackdrop("함께 오를 동료를 고르세요","EXPEDITION START  /  "+chapter.Numeral+"  "+chapter.Title+"  /  COMPANIONS");
             Label(new Rect(1030,83,500,36),"후보 "+run.Offers.Count+"명  ·  동료 "+needed+"명 선택",18,brass,TextAnchor.MiddleRight,true);

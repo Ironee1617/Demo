@@ -8,8 +8,9 @@ namespace PrototypeLab.Roguelike
     // A status rides on a small holder under the enemy root (the root's scale undone, so sizes stay in world units) and lasts
     // exactly as long as gameplay says: applying it again refreshes the one instance kept per enemy and kind. The look is
     // measured from the enemy's own renderers, so a boss twice as tall wears its reticle, stars or sigil twice as high.
-    // Shapes pair a dark alpha ink outline or a saturated alpha body (they read on the pale Olympus sky) with additive light
-    // (it reads in the dark of Hell); big dark layers sit behind the actors. One driver per status (a custom emitter on its
+    // Shapes are painted: a saturated alpha body (it reads on the pale Olympus sky) under painted light whose ramp runs from a
+    // deep edge of the shape's own hue to a white spine (it glows in the dark of Hell), over a soft bloom; no dark outlines.
+    // Reactions burst in the shared flipbooks (hit sparks, shock fronts, blasts, billows). One driver per status (a custom emitter on its
     // first part, backed by a tiny runner for frames the tick skips emitters) animates the parts and spawns its few free
     // particles, so each status stays under about twenty clips. Head looks share one column: a stun sits lowest over the
     // head, a curse above it and a mark on top, so the three never pile into one blot.
@@ -50,14 +51,12 @@ namespace PrototypeLab.Roguelike
         private const int StatusRoleBeat = 1, StatusRoleOrbit = 2, StatusRoleSway = 3, StatusRoleBloom = 4, StatusRolePetal = 5, StatusRoleLeaf = 6, StatusRoleVine = 7, StatusRoleLight = 8;
         private const float StatusMarkBeat = .9f;
 
-        private static readonly Color StatusFire = new Color(1, .55f, .16f), StatusIce = new Color(.62f, .9f, 1), StatusIceDeep = new Color(.05f, .17f, .42f, .6f),
-            StatusGold = new Color(1, .8f, .26f), StatusGoldDeep = new Color(.34f, .17f, .01f, .88f), StatusCrimson = new Color(1, .16f, .24f),
-            StatusCrimsonDeep = new Color(.24f, 0, .04f, .85f), StatusViolet = new Color(.62f, .3f, 1), StatusVioletDeep = new Color(.11f, 0, .19f, .86f),
-            StatusPink = new Color(1, .55f, .8f);
+        private static readonly Color StatusFire = new Color(1, .55f, .16f), StatusIce = new Color(.62f, .9f, 1), StatusGold = new Color(1, .8f, .26f),
+            StatusCrimson = new Color(1, .16f, .24f), StatusViolet = new Color(.62f, .3f, 1), StatusPink = new Color(1, .55f, .8f);
 
         private static Sprite[] StatusReticle, StatusBracket, StatusChevron, StatusStar, StatusSigil, StatusEye, StatusGuard, StatusCrystal;
         private static Sprite StatusTendril, StatusWisp, StatusPetal, StatusShell, StatusShellLight, StatusFacet;
-        private static Sprite[] StatusVapor;
+        private static Sprite[][] StatusVapor;
         private static readonly float[] StatusCrystals = { -14, 12, 19, 96, 28, 15, -14, 18, 88, 26, 0, 0, 30, 136, 40 };
 
         private readonly Dictionary<long, StatusLook> StatusLooks = new Dictionary<long, StatusLook>();
@@ -228,6 +227,32 @@ namespace PrototypeLab.Roguelike
 
         private static Clip StatusInk(Clip clip, int order) { clip.renderer.sharedMaterial = AlphaBlend; clip.renderer.sortingOrder = order; return clip; }
 
+        /// <summary>A reaction's pop: a bloom, the hit-spark flipbook in <paramref name="tone"/> and a smaller white one turned
+        /// apart (they flare, split into shards and scatter). Returns the white spark.</summary>
+        private Clip StatusPop(Vector2 pos, float width, Color tone, float life, float delay = 0)
+        {
+            var bloom = StatusLater(Spawn("Status pop bloom", glow, pos, width * 1.3f, Alpha(tone, .5f), Mathf.Max(.2f, life * 1.8f), true, 130), delay);
+            bloom.startScale = .6f; bloom.endScale = 1.2f; bloom.ease = 2; bloom.fadePower = 1.5f;
+            var tinted = StatusLater(SparkFlip(pos, width, StatusTone(tone), life, 132), delay);
+            var hot = StatusLater(SparkFlip(pos, width * .64f, new Color(1, 1, 1, .95f), life * .8f, 133), delay); hot.angle = tinted.angle + Range(20, 40);
+            return hot;
+        }
+
+        /// <summary>A shock front of light racing out from <paramref name="pos"/> (the shared flipbook), after <paramref name="delay"/>.</summary>
+        private Clip StatusFront(Vector2 pos, float width, Color color, float life, float delay = 0, int order = 131)
+        {
+            var front = StatusLater(ShockFlip(pos, width, color, life, order), delay); front.startScale = .3f; front.endScale = 1; front.ease = 3;
+            return front;
+        }
+
+        /// <summary>A small four-point sparkle that snaps open and fades (the crisp twin of a glint).</summary>
+        private Clip StatusSparkle(Vector2 pos, float width, Color color, float life)
+        {
+            var clip = Spawn("Status sparkle", fleck, pos, width, color, life, true, 131);
+            clip.angle = Range(-20, 20); clip.startScale = .3f; clip.endScale = 1; clip.ease = 5; clip.hold = .2f; clip.fadePower = 1.4f; clip.spin = 60;
+            return clip;
+        }
+
         // ---------------------------------------------------------------- building a status
 
         private StatusLook StatusBuild(Transform actor, Transform holder, StatusKind kind, float duration, Color tint, float carry)
@@ -301,23 +326,27 @@ namespace PrototypeLab.Roguelike
             part.clip.frames = flame; part.clip.fps = fps; part.clip.loop = true; return part;
         }
 
-        // Burning: a warm glow behind the body, painted flames (alpha, the fire ramp's own colours) that keep their shape on a
-        // pale sky, light flames licking up the body, and free tongues, embers and soot rising off it.
+        // Burning: a warm glow behind the body, painted flames (a white-hot root easing to a deep red-orange edge, over a
+        // saturated flame body a little inside them) that keep their shape on a pale sky, light flames licking up the body, and
+        // free tongues, embers and warm soot rising off it.
         private static float StatusFlameWidth(StatusLook look) { return Mathf.Clamp(Mathf.Max(look.body.x * .44f, look.body.y * .62f), .5f, 1.8f); }
 
         private void StatusBurnLook(StatusLook look)
         {
             float H = look.body.y, W = look.body.x, fw = StatusFlameWidth(look); int g = look.grade;
             Color fire = Color.Lerp(StatusFire, StatusTone(look.tint), .2f);
-            var heat = StatusAttach(look, "Status burn heat", glow, W * 1.5f + .9f, Alpha(fire, .5f), 28, true, new Vector2(0, H * .45f)); heat.clip.flicker = .15f; heat.clip.pulse = .05f;
+            var heat = StatusAttach(look, "Status burn heat", glow, W * 1.4f + .8f, Alpha(fire, .4f), 28, true, new Vector2(0, H * .45f)); heat.clip.flicker = .15f; heat.clip.pulse = .05f;
             // Only a faint warm wash on the body itself, so a burning enemy keeps its own colours and silhouette.
             var warmth = StatusAttach(look, "Status burn glow", glow, W * 1.1f + .4f, Alpha(fire, .07f), 120, true, new Vector2(0, H * .4f)); warmth.clip.flicker = .25f;
-            // Painted flames stand behind the actor and climb past its outline, so the body stays readable while it burns.
+            // Painted flames stand behind the actor and climb past its outline, so the body stays readable while it burns:
+            // each a saturated red-orange body a little inside the painted flame (same frames, in step) that glows over it.
             for (int i = 0; i < 3; i++)
             {
-                float x = (i - 1) * W * .34f;
-                var paint = StatusFlame(look, "Status burn painted flame", fw * (i == 1 ? 1.25f : 1.05f), new Color(1, .7f, .5f, .9f), 29, false, new Vector2(x, H * (i == 1 ? .35f : .12f) + fw * .62f), 14 + i * 3.5f);
-                paint.clip.angle = -(i - 1) * 12; if (i == 2) paint.scale.x *= -1;
+                float x = (i - 1) * W * .34f, width = fw * (i == 1 ? 1.25f : 1.05f), fps = 14 + i * 3.5f;
+                Vector2 at = new Vector2(x, H * (i == 1 ? .35f : .12f) + width * .55f);
+                var body = StatusFlame(look, "Status burn flame body", width * .94f, new Color(.86f, .24f, .05f, .6f), 28, false, at + Vector2.down * width * .02f, fps);
+                var paint = StatusFlame(look, "Status burn painted flame", width, new Color(1, .5f, .14f, .95f), 29, true, at, fps);
+                foreach (var part in new[] { body, paint }) { part.clip.angle = -(i - 1) * 12; if (i == 2) part.scale.x *= -1; }
             }
             // Two light tongues lean out from the silhouette's edges (never over its middle); a higher level adds a crown
             // flame over the head, and an awakened burn a small white-hot heart above it.
@@ -331,8 +360,9 @@ namespace PrototypeLab.Roguelike
             if (g >= 3) { var heart = StatusFlame(look, "Status burn white heat", fw * .35f, new Color(1, .97f, .86f, .85f), 127, true, new Vector2(0, H + fw * .2f), 27); heart.clip.pulse = .05f; }
         }
 
-        // Frozen solid: a crystal shell (deep blue ink behind the actor, a translucent ice body and its facet light in front)
-        // grows up from the feet, spikes jut out at its base and rime spreads on the floor; it shatters when the hold ends.
+        // Frozen solid: a painted crystal shell (translucent ice lit from the upper left behind the actor, a frosted film and
+        // its rim light in front) grows up from the feet, spikes jut out at its base and rime spreads on the floor; it shatters
+        // when the hold ends.
         private void StatusFreezeLook(StatusLook look)
         {
             float H = look.body.y, W = look.body.x, s = look.size;
@@ -345,23 +375,22 @@ namespace PrototypeLab.Roguelike
                 var rune = StatusAttach(look, "Status freeze rune", runeRing, SW * 1.3f, Alpha(Color.Lerp(ice, Color.white, .4f), .55f), 27, true, new Vector2(0, .04f));
                 rune.scale.y *= .3f; StatusIntro(rune, .22f, .4f);
             }
-            // The ice's solid faces stand behind the enemy; in front only a thin frosted film and the edge and gloss light,
+            // The ice's painted faces stand behind the enemy; in front only a thin frosted film and the edge and gloss light,
             // drawn over the nova's own spikes, so the frozen enemy shows through its shell.
-            StatusIntro(StatusSize(StatusAttach(look, "Status freeze shell ink", StatusShell, 1, StatusIceDeep, 28, false, new Vector2(0, -.05f)), SW * 1.1f, SH * 1.05f), .14f, .08f, true);
-            StatusIntro(StatusSize(StatusAttach(look, "Status freeze shell", StatusShell, 1, new Color(1, 1, 1, .8f), 29, false, Vector2.zero), SW, SH), .12f, .08f, true);
+            StatusIntro(StatusSize(StatusAttach(look, "Status freeze shell", StatusShell, 1, new Color(1, 1, 1, .85f), 29, false, Vector2.zero), SW, SH), .12f, .08f, true);
             StatusIntro(StatusSize(StatusAttach(look, "Status freeze shell film", StatusShell, 1, new Color(.86f, .96f, 1, .38f), 129, false, Vector2.zero), SW, SH), .12f, .08f, true);
             var light = StatusIntro(StatusSize(StatusAttach(look, "Status freeze shell light", StatusShellLight, 1, Alpha(Color.Lerp(ice, Color.white, .55f), .9f), 130, true, Vector2.zero), SW, SH), .12f, .08f, true);
             light.clip.flicker = .1f;
             for (int i = 0; i < 3; i++)
             {
                 float t = i - 1;
-                var tooth = StatusAttach(look, "Status freeze spike", spike, .17f * s * (1.15f - .3f * Mathf.Abs(t)), new Color(.9f, .98f, 1, .95f), 129, false, new Vector2(t * SW * .5f, 0));
+                var tooth = StatusAttach(look, "Status freeze spike", spike, .17f * s * (1.15f - .3f * Mathf.Abs(t)), new Color(.8f, .93f, 1, .95f), 129, false, new Vector2(t * SW * .5f, 0));
                 tooth.clip.angle = -t * 38; StatusIntro(tooth, .1f + .035f * i, 0);
             }
-            // The snap of freezing: a white flash, a frost ring and a puff of rime.
+            // The snap of freezing: a white flash, a frost shock front and a puff of rime.
             Vector2 mid = (Vector2)look.holder.position + new Vector2(0, H * .5f);
             var snap = Flash(mid, 1.6f * s, new Color(.9f, .98f, 1, .8f), .16f); snap.startScale = .6f;
-            var ringInk = Spawn("Status freeze ring ink", ring, mid, SW * 1.7f, Alpha(StatusIceDeep, .55f), .32f, false, 119); ringInk.startScale = .15f; ringInk.endScale = 1; ringInk.ease = 3; ringInk.fadePower = 1.3f;
+            StatusFront(mid, SW * 1.7f, Alpha(Color.Lerp(ice, new Color(.3f, .62f, 1), .4f), .9f), .3f, 0, 128);
             for (int i = 0; i < 2; i++)
             {
                 var puff = Puff(mid + new Vector2((i * 2 - 1) * Range(.2f, .5f) * W, -.35f * H), Range(.5f, .75f) * s, new Color(.88f, .95f, 1, .55f), new Vector2((i * 2 - 1) * Range(.6f, 1.5f), Range(.2f, .8f)), Range(.5f, .75f), 124);
@@ -377,17 +406,17 @@ namespace PrototypeLab.Roguelike
             Vector2 c = look.anchor = new Vector2(0, H + .3f * s);
             look.orbitX = Mathf.Max(.5f * s, W * .3f); look.orbitY = look.orbitX * .3f;
             look.slot = .61f * s + look.orbitY - .08f;
-            var halo = StatusAttach(look, "Status stun halo", glow, look.orbitX * 2.8f, Alpha(gold, .3f), 119, true, c); halo.role = StatusRoleBeat;
-            var inkRing = StatusAttach(look, "Status stun ring ink", ring, look.orbitX * 2.8f, Alpha(StatusGoldDeep, .8f), 120, false, c); inkRing.scale.y *= .3f; StatusIntro(inkRing, .2f, 1.7f);
-            var paintRing = StatusAttach(look, "Status stun ring paint", ring, look.orbitX * 2.66f, new Color(1, .7f, .12f, .85f), 120, false, c); paintRing.scale.y *= .3f; StatusIntro(paintRing, .2f, 1.7f);
-            var litRing = StatusAttach(look, "Status stun ring", ring, look.orbitX * 2.72f, Alpha(Color.Lerp(gold, Warm, .3f), .85f), 121, true, c); litRing.scale.y *= .3f; StatusIntro(litRing, .2f, 1.7f);
-            int stars = look.grade >= 3 ? 4 : 3; float size = .62f * s;
+            var halo = StatusAttach(look, "Status stun halo", glow, look.orbitX * 2.6f, Alpha(gold, .3f), 119, true, c); halo.role = StatusRoleBeat;
+            var paintRing = StatusAttach(look, "Status stun ring paint", ring, look.orbitX * 2.62f, new Color(1, .66f, .1f, .7f), 120, false, c); paintRing.scale.y *= .3f; StatusIntro(paintRing, .2f, 1.7f);
+            var litRing = StatusAttach(look, "Status stun ring", ring, look.orbitX * 2.72f, Alpha(Color.Lerp(gold, Warm, .3f), .9f), 121, true, c); litRing.scale.y *= .3f; StatusIntro(litRing, .2f, 1.7f);
+            // Each star: its glow, a saturated gold body and painted light over it (an amber edge easing to a white heart).
+            int stars = look.grade >= 3 ? 4 : 3; float size = .66f * s;
             for (int i = 0; i < stars; i++)
                 for (int layer = 0; layer < 3; layer++)
                 {
-                    Color color = layer == 0 ? StatusGoldDeep : layer == 1 ? new Color(1, .76f, .16f, 1) : new Color(1, .97f, .82f, .95f);
-                    var star = StatusAttach(look, "Status stun star", StatusStar[layer], size, color, 125 + layer, layer == 2, c);
-                    star.role = StatusRoleOrbit; star.phase = i * 360f / stars; star.clip.spin = 170; star.clip.angle = i * 23;
+                    Color color = layer == 0 ? Alpha(gold, .5f) : layer == 1 ? new Color(1, .66f, .1f, .85f) : new Color(1, .82f, .3f, 1);
+                    var star = StatusAttach(look, "Status stun star", layer == 0 ? glow : StatusStar[layer], layer == 0 ? size * 1.7f : size, color, 124 + layer, layer != 1, c);
+                    star.role = StatusRoleOrbit; star.phase = i * 360f / stars; star.clip.spin = layer == 0 ? 0 : 170; star.clip.angle = i * 23;
                     StatusIntro(star, .18f, 0);
                 }
         }
@@ -401,22 +430,19 @@ namespace PrototypeLab.Roguelike
             Color crimson = Color.Lerp(StatusCrimson, StatusTone(look.tint), .15f);
             float R = look.reach = Mathf.Clamp(1.1f * s, 1, 2.4f);
             Vector2 m = look.anchor = new Vector2(0, H + .16f + R * .45f);
-            var halo = StatusHead(look, "Status mark glow", glow, R * 1.7f, Alpha(crimson, .42f), 119, true, m);
-            var ink = StatusHead(look, "Status mark reticle ink", StatusReticle[0], R, StatusCrimsonDeep, 120, false, m);
-            var body = StatusHead(look, "Status mark reticle", StatusReticle[1], R, new Color(1, .13f, .2f, .97f), 121, false, m);
-            var hot = StatusHead(look, "Status mark reticle light", StatusReticle[2], R, new Color(1, .85f, .85f, .9f), 122, true, m);
-            var bracketInk = StatusHead(look, "Status mark bracket ink", StatusBracket[0], R * 1.18f, StatusCrimsonDeep, 120, false, m);
-            var bracket = StatusHead(look, "Status mark bracket", StatusBracket[1], R * 1.18f, new Color(1, .2f, .26f, .97f), 121, false, m);
-            var bracketHot = StatusHead(look, "Status mark bracket light", StatusBracket[2], R * 1.18f, new Color(1, .82f, .8f, .85f), 122, true, m);
-            foreach (var part in new[] { halo, ink, body, hot, bracketInk, bracket, bracketHot }) { part.role = StatusRoleBeat; StatusIntro(part, .24f, 2.4f); }
-            foreach (var part in new[] { bracketInk, bracket, bracketHot }) part.clip.spin = 40;
+            var halo = StatusHead(look, "Status mark glow", glow, R * 1.7f, Alpha(crimson, .34f), 119, true, m);
+            var body = StatusHead(look, "Status mark reticle", StatusReticle[1], R, new Color(.92f, .08f, .16f, .9f), 121, false, m);
+            var hot = StatusHead(look, "Status mark reticle light", StatusReticle[2], R, new Color(1, .3f, .34f, 1), 122, true, m);
+            var bracket = StatusHead(look, "Status mark bracket", StatusBracket[1], R * 1.18f, new Color(.95f, .14f, .2f, .9f), 121, false, m);
+            var bracketHot = StatusHead(look, "Status mark bracket light", StatusBracket[2], R * 1.18f, new Color(1, .34f, .36f, .95f), 122, true, m);
+            foreach (var part in new[] { halo, body, hot, bracket, bracketHot }) { part.role = StatusRoleBeat; StatusIntro(part, .24f, 2.4f); }
+            foreach (var part in new[] { bracket, bracketHot }) part.clip.spin = 40;
             if (look.grade >= 3)
             {
                 // The gold chevrons hold still on the crosshair's axes, outside the brackets' sweep, and beat with it.
-                var crownInk = StatusHead(look, "Status mark crown ink", StatusChevron[0], R * 1.85f, StatusGoldDeep, 120, false, m);
-                var crown = StatusHead(look, "Status mark crown", StatusChevron[1], R * 1.85f, new Color(1, .76f, .18f, .97f), 121, false, m);
-                var crownHot = StatusHead(look, "Status mark crown light", StatusChevron[2], R * 1.85f, new Color(1, .96f, .78f, .9f), 122, true, m);
-                foreach (var part in new[] { crownInk, crown, crownHot }) { part.role = StatusRoleBeat; StatusIntro(part, .32f, 2); }
+                var crown = StatusHead(look, "Status mark crown", StatusChevron[1], R * 1.85f, new Color(1, .68f, .12f, .9f), 121, false, m);
+                var crownHot = StatusHead(look, "Status mark crown light", StatusChevron[2], R * 1.85f, new Color(1, .82f, .32f, .95f), 122, true, m);
+                foreach (var part in new[] { crown, crownHot }) { part.role = StatusRoleBeat; StatusIntro(part, .32f, 2); }
             }
             var aura = StatusAttach(look, "Status mark aura", glow, W * 1.25f + .4f, Alpha(crimson, .17f), 120, true, new Vector2(0, H * .5f)); aura.clip.pulse = .05f;
         }
@@ -430,22 +456,21 @@ namespace PrototypeLab.Roguelike
             float S = look.reach = Mathf.Clamp(1.1f * s, 1, 2.4f);
             Vector2 g = look.anchor = new Vector2(0, H + .14f + S * .48f);
             look.slot = S * .9f + .04f;
-            var halo = StatusHead(look, "Status curse glow", glow, S * 1.75f, Alpha(violet, .36f), 119, true, g);
-            var ink = StatusHead(look, "Status curse sigil ink", StatusSigil[0], S, StatusVioletDeep, 120, false, g);
-            var body = StatusHead(look, "Status curse sigil", StatusSigil[1], S, new Color(.52f, .1f, .84f, .96f), 121, false, g);
-            var hot = StatusHead(look, "Status curse sigil light", StatusSigil[2], S, new Color(.93f, .78f, 1, .88f), 122, true, g);
-            foreach (var part in new[] { ink, body, hot }) part.clip.spin = -26;
+            var halo = StatusHead(look, "Status curse glow", glow, S * 1.7f, Alpha(violet, .32f), 119, true, g);
+            var body = StatusHead(look, "Status curse sigil", StatusSigil[1], S, new Color(.5f, .1f, .82f, .9f), 121, false, g);
+            var hot = StatusHead(look, "Status curse sigil light", StatusSigil[2], S, new Color(.76f, .44f, 1, 1), 122, true, g);
+            foreach (var part in new[] { body, hot }) part.clip.spin = -26;
             // The eye inside stays level while the thorned ring turns around it.
-            var eyeInk = StatusHead(look, "Status curse eye ink", StatusEye[0], S * .8f, StatusVioletDeep, 120, false, g);
-            var eye = StatusHead(look, "Status curse eye", StatusEye[1], S * .8f, new Color(.6f, .14f, .9f, .97f), 121, false, g);
-            var gaze = StatusHead(look, "Status curse eye light", StatusEye[2], S * .8f, new Color(1, .82f, 1, .95f), 123, true, g);
-            foreach (var part in new[] { halo, ink, body, hot, eyeInk, eye, gaze }) { part.role = StatusRoleBeat; StatusIntro(part, .26f, .25f); }
+            var eye = StatusHead(look, "Status curse eye", StatusEye[1], S * .8f, new Color(.58f, .12f, .88f, .92f), 121, false, g);
+            var gaze = StatusHead(look, "Status curse eye light", StatusEye[2], S * .8f, new Color(.92f, .54f, 1, 1), 123, true, g);
+            foreach (var part in new[] { halo, body, hot, eye, gaze }) { part.role = StatusRoleBeat; StatusIntro(part, .26f, .25f); }
             if (look.grade >= 3)
             {
-                var rune = StatusHead(look, "Status curse awakened rune", runeRing, S * 1.42f, Alpha(new Color(.86f, .66f, 1), .5f), 122, true, g);
+                var rune = StatusHead(look, "Status curse awakened rune", runeRing, S * 1.42f, Alpha(new Color(.86f, .66f, 1), .55f), 122, true, g);
                 rune.role = StatusRoleBeat; rune.clip.spin = 34; StatusIntro(rune, .3f, .25f);
             }
-            StatusAttach(look, "Status curse shadow", glow, W * 1.7f + .6f, new Color(.09f, 0, .14f, .45f), 29, false, new Vector2(0, H * .5f));
+            // A soft deep-violet shade behind the actor (a halo of the curse's own hue, never a black blot).
+            StatusAttach(look, "Status curse shadow", glow, W * 1.7f + .6f, new Color(.24f, .05f, .38f, .36f), 29, false, new Vector2(0, H * .5f));
             var miasma = StatusAttach(look, "Status curse miasma", glow, W * 1.2f + .3f, Alpha(violet, .14f), 120, true, new Vector2(0, H * .45f)); miasma.clip.flicker = .2f;
             // Smoke pours off the sigil's lower rim in soft wisps that curl out over the shoulders and thin away over the top
             // of the body; a shorter third one spills from under the eye. They hang from the sigil, so they stretch when it is
@@ -456,9 +481,10 @@ namespace PrototypeLab.Roguelike
                 bool mid = i == 2; float side = mid ? 0 : i == 0 ? -1 : 1;
                 Vector2 top = mid ? g + Vector2.down * S * .3f : g + Direction(-90 + side * 40) * S * .42f;
                 float width = (mid ? .5f : .7f) * s, length = mid ? Mathf.Max(H * .45f, top.y - H * .62f) : Mathf.Max(H * .5f, (top.y - H * .42f) / cosLean);
-                var drip = StatusSize(StatusHead(look, "Status curse tendril ink", StatusWisp, 1, new Color(.16f, .01f, .26f, .85f), 121, false, top), width, length);
+                // Glowing violet smoke: a deep violet edge easing to a pale lilac spine, with a brighter thread down the middle.
+                var drip = StatusSize(StatusHead(look, "Status curse tendril", StatusWisp, 1, new Color(.6f, .26f, 1, .7f), 121, true, top), width, length);
                 drip.length = length;
-                var parts = mid ? new[] { drip } : new[] { drip, StatusSize(StatusHead(look, "Status curse tendril light", StatusWisp, 1, Alpha(Color.Lerp(violet, Color.white, .3f), .5f), 122, true, top), width * .4f, length * .9f) };
+                var parts = mid ? new[] { drip } : new[] { drip, StatusSize(StatusHead(look, "Status curse tendril light", StatusWisp, 1, Alpha(Color.Lerp(violet, Color.white, .35f), .45f), 122, true, top), width * .4f, length * .9f) };
                 foreach (var part in parts)
                 {
                     part.role = StatusRoleSway; part.angle = side * 18; part.swing = mid ? 8 : 12; part.phase = i * 1.9f; part.length = length;
@@ -478,15 +504,15 @@ namespace PrototypeLab.Roguelike
             // instead of covering the enemy; leaves, vines and the dark blush stay behind the body.
             float P = look.reach = Mathf.Clamp(Mathf.Min(.46f * s, W * .3f + .12f), .3f, 1);
             Vector2 bud = look.anchor = new Vector2(W * .06f, Mathf.Max(H * .62f, H - P * .35f));
-            var halo = StatusAttach(look, "Status seed glow", glow, P * 3.4f, Alpha(pink, .38f), 126, true, bud + Vector2.up * P * .8f); halo.role = StatusRoleBloom;
+            var halo = StatusAttach(look, "Status seed glow", glow, P * 3, Alpha(pink, .26f), 126, true, bud + Vector2.up * P * .8f); halo.role = StatusRoleBloom;
             var life = StatusAttach(look, "Status seed life", glow, P * 5, new Color(.45f, 1, .55f, .3f), 26, true, bud + Vector2.up * P * .6f); life.role = StatusRoleBloom;
             var blush = StatusAttach(look, "Status seed blush", glow, P * 3, new Color(.85f, .2f, .5f, .32f), 27, false, bud + Vector2.up * P * .8f); blush.role = StatusRoleBloom;
             if (look.grade >= 3)
             {
-                // An awakened seed (it blooms twice as hard) wears a gold-white halo ring over a gold-brown ink ring.
-                var crownInk = StatusAttach(look, "Status seed awakened ring ink", ring, P * 3, new Color(.36f, .2f, .02f, .6f), 117, false, bud + Vector2.up * P * .85f);
-                crownInk.role = StatusRoleBloom;
-                var crown = StatusAttach(look, "Status seed awakened ring", ring, P * 2.9f, new Color(1, .9f, .62f, .8f), 125, true, bud + Vector2.up * P * .85f);
+                // An awakened seed (it blooms twice as hard) wears a gold-white halo ring in a soft gold glow.
+                var crownGlow = StatusAttach(look, "Status seed awakened glow", glow, P * 3.4f, new Color(1, .82f, .4f, .3f), 117, true, bud + Vector2.up * P * .85f);
+                crownGlow.role = StatusRoleBloom;
+                var crown = StatusAttach(look, "Status seed awakened ring", ring, P * 2.9f, new Color(1, .86f, .5f, .9f), 125, true, bud + Vector2.up * P * .85f);
                 crown.role = StatusRoleBloom;
             }
             for (int i = 0; i < 2; i++)
@@ -616,7 +642,7 @@ namespace PrototypeLab.Roguelike
             }
             if (StatusEvery(ref look.bank2, 2.2f, dt) > 0)
             {
-                var soot = Puff(at + new Vector2(Range(-.22f, .22f) * W, H * Range(.85f, 1.05f)), Range(.4f, .58f) * s, new Color(.2f, .14f, .12f, .4f), new Vector2(Range(-.3f, .3f), Range(.8f, 1.3f)), Range(.7f, 1), 112);
+                var soot = Puff(at + new Vector2(Range(-.22f, .22f) * W, H * Range(.85f, 1.05f)), Range(.4f, .58f) * s, new Color(.4f, .33f, .29f, .42f), new Vector2(Range(-.3f, .3f), Range(.8f, 1.3f)), Range(.7f, 1), 112);
                 soot.endScale = 2.1f; soot.gravity = -.3f;
             }
         }
@@ -630,14 +656,14 @@ namespace PrototypeLab.Roguelike
                 mist.endScale = 2.2f; mist.drag = 2;
             }
             if (StatusEvery(ref look.bank2, 2.5f, dt) > 0)
-                Glint(at + new Vector2(Range(-.4f, .4f) * W, Range(.2f, .95f) * H), Range(.35f, .55f) * s, new Color(.92f, .99f, 1, .95f), .3f, Range(0, 45));
+                StatusSparkle(at + new Vector2(Range(-.4f, .4f) * W, Range(.2f, .95f) * H), Range(.3f, .45f) * s, new Color(.92f, .99f, 1, .95f), .3f);
         }
 
         private void StatusStunTick(StatusLook look, Vector2 at, float dt)
         {
             if (StatusEvery(ref look.bank, 3, dt) == 0) return;
             float th = Range(0, 360) * Mathf.Deg2Rad;
-            var mote = Spawn("Status stun sparkle", glow, at + look.anchor + new Vector2(Mathf.Cos(th) * look.orbitX, Mathf.Sin(th) * look.orbitY), Range(.1f, .18f) * look.size, new Color(1, .9f, .55f, .95f), Range(.25f, .4f), true, 127);
+            var mote = Spawn("Status stun sparkle", fleck, at + look.anchor + new Vector2(Mathf.Cos(th) * look.orbitX, Mathf.Sin(th) * look.orbitY), Range(.18f, .3f) * look.size, new Color(1, .86f, .4f, .95f), Range(.25f, .4f), true, 127);
             mote.velocity = new Vector2(Range(-.4f, .4f), Range(.2f, .7f)); mote.flicker = .5f; mote.endScale = .15f; mote.ease = 1;
         }
 
@@ -648,14 +674,14 @@ namespace PrototypeLab.Roguelike
             for (int i = 0; i < n; i++)
             {
                 // Dark smoke spills from just under the sigil and runs down over the body.
-                var drip = Puff(at + new Vector2(Range(-.3f, .3f) * W, H + .05f + look.lift * .7f), Range(.5f, .68f) * s, new Color(.2f, .03f, .33f, .82f), new Vector2(Range(-.15f, .15f), -Range(.5f, .8f)), Range(.75f, 1), 121);
+                var drip = Puff(at + new Vector2(Range(-.3f, .3f) * W, H + .05f + look.lift * .7f), Range(.5f, .68f) * s, new Color(.42f, .14f, .62f, .7f), new Vector2(Range(-.15f, .15f), -Range(.5f, .8f)), Range(.75f, 1), 121);
                 drip.drag = 1; drip.startScale = .6f; drip.endScale = 1.5f; drip.fadeIn = .1f;
             }
             n = StatusEvery(ref look.bank2, 2.5f, dt);
             for (int i = 0; i < n; i++)
             {
-                var mote = Spawn("Status curse mote", wisp, at + new Vector2(Range(-.4f, .4f) * W, Range(.4f, 1) * H), Range(.12f, .2f) * s, new Color(.78f, .5f, 1, .9f), Range(.5f, .8f), true, 123);
-                mote.velocity = new Vector2(0, -Range(.4f, .9f)); mote.fadeIn = .08f; mote.endScale = .3f; mote.flicker = .3f;
+                var mote = Spawn("Status curse mote", spark, at + new Vector2(Range(-.4f, .4f) * W, Range(.4f, 1) * H), Range(.22f, .32f) * s, new Color(.74f, .42f, 1, .9f), Range(.45f, .7f), true, 123);
+                mote.velocity = new Vector2(0, -Range(.6f, 1.1f)); mote.alignVelocity = true; mote.scale.y *= .7f; mote.endScale = .3f; mote.ease = 1; mote.flicker = .3f;
             }
         }
 
@@ -667,19 +693,18 @@ namespace PrototypeLab.Roguelike
             for (int i = 0; i < n; i++)
             {
                 bool rose = Chance(.5f);
-                var pollen = Spawn("Status seed pollen", glow, heart + Inside(P * .7f), Range(.07f, .14f) * s, rose ? new Color(1, .7f, .88f, .95f) : new Color(.6f, 1, .6f, .9f), Range(.5f, .8f), true, 127);
-                pollen.velocity = new Vector2(Range(-.3f, .3f), Range(.4f, 1)); pollen.flicker = .5f; pollen.endScale = .2f; pollen.ease = 1;
+                var pollen = Spawn("Status seed pollen", fleck, heart + Inside(P * .7f), Range(.13f, .22f) * s, rose ? new Color(1, .62f, .86f, .95f) : new Color(.55f, 1, .55f, .9f), Range(.5f, .8f), true, 127);
+                pollen.velocity = new Vector2(Range(-.3f, .3f), Range(.4f, 1)); pollen.flicker = .5f; pollen.endScale = .2f; pollen.ease = 1; pollen.angle = Range(-20, 20);
             }
             if (prog > .7f && StatusEvery(ref look.bank2, (prog - .7f) * 14, dt) > 0)
-                Glint(heart + Inside(P * .3f), Range(.5f, .8f) * s, new Color(1, .9f, .96f, .9f), .25f, Range(0, 45));
+                StatusSparkle(heart + Inside(P * .3f), Range(.4f, .6f) * s, new Color(1, .9f, .96f, .9f), .25f);
         }
 
-        /// <summary>A mark's lock-on beat: a crimson ring snaps out of the reticle.</summary>
+        /// <summary>A mark's lock-on beat: a crimson shock front snaps out of the reticle.</summary>
         private void StatusLockPulse(StatusLook look, Vector2 at)
         {
             Vector2 c = at + look.anchor + new Vector2(0, look.lift); float R = look.reach;
-            var ink = Spawn("Status mark lock ink", ring, c, R * 1.25f, Alpha(StatusCrimsonDeep, .55f), .4f, false, 119); ink.startScale = .55f; ink.endScale = 1.35f; ink.ease = 2.5f; ink.fadePower = 1.3f;
-            var lit = Spawn("Status mark lock", ring, c, R * 1.2f, new Color(1, .35f, .4f, .75f), .36f, true, 122); lit.startScale = .55f; lit.endScale = 1.3f; lit.ease = 2.5f; lit.fadePower = 1.5f;
+            var lit = ShockFlip(c, R * 1.45f, new Color(1, .3f, .36f, .85f), .38f, 122); lit.startScale = .45f; lit.endScale = 1.05f; lit.ease = 2.5f;
         }
 
         /// <summary>The ice shell breaking when the hold ends or the frozen enemy falls.</summary>
@@ -696,10 +721,10 @@ namespace PrototypeLab.Roguelike
             {
                 bool lit = i % 2 == 1; float angle = Range(25, 155);
                 Vector2 dir = Direction(angle), from = mid + new Vector2(dir.x * .4f * W, Range(-.1f, .4f) * H);
-                var chip = Spawn(lit ? "Status ice chip light" : "Status ice chip", shard, from, Range(.2f, .32f) * s, lit ? new Color(.85f, .97f, 1, .95f) : new Color(.9f, .98f, 1, .97f), Range(.4f, .6f), lit, lit ? 131 : 130);
+                var chip = Spawn(lit ? "Status ice chip light" : "Status ice chip", lit ? StormShard : shard, from, Range(.2f, .32f) * s, lit ? new Color(.55f, .88f, 1, .95f) : new Color(.8f, .93f, 1, .97f), Range(.4f, .6f), lit, lit ? 131 : 130);
                 chip.velocity = dir * Range(2.4f, 4.2f) + Vector2.up * .8f; chip.gravity = 11; chip.spin = Range(-500, 500); chip.angle = Range(0, 360); chip.hold = .4f; chip.fadePower = 1.2f;
             }
-            for (int i = 0; i < 2; i++) StatusLater(Glint(mid + new Vector2(Range(-.35f, .35f) * W, Range(0, .4f) * H), Range(.5f, .7f) * s, new Color(.92f, .99f, 1, .95f), .22f, Range(0, 45)), i * .05f);
+            for (int i = 0; i < 2; i++) StatusLater(StatusSparkle(mid + new Vector2(Range(-.35f, .35f) * W, Range(0, .4f) * H), Range(.42f, .6f) * s, new Color(.92f, .99f, 1, .95f), .22f), i * .05f);
             for (int i = 0; i < 3; i++)
             {
                 var puff = Puff(mid + new Vector2(Range(-.4f, .4f) * W, Range(-.4f, .2f) * H), Range(.5f, .7f) * s, new Color(.88f, .95f, 1, .5f), new Vector2(Range(-1.2f, 1.2f), Range(.2f, .8f)), Range(.5f, .7f), 124);
@@ -710,42 +735,39 @@ namespace PrototypeLab.Roguelike
 
         // ---------------------------------------------------------------- reactions
 
-        // Lightning on the slowed or stunned: a blue-white flash, jagged arcs crackling out (deep blue ink under white light),
-        // frost flakes, ice chips and glints where the arcs end.
+        // Lightning on the slowed or stunned: a blue-white hit spark and a small icy electric blast, painted bolts crackling
+        // out in their glow, a six-armed ice crystal of painted light snapping open, frost flakes, ice chips and sparkles.
         private void StatusSuperconduct(Vector2 pos, float g)
         {
-            Color storm = new Color(.6f, .8f, 1), hot = new Color(.9f, .97f, 1), ink = new Color(.03f, .08f, .32f, .75f);
-            Color frost = new Color(.5f, .95f, 1);
-            Underlay(pos, 2.6f * g, .3f, .32f);
-            var flash = Spawn("Status superconduct flash", glow, pos, 2.1f * g, Alpha(storm, .85f), .18f, true, 131); flash.startScale = .45f; flash.endScale = 1.25f; flash.ease = 3; flash.fadePower = 1.4f;
-            // A small six-armed ice crystal snaps open just after the strike (deep blue ink behind the body, cyan light in
-            // front) and turns as it fades: an accent the size of the enemy, never a cover over it.
+            Color storm = new Color(.3f, .72f, 1), hot = new Color(.9f, .97f, 1), frost = new Color(.5f, .95f, 1);
+            Underlay(pos, 2.4f * g, .26f, .3f);
+            StatusPop(pos, 2 * g, storm, .16f);
+            StormBurst(pos, 1.4f * g, new Color(.3f, .66f, 1), .34f, 128);
+            // A small six-armed ice crystal snaps open just after the strike (a saturated blue body under painted cyan light, in
+            // its glow) and turns as it fades: an accent the size of the enemy, never a cover over it.
             float cw = 1.25f * (1 + (Grade - 1) * .08f);
+            var halo = StatusLater(Spawn("Status superconduct crystal glow", glow, pos, cw * 1.6f, Alpha(frost, .4f), .36f, true, 129), .05f);
+            halo.startScale = .4f; halo.endScale = 1.1f; halo.ease = 4; halo.fadePower = 1.4f;
             for (int layer = 0; layer < 2; layer++)
             {
                 bool lit = layer == 1;
-                var crystal = StatusLater(Spawn(lit ? "Status superconduct crystal" : "Status superconduct crystal ink", StatusCrystal[lit ? 1 : 0], pos, cw,
-                    lit ? Alpha(frost, .7f) : new Color(.03f, .1f, .38f, .8f), lit ? .36f : .42f, lit, lit ? 131 : 29), .05f);
-                crystal.startScale = .35f; crystal.endScale = 1.1f; crystal.ease = 5; crystal.spin = 70; crystal.hold = lit ? .15f : .3f; crystal.fadePower = 1.4f;
+                var crystal = StatusLater(Spawn(lit ? "Status superconduct crystal" : "Status superconduct crystal body", StatusCrystal[lit ? 2 : 1], pos, cw,
+                    lit ? Alpha(frost, .95f) : new Color(.2f, .55f, 1, .6f), .36f, lit, lit ? 131 : 130), .05f);
+                crystal.startScale = .35f; crystal.endScale = 1.1f; crystal.ease = 5; crystal.spin = 70; crystal.hold = .2f; crystal.fadePower = 1.4f;
             }
-            var crystalCore = StatusLater(Spawn("Status superconduct crystal core", StatusCrystal[2], pos, cw, Color.white, .24f, true, 132), .05f);
-            crystalCore.startScale = .35f; crystalCore.endScale = 1.1f; crystalCore.ease = 5; crystalCore.spin = 70; crystalCore.fadePower = 1.6f;
-            var heart = Spawn("Status superconduct core", core, pos, .55f * g, Color.white, .09f, true, 133); heart.startScale = .6f; heart.endScale = 1.5f; heart.ease = 2;
-            var inkRing = Spawn("Status superconduct ink ring", ring, pos, 2.4f * g, ink, .3f, false, 119); inkRing.startScale = .15f; inkRing.endScale = 1; inkRing.ease = 3; inkRing.fadePower = 1.3f;
-            Wave(pos, 2.7f * g, Alpha(storm, .9f), .28f, 3);
-            // The crackle is the star: long blue-white arcs (one ink stroke under a two-segment bolt) reach well out of the
-            // body just after the causing bolt's own flash, and one more snaps out as the crystal opens.
+            var wave = Wave(pos, 2.7f * g, Alpha(storm, .9f), .26f, 4); wave.angle = Chance(.5f) ? 0 : 180; wave.scale.y *= .8f;
+            // The crackle is the star: long painted bolts in their glow reach well out of the body just after the causing
+            // bolt's own flash, and one more snaps out as the crystal opens.
             int arcs = Grade >= 3 ? 5 : 4; float reach = 1 + (Grade - 1) * .08f;
             for (int i = 0; i < arcs + 1; i++)
             {
                 bool late = i >= arcs;
                 float angle = i * 360f / arcs + Range(-22, 22) + (late ? 36 : 0), length = Range(1.2f, 1.6f) * reach * (late ? .8f : 1), delay = late ? .2f : .05f + i % 2 * .05f;
                 Vector2 dir = Direction(angle), side = new Vector2(-dir.y, dir.x), start = pos + dir * .12f;
-                Vector2 bend = pos + dir * (.12f + length * Range(.42f, .58f)) + side * Range(-.14f, .14f), end = pos + dir * (.12f + length) + side * Range(-.08f, .08f);
-                var shade = StatusLater(StatusInk(Line(start, end, .24f, ink, .24f, 119, 1.1f), 119), delay); shade.flicker = .2f;
-                var boltA = StatusLater(Line(start, bend, .085f, hot, .22f, 130, 1.2f), delay); boltA.flicker = .35f;
-                var boltB = StatusLater(Line(bend, end, .07f, Color.Lerp(hot, storm, .3f), .22f, 130, 1.2f), delay); boltB.flicker = .35f;
-                if (!late) StatusLater(Glint(end, Range(.45f, .65f) * g, Alpha(hot, .95f), .2f, Range(0, 45)), delay + .02f);
+                Vector2 end = pos + dir * (.12f + length) + side * Range(-.08f, .08f);
+                var bolt = StormPainted(start, end, .5f * reach, storm, Alpha(storm, .8f), .22f, delay, 130, random.Next(StormBoltVariants), Chance(.5f));
+                bolt.flicker = .3f; bolt.hold = .25f; bolt.fadePower = 1.4f;
+                if (!late) StatusLater(StatusSparkle(end, Range(.4f, .55f) * g, Alpha(hot, .95f), .2f), delay + .02f);
             }
             int flakes = Budget(3);
             for (int i = 0; i < flakes; i++)
@@ -756,22 +778,22 @@ namespace PrototypeLab.Roguelike
             int chips = Budget(3);
             for (int i = 0; i < chips; i++)
             {
-                var chip = Spawn("Status superconduct ice", shard, pos + Inside(.15f), Range(.16f, .26f), new Color(.85f, .96f, 1, .95f), Range(.35f, .5f), false, 124);
+                var chip = Spawn("Status superconduct ice", StormShard, pos + Inside(.15f), Range(.16f, .26f), new Color(.6f, .9f, 1, .95f), Range(.35f, .5f), true, 129);
                 chip.velocity = Direction(Range(0, 360)) * Range(2.5f, 4) * g + Vector2.up; chip.gravity = 8; chip.drag = 1; chip.spin = Range(-500, 500); chip.angle = Range(0, 360); chip.fadePower = 1.2f;
             }
-            for (int i = 0; i < 3; i++) Spark(pos, Direction(Range(0, 360)) * Range(3, 6) * g, i % 2 == 0 ? Color.white : storm, Range(.2f, .3f), Range(.18f, .3f), 2, 3);
+            for (int i = 0; i < 4; i++) Spark(pos, Direction(Range(0, 360)) * Range(3, 6.5f) * g, i % 2 == 0 ? Color.white : storm, Range(.28f, .4f), Range(.18f, .3f), 2, 3);
         }
 
-        // Fire on the slowed or frost on the burning: just after the blow's own flash has passed, a white steam explosion
-        // goes off on top of it (white vapour over cool blue-grey shading and a deep blue ink ring, so it has volume and an
-        // edge on a pale sky), hissing white jets shoot up and a tall white column keeps boiling off the body.
+        // Fire on the slowed or frost on the burning: just after the blow's own flash has passed, a steam explosion goes off on
+        // top of it: a pale hit spark, a cool white blast, a shock front, white vapour billows (lit from the upper left with a
+        // cool shade, swelling and tearing apart), hissing white jets, and a tall white column that keeps boiling off the body.
         private void StatusSteam(Vector2 pos, float g)
         {
             const float Late = .09f;
-            Color vapor = new Color(.97f, .99f, 1, .95f), shade = new Color(.55f, .66f, .8f, .45f);
-            var flash = StatusLater(Spawn("Status steam flash", glow, pos, 1.9f * g, new Color(.92f, .97f, 1, .7f), .16f, true, 133), Late); flash.startScale = .5f; flash.endScale = 1.3f; flash.ease = 3; flash.fadePower = 1.4f;
-            var inkRing = StatusLater(Spawn("Status steam ring ink", ring, pos, 2.8f * g, Alpha(StatusIceDeep, .5f), .4f, false, 119), Late); inkRing.startScale = .15f; inkRing.endScale = 1; inkRing.ease = 3; inkRing.fadePower = 1.3f;
-            var pop = StatusLater(Spawn("Status steam ring", ring, pos, 2.6f * g, new Color(.97f, .99f, 1, .92f), .34f, false, 134), Late); pop.startScale = .15f; pop.endScale = 1; pop.ease = 3; pop.fadePower = 1.3f;
+            Color vapor = new Color(.97f, .99f, 1, .95f), shade = new Color(.58f, .69f, .84f, .5f);
+            StatusPop(pos, 1.7f * g, new Color(.7f, .88f, 1, .9f), .14f, Late);
+            StormBurst(pos, 1.7f * g, new Color(.62f, .82f, 1), .4f, 131, Late);
+            StatusFront(pos, 2.7f * g, new Color(.82f, .94f, 1, .9f), .34f, Late, 132);
             int shades = Budget(5);
             for (int i = 0; i < shades; i++)
             {
@@ -806,26 +828,27 @@ namespace PrototypeLab.Roguelike
             }
         }
 
-        // Melee on the stunned: a golden guard crest flashes, cracks down the middle and its halves tumble away, under a
-        // white cross flash, gold impact lines and a spray of gold facets.
+        // Melee on the stunned: a golden guard crest flashes in its glow, cracks down the middle and its painted halves tumble
+        // away, under a gold hit spark, a white cross flash, gold impact lines, a shock front and a spray of gold facets.
         private void StatusDefenseless(Vector2 pos, float g)
         {
-            Color gold = new Color(1, .8f, .3f), body = new Color(1, .7f, .16f, 1), hot = new Color(1, .96f, .82f), ink = new Color(.3f, .14f, .01f, .85f);
-            Underlay(pos, 2.4f * g, .3f, .32f);
-            var flash = Spawn("Status guard flash", glow, pos, 1.8f * g, Alpha(hot, .8f), .14f, true, 131); flash.startScale = .5f; flash.endScale = 1.3f; flash.ease = 3; flash.fadePower = 1.4f;
+            Color gold = new Color(1, .8f, .3f), body = new Color(1, .76f, .26f, 1), hot = new Color(1, .96f, .82f);
+            Underlay(pos, 2.4f * g, .28f, .32f);
+            StatusPop(pos, 1.8f * g, gold, .14f);
             // The crest is about the enemy's size; its halves fly apart sideways with a quick turn and are gone in a third of
             // a second, a white-gold glint on their faces as they break.
             float size = 1.05f * g;
+            var aura = Spawn("Status guard glow", glow, pos + Vector2.up * .1f * size, size * 1.9f, Alpha(gold, .45f), .3f, true, 120);
+            aura.startScale = .5f; aura.endScale = 1.1f; aura.ease = 4; aura.fadePower = 1.5f;
             for (int half = 0; half < 2; half++)
             {
                 float side = half == 0 ? -1 : 1;
-                var whole = Spawn("Status guard", StatusGuard[half], pos, size, body, .07f, false, 121); whole.fadePower = 0;
-                var wholeInk = Spawn("Status guard ink", StatusGuard[half + 2], pos, size, ink, .07f, false, 120); wholeInk.fadePower = 0;
+                var whole = Spawn("Status guard", StatusGuard[half], pos + Vector2.up * .1f * size, size, body, .07f, false, 121);
+                whole.fadePower = 0; whole.startScale = .55f; whole.endScale = 1.05f; whole.ease = 8;
                 Vector2 velocity = new Vector2(side * Range(3.4f, 4.4f), Range(.8f, 1.4f)) * g; float spin = -side * Range(90, 140);
-                var shadow = StatusLater(Spawn("Status guard half ink", StatusGuard[half + 2], pos, size, ink, .35f, false, 120), .06f);
-                var shell = StatusLater(Spawn("Status guard half", StatusGuard[half], pos, size, body, .35f, false, 121), .06f);
-                var shine = StatusLater(Spawn("Status guard half light", StatusGuard[half], pos, size, Alpha(hot, .8f), .2f, true, 122), .06f);
-                foreach (var c in new[] { shadow, shell, shine }) { c.velocity = velocity; c.gravity = 7; c.drag = 1.2f; c.spin = spin; c.hold = .25f; c.fadePower = 1.3f; }
+                var shell = StatusLater(Spawn("Status guard half", StatusGuard[half], pos + Vector2.up * .1f * size, size, body, .35f, false, 121), .06f);
+                var shine = StatusLater(Spawn("Status guard half light", StatusGuard[half], pos + Vector2.up * .1f * size, size, new Color(1, .8f, .32f, .6f), .2f, true, 122), .06f);
+                foreach (var c in new[] { shell, shine }) { c.velocity = velocity; c.gravity = 7; c.drag = 1.2f; c.spin = spin; c.hold = .25f; c.fadePower = 1.3f; }
                 shine.hold = 0; shine.fadePower = 1.6f;
             }
             var crack = StatusLater(Line(pos + Vector2.up * .42f * size, pos + Vector2.down * .45f * size, .1f, Color.white, .12f, 132, 1.05f), .03f); crack.fadePower = 1.2f;
@@ -835,8 +858,7 @@ namespace PrototypeLab.Roguelike
                 cross.scale.y *= .16f; cross.angle = i == 0 ? 45 : -45; cross.startScale = .3f; cross.endScale = 1; cross.ease = 3; cross.fadePower = 1.4f;
             }
             ImpactLines(pos, 3.4f * g, Alpha(gold, .75f), .24f);
-            StatusInk(ImpactLines(pos, 3.6f * g, ink, .26f), 119);
-            Wave(pos, 2.2f * g, Alpha(gold, .8f), .24f, 3);
+            Wave(pos, 2.2f * g, Alpha(gold, .85f), .24f, 3);
             int facets = Budget(8);
             for (int i = 0; i < facets; i++)
             {
@@ -847,20 +869,17 @@ namespace PrototypeLab.Roguelike
             for (int i = 0; i < 6; i++) Spark(pos, Direction(Range(0, 360)) * Range(4, 7) * g, i % 2 == 0 ? Color.white : gold, Range(.22f, .36f), Range(.2f, .32f), 6, 3);
         }
 
-        // Poison on the burning: an orange core inside a sickly green bloom, flare lines, a billow of green and olive smoke,
-        // bubbles, falling acid drops and orange sparks.
+        // Poison on the burning: a fiery hit spark inside an acid-green blast, an orange shock front and orange flame tongues,
+        // a billow of green and olive smoke, bubbles, falling acid drops and orange sparks.
         private void StatusToxic(Vector2 pos, float g)
         {
-            Color acid = new Color(.62f, .96f, .2f), sick = new Color(.5f, .74f, .12f, .72f), olive = new Color(.2f, .26f, .04f, .58f), orange = new Color(1, .55f, .12f);
+            Color acid = new Color(.62f, .96f, .2f), sick = new Color(.52f, .76f, .14f, .72f), olive = new Color(.42f, .52f, .14f, .6f), orange = new Color(1, .55f, .12f);
             Underlay(pos, 2.2f * g, .22f, .3f);
-            var heart = Spawn("Status toxic core", glow, pos, 1.4f * g, Alpha(orange, .95f), .2f, true, 132); heart.startScale = .5f; heart.endScale = 1.25f; heart.ease = 3; heart.fadePower = 1.4f;
-            var bloom = Spawn("Status toxic bloom", glow, pos, 2.3f * g, Alpha(acid, .55f), .3f, true, 130); bloom.startScale = .4f; bloom.endScale = 1.2f; bloom.ease = 3; bloom.fadePower = 1.4f;
-            var stain = Spawn("Status toxic ring", ring, pos, 2.5f * g, new Color(.3f, .5f, .04f, .6f), .34f, false, 119); stain.startScale = .15f; stain.endScale = 1; stain.ease = 3; stain.fadePower = 1.3f;
-            // Fire and poison together: an orange ring and orange flame tongues burst out over the green bloom.
-            var flare = Spawn("Status toxic fire ring", ring, pos, 2.2f * g, new Color(1, .5f, .08f, .8f), .25f, false, 132); flare.startScale = .2f; flare.endScale = 1; flare.ease = 3; flare.fadePower = 1.3f;
+            StatusPop(pos, 1.8f * g, orange, .18f);
+            StormBurst(pos, 1.6f * g, new Color(.46f, .86f, .14f), .45f, 128);
+            // Fire and poison together: an orange shock front and orange flame tongues burst out over the green blast.
+            StatusFront(pos, 2.2f * g, Alpha(orange, .9f), .25f, 0, 132);
             Wave(pos, 2.7f * g, Alpha(acid, .8f), .3f, 3);
-            ImpactLines(pos, 3 * g, Alpha(orange, .7f), .22f);
-            StatusInk(ImpactLines(pos, 3.2f * g, olive, .26f), 119);
             int tongues = Budget(5);
             for (int i = 0; i < tongues; i++)
             {
@@ -901,24 +920,22 @@ namespace PrototypeLab.Roguelike
         }
 
         // A curse, mark or seed passing to a new host: violet motes gather into it while four chevrons close in on it from
-        // wide, then it flashes and rings ripple out. The emblem is neutral; the status that lands right after says which.
+        // wide in their glow, then it flashes and shock fronts ripple out. The emblem is neutral; the status that lands right
+        // after says which.
         private void StatusSpread(Vector2 pos, float g)
         {
-            Color violet = new Color(.74f, .48f, 1), ink = new Color(.18f, .02f, .3f, .7f);
+            Color violet = new Color(.74f, .48f, 1);
             Converge(pos, 6, 1.3f * g, violet, .22f, .4f);
-            var flash = StatusLater(Spawn("Status spread flash", glow, pos, 1.6f * g, Alpha(violet, .75f), .2f, true, 131), .14f); flash.startScale = .5f; flash.endScale = 1.3f; flash.ease = 3; flash.fadePower = 1.4f;
-            for (int layer = 0; layer < 3; layer++)
+            StatusPop(pos, 1.6f * g, violet, .18f, .14f);
+            var halo = Spawn("Status spread glow", glow, pos, 2.2f * g, Alpha(violet, .35f), .36f, true, 119);
+            halo.startScale = 1.5f; halo.endScale = .8f; halo.ease = 3; halo.hold = .5f; halo.fadePower = 1.4f; halo.fadeIn = .05f;
+            for (int layer = 1; layer < 3; layer++)
             {
-                var chevrons = Spawn("Status spread chevrons", StatusChevron[layer], pos, 1.5f * g, layer == 0 ? ink : layer == 1 ? new Color(.62f, .3f, 1, .95f) : new Color(.95f, .85f, 1, .9f), .34f, layer == 2, 120 + layer);
+                var chevrons = Spawn("Status spread chevrons", StatusChevron[layer], pos, 1.5f * g, layer == 1 ? new Color(.56f, .24f, 1, .9f) : new Color(.8f, .55f, 1, 1), .34f, layer == 2, 120 + layer);
                 chevrons.startScale = 1.7f; chevrons.endScale = .75f; chevrons.ease = 3; chevrons.angle = 45; chevrons.hold = .55f; chevrons.fadePower = 1.4f; chevrons.fadeIn = .05f;
             }
-            for (int i = 0; i < 3; i++)
-            {
-                float delay = .12f + i * .08f;
-                var dark = StatusLater(Spawn("Status spread ripple ink", ring, pos, 2.6f * g, Alpha(ink, .6f), .42f, false, 119), delay); dark.startScale = .15f; dark.endScale = 1; dark.ease = 2.5f; dark.fadePower = 1.3f;
-                var lit = StatusLater(Spawn("Status spread ripple", ring, pos, 2.5f * g, Alpha(violet, .85f), .4f, true, 131), delay); lit.startScale = .15f; lit.endScale = 1; lit.ease = 2.5f; lit.fadePower = 1.4f;
-            }
-            for (int i = 0; i < 2; i++) StatusLater(Glint(pos + Inside(.4f), Range(.5f, .7f) * g, new Color(.95f, .85f, 1, .9f), .22f, Range(0, 45)), .14f + i * .06f);
+            for (int i = 0; i < 3; i++) StatusFront(pos, 2.5f * g, Alpha(violet, .85f), .4f, .12f + i * .08f);
+            for (int i = 0; i < 2; i++) StatusLater(StatusSparkle(pos + Inside(.4f), Range(.42f, .6f) * g, new Color(.95f, .85f, 1, .9f), .22f), .14f + i * .06f);
         }
 
         // ---------------------------------------------------------------- textures (built on first use, per kind)
@@ -964,8 +981,10 @@ namespace PrototypeLab.Roguelike
             return Sprite.Create(texture, new Rect(0, 0, width, height), pivot, PixelsPerUnit, 0, SpriteMeshType.FullRect);
         }
 
-        /// <summary>Three layers of one shape from its signed distance (negative inside): [0] a wide soft ink outline,
-        /// [1] the body and [2] a thin hot core inset from the edges. The distance field is evaluated once.</summary>
+        /// <summary>Three layers of one shape from its signed distance (negative inside): [0] a deep body pulled in from the
+        /// edge, [1] the body (the exact silhouette) and [2] its painted light: a level rising smoothly from the edge to a white
+        /// spine where the shape is thickest, lit a little from the upper left and brushed with grain, so the painted ramp runs
+        /// from a deep edge of the tint to a white heart. The distance field is evaluated once.</summary>
         private static Sprite[] StatusLayers(string name, int size, Func<float, float, float> distance, float ink, float inset)
         {
             var field = new float[size * size];
@@ -974,7 +993,7 @@ namespace PrototypeLab.Roguelike
                 float v = (y + .5f) / size * 2 - 1;
                 for (int x = 0; x < size; x++) field[y * size + x] = distance((x + .5f) / size * 2 - 1, v);
             }
-            float pixel = 2f / size;
+            float pixel = 2f / size, depth = Mathf.Max(inset * 2.6f, pixel * 3);
             var layers = new Sprite[3];
             for (int layer = 0; layer < 3; layer++)
             {
@@ -982,9 +1001,14 @@ namespace PrototypeLab.Roguelike
                 for (int i = 0; i < field.Length; i++)
                 {
                     float d = field[i], a;
-                    if (layer == 0) a = 1 - Smooth(ink - pixel * 1.5f, ink + pixel * 1.5f, d) + Gauss(Mathf.Max(0, d - ink), ink) * .3f;
+                    if (layer == 0) a = 1 - Smooth(-inset - pixel, -inset + pixel, d);
                     else if (layer == 1) a = 1 - Smooth(-pixel, pixel, d);
-                    else a = 1 - Smooth(-inset - pixel, -inset + pixel, d);
+                    else
+                    {
+                        float u = (i % size + .5f) / size * 2 - 1, v = (i / size + .5f) / size * 2 - 1;
+                        float rise = Mathf.Pow(Smooth(0, depth, -d), .85f), grain = Fbm(u * 5 + 3, v * 5 + 7, 2);
+                        a = (1 - Smooth(-pixel, pixel, d)) * Mathf.Clamp01(.3f + .72f * rise + .1f * (grain - .5f) + .06f * Mathf.Clamp(v - u, -1, 1));
+                    }
                     colors[i] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(a) * 255));
                 }
                 layers[layer] = StatusTexture(name + " " + layer, size, size, colors, new Vector2(.5f, .5f));
@@ -1089,58 +1113,71 @@ namespace PrototypeLab.Roguelike
             if (StatusWisp != null) return;
             StatusWisp = Build("Status wisp", 48, 128, (u, v) =>
             {
-                float t = (1 - v) * .5f, center = Mathf.Sin(t * 5 + .4f) * .2f * t, half = Mathf.Lerp(.78f, .34f, t);
-                float body = (1 - Smooth(.3f, 1, Mathf.Abs(u - center) / half)) * Smooth(0, .08f, t) * (1 - Smooth(.45f, .98f, t));
-                float grain = .55f + .45f * Mathf.PerlinNoise(u * 2.3f + 5, t * 7 + 2);
-                return White(body * grain * 1.15f);
+                float t = (1 - v) * .5f, center = Mathf.Sin(t * 5 + .4f) * .2f * t, half = Mathf.Lerp(.78f, .3f, t);
+                float body = Mathf.Clamp01(1.25f * (1 - Mathf.Abs(u - center) / half)) * Smooth(0, .08f, t) * (1 - Smooth(.42f, .98f, t));
+                float grain = .78f + .3f * (Fbm(u * 5 + 5, t * 1.6f + 2, 2) - .5f);
+                return White(body * grain * 1.1f);
             }, new Vector2(.5f, 1));
         }
 
-        /// <summary>Bright steam puffs: the shared smoke is grey at heart, so white vapour gets its own near-white texture,
-        /// lit from above and a touch darker underneath for volume.</summary>
+        /// <summary>Bright steam billows (two variants of six frames): a lumpy union of round puffs, near white, lit from the
+        /// upper left with a cool shade underneath, that swells while holes open and its edges tear away, like the shared
+        /// billow but paler, so steam reads white where smoke reads grey.</summary>
         private static void StatusVaporTextures()
         {
             if (StatusVapor != null) return;
-            StatusVapor = new Sprite[2];
+            StatusVapor = new Sprite[2][];
             for (int i = 0; i < StatusVapor.Length; i++)
             {
-                float seed = i * 23.1f + 7;
-                StatusVapor[i] = Build("Status vapor " + i, 112, 112, (u, v) =>
+                var puffs = new Vector3[6]; uint h0 = Hash(i * 31 + 97); int seed = i;
+                for (int k = 0; k < puffs.Length; k++)
                 {
-                    float n = Fbm(u * 1.6f + seed, v * 1.6f + seed * .6f, 4), n2 = Fbm(u * 3.8f + seed + 4, v * 3.8f - seed, 3);
-                    float r = Mathf.Sqrt(u * u + v * v) * (1 + (n2 - .5f) * .5f);
-                    float a = Mathf.Clamp01((n * 1.7f - .3f) * (1 - Smooth(.45f, 1, r)) * 1.6f) * Window(Mathf.Max(Mathf.Abs(u), Mathf.Abs(v)));
-                    float light = Mathf.Clamp01(.93f + (n2 - .5f) * .22f + v * .08f);
-                    return new Color(light, light, light, a);
+                    uint h = Hash((int)h0 + k * 6271);
+                    float angle = k * 1.047f + (h & 255) / 255f * .9f, distance = k == 0 ? 0 : .2f + (h >> 8 & 255) / 255f * .18f;
+                    puffs[k] = new Vector3(Mathf.Cos(angle) * distance, Mathf.Sin(angle) * distance * .8f, k == 0 ? .46f : .24f + (h >> 16 & 255) / 255f * .16f);
+                }
+                StatusVapor[i] = Sheet("Status vapor " + i, 6, 112, 112, (u, v, f) =>
+                {
+                    float p = f / 5f, grow = 1 + .25f * p, x = u / grow, y = v / grow - p * .05f;
+                    float field = CloudField(puffs, x, y) - Smooth(.15f, 1, p) * .75f * Fbm(u * 3.2f + f * .3f + seed * 5, v * 3.2f - f * .2f, 3);
+                    if (field <= 0) return Color.clear;
+                    float lit = Smooth(.18f, .28f, CloudField(puffs, x - .12f, y + .14f));
+                    float light = Mathf.Lerp(.74f, 1, lit);
+                    return new Color(light * .96f, light, Mathf.Min(1, light * 1.04f), Mathf.Clamp01(field * 1.6f) * Window(Mathf.Max(Mathf.Abs(u), Mathf.Abs(v))));
                 });
             }
         }
 
-        /// <summary>A puff of white steam (the same motion as the shared smoke puff).</summary>
+        /// <summary>A billow of white steam (the same motion as the shared smoke puff).</summary>
         private Clip StatusVaporPuff(Vector2 pos, float width, Color color, Vector2 velocity, float life, int order)
         {
-            var clip = Spawn("Status steam", StatusVapor[Chance(.5f) ? 0 : 1], pos, width, color, life, false, order);
-            clip.velocity = velocity; clip.drag = 3.2f; clip.startScale = .55f; clip.endScale = 1.8f; clip.ease = 1; clip.spin = Range(-90, 90); clip.fadeIn = .04f; clip.fadePower = 1.3f;
-            clip.angle = Range(0, 360);
+            var frames = StatusVapor[Chance(.5f) ? 0 : 1];
+            var clip = Spawn("Status steam", frames[0], pos, width, color, life, false, order);
+            clip.frames = frames; clip.loop = false;
+            clip.velocity = velocity; clip.drag = 3.2f; clip.startScale = .6f; clip.endScale = 1.6f; clip.ease = 1; clip.spin = Range(-40, 40); clip.fadeIn = .04f; clip.fadePower = 1.2f;
+            clip.angle = Range(-25, 25);
             return clip;
         }
 
-        /// <summary>A pink petal (pivot at its base): deeper at the base, pale at the tip, with a dark rim that keeps its shape on pale skies.</summary>
+        /// <summary>A pink petal (pivot at its base), painted soft: deeper magenta at the base, pale at the tip, lit from the
+        /// left with a pale vein, and a saturated rose edge (never a dark rim) that keeps its shape on pale skies.</summary>
         private static Color StatusPetalPixel(float u, float v)
         {
             float t = (v + 1) * .5f, half = .84f * Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Pow(Mathf.Clamp01(t), .8f)), .75f);
             float d = Mathf.Abs(u) - half, inside = (1 - Smooth(-.07f, .02f, d)) * Smooth(0, .04f, t);
             if (inside <= 0) return Color.clear;
             float across = Mathf.Clamp01(Mathf.Abs(u) / Mathf.Max(.05f, half));
-            Color c = Color.Lerp(new Color(.97f, .46f, .7f), new Color(1, .86f, .93f), Mathf.Clamp01(t * .75f + (1 - across) * .2f));
-            c = Color.Lerp(c, new Color(.62f, .1f, .34f), (1 - Smooth(0, .4f, t)) * .6f);
-            c = Color.Lerp(c, new Color(.34f, .02f, .16f), Smooth(-.26f, -.05f, d) * .85f);
+            Color c = Color.Lerp(new Color(.97f, .46f, .7f), new Color(1, .88f, .94f), Mathf.Clamp01(t * .75f + (1 - across) * .2f + (u < 0 ? .08f : -.06f) * across));
+            c = Color.Lerp(c, new Color(.82f, .2f, .5f), (1 - Smooth(0, .4f, t)) * .55f);
+            c = Color.Lerp(c, new Color(.86f, .22f, .52f), Smooth(-.16f, -.03f, d) * .6f);
             c += new Color(.12f, .1f, .1f, 0) * Gauss(u, .06f) * (1 - t);
             c.a = inside; return c;
         }
 
-        /// <summary>The ice shell in texture pixels (96 x 144, bottom centre at 0): three leaning crystals with lit and shaded
-        /// faces, gloss, a bright rim and a dark blue outline, on a frosted mound. The light version keeps only the edges and ridges.</summary>
+        /// <summary>The ice shell in texture pixels (96 x 144, bottom centre at 0): three leaning crystals on a frosted mound,
+        /// painted as translucent ice lit from the upper left: each face shades smoothly from its lit side to the cool far side,
+        /// refraction streaks and a soft gloss run inside it, rime frosts it low down and a thin saturated blue edge stands in
+        /// for an outline. The light version keeps the lit rims, the ridge glint, the streaks and the glow of the tips.</summary>
         private static Color StatusShellPixel(float x, float y, bool light)
         {
             Color c = Color.clear;
@@ -1152,66 +1189,90 @@ namespace PrototypeLab.Roguelike
                 float along = -dx * sn + y * cs, across = dx * cs + y * sn;
                 float taper = Mathf.Clamp01((h - along) / tip), width = hw * taper;
                 float d = Mathf.Max(Mathf.Abs(across) - width, Mathf.Max(-along - 6, along - h));
-                if (d > 3) continue;
-                float ridge = across - hw * .2f * taper, inside = 1 - Smooth(-.7f, .5f, d);
+                if (d > 1.5f) continue;
+                float inside = 1 - Smooth(-.7f, .5f, d), side = Mathf.Clamp(across / Mathf.Max(1, width), -1, 1), up = Mathf.Clamp01(along / h);
+                float streaks = Gauss(Mathf.Repeat(along * .07f + side * .7f + k * .37f, 1) - .5f, .06f);
                 Color piece;
-                if (light) piece = White(Gauss(d + .9f, 1.2f) * .95f + Gauss(ridge, 1.1f) * inside * .5f);
-                else if (d <= 0)
+                if (light)
                 {
-                    piece = ridge < 0 ? new Color(.8f, .94f, 1, .64f) : new Color(.44f, .7f, .96f, .72f);
-                    piece = Color.Lerp(piece, new Color(1, 1, 1, .8f), Gauss(across + hw * .5f - along * .1f, 3.2f) * .55f);
+                    float rim = Gauss(d + .9f, 1.1f) * Mathf.Lerp(.45f, 1, Smooth(.4f, -.9f, side));
+                    float ridge = Gauss(side + .2f, .14f) * inside * .45f, tipGlow = Gauss(1 - up, .14f) * inside * .35f;
+                    piece = White(Mathf.Clamp01(rim + ridge + streaks * inside * .3f + tipGlow));
+                }
+                else
+                {
+                    float lit = Mathf.Clamp01(Smooth(.95f, -.8f, side) * .75f + .25f * up);
+                    piece = Color.Lerp(new Color(.4f, .66f, .96f, .74f), new Color(.86f, .96f, 1, .62f), lit);
+                    piece = Color.Lerp(piece, new Color(1, 1, 1, .8f), Gauss(side + .5f - up * .25f, .2f) * .45f + streaks * .25f);
                     // Rime: frosted white patches, densest low on the crystal.
-                    float rime = Smooth(.5f, .72f, Mathf.PerlinNoise(x * .13f + k * 7, y * .13f + 3)) * (1 - Smooth(.2f, .9f, along / h));
-                    piece = Color.Lerp(piece, new Color(.97f, .99f, 1, .9f), rime * .7f);
-                    piece = Color.Lerp(piece, new Color(1, 1, 1, .95f), Gauss(d + .9f, 1.3f));
+                    float rime = Smooth(.5f, .72f, Mathf.PerlinNoise(x * .13f + k * 7, y * .13f + 3)) * (1 - Smooth(.2f, .9f, up));
+                    piece = Color.Lerp(piece, new Color(.97f, .99f, 1, .88f), rime * .7f);
+                    piece = Color.Lerp(piece, new Color(.22f, .52f, .98f, .86f), Gauss(d + .45f, .65f) * .75f);
                     piece.a *= inside;
                 }
-                else piece = new Color(.06f, .18f, .42f, .85f * (1 - Smooth(.6f, 2.6f, d)));
                 c = Over(c, piece);
             }
             float md = (Mathf.Sqrt(Sq(x / 44) + Sq((y - 3) / 13)) - 1) * 13;
-            if (md < 3)
+            if (md < 1.5f)
             {
-                Color piece = light ? White(Gauss(md + .9f, 1.2f) * .8f) : md <= 0 ? new Color(.9f, .97f, 1, .82f) : new Color(.06f, .18f, .42f, .8f * (1 - Smooth(.6f, 2.6f, md)));
+                float inside = 1 - Smooth(-.7f, .5f, md), top = Mathf.Clamp01((y - 3) / 13 * .5f + .5f);
+                Color piece;
+                if (light) piece = White(Gauss(md + .9f, 1.2f) * .7f * (.5f + .5f * top));
+                else
+                {
+                    piece = Color.Lerp(new Color(.72f, .88f, 1, .8f), new Color(.96f, .99f, 1, .86f), top);
+                    piece = Color.Lerp(piece, new Color(.22f, .52f, .98f, .86f), Gauss(md + .45f, .65f) * .7f);
+                    piece.a *= inside;
+                }
                 c = Over(c, piece);
             }
             return c;
         }
 
-        /// <summary>A heater shield split by a jagged crack: [0] left and [1] right halves (grey bevel, tinted gold), [2] and [3] their ink outlines.</summary>
+        /// <summary>A heater shield split by a jagged crack: [0] left and [1] right halves, baked grey and tinted gold. Painted
+        /// metal lit softly from the upper left: an arched top and a pointed foot, a smooth sheen sweeping across the face, a
+        /// lit bevel along the rim, a raised cross catching the light and a little brushed grain, with no dark groove or
+        /// outline, so even small and brief it reads as a gold crest, not a block.</summary>
         private static void StatusGuardTextures()
         {
             if (StatusGuard != null) return;
-            const int Size = 64;
-            var sets = new Color32[4][];
-            for (int k = 0; k < 4; k++) sets[k] = new Color32[Size * Size];
+            const int Size = 96;
+            var sets = new Color32[2][];
+            for (int k = 0; k < 2; k++) sets[k] = new Color32[Size * Size];
             for (int y = 0; y < Size; y++)
             {
                 float v = ((y + .5f) / Size * 2 - 1) * 1.12f;
                 for (int x = 0; x < Size; x++)
                 {
                     float u = ((x + .5f) / Size * 2 - 1) * 1.12f;
-                    float w = v > .1f ? .7f : .7f * Mathf.Sqrt(Mathf.Max(0, 1 - Sq((v - .1f) / .96f)));
-                    float d = Mathf.Max(Mathf.Abs(u) - w, Mathf.Max(v - .7f, -.86f - v));
+                    float top = .5f + .26f * Mathf.Sqrt(Mathf.Max(0, 1 - u * u / .3844f));
+                    float w = v > .15f ? .62f : .62f * (1 - Mathf.Pow(Mathf.Clamp01((.15f - v) / 1.03f), 1.6f));
+                    float d = Mathf.Max(Mathf.Abs(u) - w, Mathf.Max(v - top, -.88f - v));
                     float split = u - (.05f * Mathf.Sin(v * 14 + 1) + .025f * Mathf.Sin(v * 37));
-                    float rim = Smooth(-.17f, -.05f, d);
-                    float cross = Mathf.Max((1 - Smooth(.07f, .1f, Mathf.Abs(u))) * Band(-.5f, .5f, v), (1 - Smooth(.07f, .1f, Mathf.Abs(v - .2f))) * Band(-.36f, .36f, u));
-                    byte l = (byte)(Mathf.Clamp01(.6f + rim * .4f + cross * .28f + (v - u) * .08f) * 255);
+                    // A smooth light across the face from the upper left, a soft sheen band, a lit bevel near the rim easing
+                    // into the face, and a raised cross with a lit and a shaded side.
+                    float l = .62f + .26f * Mathf.Clamp(-u * .7f + v * .5f, -1, 1) + .14f * Gauss(u + v * .6f + .1f, .16f);
+                    l += .2f * Smooth(-.12f, -.02f, d) * (u < .1f ? 1 : .6f) - .08f * Band(-.2f, -.12f, d);
+                    float crossD = Mathf.Min(Mathf.Max(Mathf.Abs(u) - .08f, Mathf.Abs(v + .03f) - .5f), Mathf.Max(Mathf.Abs(v - .22f) - .08f, Mathf.Abs(u) - .32f));
+                    float raised = 1 - Smooth(-.012f, .012f, crossD);
+                    l = Mathf.Lerp(l, .8f + .2f * Mathf.Clamp01(-u * 3 + .4f), raised * .85f);
+                    l += .05f * (Fbm(u * 8 + 3, v * 20 + 1, 2) - .5f);
+                    byte lb = (byte)(Mathf.Clamp01(l) * 255);
                     int i = y * Size + x;
                     for (int side = 0; side < 2; side++)
                     {
                         float dh = Mathf.Max(d, side == 0 ? split + .025f : .025f - split);
-                        sets[side][i] = new Color32(l, l, l, (byte)((1 - Smooth(-.02f, .02f, dh)) * 255));
-                        sets[side + 2][i] = new Color32(255, 255, 255, (byte)((1 - Smooth(.05f, .1f, dh)) * 255));
+                        sets[side][i] = new Color32(lb, lb, lb, (byte)((1 - Smooth(-.015f, .015f, dh)) * 255));
                     }
                 }
             }
-            StatusGuard = new Sprite[4];
-            for (int k = 0; k < 4; k++) StatusGuard[k] = StatusTexture("Status guard " + k, Size, Size, sets[k], new Vector2(.5f, .5f));
+            StatusGuard = new Sprite[2];
+            for (int k = 0; k < 2; k++) StatusGuard[k] = StatusTexture("Status guard " + k, Size, Size, sets[k], new Vector2(.5f, .5f));
+            // A small gold flake: a smooth lit face, brighter toward its upper-left point and its rim, with a soft shade low right.
             StatusFacet = Build("Status facet", 24, 48, (u, v) =>
             {
                 float d = Mathf.Abs(u) / .8f + Mathf.Abs(v) / .95f, inside = 1 - Smooth(.84f, .96f, d);
-                float l = Mathf.Clamp01((u < 0 ? (v > 0 ? 1 : .82f) : (v > 0 ? .7f : .56f)) + Gauss(d - .86f, .05f) * .3f);
+                float l = Mathf.Clamp01(.66f + .28f * Mathf.Clamp(-u * .8f + v * .6f, -1, 1) + Gauss(d - .82f, .07f) * .2f);
                 return new Color(l, l, l, inside);
             });
         }

@@ -3,12 +3,13 @@ using UnityEngine;
 
 namespace PrototypeLab.Roguelike.Editor
 {
-    // Pixel god sheets are sliced at runtime, so importing never rewrites the baked images.
+    // Pixel god and pixel hero sheets are sliced at runtime, so importing never rewrites the baked images.
     public sealed class TowerMythArtImporter : AssetPostprocessor
     {
         void OnPreprocessTexture()
         {
-            if(!assetPath.StartsWith("Assets/Demos/Roguelike/Resources/Tower/Myths/")||!assetPath.EndsWith(".png"))return;
+            bool sheet=assetPath.StartsWith("Assets/Demos/Roguelike/Resources/Tower/Myths/")||assetPath.StartsWith("Assets/Demos/Roguelike/Resources/Tower/Hero/");
+            if(!sheet||!assetPath.EndsWith(".png"))return;
             var importer=(TextureImporter)assetImporter;
             importer.textureType=TextureImporterType.Default;importer.filterMode=FilterMode.Point;importer.wrapMode=TextureWrapMode.Clamp;
             importer.mipmapEnabled=false;importer.alphaIsTransparency=true;importer.textureCompression=TextureImporterCompression.Uncompressed;

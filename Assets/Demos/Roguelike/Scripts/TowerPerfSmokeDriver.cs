@@ -27,9 +27,11 @@ namespace PrototypeLab.Roguelike
             public float meanMs, p50Ms, p95Ms, p99Ms, maxMs, meanGcAllocKb, maxGcAllocKb;
             public List<string> recorded = new List<string>(), missing = new List<string>(), spikes = new List<string>(), errors = new List<string>();
             public List<FloorBuild> floorBuilds = new List<FloorBuild>();
+            // Boss floors stream their boss in as the hero nears its stretch; these are the frames that built one.
+            public List<FloorBuild> bossSpawns = new List<FloorBuild>();
             public List<MarkerStat> markers = new List<MarkerStat>();
         }
-        private sealed class Sample { public float realMs; public int floor; public string theme; public bool spawned, combat; public double[] values; }
+        private sealed class Sample { public float realMs; public int floor; public string theme; public bool spawned, combat, bossSpawned; public double[] values; }
 
         private static readonly string[] Builtin = { "Main Thread", "PlayerLoop", "GC.Collect", "GC Allocated In Frame", "Camera.Render", "BehaviourUpdate", "Gfx.WaitForPresentOnGfxThread", "GUI.Repaint", "GUI.Layout" };
         private const int Seed = 97, Floors = 11;
@@ -43,7 +45,7 @@ namespace PrototypeLab.Roguelike
         private TowerGame game;
         private string prefix, reportPath;
         private float deadline;
-        private bool finished, initialized, quitOnFinish, recording, combat;
+        private bool finished, initialized, quitOnFinish, recording, combat, bossUp;
         private int lastFloor, gcAtStart;
 
         public void Initialize(TowerGame tower, TowerSmokeDriver captureDriver, string capturePrefix, string outputPath, bool quit = false)
@@ -116,6 +118,7 @@ namespace PrototypeLab.Roguelike
             var sample = new Sample { realMs = (float)clock.Elapsed.TotalMilliseconds, floor = game.run.Floor, theme = game.run.Theme.Id.ToString(), combat = combat, values = new double[recorders.Count] };
             clock.Restart();
             sample.spawned = sample.floor != lastFloor; lastFloor = sample.floor;
+            bool boss = game.enemies.Exists(e => e.isBoss); sample.bossSpawned = boss && !bossUp; bossUp = boss;
             for (int i = 0; i < recorders.Count; i++) sample.values[i] = timeUnits[i] ? recorders[i].LastValue * 1e-6 : recorders[i].LastValue / 1024.0;
             samples.Add(sample);
         }
@@ -146,6 +149,7 @@ namespace PrototypeLab.Roguelike
             for (int floor = 1; floor <= Floors; floor++)
             {
                 yield return Fight();
+                if (game.BossPending) yield return MeetBoss();
                 foreach (var enemy in game.enemies) if (enemy.root) Destroy(enemy.root);
                 game.enemies.Clear(); game.DropPendingSpawns();
                 float limit = Time.realtimeSinceStartup + 3;
@@ -178,6 +182,16 @@ namespace PrototypeLab.Roguelike
                 yield return null;
             }
             game.MoveOverride = 0; game.AttackOverride = game.JumpOverride = game.DashOverride = false; combat = false;
+        }
+
+        /// <summary>Sets the hero just inside reach of the queued boss, so the frames that stream it in are measured.</summary>
+        private IEnumerator MeetBoss()
+        {
+            var world = (TowerWorld)typeof(TowerGame).GetField("world", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);
+            float x = TowerWorld.ExitX - TowerGame.BossStandoff - TowerGame.SpawnAhead + 1, limit = Time.realtimeSinceStartup + 5;
+            var hero = game.hero; hero.pos = new Vector2(x, world.GroundAt(x)); hero.velocityY = 0; hero.grounded = true; hero.support = -1; hero.lastX = x; hero.root.transform.position = hero.pos;
+            while (game.BossPending) { Require(Time.realtimeSinceStartup < limit, "The queued boss did not stream in near the hero."); game.invulnerable = 1000; yield return null; }
+            for (int i = 0; i < 10; i++) { game.invulnerable = 1000; yield return null; }
         }
 
         private static float Percentile(List<float> sorted, float p) { return sorted.Count == 0 ? 0 : sorted[Mathf.Clamp(Mathf.CeilToInt(p * sorted.Count) - 1, 0, sorted.Count - 1)]; }
@@ -214,12 +228,14 @@ namespace PrototypeLab.Roguelike
                     report.floorBuilds.Add(new FloorBuild { floor = s.floor, theme = s.theme, frameMs = s.realMs, spawnFloorMs = (float)Value(s, "Tower.SpawnFloor"), generateMs = (float)Value(s, "Tower.Generate"),
                         terrainMs = (float)Value(s, "Tower.Terrain"), backdropMs = (float)Value(s, "Tower.Backdrop"), gateMs = (float)Value(s, "Tower.Gate"),
                         setThemeMs = (float)Value(s, "Tower.SetTheme"), actorsMs = (float)Value(s, "Tower.Actors"), musicMs = (float)Value(s, "Tower.Music") });
+            foreach (var s in samples)
+                if (s.bossSpawned) report.bossSpawns.Add(new FloorBuild { floor = s.floor, theme = s.theme, frameMs = s.realMs, actorsMs = (float)Value(s, "Tower.Actors") });
             var order = new List<int>(); for (int i = 0; i < samples.Count; i++) order.Add(i);
             order.Sort((a, b) => samples[b].realMs.CompareTo(samples[a].realMs));
             for (int k = 0; k < Mathf.Min(25, order.Count); k++)
             {
                 var s = samples[order[k]]; var text = new StringBuilder();
-                text.Append("frame ").Append(order[k]).Append(" floor ").Append(s.floor).Append(s.spawned ? " [spawn]" : "").Append(s.combat ? " [combat]" : "").Append(": ").Append(s.realMs.ToString("F1")).Append(" ms");
+                text.Append("frame ").Append(order[k]).Append(" floor ").Append(s.floor).Append(s.spawned ? " [spawn]" : "").Append(s.bossSpawned ? " [boss]" : "").Append(s.combat ? " [combat]" : "").Append(": ").Append(s.realMs.ToString("F1")).Append(" ms");
                 for (int i = 0; i < names.Count; i++) if (s.values[i] >= (timeUnits[i] ? .5 : 64)) text.Append(" | ").Append(names[i]).Append('=').Append(s.values[i].ToString("F1")).Append(timeUnits[i] ? "ms" : "KB");
                 report.spikes.Add(text.ToString());
             }

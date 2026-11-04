@@ -151,11 +151,22 @@ namespace PrototypeLab.Roguelike
     public sealed class TowerCampaignSave
     {
         private const string Version = "c3";
+        // Flag bits from here up mark, by chapter index, the chapters whose intro page has been shown; older saves leave them clear.
+        private const int IntroShift = 3;
         private static readonly IReadOnlyList<string> NoGods = Array.AsReadOnly(new string[0]);
         public int ClearedChapters { get; private set; }
         public bool PrologueSeen { get; set; }
         public bool TutorialDone { get; set; }
         public bool EndingSeen { get; set; }
+        private int introsSeen;
+        /// <summary>Whether a departure has already opened with the chapter's intro page.</summary>
+        public bool IntroSeen(TowerChapter chapter) { return chapter != null && (introsSeen >> chapter.Index & 1) != 0; }
+        /// <summary>Records that the chapter's intro page was shown; false if it already had been.</summary>
+        public bool MarkIntroSeen(TowerChapter chapter)
+        {
+            if (chapter == null || IntroSeen(chapter)) return false;
+            introsSeen |= 1 << chapter.Index; return true;
+        }
         /// <summary>Unspent skill points.</summary>
         public int SkillPoints { get; private set; }
         public TowerSkillTreeState SkillTree { get; private set; }
@@ -252,7 +263,7 @@ namespace PrototypeLab.Roguelike
 
         public string Save()
         {
-            int flags = (PrologueSeen ? 1 : 0) | (TutorialDone ? 2 : 0) | (EndingSeen ? 4 : 0);
+            int flags = (PrologueSeen ? 1 : 0) | (TutorialDone ? 2 : 0) | (EndingSeen ? 4 : 0) | introsSeen << IntroShift;
             return String.Join(";", new[] { Version, ClearedChapters.ToString(CultureInfo.InvariantCulture), flags.ToString(CultureInfo.InvariantCulture),
                 SkillPoints.ToString(CultureInfo.InvariantCulture), SkillTree.Save() });
         }
@@ -276,6 +287,7 @@ namespace PrototypeLab.Roguelike
                 !Int32.TryParse(fields[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out points) || points < 0) return save;
             save.ClearedChapters = Math.Max(0, Math.Min(TowerCampaign.Chapters.Count, cleared));
             save.PrologueSeen = (flags & 1) != 0; save.TutorialDone = (flags & 2) != 0; save.EndingSeen = (flags & 4) != 0;
+            save.introsSeen = flags >> IntroShift & ((1 << TowerCampaign.Chapters.Count) - 1);
             save.SkillTree = TowerSkillTreeState.Load(fields[4]);
             save.SkillPoints = (int)Math.Min(points, Int32.MaxValue - (long)save.SkillTree.Spent);
             return save;

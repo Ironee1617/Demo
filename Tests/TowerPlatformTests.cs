@@ -208,6 +208,29 @@ public static class TowerPlatformTests
             var compact = new TowerFloorLayout(1, "compact", 1, new TowerSurface(new[] { -40f, 100f }, new[] { Ground, Ground }), new List<TowerPlatform>());
             Require(compact.ExitX == TowerTerrainGenerator.CompactExitX && compact.Right == 29 && compact.Hazards.Count == 0, "hand-built chambers keep the compact extent");
         });
+        Test("rest and shop floors are a short flat room with up to two reachable low ledges and no traps", () => {
+            var counts = new int[3];
+            for (int seed = -8; seed < 40; seed++)
+                for (int floor = 1; floor <= 91; floor += 5)
+                {
+                    var layout = TowerTerrainGenerator.PeacefulLayout(seed, floor); string where = " seed " + seed + " floor " + floor;
+                    Require(layout.Floor == floor && layout.ExitX == TowerTerrainGenerator.PeacefulExitX && layout.Right == TowerTerrainGenerator.PeacefulExitX + TowerTerrainGenerator.ExitMargin, "quiet room extent" + where);
+                    Require(layout.ExitX - TowerTerrainGenerator.SpawnX == 28 && TowerTerrainGenerator.FeatureX < layout.ExitX - 2, "28 units from the spawn with the feature short of the exit" + where);
+                    Require(layout.Hazards.Count == 0 && layout.Platforms.Count <= 2, "no traps or pads and at most two ledges" + where);
+                    Require(Math.Abs(layout.Ground.MinHeight - Ground) < .0001f && Math.Abs(layout.Ground.MaxHeight - Ground) < .0001f, "flat ground" + where);
+                    foreach (var p in layout.Platforms)
+                    {
+                        var s = p.Surface;
+                        Require(s.Right <= TowerTerrainGenerator.FeatureX - TowerTerrainGenerator.FeatureClear || s.Left >= TowerTerrainGenerator.FeatureX + TowerTerrainGenerator.FeatureClear, "ledge over the campfire or stall" + where);
+                        Require(s.Left >= TowerTerrainGenerator.PlatformLeft && s.Right <= layout.ExitX - 2.2f && Math.Abs(s.CenterX - TowerTerrainGenerator.SpawnX) > s.Width * .5f + .55f, "ledge in the spawn or exit lane" + where);
+                        Require(s.ClearanceOver(layout.Ground, .125f) >= TowerTerrainGenerator.MinClearance, "ledge too low over the ground" + where);
+                    }
+                    Require(TowerJumpModel.AllReachable(layout, .04f) && TowerJumpModel.AllReachable(layout, 1f / 60), "unreachable ledge" + where);
+                    Require(Shape(layout) == Shape(TowerTerrainGenerator.PeacefulLayout(seed, floor)), "repeatable room" + where);
+                    counts[layout.Platforms.Count]++;
+                }
+            Require(counts[0] > 0 && counts[1] > 0 && counts[2] > 0, "rooms hold zero, one or two ledges: " + counts[0] + "/" + counts[1] + "/" + counts[2]);
+        });
         Console.WriteLine("TOWER_PLATFORM_TESTS " + passed + " passed, " + failed + " failed");
         return failed == 0 ? 0 : 1;
     }

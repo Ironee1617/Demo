@@ -18,6 +18,7 @@ namespace PrototypeLab.Roguelike
             public bool pausedTimerFrozen, activeTimerExpires, damageCancelsCounter, floorTransitionResets, newRunResets;
             public bool cleanFloorsCounted, streakRecorded, shieldContactBreaksFlawless, hurtFloorBreaksFlawless, clearRecordedOnce;
             public bool clearRemovesProjectiles, rewardExitSafe;
+            public bool dashGapHolds, dashTwoInARow, dashThirdWaits, dashRefundCapped, dashChargeCap, bulletDodgeRefunds, bulletRefundPaced;
             public float counterDamage, ordinaryDamage, shieldAbsorbed, actualDamageTaken;
             public List<string> checks = new List<string>(), screenshots = new List<string>(), errors = new List<string>();
         }
@@ -68,6 +69,7 @@ namespace PrototypeLab.Roguelike
         {
             Directory.CreateDirectory(Path.GetDirectoryName(prefix));
             yield return null;
+            Setup(); VerifyDashCharges();
             Setup(); VerifyDodgeWindow();
             yield return Capture("counter-ready", "회피 반격 검증 · 적 탄막을 회피해 다음 검 공격 강화");
             VerifyCounterDamage(); yield return VerifyCounterLifetime();
@@ -104,10 +106,57 @@ namespace PrototypeLab.Roguelike
         { actor.pos = position; actor.velocityY = 0; actor.grounded = true; actor.root.transform.position = position; }
         private void BeginInputDodge()
         {
-            game.dashCooldown = 0; game.DashOverride = true;
+            game.ReadyDash(); game.DashOverride = true;
             try { Call("Update"); } finally { game.DashOverride = false; }
             Require(game.dashTime > 0 && game.invulnerable > 0, "Actual dash input did not start an invulnerable dodge.");
             SetField("previousHeroPosition", game.hero.pos);
+        }
+        private void InputDash()
+        {
+            game.DashOverride = true;
+            try { Call("Update"); } finally { game.DashOverride = false; }
+            SetField("previousHeroPosition", game.hero.pos);
+        }
+        // Actual DashOverride input: two charges dash back to back at least 0.2 seconds apart, a third waits for the recharge,
+        // and the diamond card lifts the cap to three, which neither repeated cards nor refunds pass.
+        private void VerifyDashCharges()
+        {
+            var player = game.run.Player; float recharge = game.DashRechargeTime;
+            Require(game.MaxDashCharges == HeroState.BaseDashCharges && game.DashCharges == game.MaxDashCharges && game.dashCooldown == 0, "A new hero did not start with two full dash charges.");
+            Require(Near(HeroState.MinDashRecharge, .75f) && Near(recharge, Mathf.Max(HeroState.MinDashRecharge, HeroState.DashRechargeBase * player.DodgeCooldownMultiplier)), "The dash recharge ignored 0.9 x dodge cooldown or its 0.75-second floor.");
+            InputDash();
+            Require(game.dashTime > 0 && game.invulnerable > 0 && game.DashCharges == 1 && Near(game.dashCooldown, recharge), "The first dash did not spend one charge and start the recharge: charges=" + game.DashCharges + " recharge=" + game.dashCooldown);
+            InputDash();
+            Require(game.DashCharges == 1, "A second dash started inside the 0.2-second gap."); report.dashGapHolds = true;
+            Call("TickDashCharges", TowerGame.DashMinGap); float running = game.dashCooldown;
+            InputDash();
+            Require(game.DashCharges == 0 && game.dashTime > 0 && game.dashCooldown <= running, "Two charges did not dash back to back, or the second dash restarted the recharge."); report.dashTwoInARow = true;
+            // From here the gap is cleared directly, so only frame time runs the recharge and no charge returns early.
+            SetField("dashGap", 0f); game.dashTime = game.invulnerable = 0;
+            InputDash();
+            Require(game.dashTime <= 0 && game.invulnerable <= 0 && game.DashCharges == 0 && game.dashCooldown > 0, "A third dash went through without a charge.");
+            Call("TickDashCharges", game.dashCooldown + .001f);
+            Require(game.DashCharges == 1 && Near(game.dashCooldown, recharge - .001f), "The recharge did not return exactly one charge and start the next: charges=" + game.DashCharges + " recharge=" + game.dashCooldown);
+            InputDash();
+            Require(game.dashTime > 0 && game.DashCharges == 0, "The recharged charge did not dash."); report.dashThirdWaits = true;
+
+            var evasion = TowerRun.GetAugment("player.evasion");
+            Require(player.CanImproveTrait(evasion) && player.Apply(evasion) && game.MaxDashCharges == HeroState.DashChargeCap && !player.CanImproveTrait(evasion), "The diamond card did not lift the dash to its cap of three charges.");
+            for (int i = 0; i < 3; i++) player.Apply(evasion);
+            Require(game.MaxDashCharges == HeroState.DashChargeCap, "Repeated charge cards lifted the dash past three charges.");
+            Require(game.RefundDashCharge(1) == 1 && game.DashCharges == 1 && game.dashCooldown > 0, "A refund did not return exactly one charge while the recharge kept running.");
+            Require(game.RefundDashCharge(10) == HeroState.DashChargeCap - 1 && game.DashCharges == HeroState.DashChargeCap && game.dashCooldown == 0 && game.RefundDashCharge(1) == 0,
+                "Refunds went past the maximum of three charges."); report.dashRefundCapped = true;
+            game.dashTime = game.invulnerable = 0;
+            for (int i = 0; i < HeroState.DashChargeCap; i++)
+            {
+                SetField("dashGap", 0f); InputDash();
+                Require(game.dashTime > 0 && game.DashCharges == HeroState.DashChargeCap - 1 - i, "Three charges did not give three dashes in a row: dash " + (i + 1) + ", charges=" + game.DashCharges);
+            }
+            SetField("dashGap", 0f); game.dashTime = game.invulnerable = 0;
+            InputDash();
+            Require(game.dashTime <= 0 && game.DashCharges == 0, "A fourth dash went through on three charges."); report.dashChargeCap = true;
+            report.checks.Add("Actual DashOverride: two charges dash back to back but not inside 0.2 seconds, a third waits for the 0.9-second recharge (floor 0.75), and the diamond card lifts the cap to three, which repeated cards and refunds never pass.");
         }
         private void CrossHostileShot()
         {
@@ -129,10 +178,22 @@ namespace PrototypeLab.Roguelike
             Require(game.PerfectDodges == 1 && Near(game.CounterRemaining, TowerGame.DodgeCounterDuration) && game.hero.hp == hp && game.FloorHits == 0,
                 "A hostile crossing during the first dodge window failed to prime without damaging the hero.");
             report.earlyDodgePrimes = true;
+            Require(game.DashCharges == game.MaxDashCharges, "A perfect dodge through a bolt did not give back the charge its dash spent: " + game.DashCharges + "/" + game.MaxDashCharges);
+            report.bulletDodgeRefunds = true;
             CrossHostileShot();
             Require(game.PerfectDodges == 1 && Near(game.CounterRemaining, TowerGame.DodgeCounterDuration), "More than one hostile crossing granted counters in the same dash.");
             report.oncePerDodge = true;
-            report.checks.Add("Actual DashOverride starts the window: early hostile crossings grant one counter per dash without damage; ordinary invulnerability and crossings after 0.12 seconds grant none.");
+            // The refund keeps its pace on the bolt path too: a fresh dash through a bolt half a second short of
+            // DodgeRefundInterval (past the old 1.5 s) readies the counter and gives nothing back; one past the interval does.
+            float held = TowerGame.DodgeRefundInterval - .5f;
+            game.dashTime = game.invulnerable = 0; game.elapsed += held; BeginInputDodge(); CrossHostileShot();
+            Require(game.PerfectDodges == 2 && game.DashCharges == game.MaxDashCharges - 1,
+                "A perfect dodge through a bolt " + held + " s after the last refund gave a charge back inside its " + TowerGame.DodgeRefundInterval + "-second pace: " + game.DashCharges + "/" + game.MaxDashCharges);
+            game.dashTime = game.invulnerable = 0; game.elapsed += .6f; BeginInputDodge(); CrossHostileShot();
+            Require(game.PerfectDodges == 3 && game.DashCharges == game.MaxDashCharges,
+                "A perfect dodge through a bolt past the " + TowerGame.DodgeRefundInterval + "-second pace gave no charge back: " + game.DashCharges + "/" + game.MaxDashCharges);
+            report.bulletRefundPaced = true;
+            report.checks.Add("Actual DashOverride starts the window: early hostile crossings grant one counter per dash without damage; ordinary invulnerability and crossings after 0.12 seconds grant none. A bolt dodge " + held + " s after a refund gives no charge back; one past " + TowerGame.DodgeRefundInterval + " s does.");
         }
         private void VerifyCounterDamage()
         {

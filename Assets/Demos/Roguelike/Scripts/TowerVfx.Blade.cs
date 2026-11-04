@@ -3,17 +3,21 @@ using UnityEngine;
 
 namespace PrototypeLab.Roguelike
 {
-    // Blade family: Shockwave (a golden, earth-splitting slam and a towering sword wave), BladeStorm (a whirlwind of
-    // orbiting swords with crossing slashes) and DashStrike (a blazing dash that ends in an iaido flash cut).
-    // Every bright additive layer rides on a saturated alpha "ink" twin, so the silhouettes hold on pale themes too.
+    // Blade family: Shockwave (a golden slam and a towering painted sword wave), BladeStorm (painted crescent sweeps whirling
+    // round the hero with spectral swords and crossing cuts) and DashStrike (a dash drawn as long slash beams with white
+    // afterimages, ending in a giant painted crescent iaido cut). Everything is painted light: strokes are smooth level
+    // profiles (deep saturated edge, colour, a pale band, a white-hot core) with brush streaks running along each stroke,
+    // a soft bloom glowing under every bright stroke, hits that flare and scatter as hand-drawn sparks, and painted stone
+    // lit from the upper left. No dark outlines or ink twins: where light needs contrast it gets a deeper hue of its own
+    // colour or a bloom. Shapes pop open in a frame or two, hold, then erode from the thin edge.
     public sealed partial class TowerVfx
     {
-        private static Sprite BladeSlashSprite, BladeCutSprite, BladeWhirlSprite, BladeSwordSprite, BladeRingSprite, BladeChunkSprite, BladeShadeSprite;
+        private static Sprite BladeSlashSprite, BladeCutSprite, BladeBeamSprite, BladeWhirlSprite, BladeSwordSprite, BladeRingSprite;
+        private static Sprite[] BladeSweepSheet, BladeSweepFray, BladeRockSprites, BladeSpireSprites;
 
-        private static readonly Color BladeAmberInk = new Color(.66f, .32f, .04f, .78f), BladeBronzeInk = new Color(.42f, .22f, .05f, .72f),
-            BladeNavyInk = new Color(.03f, .13f, .42f, .78f), BladeHotGold = new Color(1, .82f, .38f), BladeCyan = new Color(.42f, .9f, 1),
-            BladeRockTone = new Color(.46f, .37f, .29f, 1), BladeStoneTone = new Color(.82f, .7f, .55f, 1), BladeDust = new Color(.62f, .52f, .4f, .6f),
-            BladeAwakeGold = new Color(1, .9f, .6f);
+        private static readonly Color BladeHotGold = new Color(1, .8f, .34f), BladeStormGold = new Color(1, .7f, .24f), BladeDashBlue = new Color(.26f, .72f, 1),
+            BladeDeepGold = new Color(1, .5f, .1f), BladeCobalt = new Color(.12f, .4f, 1), BladeDust = new Color(.66f, .56f, .44f, .55f),
+            BladeSoot = new Color(.42f, .35f, .3f, .55f), BladeWind = new Color(.82f, .93f, 1, .42f), BladeAwakeGold = new Color(1, .9f, .6f);
         // A slam's wind-up, noted where and which way the hero swung: gameplay draws the slam's burst without a facing, and the
         // sword wave only runs forward, so the burst's rock, fronts and reach ring run forward too. first is the slam an
         // awakened second wave (a quarter second later, from the same caster) echoes.
@@ -24,93 +28,205 @@ namespace PrototypeLab.Roguelike
 
         private static void BuildBladeTextures()
         {
-            // A long razor cut that bows upward: a hard bright edge on top and a soft motion smear below it.
+            // Every light shape below is a level profile for the painted-light ramp: a crisp edge, an even fall-off across the stroke
+            // (so the bands come out evenly) and brush streaks running along it, slow along the stroke and fast across.
+
+            // A long razor cut bowing upward: a hard white edge along the top, colour falling off below it, tapering to points
+            // whose ends break up into dry brush streaks.
             BladeSlashSprite = Build("Blade slash", 512, 128, (u, v) =>
             {
-                float taper = Mathf.Max(0, 1 - u * u), center = .22f - .5f * u * u;
-                float half = .3f * Mathf.Pow(taper, .8f) + .015f, edge = half * .35f, d = v - center;
-                float body = Mathf.Pow(Mathf.Clamp01((d + half) / (edge + half)), 1.6f) * (1 - Smooth(edge - .03f, edge + .02f, d));
-                float razor = Gauss(d - edge + .015f, .045f) * Mathf.Pow(taper, .5f);
-                float halo = Gauss(d, half * 1.5f + .05f) * .2f * taper;
-                float streaks = .72f + .28f * Mathf.PerlinNoise(u * 16 + 3, d * 4 + 7);
-                float a = (body * streaks * Mathf.Pow(taper, .6f) + razor + halo) * (1 - Smooth(.86f, .99f, Mathf.Abs(u))) * (1 - Smooth(.8f, .99f, Mathf.Abs(v)));
-                float l = Mathf.Lerp(.84f, 1, Mathf.Clamp01(razor * 1.4f));
-                return new Color(l, l, l, Mathf.Clamp01(a));
+                float au = Mathf.Abs(u), taper = Mathf.Max(0, 1 - u * u), center = .22f - .5f * u * u;
+                float half = .34f * Mathf.Pow(taper, .75f) + .008f, top = half * .36f, d = v - center;
+                if (d > top + .03f || d < -half - .02f) return Color.clear;
+                float across = Mathf.Clamp01((d + half) / (top + half)), edge = 1 - Smooth(top - .01f, top + .006f, d);
+                float streaks = Fbm(u * 1.7f + 3, d * 16 / Mathf.Max(.3f, taper) + 7, 2);
+                float level = edge * Mathf.Pow(across, 1.1f) * (.95f + .5f * (streaks - .5f)) * Mathf.Pow(taper, .3f);
+                level -= Smooth(.55f, .95f, au) * (1 - across * .6f) * (.15f + .9f * Mathf.Max(0, .55f - streaks));
+                return White(Mathf.Clamp01(level) * (1 - Smooth(.92f, .99f, au)));
             });
-            // A thin needle cut, thickest toward its head (+x), with a soft glow around a hard core.
-            BladeCutSprite = Build("Blade cut", 256, 32, (u, v) =>
+            // A spindle cut, thickest toward its head (+x) with a long thin tail.
+            BladeCutSprite = Build("Blade cut", 256, 48, (u, v) =>
             {
-                float t = Mathf.Pow((u + 1) * .5f, 1.4f), profile = Mathf.Pow(Mathf.Sin(Mathf.PI * t), 1.2f);
-                float a = Gauss(v, .1f + .5f * profile) * profile * .75f + Gauss(v, .09f + .1f * profile) * profile;
-                return White(Mathf.Clamp01(a) * (1 - Smooth(.92f, 1, Mathf.Abs(u))) * (1 - Smooth(.8f, 1, Mathf.Abs(v))));
+                float t = (u + 1) * .5f, profile = Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Pow(t, 1.35f)), .9f);
+                float half = .86f * profile + .002f, across = Mathf.Clamp01(1 - Mathf.Abs(v) / half);
+                float grain = Fbm(u * 2.4f + 11, v * 5 + 3, 2);
+                return White(Mathf.Pow(across, .8f) * Mathf.Pow(profile, .35f) * (1.02f + .3f * (grain - .5f)));
             });
-            // A sweeping ring arc: bright head at 0 degrees, a razor rim and a wind-streaked tail trailing clockwise.
+            // A long slash beam: a needle head at +x, the body thickest just behind it and a long tail that splits into
+            // separate dry-brush streaks toward -x.
+            BladeBeamSprite = Build("Blade beam", 512, 64, (u, v) =>
+            {
+                float t = (u + 1) * .5f;
+                float body = t < .8f ? Mathf.Pow(t / .8f, .5f) : Mathf.Pow(Mathf.Max(0, 1 - (t - .8f) / .2f), .75f);
+                float half = .84f * body + .002f, across = Mathf.Clamp01(1 - Mathf.Abs(v) / half);
+                float streak = Fbm(u * 1.5f + 5, v * 8 / Mathf.Max(.3f, body) + 2, 2);
+                float level = Mathf.Pow(across, .75f) * (1 + .45f * (streak - .5f)) * Mathf.Pow(body, .25f);
+                level -= (1 - Smooth(.05f, .62f, t)) * (.2f + 1.1f * Mathf.Max(0, .56f - streak));
+                return White(Mathf.Clamp01(level) * (1 - Smooth(.95f, 1, Mathf.Abs(u))));
+            });
+            // A sweeping arc round a circle: a pointed head at 0 degrees, a razor outer rim (white near the head) and a body
+            // streaked along the sweep that thins and breaks into dry brush as it trails off clockwise.
             BladeWhirlSprite = Build("Blade whirl", 256, 256, (u, v) =>
             {
-                float r = Mathf.Sqrt(u * u + v * v); if (r > 1) return Color.clear;
+                float r = Mathf.Sqrt(u * u + v * v); if (r > .97f || r < .4f) return Color.clear;
                 float rad = Mathf.Atan2(v, u), behind = Mathf.Repeat(-rad * Mathf.Rad2Deg + 12, 360) - 12;
-                float front = Smooth(-10, 0, behind), cut = 1 - Smooth(160, 240, behind);
-                float trail = Mathf.Exp(-Mathf.Max(0, behind) / 70f) * cut;
-                float w = .03f + .05f * trail, d = r - .8f;
-                float body = Gauss(d, w) * front * trail;
-                float razor = Gauss(d - w * .75f, .013f) * front * Mathf.Exp(-Mathf.Max(0, behind) / 130f) * cut;
-                float wind = Gauss(d + .11f, .08f) * front * trail * .5f * (.4f + Fbm(Mathf.Cos(rad) * 2.5f + 3, Mathf.Sin(rad) * 2.5f + r * 7, 2));
-                float l = Mathf.Lerp(.8f, 1, Mathf.Clamp01(razor + body * .3f));
-                return new Color(l, l, l, Mathf.Clamp01(body + razor + wind) * Window(r));
+                if (behind < -8 || behind > 240) return Color.clear;
+                float head = Smooth(-8, 26, behind), trail = Mathf.Exp(-Mathf.Max(0, behind) / 90f);
+                float outer = .91f, thick = .28f * head * (.3f + .7f * trail) + .004f, depth = (outer - r) / thick;
+                if (depth > 1) return Color.clear;
+                float rim = 1 - Smooth(outer - .006f, outer + .008f, r), n = RingNoise(rad, r, 1.5f, 17);
+                float level = rim * Mathf.Pow(Mathf.Clamp01(1 - depth), 1.15f) * (.8f + .5f * (n - .5f)) * (.5f + .5f * trail);
+                level -= Smooth(60, 200, behind) * (.1f + .9f * Mathf.Max(0, .55f - n));
+                return White(Mathf.Clamp01(level));
             });
-            // A spectral sword pointing along +x (light-coded: bright blade, darker grip).
+            // A giant painted crescent (bulge toward +x), six drawn frames: the stroke is laid upward from the bottom tip in the
+            // first two, held, then frayed from its hollow side out to the razor rim. Dry-brush gaps run along it and a second,
+            // thinner stroke line sits inside the hollow edge, as a brush leaves it.
+            BladeSweepSheet = Sheet("Blade sweep", 6, 256, 256, (u, v, f) =>
+            {
+                float r = Mathf.Sqrt(u * u + v * v); if (r > .97f || r < .3f) return Color.clear;
+                float theta = Mathf.Atan2(v, u) * Mathf.Rad2Deg; if (Mathf.Abs(theta) > 91) return Color.clear;
+                float s = theta / 90f, lead = f == 0 ? -10 : f == 1 ? 62 : 120, drawn = 1 - Smooth(lead - 30, lead, theta);
+                if (drawn <= 0) return Color.clear;
+                float thick = .4f * Mathf.Max(0, 1 - Mathf.Pow(Mathf.Abs(s), 2.4f)) * (1 + .16f * s) * Mathf.Lerp(.4f, 1, drawn) + .004f;
+                float outer = .92f - .025f * Mathf.Abs(s), depth = (outer - r) / thick;
+                if (depth > 1) return Color.clear;
+                float rim = 1 - Smooth(outer - .006f, outer + .008f, r), n = RingNoise(theta * Mathf.Deg2Rad, r, 1.3f, 19);
+                float level = rim * Mathf.Pow(Mathf.Clamp01(1 - depth), .85f) * (.97f + .6f * (n - .5f));
+                level -= Mathf.Max(0, .42f - n) * 1.4f * depth;
+                level += Gauss(depth - .78f, .045f) * .26f * Mathf.Clamp01(1 - Mathf.Abs(s) * 1.2f);
+                float fray = f < 3 ? 0 : (f - 2) / 3f;
+                level -= fray * (.2f + .9f * (1 - n)) * Smooth(.1f, .85f, depth);
+                return White(Mathf.Clamp01(level * drawn));
+            });
+            BladeSweepFray = new[] { BladeSweepSheet[3], BladeSweepSheet[4], BladeSweepSheet[5] };
+            // A spectral sword pointing along +x, painted as light (rgb = light level, alpha = shape): no outline.
             BladeSwordSprite = Build("Blade spectral sword", 256, 64, (u, v) => BladeSwordShade(u, v * .25f));
-            // Three swords chasing each other round a circle, each with a short motion arc: spin it and the blades orbit.
+            // Three swords chasing each other round a circle, each trailing a tapered, streaked motion arc: spin it and they orbit.
             BladeRingSprite = Build("Blade ring", 256, 256, (u, v) =>
             {
-                float r = Mathf.Sqrt(u * u + v * v); if (r > 1) return Color.clear;
+                float r = Mathf.Sqrt(u * u + v * v); if (r > .99f) return Color.clear;
                 float deg = Mathf.Atan2(v, u) * Mathf.Rad2Deg;
                 Color c = Color.clear;
                 for (int k = 0; k < 3; k++)
                 {
+                    float behind = Mathf.Repeat(k * 120 - 18 - deg, 360);
+                    if (behind < 110)
+                    {
+                        float fall = 1 - behind / 110f, w = .075f * Mathf.Pow(fall, .8f) + .004f;
+                        float across = Mathf.Clamp01(1 - Mathf.Abs(r - .7f) / w), streak = RingNoise(deg * Mathf.Deg2Rad, r, 1.8f, 30);
+                        float level = across * Mathf.Pow(fall, .7f) * (.85f + .5f * (streak - .5f)) * Smooth(0, 8, behind);
+                        c = Over(c, new Color(1, 1, 1, Mathf.Clamp01(level)));
+                    }
                     float a0 = k * 120 * Mathf.Deg2Rad, ca = Mathf.Cos(a0), sa = Mathf.Sin(a0);
                     float px = u - ca * .7f, py = v - sa * .7f;
-                    float along = -px * sa + py * ca, across = px * ca + py * sa;
-                    c = Over(c, BladeSwordShade(along / .42f, across / .8f));
-                    float behind = Mathf.Repeat(k * 120 - 26 - deg, 360);
-                    float trail = Gauss(r - .7f, .022f + behind * .0006f) * Mathf.Exp(-behind / 28f) * (1 - Smooth(90, 120, behind)) * .7f;
-                    c = Over(c, new Color(1, 1, 1, trail));
+                    c = Over(c, BladeSwordShade((-px * sa + py * ca) / .42f, (px * ca + py * sa) / .8f));
                 }
-                c.a *= Window(r); return c;
+                return c;
             });
-            // A broad soft disc (flat centre, long feathered edge) for shadows laid behind the actors.
-            BladeShadeSprite = Build("Blade shade", 128, 128, (u, v) =>
-            {
-                float r = Mathf.Sqrt(u * u + v * v);
-                return White((1 - Smooth(.35f, .98f, r)) * (.88f + .12f * Fbm(u * 3 + 5, v * 3 + 1, 2)));
-            });
-            // A pale, faceted stone chunk (light-coded so a tint gives sandstone or basalt with lit facets).
-            BladeChunkSprite = Build("Blade rock chunk", 64, 64, (u, v) =>
-            {
-                float r = Mathf.Sqrt(u * u + v * v), th = Mathf.Atan2(v, u);
-                float rr = .72f + .14f * Mathf.Cos(th * 3 + 1.3f) + .08f * Mathf.Cos(th * 5 + .4f);
-                float inside = 1 - Smooth(rr - .07f, rr, r);
-                float facet = Mathf.Repeat(th / (Mathf.PI * 2) * 5 + .1f, 1) < .5f ? 1 : .8f;
-                float light = Mathf.Clamp01(.66f + .34f * (-u * .5f + v * .7f) / Mathf.Max(.3f, rr)) * facet;
-                float l = Mathf.Clamp01(light + Gauss(r - rr + .1f, .05f) * .18f);
-                return new Color(l, l * .97f, l * .93f, inside);
-            });
+            // Painted stones (lumpy, softly lit from the upper left, pitted, a lit rim and the slam's gold light catching the
+            // lower right) and a tall stone spire erupting from the floor, standing on its base.
+            BladeRockSprites = new Sprite[3];
+            for (int i = 0; i < BladeRockSprites.Length; i++) { int seed = 307 + i * 23; BladeRockSprites[i] = Build("Blade rock " + i, 64, 64, (u, v) => BladeRockSample(u, v, seed)); }
+            BladeSpireSprites = new Sprite[3];
+            for (int i = 0; i < BladeSpireSprites.Length; i++) { int seed = i; BladeSpireSprites[i] = Build("Blade rock spire " + i, 96, 192, (u, v) => BladeSpireSample(u, v, seed), new Vector2(.5f, 0)); }
+        }
+
+        /// <summary>Painted stone colour for a light level: warm umber in shadow, ochre in the middle, pale sand in the light.</summary>
+        private static Color BladeStoneHue(float light)
+        {
+            light = Mathf.Clamp01(light);
+            Color c = Color.Lerp(new Color(.25f, .16f, .1f), new Color(.6f, .45f, .31f), Smooth(0, .5f, light));
+            return Color.Lerp(c, new Color(.95f, .86f, .7f), Smooth(.45f, 1, light));
         }
 
         private static Color BladeSwordShade(float x, float y)
         {
+            // Painted as light for the ramp, with no outline: the blade's upper face catches more light than the lower one and
+            // the two blend across a white-hot fuller; both cutting edges glow, the point flares, and faint streaks run along
+            // the steel. The guard is a rounded bar lit from above with a jewel at its heart, the grip a wrapped band and the
+            // pommel a small lit ball. The lowest level anywhere stays in the colour body, so no deep rim rings the shape.
             float ay = Mathf.Abs(y);
             float half = x < .55f ? .075f : .075f * Mathf.Clamp01((.96f - x) / .41f);
-            float blade = Smooth(-.45f, -.42f, x) * (1 - Smooth(.94f, .97f, x)) * (1 - Smooth(half - .012f, half + .004f, ay));
-            float fuller = Gauss(y, .018f) * Smooth(-.42f, -.3f, x) * (1 - Smooth(.45f, .75f, x));
-            float rim = Gauss(ay - half + .012f, .012f) * blade;
-            float guard = Smooth(-.535f, -.52f, x) * (1 - Smooth(-.44f, -.425f, x)) * (1 - Smooth(.17f, .19f, ay));
-            float grip = Smooth(-.85f, -.83f, x) * (1 - Smooth(-.53f, -.51f, x)) * (1 - Smooth(.03f, .04f, ay));
-            float pommel = 1 - Smooth(.04f, .055f, Mathf.Sqrt(Sq(x + .88f) + y * y));
-            float halo = Gauss(ay, .09f) * Smooth(-.5f, -.3f, x) * (1 - Smooth(.8f, 1, x)) * .35f;
-            float a = Mathf.Max(Mathf.Max(blade, guard), Mathf.Max(grip, pommel));
-            float l = blade > .5f ? Mathf.Clamp01(.86f + fuller * .3f + rim * .3f) : guard > .5f ? .82f : pommel > .5f ? .85f : .6f;
-            return new Color(l, l, l, Mathf.Clamp01(a + halo * (1 - a)));
+            float blade = Smooth(-.45f, -.43f, x) * (1 - Smooth(.95f, .965f, x)) * (1 - Smooth(half - .006f, half + .002f, ay));
+            float guard = Smooth(-.535f, -.525f, x) * (1 - Smooth(-.445f, -.435f, x)) * (1 - Smooth(.17f, .18f, ay));
+            float grip = Smooth(-.85f, -.84f, x) * (1 - Smooth(-.53f, -.52f, x)) * (1 - Smooth(.034f, .04f, ay));
+            float pommel = 1 - Smooth(.045f, .055f, Mathf.Sqrt(Sq(x + .88f) + y * y));
+            float a = Mathf.Max(Mathf.Max(blade, guard), Mathf.Max(grip, pommel)), l;
+            if (x > -.44f && blade > .01f)
+            {
+                float across = Mathf.Clamp01(ay / Mathf.Max(.004f, half));
+                float face = Mathf.Lerp(.42f, .6f, Smooth(-.014f, .014f, y));
+                float edge = Smooth(.5f, 1, across) * .26f, fuller = Gauss(y, .011f) * .45f * Smooth(-.43f, -.3f, x) * (1 - Smooth(.72f, .92f, x));
+                float point = Smooth(.58f, .94f, x) * .3f, root = (1 - Smooth(-.44f, -.22f, x)) * .08f;
+                float streak = (Fbm(x * 6 + 3, y * 70 + 1, 2) - .5f) * .16f;
+                l = face + edge + fuller + point - root + streak;
+            }
+            else if (guard > .01f && x > -.54f && x < -.43f)
+            {
+                float gy = y / .17f, gx = (x + .485f) / .05f;
+                l = .4f + .2f * Smooth(-.8f, .9f, gy) + .12f * Gauss(gy - .45f, .25f) - .06f * Smooth(.6f, 1, Mathf.Abs(gx));
+                l += Gauss(Mathf.Sqrt(Sq(gx * 1.4f) + Sq(gy * 3.2f)), .55f) * .45f;
+            }
+            else if (pommel > .01f && x < -.82f)
+            {
+                float px = (x + .88f) / .05f, py = y / .05f;
+                l = .44f + .4f * Mathf.Clamp01(.55f - px * .45f + py * .55f) + Gauss(Mathf.Sqrt(Sq(px + .3f) + Sq(py - .35f)), .3f) * .2f;
+            }
+            else l = .32f + .1f * Smooth(-1, 1, y / .04f) + .06f * Mathf.Sin(x * 150 + y * 60);
+            return new Color(Mathf.Clamp01(l), Mathf.Clamp01(l), Mathf.Clamp01(l), a);
+        }
+
+        /// <summary>A painted stone (alpha, baked colour): a lumpy round silhouette, soft light from the upper left, pits and faint
+        /// strata, a shaded (never outlined) rim, a lit rim on the upper left and the slam's gold light on the lower right.</summary>
+        private static Color BladeRockSample(float u, float v, int seed)
+        {
+            float r = Mathf.Sqrt(u * u + v * v), th = Mathf.Atan2(v, u);
+            // A broken stone: a lumpy outline with a few chipped flats where it split.
+            float rr = .74f + .3f * (RingNoise(th, seed * .37f, 1.3f, 0) - .5f) + .1f * (RingNoise(th, seed, 4.6f, 0) - .5f);
+            rr -= Mathf.Max(0, RingNoise(th, seed * 1.7f, 2.4f, 0) - .58f) * .9f;
+            float cover = 1 - Smooth(rr - .03f, rr + .005f, r); if (cover <= 0) return Color.clear;
+            float x = u / rr, y = v / rr, z = Mathf.Sqrt(Mathf.Max(0, 1 - x * x - y * y));
+            float n = Fbm(u * 3.4f + seed, v * 3.4f - seed, 4), pits = Fbm(u * 7 + seed * 2, v * 7 + seed, 3);
+            float diffuse = Mathf.Clamp01(-x * .6f + y * .65f + z * .5f);
+            float light = (.12f + .88f * diffuse) * (.78f + .5f * (n - .5f));
+            float crater = Smooth(.6f, .68f, pits), crack = Gauss(Fbm(u * 2.6f + seed, v * 2.6f + 3, 3) - .5f, .022f);
+            light = light * (1 - crater * .35f) + Gauss(pits - .59f, .02f) * .15f * diffuse - crack * .3f;
+            light *= 1 - .25f * Smooth(rr - .24f, rr, r) * (1 - diffuse * .6f);
+            Color c = BladeStoneHue(light);
+            float edgeBand = Smooth(rr - .2f, rr - .03f, r);
+            c = Color.Lerp(c, new Color(1, .95f, .82f), edgeBand * Mathf.Clamp01(-x * .7f + y * .7f) * .55f);
+            c = Color.Lerp(c, new Color(1, .7f, .28f), edgeBand * Mathf.Clamp01(x * .6f - y * .8f) * .6f);
+            c.a = cover; return c;
+        }
+
+        /// <summary>A stone spire (alpha, baked colour) standing on its base, one of three variants: a broken shard that leans
+        /// and splits off at a slanted top, its outline chipped; three softly blended planes (the lit left face, the front and the
+        /// shaded right face) with a highlight along the ridge, grain, strata and cracks in the stone, a lit rim on the left
+        /// edge and the slam's gold glow at its foot.</summary>
+        private static Color BladeSpireSample(float u, float v, int seed)
+        {
+            float h = (v + 1) * .5f, side = seed == 1 ? -1 : 1;
+            float x = u - side * (.06f + .05f * seed) * h * h;
+            float wobble = (Fbm(h * 3 + seed * 5, x > 0 ? 2.3f : 8.1f, 2) - .5f) * .45f;
+            float notch = Mathf.Max(0, Fbm(h * 8 + seed * 3, x > 0 ? 5.5f : 1.5f, 2) - .56f) * 1.6f;
+            float width = seed == 2 ? .62f : .8f;
+            float half = width * Mathf.Pow(Mathf.Max(0, 1 - h * .96f), .7f) * (1 + wobble - notch) + .01f;
+            float top = .9f + .07f * side * Mathf.Clamp(x / .25f, -1, 1) - .06f * seed;
+            float cover = (1 - Smooth(half - .03f, half + .005f, Mathf.Abs(x))) * Smooth(0, .02f, h) * (1 - Smooth(top - .015f, top + .005f, h));
+            if (cover <= 0) return Color.clear;
+            float s = Mathf.Clamp(x / Mathf.Max(.02f, half), -1, 1);
+            float planes = Smooth(-.6f, -.3f, s) + Smooth(.15f, .45f, s);
+            float light = planes < 1 ? Mathf.Lerp(.95f, .62f, planes) : Mathf.Lerp(.62f, .2f, planes - 1);
+            light += Gauss(s + .45f, .08f) * .14f + Gauss(h - top + .03f, .03f) * .25f;
+            float n = Fbm(u * 5 + seed * 4, v * 10 + 2, 4), grain = Fbm(u * 14 + seed, v * 6, 2);
+            float strata = Gauss(Mathf.Repeat(h * 5.5f + Fbm(u * 1.6f + seed, h * 2, 2) * 1.6f, 1) - .5f, .06f);
+            float crack = Gauss(Fbm(u * 2.4f + 7 + seed, v * 4.4f + 1, 3) - .5f, .014f) * Smooth(.05f, .3f, h);
+            light = light * (.74f + .5f * (n - .5f)) + (grain - .5f) * .1f - strata * .14f - crack * .35f;
+            Color c = BladeStoneHue(light);
+            c = Color.Lerp(c, new Color(1, .95f, .82f), Smooth(.78f, .98f, -s) * .5f);
+            c = Color.Lerp(c, new Color(1, .7f, .28f), (1 - Smooth(.02f, .24f, h)) * .6f);
+            c.a = cover; return c;
         }
 
         // ---------------------------------------------------------------- blade helpers
@@ -130,6 +246,8 @@ namespace PrototypeLab.Roguelike
         /// their growth gentle (about a sixth more at level three) so the level's new layers, not more debris, carry the step.</summary>
         private int BladeShare(int count) { return Budget(Mathf.Max(1, Mathf.RoundToInt(count * BladeLevel(.85f, .7f)))); }
 
+        private static Color BladeDashHue(Color tint) { return Color.Lerp(BladeDashBlue, tint, .2f); }
+
         /// <summary>True while <paramref name="clip"/> is alive, younger than <paramref name="window"/> and near <paramref name="pos"/>.</summary>
         private bool BladeRecent(Clip clip, float window, Vector2 pos, float distance)
         {
@@ -140,8 +258,7 @@ namespace PrototypeLab.Roguelike
         private void BladeNoteSlam(Vector2 pos, int facing, float life)
         {
             BladeSlamNotes.RemoveAll(n => !clips.Contains(n.clock));
-            var clock = Spawn("Blade slam note", glow, pos, .05f, new Color(0, 0, 0, 0), life, true, 20);
-            BladeSlamNotes.Add(new BladeSlamNote { clock = clock, facing = facing < 0 ? -1 : 1 });
+            BladeSlamNotes.Add(new BladeSlamNote { clock = BladeMarker(pos, life), facing = facing < 0 ? -1 : 1 });
         }
 
         /// <summary>The newest live slam note within 2.5 units of <paramref name="pos"/>, or null (a passive or a boss slam).</summary>
@@ -153,33 +270,41 @@ namespace PrototypeLab.Roguelike
             return best;
         }
 
+        /// <summary>An invisible clip that only keeps time and place.</summary>
+        private Clip BladeMarker(Vector2 pos, float life) { return Spawn("Blade marker", glow, pos, .05f, new Color(0, 0, 0, 0), life, true, 20); }
+
         private static void BladeDelay(Clip clip, float delay)
         {
             if (delay <= 0) return;
             clip.age = -delay; if (clip.renderer) clip.renderer.enabled = false;
         }
 
-        /// <summary>Draws a clip alpha-blended (a saturated or dark "ink" layer under the light).</summary>
-        private static Clip BladeInk(Clip clip) { if (clip.renderer) clip.renderer.sharedMaterial = AlphaBlend; return clip; }
-
         /// <summary>Snaps a slash open along its length in a couple of frames.</summary>
         private static void BladeSnap(Clip clip, float delay)
         {
-            clip.axisStart = new Vector2(.25f, 1); clip.axisEnd = Vector2.one; clip.ease = 9; clip.startScale = .96f; clip.endScale = 1.05f; clip.fadePower = 1.5f;
+            clip.axisStart = new Vector2(.25f, 1); clip.axisEnd = Vector2.one; clip.ease = 9; clip.startScale = .96f; clip.endScale = 1.05f; clip.hold = .25f; clip.fadePower = 1.3f;
             BladeDelay(clip, delay);
         }
 
         private static void BladeZoneFade(Clip clip, float life) { clip.life = life; clip.fadeIn = .12f; clip.hold = .72f; clip.fadePower = 1.4f; }
 
-        private Clip BladeCutLine(Vector2 a, Vector2 b, float thickness, Color color, float life, int order, bool additive = true)
+        private Clip BladeStretch(string name, Sprite sprite, Vector2 a, Vector2 b, float thickness, Color color, float life, int order, bool additive)
         {
             Vector2 delta = b - a; float length = Mathf.Max(.05f, delta.magnitude);
-            var clip = Spawn("Blade cut", BladeCutSprite, (a + b) * .5f, length, color, life, additive, order);
-            clip.scale = new Vector3(length / BladeCutSprite.bounds.size.x, thickness / BladeCutSprite.bounds.size.y, 1);
+            var clip = Spawn(name, sprite, (a + b) * .5f, length, color, life, additive, order);
+            clip.scale = new Vector3(length / sprite.bounds.size.x, thickness / sprite.bounds.size.y, 1);
             clip.angle = delta.sqrMagnitude > 1e-6f ? Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg : 0; clip.ease = 1;
             clip.root.transform.localScale = clip.scale; clip.root.transform.localRotation = Quaternion.Euler(0, 0, clip.angle);
             return clip;
         }
+
+        /// <summary>A spindle cut from <paramref name="a"/> to its head at <paramref name="b"/>.</summary>
+        private Clip BladeCutLine(Vector2 a, Vector2 b, float thickness, Color color, float life, int order, bool additive = true)
+        { return BladeStretch("Blade cut", BladeCutSprite, a, b, thickness, color, life, order, additive); }
+
+        /// <summary>A slash beam from its frayed tail at <paramref name="a"/> to its needle head at <paramref name="b"/>.</summary>
+        private Clip BladeBeamLine(Vector2 a, Vector2 b, float thickness, Color color, float life, int order, bool additive = true)
+        { return BladeStretch("Blade beam", BladeBeamSprite, a, b, thickness, color, life, order, additive); }
 
         private Clip BladeSlashAt(Vector2 pos, float width, float height, float angle, Color color, float life, bool additive, int order)
         {
@@ -187,6 +312,152 @@ namespace PrototypeLab.Roguelike
             clip.scale = new Vector3(width / BladeSlashSprite.bounds.size.x, height / BladeSlashSprite.bounds.size.y, 1);
             clip.angle = angle; clip.root.transform.localScale = clip.scale; clip.root.transform.localRotation = Quaternion.Euler(0, 0, angle);
             return clip;
+        }
+
+        /// <summary>A giant painted crescent sweep bulging toward <paramref name="angle"/>: drawn in its first frames, held, then
+        /// frayed from the hollow side out to the razor rim, glowing over a soft bloom of <paramref name="bloom"/> alpha (0: none)
+        /// and, when <paramref name="deep"/> has alpha, a slightly smaller stroke of that deeper hue under it for body on pale
+        /// skies. <paramref name="pop"/> adds a white silhouette frame the moment it is fully drawn; <paramref name="mirror"/>
+        /// flips it top to bottom.</summary>
+        private Clip BladeSweep(Vector2 pos, float width, float height, float angle, Color color, float bloom, Color deep, float life, int order, bool mirror, bool pop, float delay = 0)
+        {
+            Vector2 ahead = Direction(angle);
+            var layers = new List<Clip>();
+            if (deep.a > 0) layers.Add(Sheet("Blade sweep depth", BladeSweepSheet, pos - ahead * width * .03f, width * .96f, deep, life * 1.05f, order - 1, 0, false));
+            var body = Sheet("Blade sweep", BladeSweepSheet, pos, width, color, life, order, 0, false); layers.Add(body);
+            foreach (var clip in layers) { clip.startScale = .86f; clip.endScale = 1.05f; clip.ease = 6; clip.hold = .3f; clip.fadePower = 1.1f; BladeDelay(clip, delay); }
+            if (pop)
+            {
+                var flash = Spawn("Blade sweep flash", crescent, pos + ahead * width * .02f, width * .98f, new Color(1, 1, 1, Mathf.Min(1, color.a)), .09f, true, order + 2);
+                flash.startScale = .97f; flash.endScale = 1.04f; flash.ease = 4; flash.fadePower = 1.8f; layers.Add(flash);
+                BladeDelay(flash, delay + life * .32f);
+            }
+            foreach (var clip in layers)
+            {
+                clip.angle = angle; clip.scale.y *= height / width * (mirror ? -1 : 1);
+                clip.root.transform.localScale = clip.scale; clip.root.transform.localRotation = Quaternion.Euler(0, 0, angle);
+            }
+            if (bloom > 0)
+            {
+                // The bloom sits over the arc itself (the outer third of the crescent), stretched along its height.
+                var halo = Spawn("Blade sweep bloom", glow, pos + ahead * width * .3f, Mathf.Abs(height) * 1.05f, Alpha(color, bloom), life * 1.3f, true, order - 3);
+                halo.angle = angle + 90; halo.scale.y *= .5f; halo.root.transform.localScale = halo.scale; halo.root.transform.localRotation = Quaternion.Euler(0, 0, angle + 90);
+                halo.startScale = .8f; halo.endScale = 1.1f; halo.ease = 4; halo.hold = .2f; halo.fadePower = 1.3f; BladeDelay(halo, delay);
+            }
+            return body;
+        }
+
+        /// <summary>A hit: the hand-drawn spark flaring, splitting into shards and scattering (plays at least a fifth of a
+        /// second) over a soft bloom of <paramref name="halo"/> (none when its alpha is 0). Returns the spark.</summary>
+        private Clip BladeStar(Vector2 pos, float width, Color color, Color halo, float life, int order = 132, float delay = 0)
+        {
+            if (halo.a > 0)
+            {
+                var bloom = Spawn("Blade hit bloom", glow, pos, width * 1.35f, halo, Mathf.Max(.2f, life * 1.8f), true, order - 2);
+                bloom.startScale = .6f; bloom.endScale = 1.25f; bloom.ease = 3; bloom.fadePower = 1.5f; BladeDelay(bloom, delay);
+            }
+            var spark = SparkFlip(pos, width * 1.1f, color, life, order); BladeDelay(spark, delay);
+            return spark;
+        }
+
+        /// <summary>A soft bloom stretched along a stroke from <paramref name="a"/> to <paramref name="b"/>: the glow under a
+        /// beam that makes the painted stroke read as light.</summary>
+        private Clip BladeBloomLine(Vector2 a, Vector2 b, float thickness, Color color, float life, int order)
+        {
+            Vector2 mid = (a + b) * .5f, half = (b - a) * .5f * 1.25f;
+            return BladeStretch("Blade bloom", glow, mid - half, mid + half, thickness, color, life, order, true);
+        }
+
+        /// <summary>A soft contrast underlay stretched along a stroke (the core Underlay's soft dark halo, behind the actors at
+        /// 29), so a white-hot beam still reads on a pale sky without any outline.</summary>
+        private Clip BladeShade(Vector2 a, Vector2 b, float thickness, float alpha, float life)
+        {
+            Vector2 mid = (a + b) * .5f, half = (b - a) * .5f * 1.2f;
+            var clip = BladeStretch("Contrast underlay", glow, mid - half, mid + half, thickness, new Color(.03f, .04f, .1f, alpha), life, 29, false);
+            clip.fadeIn = .03f; clip.fadePower = 1.2f; return clip;
+        }
+
+        /// <summary>Ground cracks where a blade bit: warm brown fissures (never black), a glowing copy of <paramref name="hot"/>
+        /// fading first, and a soft glow on the floor round them.</summary>
+        private void BladeCrack(Vector2 ground, float width, Color hot, float life)
+        {
+            var dark = Decal(ground, crack, width, new Color(.34f, .2f, .09f, .5f), life, false, 25); dark.angle = Range(-10, 10);
+            var lit = Decal(ground, crack, width, hot, life * .75f, true, 26); lit.angle = dark.angle; lit.fadePower = 1.8f;
+            GroundGlow(ground + Vector2.up * .05f, width * 1.1f, Alpha(hot, .4f), life * .6f);
+        }
+
+        /// <summary>A crisp glint: a long and a short spindle crossed over a four-point fleck.</summary>
+        private void BladeTwinkle(Vector2 pos, float size, Color color, float life, float angle, float delay)
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                Vector2 half = Direction(angle + i * 90) * size * (i == 0 ? .5f : .28f);
+                var ray = Line(pos - half, pos + half, size * (i == 0 ? .11f : .09f), color, life, 133);
+                ray.startScale = .25f; ray.endScale = 1; ray.ease = 5; ray.fadePower = 1.4f; BladeDelay(ray, delay);
+            }
+            var heart = Spawn("Blade twinkle", fleck, pos, size * .32f, Color.white, life * .8f, true, 133);
+            heart.startScale = .3f; heart.endScale = 1; heart.ease = 4; heart.fadePower = 1.4f; BladeDelay(heart, delay);
+        }
+
+        /// <summary>Needle sparks flung from <paramref name="pos"/> around <paramref name="angle"/> (within <paramref name="spread"/>
+        /// degrees), white and coloured, a third of them straighter and faster.</summary>
+        private void BladeNeedles(Vector2 pos, float angle, float spread, int count, float speed, Color color, float life, float size = .42f, float delay = 0)
+        {
+            count = Budget(count);
+            for (int i = 0; i < count; i++)
+            {
+                bool straight = i % 3 == 0;
+                var needle = Spark(pos, Direction(angle + Range(-spread, spread) * (straight ? .45f : 1)) * speed * (straight ? Range(.9f, 1.2f) : Range(.45f, 1)),
+                    straight ? Color.white : color, size * Range(.6f, 1.25f), life * Range(.6f, 1), 4, 3);
+                BladeDelay(needle, delay);
+            }
+        }
+
+        /// <summary>Painted smoke (warm grey, dust or pale wind) kicked from <paramref name="pos"/> toward <paramref name="dir"/>.</summary>
+        private void BladeKick(Vector2 pos, Vector2 dir, float size, Color color, int count, float life, int order = 126, float delay = 0)
+        {
+            Vector2 main = dir.sqrMagnitude > .0001f ? dir.normalized : Vector2.up;
+            for (int i = 0; i < count; i++)
+            {
+                Vector2 d = (main + Inside(.75f)).normalized;
+                var puff = Puff(pos + d * size * Range(.05f, .35f), size * Range(.55f, 1), color, d * size * Range(1.4f, 3) + Vector2.up * size * .3f, life * Range(.75f, 1.1f), order);
+                puff.startScale = .5f; puff.endScale = 1.5f; puff.fadeIn = 0; BladeDelay(puff, delay);
+            }
+        }
+
+        /// <summary>White silhouettes of the dashing body strung along its path: copies of the afterimage gameplay took at the start
+        /// of the dash (this frame), each a step further along, the ones behind fading first.</summary>
+        private void BladeGhosts(Vector2 from, Vector2 to, int count)
+        {
+            Clip source = null;
+            for (int i = clips.Count - 1; i >= 0 && i >= clips.Count - 48; i--)
+            {
+                var c = clips[i];
+                if (c.age <= 0 && (c.copies != null || c.meshCopies != null) && c.root && c.root.name == "Dash afterimage") { source = c; break; }
+            }
+            if (source == null) return;
+            Vector2 delta = to - from; float length = delta.magnitude, reach = Mathf.Clamp01((length - .9f) / Mathf.Max(.01f, length));
+            Clip last = null;
+            for (int i = 0; i < count; i++)
+            {
+                Vector2 at = source.position + delta * reach * (i + 1f) / (count + 1);
+                var copy = Instantiate(source.root, source.root.transform.parent);
+                copy.name = "Dash ghost"; copy.transform.position = new Vector3(at.x, at.y, 0);
+                var block = new MaterialPropertyBlock(); block.SetColor("_Color", Color.white);
+                var meshes = copy.GetComponentsInChildren<MeshRenderer>();
+                var sprites = copy.GetComponentsInChildren<SpriteRenderer>();
+                // The ghosts are drawn among the slash beams (over the blue beam, under its white needle), not behind them
+                // with the actors, so the silhouettes read through the dash.
+                foreach (var mesh in meshes) { mesh.SetPropertyBlock(block); mesh.sortingLayerID = 0; mesh.sortingOrder = 129; }
+                foreach (var sprite in sprites) { sprite.sortingLayerID = 0; sprite.sortingOrder = 129; }
+                last = new Clip { root = copy, copies = sprites, meshCopies = meshes, meshTint = block, position = at, scale = Vector3.one,
+                    color = new Color(1, 1, 1, .5f), ramp = Ramp(new Color(.6f, .88f, 1), new Color(.36f, .7f, 1), new Color(.16f, .38f, 1)), hold = .2f, fadePower = 1.4f,
+                    life = .16f + i * .05f, seed = sequence++ };
+                clips.Add(last);
+            }
+            // The copy that fades last keeps the frozen meshes alive, so the first afterimage (the oldest) may fade first.
+            if (last != null && source.ownedMeshes != null) { last.ownedMeshes = source.ownedMeshes; source.ownedMeshes = null; }
+            source.life = Mathf.Min(source.life, .11f);
         }
 
         /// <summary>A squashed, tilted child plane of a zone root: anything spinning on it runs round an ellipse in perspective.</summary>
@@ -201,19 +472,13 @@ namespace PrototypeLab.Roguelike
         {
             for (int i = 0; i < count; i++)
             {
-                float angle = i * 360f / count + Range(-10, 10);
-                var ink = Attach(plane, "Storm sweep shadow", BladeWhirlSprite, width * 1.05f, BladeBronzeInk, order - 7, false);
                 var sweep = Attach(plane, "Storm sweep", BladeWhirlSprite, width, Alpha(light, alpha), order);
-                ink.angle = angle - 12 * Mathf.Sign(spin); sweep.angle = angle;
-                foreach (var clip in new[] { ink, sweep })
-                {
-                    if (spin < 0) clip.scale.x *= -1;
-                    clip.spin = spin; BladeZoneFade(clip, life);
-                    layers.Add(clip);
-                }
+                sweep.angle = i * 360f / count + Range(-25, 25);
+                if (spin < 0) sweep.scale.x *= -1;
+                sweep.spin = spin * Range(.9f, 1.1f); BladeZoneFade(sweep, life);
+                layers.Add(sweep);
             }
         }
-
 
         /// <summary>A flat, squashed plane riding on <paramref name="anchor"/> (or free when there is none). Clips attached to it and
         /// spun run round an ellipse on the floor instead of tipping up. The plane is an invisible clip itself, so it is
@@ -237,26 +502,26 @@ namespace PrototypeLab.Roguelike
             return clip;
         }
 
-        /// <summary>A dark halo drawn behind the actors (above the backdrop) so bodies and the light over them stand out.</summary>
-        private Clip BladeBackShade(Vector2 pos, float width, Color color, float life, float squash = 1)
+        /// <summary>A painted stone chip (alpha, its own colours) of about <paramref name="size"/> units.</summary>
+        private Clip BladeStone(string name, Vector2 pos, float size, float life, int order = 128)
         {
-            var clip = Spawn("Blade back shade", BladeShadeSprite, pos, width, color, life, false, 28);
-            clip.scale.y *= squash; clip.root.transform.localScale = clip.scale; clip.fadeIn = .04f; clip.fadePower = 1.3f;
-            return clip;
+            var chip = Spawn(name, BladeRockSprites[random.Next(BladeRockSprites.Length)], pos, size, Color.white, life, false, order);
+            chip.angle = Range(0, 360); return chip;
         }
 
-        /// <summary>Stone chunks flung from a blast: pale faceted rock tinted to <paramref name="tone"/>, tumbling under gravity.</summary>
-        private void BladeRubble(Vector2 pos, int count, float speed, float size, float life, Color tone)
+        /// <summary>Painted stones flung from a blast, tumbling under gravity.</summary>
+        private void BladeRubble(Vector2 pos, int count, float speed, float size, float life)
         {
             count = Budget(count);
             for (int i = 0; i < count; i++)
             {
-                var chunk = Spawn("Blade rubble", BladeChunkSprite, pos + Inside(.3f), size * Range(.5f, 1.15f), tone, life * Range(.7f, 1.1f), false, 128);
-                chunk.velocity = new Vector2(Range(-1, 1) * speed, Range(.55f, 1.2f) * speed); chunk.gravity = 18; chunk.spin = Range(-500, 500); chunk.hold = .55f; chunk.fadePower = .8f;
+                var chunk = BladeStone("Blade rubble", pos + Inside(.3f), size * Range(.5f, 1.15f), life * Range(.7f, 1.1f));
+                chunk.velocity = new Vector2(Range(-1, 1) * speed, Range(.55f, 1.2f) * speed); chunk.gravity = 18; chunk.spin = Range(-500, 500);
+                chunk.hold = .55f; chunk.fadePower = .8f;
             }
         }
 
-        /// <summary>Light streaks rushing in toward a point (the pull of a charge), spread over a wind-up window.</summary>
+        /// <summary>Spindle strokes rushing in toward a point (the pull of a charge), spread over a wind-up window.</summary>
         private void BladeInward(Vector2 target, int count, float reach, Color color, float window, float thickness)
         {
             count = Budget(count);
@@ -264,20 +529,45 @@ namespace PrototypeLab.Roguelike
             {
                 float speed = Range(8, 12), dist = reach * Range(.75f, 1.1f), life = Mathf.Max(.08f, (dist - .5f) / speed);
                 Vector2 dir = Direction(Range(0, 360)), from = target + dir * dist;
-                var ray = BladeCutLine(from + dir * Range(.8f, 1.3f), from, thickness * Range(.7f, 1.2f), i % 3 == 0 ? Color.white : Alpha(color, .95f), life, 129);
+                var ray = BladeCutLine(from + dir * Range(.8f, 1.3f), from, thickness * Range(.7f, 1.2f), i % 3 == 0 ? Color.white : Alpha(color, 1), life, 129);
                 ray.velocity = -dir * speed; ray.fadeIn = .03f; ray.hold = .6f; ray.fadePower = 1.5f;
                 BladeDelay(ray, Range(0, Mathf.Max(0, window - life)));
             }
         }
 
-        /// <summary>A light column standing on <paramref name="ground"/> that rides on the caster (or stays put without one).</summary>
-        private Clip BladeColumn(Transform anchor, Vector2 ground, float width, float height, Color color, float life, int order, bool additive = true)
+        /// <summary>Painted crescents whirling in round a raised weapon over a soft bloom, closing as the release nears.</summary>
+        private void BladeGatherArcs(Transform anchor, Vector2 at, float width, float spin, Color color, float w, float turn)
         {
-            var clip = Anchored(anchor, ground, "Blade light column", pillar, width, color, life, order, additive);
-            float lossyY = anchor ? Mathf.Max(.0001f, Mathf.Abs(anchor.lossyScale.y)) : 1;
-            clip.scale = new Vector3(clip.scale.x, height / pillar.bounds.size.y / lossyY, 1);
-            clip.root.transform.localScale = clip.scale;
-            return clip;
+            for (int i = 0; i < 2; i++)
+            {
+                // Two unequal arcs, a third of a turn apart and off-centre, so they whirl rather than close into a ring.
+                float angle = turn + i * 135 + Range(-20, 20);
+                Vector2 off = at + Direction(angle + 90) * width * (i == 0 ? .08f : -.12f);
+                var arc = Anchored(anchor, off, "Gather arc", crescent, width * (i == 0 ? 1 : .66f), Alpha(color, 1), w + .04f, 126);
+                arc.angle = angle; arc.spin = spin; arc.startScale = 1.2f; arc.endScale = .72f; arc.ease = 1.4f; arc.fadeIn = .05f; arc.hold = .7f; arc.fadePower = 1.6f;
+            }
+            var bloom = Anchored(anchor, at, "Gather bloom", glow, width * 1.25f, Alpha(color, .5f), w + .04f, 124);
+            bloom.startScale = 1.15f; bloom.endScale = .8f; bloom.ease = 1.4f; bloom.fadeIn = .08f; bloom.hold = .75f; bloom.fadePower = 1.6f; bloom.pulse = .06f;
+        }
+
+        /// <summary>Flame licks of light rising round a body from the floor (behind the actors) over a soft glow, thicker and
+        /// longer as the release nears; a third of them in <paramref name="deep"/>, a deeper hue of the same colour, so the
+        /// aura keeps its body on a pale sky.</summary>
+        private void BladeAuraLicks(Transform anchor, Vector2 pos, float floorY, float w, Color color, Color deep, float rate, float length, float spread)
+        {
+            var host = Anchored(anchor, pos, "Aura glow", glow, spread * 3.4f, Alpha(color, .32f), w + .02f, 28);
+            host.scale.y *= 1.25f; host.root.transform.localScale = host.scale; host.fadeIn = w * .5f; host.hold = .8f; host.fadePower = 2; host.pulse = .05f;
+            Emitter(host, rate, 0, (owner, p) =>
+            {
+                float charged = Mathf.Clamp01(owner.age / Mathf.Max(.05f, w));
+                if (!Chance(.35f + .65f * charged)) return;
+                float side = Chance(.5f) ? 1 : -1, life = Range(.15f, .23f);
+                Vector2 at = new Vector2(p.x + side * Range(.15f, spread), floorY + Range(.05f, .9f)), rise = new Vector2(-side * Range(0, .2f), 1).normalized;
+                float len = Range(.8f, 1.6f) * (.55f + .6f * charged) * length;
+                float roll = Range(0, 1);
+                var lick = BladeCutLine(at, at + rise * len, Range(.15f, .25f), roll < .25f ? Color.white : roll < .55f ? Alpha(deep, 1) : Alpha(color, 1), life, 29);
+                lick.velocity = rise * Range(3, 5.5f); lick.fadeIn = .03f; lick.fadePower = 1.3f;
+            });
         }
 
         /// <summary>A short crackle of jagged light.</summary>
@@ -287,12 +577,23 @@ namespace PrototypeLab.Roguelike
             for (int i = 0; i < 3; i++)
             {
                 Vector2 next = p + Direction(heading + Range(-70, 70)) * size * Range(.25f, .45f);
-                var arc = Line(p, next, .09f, i == 1 ? Color.white : Alpha(color, 1), .1f, 132, 1.15f); arc.flicker = .35f; arc.fadePower = 1.2f;
+                var arc = Line(p, next, .1f, i == 1 ? Color.white : Alpha(color, 1), .1f, 132, 1.15f); arc.flicker = .35f; arc.fadePower = 1.2f;
                 BladeDelay(arc, delay); p = next;
             }
         }
 
         // ---------------------------------------------------------------- Shockwave: golden slam and sword wave
+
+        /// <summary>The weapon coming down: a razor slash bowing forward over a deep-gold stroke and a bloom, and a spark
+        /// flaring where it was raised.</summary>
+        private void BladeShockSwing(Vector2 pos, int f, Color light, float delay)
+        {
+            var depth = BladeSlashAt(pos + new Vector2(f * 1.12f, .25f), 3.6f, 1.75f, -90 * f, Alpha(BladeDeepGold, .8f), .22f, true, 129); BladeSnap(depth, delay);
+            var swing = BladeSlashAt(pos + new Vector2(f * 1.16f, .25f), 3.8f, 1.9f, -90 * f, Alpha(light, 1), .2f, true, 130); BladeSnap(swing, delay);
+            var bloom = BladeBloomLine(pos + new Vector2(f * 1.35f, 1.6f), pos + new Vector2(f * 1.35f, -1.1f), 1.3f, Alpha(light, .32f), .26f, 127); BladeDelay(bloom, delay);
+            bloom.startScale = .8f; bloom.endScale = 1.05f; bloom.ease = 4; bloom.fadePower = 1.4f;
+            BladeStar(pos + new Vector2(f * .45f, .85f), 2.1f, Alpha(Warm, 1), Alpha(light, .5f), .14f, 132, delay);
+        }
 
         private void CastShockwave(CastInfo c)
         {
@@ -301,118 +602,86 @@ namespace PrototypeLab.Roguelike
             Color light = Color.Lerp(BladeHotGold, c.light, .3f);
             // The slam's burst (and an awakened second wave a quarter second after it) reads this to run forward only.
             BladeNoteSlam(pos, f, w + .9f);
-            if (w < .2f)
-            {
-                // An instant echo (a recast with no wind-up): only the swing coming down; the slam follows at once.
-                var quickInk = BladeSlashAt(pos + new Vector2(f * .85f, .25f), 3.8f, 1.9f, -90 * f, BladeAmberInk, .22f, false, 118); BladeSnap(quickInk, release);
-                var quick = BladeSlashAt(pos + new Vector2(f * .9f, .25f), 3.6f, 1.7f, -90 * f, new Color(1, .95f, .8f, .9f), .18f, true, 130); BladeSnap(quick, release);
-                var quickStar = Glint(gather, 2.4f, Color.white, .18f); BladeDelay(quickStar, release);
-                return;
-            }
-            // The raised weapon drinks in light: an amber shadow, a golden seal turning behind it, a swelling heart and a star.
-            var shade = Anchored(c.anchor, gather, "Wave charge shadow", glow, 3.2f, new Color(.42f, .2f, .02f, .55f), w + .08f, 110, false);
-            shade.fadeIn = .05f; shade.startScale = .45f; shade.endScale = 1.1f; shade.ease = 1; shade.hold = .8f; shade.fadePower = 2;
-            var sealInk = Anchored(c.anchor, gather, "Wave seal shadow", runeRing, 3.4f, BladeAmberInk, w + .06f, 111, false);
-            var seal = Anchored(c.anchor, gather, "Wave seal", runeRing, 3.3f, Alpha(light, .95f), w + .06f, 125);
-            foreach (var clip in new[] { sealInk, seal }) { clip.fadeIn = .06f; clip.startScale = .3f; clip.endScale = 1; clip.ease = 2.5f; clip.spin = 150 * f; clip.hold = .88f; clip.fadePower = 2.2f; }
-            var heart = Anchored(c.anchor, gather, "Wave charge", glow, 2.6f, Alpha(light, .95f), w + .06f, 126);
-            heart.fadeIn = .04f; heart.startScale = .25f; heart.endScale = 1.4f; heart.ease = 1; heart.pulse = .08f; heart.hold = .9f; heart.fadePower = 2.5f;
-            var hot = Anchored(c.anchor, gather, "Wave charge core", core, .6f, Warm, w + .04f, 127);
-            hot.startScale = .3f; hot.endScale = 1.5f; hot.ease = 1; hot.pulse = .15f; hot.hold = .9f; hot.fadePower = 2;
-            var star = Anchored(c.anchor, gather, "Wave charge star", glint, 3f, Alpha(Warm, .95f), w + .04f, 128);
-            star.startScale = .12f; star.endScale = 1; star.ease = 1.2f; star.spin = 120; star.hold = .88f; star.fadePower = 2;
-            // A golden column rises behind the hero (behind the actors, so the body stands out against it) and swells to the release.
-            var columnInk = BladeColumn(c.anchor, feet, 2.4f, 4.6f, new Color(.4f, .19f, .02f, .5f), w + .05f, 28, false);
-            var column = BladeColumn(c.anchor, feet, 1.9f, 5.2f, Alpha(light, .85f), w + .05f, 29);
-            foreach (var clip in new[] { columnInk, column }) { clip.axisStart = new Vector2(.35f, .2f); clip.axisEnd = Vector2.one; clip.ease = 1.3f; clip.fadeIn = .05f; clip.hold = .9f; clip.fadePower = 3; }
-            column.pulse = .05f;
-            // Right before the slam the gathered light collapses inward: a ring snapping shut on the weapon.
-            var implode = Spawn("Wave implode", ring, gather, 4.2f, Alpha(Warm, .95f), .15f, true, 129);
-            implode.startScale = 1; implode.endScale = .12f; implode.ease = 1.6f; implode.fadeIn = .03f; implode.fadePower = .5f; BladeDelay(implode, Mathf.Max(0, w - .16f));
-            var implodeInk = BladeInk(Spawn("Wave implode shadow", ring, gather, 4.4f, BladeAmberInk, .15f, false, 112));
-            implodeInk.startScale = 1; implodeInk.endScale = .12f; implodeInk.ease = 1.6f; implodeInk.fadeIn = .03f; implodeInk.fadePower = .5f; BladeDelay(implodeInk, Mathf.Max(0, w - .16f));
-            Converge(gather, 18, 2.8f, light, w, .45f);
-            BladeInward(gather, 8, 3.2f, light, w, .16f);
-            // The ground answers: an amber-shadowed rune ring, a golden glow, sparks rising, pebbles lifting and dust drawn in.
-            Spawn("Wave charge ground shadow", glow, feet + Vector2.up * .05f, 5f, new Color(.36f, .17f, .03f, .45f), w + .2f, false, 24).scale.y *= .28f;
-            BladeBackShade(pos + Vector2.up * .4f, 4.2f, new Color(.3f, .14f, .02f, .4f), w + .12f);
+            // An instant echo (a recast with no wind-up): only the swing coming down; the slam follows at once.
+            if (w < .2f) { BladeShockSwing(pos, f, light, release); return; }
+            int grade = Grade; float lift = BladeLevel(1.2f, 1.45f);
+            // The raised weapon drinks in the wind: painted crescents whirl in round it over a gold bloom, spindle strokes rush
+            // in and a white-hot glint swells on the blade.
+            BladeGatherArcs(c.anchor, gather, 2.4f, 520 * f, light, w, Range(0, 360));
+            var star = Anchored(c.anchor, gather, "Wave charge glint", glint, 1.5f, Color.white, w + .03f, 128);
+            star.startScale = .2f; star.endScale = 1.1f; star.ease = 1.3f; star.spin = 160; star.pulse = .08f; star.hold = .85f; star.fadePower = 2;
+            Converge(gather, 10, 2.6f, light, w, .45f);
+            BladeInward(gather, 8, 3.2f, light, w, .18f);
+            // Power climbs the body: gold and deep-gold flame licks rise round the hero over a gold glow (behind the actors),
+            // longer with the level.
+            BladeAuraLicks(c.anchor, pos, feet.y, w, light, BladeDeepGold, 24 * lift, .9f * lift, .8f);
+            // The ground answers: a gold rune ring over a glow on the floor, sparks rising, stones lifting and dust drawn in.
             var floor = BladeFlatPlane(c.anchor, feet + Vector2.up * .06f, .27f, w + .35f);
-            var runeInk = BladeOnPlane(floor, "Wave rune shadow", runeRing, 4.7f, Alpha(BladeAmberInk, .6f), w + .35f, 25, false, 90 * f);
-            var rune = BladeOnPlane(floor, "Wave rune", runeRing, 4.5f, Alpha(light, .95f), w + .35f, 27, true, 90 * f);
-            foreach (var clip in new[] { runeInk, rune }) { clip.startScale = .55f; clip.endScale = 1; clip.ease = 4; clip.fadeIn = .08f; }
-            GroundGlow(feet + Vector2.up * .05f, 4.8f, Alpha(light, .6f), w + .2f);
-            int rising = BladeShare(10);
+            var runeGlow = BladeOnPlane(floor, "Wave rune glow", glow, 5.2f, Alpha(light, .42f), w + .35f, 26, true, 0);
+            var rune = BladeOnPlane(floor, "Wave rune", runeRing, 4.5f, Alpha(light, .9f), w + .35f, 27, true, 90 * f);
+            foreach (var clip in new[] { runeGlow, rune }) { clip.startScale = .55f; clip.endScale = 1; clip.ease = 4; clip.fadeIn = .08f; }
+            int rising = BladeShare(8);
             for (int i = 0; i < rising; i++)
             {
-                var mote = Spark(feet + new Vector2(Range(-2.1f, 2.1f), .1f), new Vector2(Range(-.2f, .2f), Range(2.5f, 5)), i % 3 == 0 ? Color.white : light, Range(.22f, .36f), Range(.25f, .4f), -1, 1);
+                var mote = Spark(feet + new Vector2(Range(-2.1f, 2.1f), .1f), new Vector2(Range(-.2f, .2f), Range(2.5f, 5)), i % 3 == 0 ? Color.white : light, Range(.24f, .38f), Range(.25f, .4f), -1, 1);
                 mote.flicker = .3f; BladeDelay(mote, Range(0, w * .8f));
             }
-            int pebbles = BladeShare(8);
+            int pebbles = BladeShare(7);
             for (int i = 0; i < pebbles; i++)
             {
                 float side = i % 2 == 0 ? 1 : -1, delay = Range(0, w * .35f);
-                var stone = Spawn("Rising pebble", BladeChunkSprite, feet + new Vector2(side * Range(.5f, 2.3f), .08f), Range(.16f, .32f), BladeStoneTone, Mathf.Max(.1f, w + .1f - delay), false, 119);
-                stone.velocity = new Vector2(-side * Range(.1f, .4f), Range(1, 2.4f)); stone.drag = 2.2f; stone.spin = Range(-160, 160); stone.fadeIn = .05f; stone.hold = .85f; stone.fadePower = 2;
+                var stone = BladeStone("Rising pebble", feet + new Vector2(side * Range(.5f, 2.3f), .08f), Range(.2f, .34f), Mathf.Max(.1f, w + .1f - delay), 119);
+                stone.velocity = new Vector2(-side * Range(.1f, .4f), Range(1, 2.4f)); stone.drag = 2.2f; stone.spin = Range(-160, 160);
+                stone.fadeIn = .05f; stone.hold = .85f; stone.fadePower = 2;
                 BladeDelay(stone, delay);
             }
-            int dusts = BladeShare(8);
+            int dusts = BladeShare(6);
             for (int i = 0; i < dusts; i++)
             {
                 float side = i % 2 == 0 ? 1 : -1, x = Range(1.4f, 2.6f);
                 var puff = Puff(feet + new Vector2(side * x, .18f), Range(.6f, .9f), BladeDust, new Vector2(-side * x * 2.2f, Range(.1f, .5f)), w * Range(.75f, 1.05f), 118);
                 puff.drag = 2.5f; puff.startScale = .8f; puff.endScale = 1.3f; puff.fadeIn = .08f;
             }
-            // Release: the weapon comes down in a bright arc and the gathered star bursts.
-            var swingInk = BladeSlashAt(pos + new Vector2(f * .85f, .25f), 3.8f, 1.9f, -90 * f, BladeAmberInk, .22f, false, 118); BladeSnap(swingInk, release);
-            var swing = BladeSlashAt(pos + new Vector2(f * .9f, .25f), 3.6f, 1.7f, -90 * f, new Color(1, .95f, .8f, .9f), .18f, true, 130); BladeSnap(swing, release);
-            var burst = Glint(gather, 3.2f, Color.white, .2f); BladeDelay(burst, release);
+            // Release: the weapon comes down in a razor arc and the gathered star bursts.
+            BladeShockSwing(pos, f, light, release);
 
-            // Level two: a white-gold spire climbs the column and a counter-turning inner seal tightens round the weapon.
-            int grade = Grade;
-            if (grade < 2 || w < .2f) return;
-            var spire = BladeColumn(c.anchor, feet, .85f, grade >= 3 ? 7.6f : 6.6f, Alpha(Warm, .8f), w + .05f, 29);
-            spire.axisStart = new Vector2(.3f, .15f); spire.axisEnd = Vector2.one; spire.ease = 1.3f; spire.fadeIn = .05f; spire.hold = .9f; spire.fadePower = 3;
-            var innerInk = Anchored(c.anchor, gather, "Wave inner seal shadow", runeRing, 2.3f, BladeAmberInk, w + .06f, 112, false);
-            var inner = Anchored(c.anchor, gather, "Wave inner seal", runeRing, 2.2f, Alpha(Warm, .95f), w + .06f, 127);
-            foreach (var clip in new[] { innerInk, inner }) { clip.fadeIn = .08f; clip.startScale = .3f; clip.endScale = 1; clip.ease = 2.5f; clip.spin = -240 * f; clip.hold = .88f; clip.fadePower = 2.2f; }
+            // Level two: a white-gold spire climbs behind the hero and a second, counter-turning pair of crescents tightens round
+            // the weapon.
+            if (grade < 2) return;
+            float spireHeight = grade >= 3 ? 7.4f : 6.4f;
+            var spireGlow = BladeBloomLine(feet, feet + Vector2.up * spireHeight, 2.1f, Alpha(light, .45f), w + .05f, 27);
+            var spireDepth = BladeCutLine(feet, feet + Vector2.up * spireHeight * .97f, .95f, Alpha(BladeDeepGold, .75f), w + .05f, 28);
+            var spire = BladeCutLine(feet, feet + Vector2.up * spireHeight, .62f, Alpha(Warm, 1), w + .05f, 29);
+            foreach (var clip in new[] { spireGlow, spireDepth, spire }) { clip.axisStart = new Vector2(.2f, .3f); clip.axisEnd = Vector2.one; clip.ease = 1.3f; clip.fadeIn = .05f; clip.hold = .9f; clip.fadePower = 3; }
+            BladeGatherArcs(c.anchor, gather, 1.9f, -760 * f, Warm, w, Range(0, 360));
             if (grade < 3) return;
-            // Level three, awakened: a spectral greatsword gathers point-down above and behind the hero (behind the actors);
-            // at the release it plunges into the floor (the slam draws it planted).
+            // Level three, awakened: a painted spectral greatsword gathers point-down above and behind the hero over a gold glow
+            // (behind the actors); at the release it plunges into the floor (the slam draws it planted).
             Vector2 hilt = new Vector2(pos.x - f * .45f, feet.y + 4.2f);
-            for (int layer = 0; layer < 3; layer++)
-            {
-                bool ink = layer == 0;
-                var blade = Anchored(c.anchor, hilt, ink ? "Awakened greatsword shadow" : layer == 1 ? "Awakened greatsword" : "Awakened greatsword edge", BladeSwordSprite,
-                    ink ? 4.1f : 3.9f, ink ? BladeAmberInk : layer == 1 ? Alpha(BladeHotGold, .95f) : Alpha(Warm, .85f), w + .03f, 26 + layer, !ink);
-                blade.angle = -90; blade.scale.y *= ink ? 2.7f : layer == 1 ? 2.2f : 1.1f; blade.root.transform.localScale = blade.scale;
-                blade.fadeIn = w * .55f; blade.startScale = .75f; blade.endScale = 1; blade.ease = 2; blade.hold = .9f; blade.fadePower = 3;
-            }
-            var aura = Anchored(c.anchor, hilt, "Awakened greatsword aura", glow, 3.2f, Alpha(BladeAwakeGold, .4f), w + .03f, 25);
-            aura.scale.x *= .45f; aura.fadeIn = w * .5f; aura.pulse = .08f; aura.hold = .9f; aura.fadePower = 3;
-            var hiltStar = Anchored(c.anchor, hilt + Vector2.up * 1.55f, "Awakened greatsword star", glint, 1.6f, Alpha(Warm, .95f), w + .03f, 130);
-            hiltStar.startScale = .2f; hiltStar.endScale = 1; hiltStar.ease = 2; hiltStar.spin = 90; hiltStar.hold = .85f; hiltStar.fadePower = 2.5f;
+            var aura = Anchored(c.anchor, hilt + Vector2.down * .3f, "Awakened greatsword glow", glow, 2.6f, Alpha(BladeHotGold, .5f), w + .03f, 25);
+            aura.scale.y *= 2; aura.root.transform.localScale = aura.scale; aura.fadeIn = w * .55f; aura.hold = .9f; aura.fadePower = 3;
+            var blade = Anchored(c.anchor, hilt, "Awakened greatsword", BladeSwordSprite, 3.9f, Alpha(BladeHotGold, 1), w + .03f, 27);
+            blade.angle = -90; blade.scale.y *= 2.2f; blade.root.transform.localScale = blade.scale;
+            blade.fadeIn = w * .55f; blade.startScale = .75f; blade.endScale = 1; blade.ease = 2; blade.hold = .9f; blade.fadePower = 3;
+            BladeTwinkle(hilt + Vector2.up * 1.55f, 1.6f, Alpha(Warm, 1), .3f, 0, w * .4f);
         }
 
-        /// <summary>The greatsword of an awakened slam driving into the floor behind the hero and standing there a moment,
-        /// over a gold seal whose outer ring sits on the slam's reach.</summary>
+        /// <summary>The greatsword of an awakened slam driving into the floor behind the hero and standing there a moment.</summary>
         private void BladePlantedSword(Vector2 g, float R)
         {
             Vector2 planted = g + new Vector2(0, 1.85f);
-            for (int layer = 0; layer < 3; layer++)
-            {
-                bool ink = layer == 0;
-                var drop = Spawn(ink ? "Plunging greatsword shadow" : "Plunging greatsword", BladeSwordSprite, planted + Vector2.up * 2.2f, ink ? 4.1f : 3.9f,
-                    ink ? BladeAmberInk : layer == 1 ? Alpha(BladeHotGold, 1) : Alpha(Warm, .9f), .9f, !ink, 26 + layer);
-                drop.angle = -90; drop.scale.y *= ink ? 2.7f : layer == 1 ? 2.2f : 1.1f; drop.root.transform.localScale = drop.scale;
-                drop.root.transform.localRotation = Quaternion.Euler(0, 0, -90);
-                // Down 2.2 units in 0.06 s, then it stands while the dust settles.
-                drop.velocity = Vector2.down * 2.2f * 22; drop.drag = 22; drop.hold = .45f; drop.fadePower = 1.6f;
-            }
-            var hit = Flash(g + Vector2.up * .2f, 2.2f, Alpha(Warm, .95f), .14f); hit.ramp = Ramp(Color.white, BladeAwakeGold);
-            var standGlow = Spawn("Planted greatsword glow", glow, planted, 3.4f, Alpha(BladeAwakeGold, .4f), .9f, true, 25);
-            standGlow.scale.x *= .5f; standGlow.root.transform.localScale = standGlow.scale; standGlow.hold = .4f; standGlow.fadePower = 1.5f; standGlow.pulse = .06f;
+            var aura = Spawn("Plunging greatsword glow", glow, planted + Vector2.up * 2.2f, 2.6f, Alpha(BladeHotGold, .5f), .9f, true, 25);
+            var drop = Spawn("Plunging greatsword", BladeSwordSprite, planted + Vector2.up * 2.2f, 3.9f, Alpha(BladeHotGold, 1), .9f, true, 27);
+            drop.angle = -90; drop.scale.y *= 2.2f; drop.root.transform.localScale = drop.scale;
+            drop.root.transform.localRotation = Quaternion.Euler(0, 0, -90);
+            aura.scale.y *= 2; aura.root.transform.localScale = aura.scale;
+            // Down 2.2 units in 0.06 s, then it stands while the dust settles.
+            foreach (var clip in new[] { aura, drop }) { clip.velocity = Vector2.down * 2.2f * 22; clip.drag = 22; clip.hold = .45f; clip.fadePower = 1.6f; }
+            BladeStar(g + Vector2.up * .25f, 2.2f, Alpha(BladeAwakeGold, 1), Alpha(BladeHotGold, .5f), .16f, 29);
+            BladeNeedles(g + Vector2.up * .2f, 90, 70, 7, 7, BladeAwakeGold, .4f);
+            BladeKick(g + Vector2.up * .2f, Vector2.up, .55f, BladeDust, 3, .45f, 28);
             // Where it bites: a glowing crack radiating from the blade's point (the level overlay lays the seal on the reach).
-            Crack(g + Vector2.up * .02f, 1.8f, Alpha(BladeAwakeGold, 1), 1.1f);
+            BladeCrack(g + Vector2.up * .02f, 1.8f, Alpha(BladeAwakeGold, 1), 1.1f);
         }
 
         /// <summary>The second wave of an awakened slam, a quarter second after the first and from the same spot: a gold-white
@@ -424,16 +693,10 @@ namespace PrototypeLab.Roguelike
             Color light = Color.Lerp(BladeAwakeGold, tint, .2f);
             // A forward wave marks only the stretch in front of the hero, [0, R]; an unknown one the whole circle.
             Vector2 reachAt = g + new Vector2(f * R * .5f, 0); float reach = f != 0 ? R * .5f : R;
-            Underlay(hit + Vector2.up * .3f * k, R * 1.1f, .24f, .26f);
-            var bloom = Flash(hit, R * .4f, Alpha(Warm, .7f), .12f); bloom.ramp = Ramp(Color.white, light);
-            var blastInk = Spawn("Echo floor blast shadow", streak, g + new Vector2(f * R * .5f, .3f), R * (f != 0 ? 2f : 2.6f), new Color(.55f, .26f, .04f, .65f), .28f, false, 117);
-            var blast = Spawn("Echo floor blast", streak, g + new Vector2(f * R * .5f, .32f), R * (f != 0 ? 2f : 2.6f), Alpha(Warm, 1), .22f, true, 132);
-            blastInk.scale.y *= .55f; blast.scale.y *= .26f;
-            foreach (var clip in new[] { blastInk, blast }) { clip.root.transform.localScale = clip.scale; clip.startScale = .3f; clip.endScale = 1.12f; clip.ease = 3.5f; clip.fadePower = 1.5f; }
-            ImpactLines(hit, R * 1.8f, Alpha(light, .7f), .2f);
+            BladeStar(hit + new Vector2(f * .9f, 0), R * .6f, Alpha(Warm, 1), Alpha(light, .5f), .14f, 132);
+            var echoFront = ShockFlip(hit + new Vector2(f * 1.1f, .2f), R * .9f, Alpha(light, .8f), .26f, 130); echoFront.angle = 0; echoFront.scale.x *= .45f;
             // The reach of the wave: a gold ring on the floor whose rim lands on the gameplay reach.
-            var reachInk = BladeInk(Wave(reachAt + Vector2.up * .04f, reach * 2 / .74f * 1.02f, new Color(.5f, .25f, .05f, .6f), .46f, 3)); reachInk.scale.y *= .3f; reachInk.renderer.sortingOrder = 115;
-            GroundWave(reachAt + Vector2.up * .05f, reach * 2 / .74f, Alpha(light, .95f), .42f);
+            GroundWave(reachAt + Vector2.up * .05f, reach * 2 / .74f, Alpha(light, 1), .42f);
             for (int s = -1; s <= 1; s += 2)
             {
                 if (f != 0 && s != f)
@@ -442,18 +705,20 @@ namespace PrototypeLab.Roguelike
                     var kick = Puff(g + new Vector2(s * .5f, .2f), Range(.6f, .85f), BladeDust, new Vector2(s * Range(.6f, 1.2f), Range(.6f, 1.2f)), Range(.45f, .6f), 118);
                     kick.endScale = 2; continue;
                 }
-                // A seam of light races out along the floor to the reach and dust is thrown up behind it.
-                var seamInk = BladeCutLine(g + new Vector2(s * .3f, .04f), g + new Vector2(s * R * .95f, .04f), .34f, new Color(.4f, .2f, .03f, .6f), .7f, 24, false);
-                var seam = BladeCutLine(g + new Vector2(s * .3f, .05f), g + new Vector2(s * R * .95f, .05f), .16f, Alpha(light, 1), .6f, 26);
-                foreach (var clip in new[] { seamInk, seam }) { clip.axisStart = new Vector2(.08f, 1); clip.axisEnd = Vector2.one; clip.ease = 5; clip.hold = .3f; clip.fadePower = 1.5f; }
+                // A slash beam skims the floor to the reach over a gold bloom, and a seam of light is left behind it.
+                var blastGlow = BladeBloomLine(g + new Vector2(s * .3f, .3f), g + new Vector2(s * R * 1.1f, .3f), 1.4f, Alpha(light, .38f), .32f, 127);
+                var blast = BladeBeamLine(g + new Vector2(s * .45f, .32f), g + new Vector2(s * R, .32f), .6f, Alpha(Warm, 1), .24f, 132);
+                foreach (var clip in new[] { blastGlow, blast }) { clip.axisStart = new Vector2(.3f, .5f); clip.axisEnd = Vector2.one; clip.ease = 6; clip.hold = .25f; clip.fadePower = 1.3f; }
+                var seam = BladeCutLine(g + new Vector2(s * .3f, .05f), g + new Vector2(s * R * .95f, .05f), .2f, Alpha(light, 1), .6f, 26);
+                seam.axisStart = new Vector2(.08f, 1); seam.axisEnd = Vector2.one; seam.ease = 5; seam.hold = .3f; seam.fadePower = 1.5f;
                 int dusts = Budget(2);
                 for (int i = 0; i < dusts; i++)
                 {
                     float t = (i + 1f) / (dusts + 1);
                     var dust = Puff(g + new Vector2(s * R * t, .2f), Range(.6f, .9f), BladeDust, new Vector2(s * Range(.5f, 1.5f), Range(.8f, 1.8f)), Range(.5f, .7f), 118);
                     dust.endScale = 2.2f; BladeDelay(dust, t * .12f);
-                    var spark = Spark(g + new Vector2(s * R * t, .3f), new Vector2(s * Range(2, 5), Range(2, 5)), i % 2 == 0 ? Color.white : light, Range(.22f, .34f), Range(.25f, .4f), 6, 2);
-                    BladeDelay(spark, t * .12f);
+                    var needle = Spark(g + new Vector2(s * R * t, .3f), new Vector2(s * Range(2, 5), Range(2, 5)), i % 2 == 0 ? Color.white : light, Range(.24f, .36f), Range(.25f, .4f), 6, 2);
+                    BladeDelay(needle, t * .12f);
                 }
             }
         }
@@ -474,43 +739,42 @@ namespace PrototypeLab.Roguelike
             Color light = Color.Lerp(BladeHotGold, tint, .3f);
             // The struck stretch of floor: in front of the hero, [0, R], for a noted slam; the whole circle otherwise.
             Vector2 reachAt = g + new Vector2(f * R * .5f, 0); float reach = f != 0 ? R * .5f : R;
-            // Impact frame: a dark halo, a white-hot heart, bloom, a star, anime lines and a geyser of light over an amber shadow.
-            BladeBackShade(hit + new Vector2(f * R * .25f, .6f * k), R * (f != 0 ? 1.9f : 2.3f), new Color(.16f, .08f, .02f, .38f), .42f, .7f);
-            Underlay(hit + Vector2.up * .3f * k, R * 1.2f, .3f, .3f);
-            var heart = Spawn("Slam core", core, hit, R * .3f, Color.white, .07f, true, 133); heart.startScale = 1.3f; heart.endScale = .3f; heart.ease = 1;
-            var bloom = Flash(hit, R * .5f, Alpha(light, .7f), .1f); bloom.ramp = Ramp(Color.white, light);
-            // The blast skims the floor ahead (both ways when the swing is unknown): a flat white-gold glare over an amber band,
-            // so the slam reads as striking the ground.
-            float blastWidth = f != 0 ? 2.3f : 3f;
-            var blastInk = Spawn("Slam floor blast shadow", streak, g + new Vector2(f * R * .55f, .3f), R * blastWidth, new Color(.55f, .26f, .04f, .75f), .32f, false, 117);
-            blastInk.scale.y *= .7f; blastInk.ramp = null;
-            var blast = Spawn("Slam floor blast", streak, g + new Vector2(f * R * .55f, .32f), R * (blastWidth - .1f), Alpha(Warm, 1), .24f, true, 132);
-            blast.scale.y *= .32f; blast.ramp = Ramp(Color.white, light);
-            foreach (var clip in new[] { blastInk, blast }) { clip.root.transform.localScale = clip.scale; clip.startScale = .3f; clip.endScale = 1.12f; clip.ease = 3.5f; clip.fadePower = 1.5f; }
-            ImpactLines(hit + Vector2.up * .2f, R * 2.8f, Alpha(Warm, .95f), .24f);
-            Glint(hit, R * 1.1f, Color.white, .26f);
-            Pillar(g, R * .4f * lift, (R * 1.5f + .8f) * lift, Alpha(light, .95f), .32f, 129);
-            BladeInk(Pillar(g, R * .8f * lift, (R * 1.4f + .7f) * lift, BladeAmberInk, .42f, 117));
-            if (grade >= 2) Pillar(g, R * .16f, (R * 1.8f + 1) * lift, Alpha(Warm, .95f), .26f, 130);
-            // Shock rings on the ground (an amber one under the light so it reads on pale floors), their rims on the struck
-            // stretch, and one in the air.
+            // Impact frame: a golden blast billowing up behind the hero where the weapon struck (behind the actors, so the hero
+            // stays in view), a white-hot spark flaring over the strike, wedge lines bursting out and warm smoke thrown up.
+            Vector2 strike = hit + new Vector2(f * .55f, .05f);
+            Blast(strike + new Vector2(f * .35f, .25f), (1.5f + .55f * R) * Mathf.Sqrt(lift), Alpha(Color.Lerp(light, BladeDeepGold, .4f), 1), .5f, 26);
+            BladeStar(strike + new Vector2(f * .6f, .1f), R * .4f + .45f, Alpha(Warm, 1), Color.clear, .14f, 133);
+            var strikeFront = ShockFlip(strike + new Vector2(f * .9f, .2f), R * .85f + .8f, Alpha(light, .9f), .28f, 130); strikeFront.angle = 0; strikeFront.scale.x *= .45f;
+            BladeKick(hit + Vector2.up * .2f, new Vector2(f * .5f, 1), .5f + .35f * k, BladeSoot, BladeShare(4), .5f, 27);
+            // The blast skims the floor ahead (both ways when the swing is unknown): a slash beam of white-gold light over a
+            // deep-gold stroke and a gold bloom, so the slam reads as striking the ground.
+            for (int s = -1; s <= 1; s += 2)
+            {
+                if (f != 0 && s != f) continue;
+                var blastGlow = BladeBloomLine(g + new Vector2(s * .3f, .32f), g + new Vector2(s * R * 1.25f, .32f), 1.7f * Mathf.Sqrt(lift), Alpha(light, .38f), .36f, 127);
+                var blastDepth = BladeBeamLine(g + new Vector2(s * .5f, .3f), g + new Vector2(s * R * 1.2f, .3f), .95f * Mathf.Sqrt(lift), Alpha(BladeDeepGold, .8f), .3f, 131);
+                var blast = BladeBeamLine(g + new Vector2(s * .55f, .32f), g + new Vector2(s * R * 1.15f, .32f), .68f * Mathf.Sqrt(lift), Alpha(light, 1), .26f, 132);
+                foreach (var clip in new[] { blastGlow, blastDepth, blast }) { clip.axisStart = new Vector2(.35f, .5f); clip.axisEnd = Vector2.one; clip.ease = 6; clip.hold = .25f; clip.fadePower = 1.3f; }
+            }
+            // A geyser of light out of the strike, standing behind the hero over a tall gold bloom; level two adds a white-hot spine.
+            float geyser = (R * 1.5f + .8f) * lift;
+            var column = BladeBloomLine(g, g + Vector2.up * geyser, R * .9f * lift, Alpha(light, .5f), .42f, 27); column.fadePower = 1.4f;
+            Pillar(g, R * .36f * lift, geyser, Alpha(light, 1), .32f, 28);
+            if (grade >= 2) Pillar(g, R * .14f, (R * 1.8f + 1) * lift, Alpha(Warm, 1), .26f, 29);
+            // Shock fronts on the floor, their rims on the struck stretch.
             float rimScale = f != 0 ? 2 / .74f : 2.15f;
-            var groundInk = BladeInk(Wave(reachAt + Vector2.up * .04f, reach * rimScale * 1.04f, new Color(.5f, .25f, .05f, .75f), .5f, 3)); groundInk.scale.y *= .3f; groundInk.renderer.sortingOrder = 115;
             GroundWave(reachAt + Vector2.up * .05f, reach * rimScale, Alpha(light, 1), .45f);
             var second = GroundWave(reachAt + Vector2.up * .05f, reach * rimScale * .7f, new Color(1, 1, 1, .9f), .32f); BladeDelay(second, .06f);
-            Wave(hit + Vector2.up * .3f, R * 1.3f, Alpha(Warm, .75f), .28f, 3);
-            // Razor-edged shock fronts race out along the floor tearing up dust and grit, with rock spikes erupting behind them:
-            // forward only for a noted slam (behind the hero just a short puff of a front and dust), both ways otherwise.
+            // Towering painted fronts race out along the floor tearing up dust and grit, with rock spikes erupting behind them:
+            // forward only for a noted slam (behind the hero just a short stub of a front and dust), both ways otherwise.
             for (int s = -1; s <= 1; s += 2)
             {
                 float side = s, gy = g.y; int emitted = 0;
                 if (f != 0 && s != f)
                 {
                     Vector2 backAt = g + new Vector2(side * .35f * k, .6f * k);
-                    var stubInk = Spawn("Slam back front shadow", crescent, backAt, 1.1f * k, Alpha(BladeAmberInk, .55f), .26f, false, 118);
-                    var stub = Spawn("Slam back front", crescent, backAt, 1f * k, Alpha(light, .7f), .22f, true, 126);
-                    foreach (var clip in new[] { stubInk, stub })
-                    { clip.scale.x *= side; clip.scale.y *= 1.3f; clip.velocity = new Vector2(side * 3.2f, 0); clip.drag = 4; clip.startScale = .5f; clip.endScale = .9f; clip.ease = 2; clip.fadePower = 1.6f; }
+                    var stub = Spawn("Slam back front", crescent, backAt, 1f * k, Alpha(light, .8f), .22f, true, 126);
+                    stub.scale.x *= side; stub.scale.y *= 1.3f; stub.velocity = new Vector2(side * 3.2f, 0); stub.drag = 4; stub.startScale = .5f; stub.endScale = .9f; stub.ease = 2; stub.fadePower = 1.6f;
                     for (int i = 0; i < 2; i++)
                     {
                         var kick = Puff(g + new Vector2(side * Range(.3f, .8f), .2f), Range(.55f, .85f) * (.6f + .4f * k), BladeDust, new Vector2(side * Range(.5f, 1.4f), Range(.5f, 1.3f)), Range(.45f, .65f), 118);
@@ -518,32 +782,34 @@ namespace PrototypeLab.Roguelike
                     }
                     continue;
                 }
-                Vector2 start = g + new Vector2(side * .35f * k, .8f * k);
-                var frontInk = Spawn("Slam front shadow", crescent, start - new Vector2(side * .15f * k, 0), 1.55f * k, BladeAmberInk, .46f, false, 118);
-                var front = Spawn("Slam front", crescent, start, 1.4f * k, Alpha(light, .95f), .42f, true, 126);
-                var edge = BladeSlashAt(start + new Vector2(side * .1f * k, 0), 2.5f * k, 1.4f * k, side > 0 ? -90 : 90, new Color(1, 1, 1, .95f), .3f, true, 127);
-                var fronts = new List<Clip> { frontInk, front, edge };
-                // Level two and up: a taller front with a gold-white gilt crest riding just ahead of it.
-                if (grade >= 2)
-                {
-                    var gilt = Spawn("Slam front gilt", crescent, start + new Vector2(side * .2f * k, 0), 1.25f * k, Alpha(grade >= 3 ? Warm : BladeAwakeGold, .9f), .36f, true, 128);
-                    fronts.Add(gilt); gilt.scale.x *= side; gilt.scale.y *= 1.8f * lift;
-                }
-                foreach (var clip in new[] { frontInk, front }) { clip.scale.x *= side; clip.scale.y *= 1.8f * Mathf.Sqrt(lift); }
+                // The front is drawn upward as it leaves and frays as it dies, over a deep-gold stroke and a gold bloom riding
+                // with it; level two adds a white-gold crest riding just ahead.
+                float fw = 1.55f * k, fh = 2.3f * k * Mathf.Sqrt(lift);
+                Vector2 start = g + new Vector2(side * (.55f + .35f * k), fh * .42f);
+                var frontDepth = Sheet("Slam front depth", BladeSweepSheet, start - new Vector2(side * .06f * k, 0), fw * .95f, Alpha(BladeDeepGold, .75f), .48f, 125, 0, false);
+                var front = Sheet("Slam front", BladeSweepSheet, start, fw, Alpha(light, 1), .46f, 126, 0, false);
+                var fronts = new List<Clip> { frontDepth, front };
+                if (grade >= 2) fronts.Add(Sheet("Slam front gilt", BladeSweepSheet, start + new Vector2(side * .24f * k, 0), fw * .8f, Alpha(grade >= 3 ? Warm : BladeAwakeGold, 1), .38f, 128, 0, false));
                 foreach (var clip in fronts)
-                { clip.velocity = new Vector2(side * R * 3.4f, 0); clip.drag = 2.6f; clip.startScale = .5f; clip.endScale = 1.1f; clip.ease = 2; clip.fadePower = 1.5f; }
-                Emitter(front, 22 + 18 * k, .15f, (owner, p) =>
+                {
+                    clip.scale.x *= side; clip.scale.y *= fh / fw; clip.root.transform.localScale = clip.scale;
+                    clip.velocity = new Vector2(side * R * 3.4f, 0); clip.drag = 2.6f; clip.startScale = .55f; clip.endScale = 1.1f; clip.ease = 3; clip.hold = .2f; clip.fadePower = 1.4f;
+                }
+                var frontGlow = Spawn("Slam front bloom", glow, start + new Vector2(side * fw * .35f, 0), fh * 1.1f, Alpha(light, .38f), .5f, true, 123);
+                frontGlow.scale.x *= .55f; frontGlow.root.transform.localScale = frontGlow.scale;
+                frontGlow.velocity = new Vector2(side * R * 3.4f, 0); frontGlow.drag = 2.6f; frontGlow.startScale = .55f; frontGlow.endScale = 1.1f; frontGlow.ease = 3; frontGlow.hold = .2f; frontGlow.fadePower = 1.4f;
+                Emitter(front, 20 + 16 * k, .15f, (owner, p) =>
                 {
                     emitted++;
                     Vector2 at = new Vector2(p.x, gy);
                     if (emitted % 3 == 0)
                     {
-                        var chip = Spawn("Slam chip", BladeChunkSprite, at + Vector2.up * .1f, Range(.16f, .32f), BladeStoneTone, Range(.45f, .7f), false, 128);
+                        var chip = BladeStone("Slam chip", at + Vector2.up * .1f, Range(.2f, .36f), Range(.45f, .7f));
                         chip.velocity = new Vector2(side * Range(-.5f, 2.5f), Range(3, 6.5f)); chip.gravity = 18; chip.spin = Range(-600, 600); chip.fadePower = .6f;
                     }
                     else
                     {
-                        var dust = Puff(at + new Vector2(Range(-.2f, .2f), .2f), Range(.6f, 1.05f) * (.6f + .4f * k), BladeDust, new Vector2(side * Range(.2f, 1.2f), Range(.8f, 2.2f)), Range(.5f, .8f), 118);
+                        var dust = Puff(at + new Vector2(Range(-.2f, .2f), .2f), Range(.6f, 1.05f) * (.6f + .4f * k), emitted % 4 == 1 ? BladeSoot : BladeDust, new Vector2(side * Range(.2f, 1.2f), Range(.8f, 2.2f)), Range(.5f, .8f), 118);
                         dust.endScale = 2.3f;
                     }
                 });
@@ -553,52 +819,49 @@ namespace PrototypeLab.Roguelike
                     float t = (i + .6f) / spikes, x = side * R * .92f * t, delay = (Mathf.Exp(.7f * t) - 1) / 2.6f;
                     float h = (2.1f - .9f * t) * (.45f + .55f * k) * Range(.85f, 1.1f) * BladeLevel(1.15f, 1.3f), tiltAngle = -side * Range(6, 24);
                     Vector2 at = g + new Vector2(x, -.06f);
-                    var stone = Spawn("Erupting rock", spike, at, h / 3, BladeRockTone, .85f, false, 119);
-                    var rim = Spawn("Erupting rock light", spike, at, h / 3 * .82f, Alpha(light, .8f), .5f, true, 120);
-                    foreach (var clip in new[] { stone, rim })
-                    {
-                        clip.scale.x *= 1.5f;
-                        clip.angle = tiltAngle; clip.axisStart = new Vector2(.6f, 0); clip.axisEnd = Vector2.one; clip.ease = 7; clip.hold = .62f; clip.fadePower = 2;
-                        BladeDelay(clip, delay);
-                    }
+                    // A painted stone spire bursts up out of the floor, a gold glow flashing at its foot.
+                    var stone = Spawn("Erupting rock", BladeSpireSprites[(i + random.Next(3)) % BladeSpireSprites.Length], at, h * Range(.5f, .62f), Color.white, .85f, false, 119);
+                    stone.angle = tiltAngle; stone.axisStart = new Vector2(.6f, 0); stone.axisEnd = Vector2.one; stone.ease = 7; stone.hold = .62f; stone.fadePower = 2;
+                    BladeDelay(stone, delay);
+                    var foot = Spawn("Erupting rock glow", glow, at + Vector2.up * .2f, h * .75f, Alpha(light, .5f), .32f, true, 118);
+                    foot.scale.y *= .5f; foot.root.transform.localScale = foot.scale; foot.startScale = .6f; foot.endScale = 1.1f; foot.ease = 3; foot.fadePower = 1.5f;
+                    BladeDelay(foot, delay);
                     var kick = Puff(at + Vector2.up * .2f, Range(.5f, .8f) * (.6f + .4f * k), BladeDust, new Vector2(side * Range(.3f, 1), Range(.6f, 1.4f)), Range(.45f, .65f), 118);
                     BladeDelay(kick, delay);
-                    // The spike crumbles as it fades: chunks tumble off its flank and a puff of grit slumps to the floor.
+                    // The spike crumbles as it fades: a chunk tumbles off its flank and a puff of grit slumps to the floor.
                     float crumble = delay + .58f;
                     Vector2 flank = at + Direction(90 + tiltAngle) * h * .55f;
-                    for (int j = 0; j < 1; j++)
-                    {
-                        var bit = Spawn("Crumbling rock", BladeChunkSprite, flank + Inside(.2f), h * Range(.08f, .13f), BladeStoneTone, Range(.45f, .6f), false, 128);
-                        bit.velocity = new Vector2(side * Range(.3f, 1.6f), Range(.5f, 2)); bit.gravity = 16; bit.spin = Range(-400, 400); bit.hold = .5f; bit.fadePower = .8f;
-                        BladeDelay(bit, crumble);
-                    }
+                    var bit = BladeStone("Crumbling rock", flank + Inside(.2f), h * Range(.1f, .15f), Range(.45f, .6f));
+                    bit.velocity = new Vector2(side * Range(.3f, 1.6f), Range(.5f, 2)); bit.gravity = 16; bit.spin = Range(-400, 400); bit.hold = .5f; bit.fadePower = .8f;
+                    BladeDelay(bit, crumble);
                     var slump = Puff(at + Vector2.up * h * .3f, Range(.6f, .9f) * (.6f + .4f * k), BladeDust, new Vector2(side * Range(.2f, .6f), Range(-.3f, .4f)), Range(.6f, .8f), 118);
                     slump.endScale = 2.1f; BladeDelay(slump, crumble);
                 }
             }
-            // The scar: glowing cracks over a dark char along the struck stretch, and an afterglow that lingers on the floor.
-            Crack(reachAt + Vector2.up * .02f, reach * 2.4f, Alpha(light, 1), 1.6f);
-            Crack(g + new Vector2(f * R * .2f, .03f), R * (f != 0 ? 1f : 1.25f), Alpha(Warm, 1), 1.5f);
-            Decal(g + new Vector2(f * R * .3f, .02f), scorch, R * (f != 0 ? 1.2f : 1.4f), new Color(.16f, .1f, .05f, .45f), 1.4f, false, 24);
-            GroundGlow(reachAt + Vector2.up * .06f, reach * 2f, Alpha(light, .65f), 1.1f);
-            var seam = GroundGlow(g + new Vector2(f * R * .25f, .05f), R * (f != 0 ? .9f : 1.1f), Alpha(Warm, .8f), 1.5f); seam.hold = .4f; seam.fadePower = 1.6f;
-            if (grade >= 3) { if (note != null) note.first = seam; BladePlantedSword(g, R); }
-            // Follow-through: rock chunks, billowing dust, a spray of hot sparks and embers drifting up from the scar
-            // (thrown forward with the wave when the swing is known).
-            BladeRubble(hit + new Vector2(f * .4f, 0), Mathf.RoundToInt((6 + 5 * k) * BladeLevel(.85f, .7f)), 5 + 3 * k, .42f, 1.1f, BladeStoneTone);
+            // The scar: glowing cracks in warm brown along the struck stretch over a faint char.
+            BladeCrack(reachAt + Vector2.up * .02f, reach * 2.4f, Alpha(light, 1), 1.6f);
+            BladeCrack(g + new Vector2(f * R * .2f, .03f), R * (f != 0 ? 1f : 1.25f), Alpha(Warm, 1), 1.5f);
+            Decal(g + new Vector2(f * R * .3f, .02f), scorch, R * (f != 0 ? 1.2f : 1.4f), new Color(.32f, .2f, .1f, .38f), 1.4f, false, 24);
+            if (grade >= 3) { if (note != null) note.first = BladeMarker(g, 1.5f); BladePlantedSword(g, R); }
+            // Follow-through: painted stones, billowing dust, a spray of needle sparks thrown forward and embers drifting up from
+            // the scar (thrown forward with the wave when the swing is known).
+            BladeRubble(hit + new Vector2(f * .8f, 0), Mathf.RoundToInt((5 + 4 * k) * BladeLevel(.85f, .7f)), 5 + 3 * k, .46f, 1.1f);
             int clouds = BladeShare(Mathf.RoundToInt(4 + 4 * k));
             for (int i = 0; i < clouds; i++)
             {
                 float side = f != 0 ? (i % 3 == 2 ? -f : f) : i % 2 == 0 ? 1 : -1, throwBack = f != 0 && side != f ? .25f : 1;
-                var cloud = Puff(g + new Vector2(side * Range(0, .6f) * R * throwBack, .3f), R * Range(.25f, .4f), BladeDust, new Vector2(side * Range(1, 3.5f) * k * throwBack, Range(.6f, 1.8f)), Range(.8f, 1.3f), 118);
+                // Clouds rising on the hero billow behind the actors, so the dust never veils the body; farther ones roll in front.
+                float off = side * Range(0, .6f) * R * throwBack;
+                var cloud = Puff(g + new Vector2(off, .3f), R * Range(.25f, .4f), i % 3 == 1 ? BladeSoot : BladeDust,
+                    new Vector2(side * Range(1, 3.5f) * k * throwBack, Range(.6f, 1.8f)), Range(.8f, 1.3f), Mathf.Abs(off) < 1.4f ? 27 : 118);
                 cloud.endScale = 2.4f; cloud.drag = 2; cloud.fadeIn = .05f;
             }
-            EmberBurst(hit, Mathf.RoundToInt((8 + 4 * k) * BladeLevel(.85f, .7f)), 7 + 4 * k, light, .6f, 7);
-            int embers = BladeShare(Mathf.RoundToInt(4 + 8 * k));
+            BladeNeedles(hit, f > 0 ? 55 : f < 0 ? 125 : 90, f != 0 ? 45 : 75, Mathf.RoundToInt((8 + 4 * k) * BladeLevel(.85f, .7f)), 9 + 4 * k, light, .5f, .46f);
+            int embers = BladeShare(Mathf.RoundToInt(4 + 6 * k));
             for (int i = 0; i < embers; i++)
             {
                 float x = f != 0 ? f * Range(-.15f, 1) * R * .85f : Range(-1, 1) * R * .7f;
-                var ember = Spark(g + new Vector2(x, .2f), new Vector2(Range(-.4f, .4f), Range(1, 2.6f)), i % 3 == 0 ? Warm : light, Range(.14f, .26f), Range(.7f, 1.1f), -1, 1);
+                var ember = Spark(g + new Vector2(x, .2f), new Vector2(Range(-.4f, .4f), Range(1, 2.6f)), i % 3 == 0 ? Warm : light, Range(.16f, .28f), Range(.7f, 1.1f), -1, 1);
                 ember.flicker = .4f; BladeDelay(ember, Range(.1f, .85f));
             }
         }
@@ -614,72 +877,81 @@ namespace PrototypeLab.Roguelike
             Color light = Color.Lerp(BladeHotGold, tint, .3f);
             if (!signature)
             {
-                var edge = Attach(root, "Sword wave edge", crescent, .8f, Alpha(light, .95f), 123); edge.scale.y *= 1.5f; edge.pulse = .05f;
-                var ink = Attach(root, "Sword wave shadow", crescent, .9f, BladeAmberInk, 119, false, new Vector2(-.08f, 0)); ink.scale.y *= 1.5f;
-                var halo = Attach(root, "Sword wave light", glow, 1.1f, Alpha(light, .45f), 121, true, new Vector2(-.2f, 0)); halo.scale.y *= 1.4f;
-                Emitter(halo, Emit.Trace, 14, .1f, Alpha(light, .45f));
-                Bundle(root, edge, ink, halo);
+                var edge = Attach(root, "Sword wave edge", BladeSweepSheet[2], .85f, Alpha(light, 1), 123); edge.scale.y *= 1.5f;
+                var tail = Attach(root, "Sword wave tail", BladeBeamSprite, 1.4f, Alpha(light, .8f), 121, true, new Vector2(-.6f, 0));
+                tail.scale = new Vector3(1.4f / BladeBeamSprite.bounds.size.x, .22f / BladeBeamSprite.bounds.size.y, 1);
+                var halo = Attach(root, "Sword wave glow", glow, 1.5f, Alpha(light, .45f), 120, true, new Vector2(.1f, 0)); halo.scale.x *= .6f;
+                Bundle(root, edge, tail, halo);
                 return;
             }
-            // A towering crescent sword wave with a razor front and an echo behind; a level one stands on the floor.
-            // Higher levels raise a taller wave (its foot stays on the floor) with more echoes; level three gilds its crest.
+            // A towering painted crescent wave (gold body, white razor rim, dry-brush streaks) glowing over a gold bloom with a
+            // deep-gold stroke inside it for body, trailed by frayed echoes of itself and slash beams streaking behind; a level
+            // one stands on the floor. Higher levels raise a taller wave (its foot stays on the floor) with more echoes; level
+            // three gilds its crest.
             int grade = Grade; float lift = BladeLevel(1.13f, 1.27f);
             float h = (level ? 3.3f : 2.6f) * lift; Vector2 mid = new Vector2(0, level ? (h * .5f - 1.1f) * up : 0);
-            var shadow = Attach(root, "Sword wave shadow", crescent, 2.6f, BladeAmberInk, 118, false, mid + new Vector2(-.2f, 0)); shadow.scale.y *= h * 1.04f / 2.6f;
-            var body = Attach(root, "Sword wave", crescent, 2.4f, Alpha(light, 1), 123, true, mid); body.scale.y *= h / 2.4f; body.pulse = .04f;
-            var echo = Attach(root, "Sword wave echo", crescent, 2.1f, Alpha(light, .45f), 122, true, mid + new Vector2(-.8f, 0)); echo.scale.y *= h * .88f / 2.1f;
-            var extra = new List<Clip>();
+            const float bw = 3f;
+            var bloom = Attach(root, "Sword wave bloom", glow, h * 1.2f, Alpha(light, .5f), 119, true, mid + new Vector2(.35f, 0)); bloom.scale.x *= .6f; bloom.pulse = .05f;
+            var depth = Attach(root, "Sword wave depth", BladeSweepSheet[2], bw * .95f, Alpha(BladeDeepGold, .7f), 122, true, mid + new Vector2(-.12f, 0)); depth.scale.y *= h * .95f / (bw * .95f);
+            var body = Attach(root, "Sword wave", BladeSweepSheet[2], bw, Alpha(light, 1), 123, true, mid); body.scale.y *= h / bw; body.pulse = .03f;
+            var echo = Attach(root, "Sword wave echo", BladeSweepSheet[3], bw * .9f, Alpha(light, .6f), 121, true, mid + new Vector2(-1f, 0)); echo.scale.y *= h * .9f / (bw * .9f);
+            var extra = new List<Clip> { bloom, depth, echo };
             if (grade >= 2)
             {
-                var echo2 = Attach(root, "Sword wave second echo", crescent, 1.9f, Alpha(light, .3f), 121, true, mid + new Vector2(-1.55f, 0)); echo2.scale.y *= h * .78f / 1.9f;
+                var echo2 = Attach(root, "Sword wave second echo", BladeSweepSheet[4], bw * .8f, Alpha(light, .45f), 121, true, mid + new Vector2(-1.85f, 0)); echo2.scale.y *= h * .8f / (bw * .8f);
                 extra.Add(echo2);
             }
             if (grade >= 3)
             {
-                var gilt = Attach(root, "Sword wave gilt crest", crescent, 2.2f, Alpha(Warm, .95f), 124, true, mid + new Vector2(.28f, 0)); gilt.scale.y *= h * 1.02f / 2.2f; gilt.pulse = .06f;
-                var giltInk = Attach(root, "Sword wave gilt shadow", crescent, 2.5f, Alpha(BladeAmberInk, .55f), 117, false, mid + new Vector2(.1f, 0)); giltInk.scale.y *= h * 1.06f / 2.5f;
-                extra.Add(gilt); extra.Add(giltInk);
+                var gilt = Attach(root, "Sword wave gilt crest", BladeSweepSheet[2], bw * .78f, Alpha(Warm, 1), 124, true, mid + new Vector2(.42f, 0)); gilt.scale.y *= h * .98f / (bw * .78f); gilt.pulse = .05f;
+                extra.Add(gilt);
             }
-            var razor = Attach(root, "Sword wave edge", BladeSlashSprite, h, Color.white, 125, true, mid + new Vector2(.62f, 0));
-            razor.scale = new Vector3(h * 1.02f / BladeSlashSprite.bounds.size.x, 2.2f / BladeSlashSprite.bounds.size.y, 1); razor.angle = -90;
-            var halo2 = Attach(root, "Sword wave light", glow, 2.4f, Alpha(light, .5f), 121, true, mid + new Vector2(-.2f, 0)); halo2.scale.y *= h * .9f / 2.4f; halo2.pulse = .08f;
-            var wake = Attach(root, "Sword wave wake", streak, 3f, Alpha(light, .45f), 120, true, mid + new Vector2(-1.5f, 0)); wake.scale.y *= 2.4f;
-            var wakeInk = Attach(root, "Sword wave wake shadow", streak, 2.4f, Alpha(BladeAmberInk, .4f), 117, false, mid + new Vector2(-1.2f, 0)); wakeInk.scale.y *= 2.2f;
+            // The razor: a thin white arc bowing forward just ahead of the crest.
+            var razor = Attach(root, "Sword wave edge", BladeSlashSprite, h, Color.white, 125, true, mid + new Vector2(.9f, 0));
+            razor.scale = new Vector3(h * 1.02f / BladeSlashSprite.bounds.size.x, 1.5f / BladeSlashSprite.bounds.size.y, 1); razor.angle = -90;
+            extra.Add(razor);
+            // Speed streaks: slash beams of different lengths and heights trailing the wave.
+            for (int i = 0; i < 3; i++)
+            {
+                float y = (i - 1) * h * .3f + Range(-.12f, .12f), length = Range(2.2f, 3.4f) * (i == 1 ? 1.2f : 1);
+                var wake = Attach(root, "Sword wave wake", BladeBeamSprite, length, i == 1 ? Color.white : Alpha(light, .9f), 120, true, mid + new Vector2(-.4f - length * .5f, y));
+                wake.scale = new Vector3(length / BladeBeamSprite.bounds.size.x, (i == 1 ? .26f : .38f) / BladeBeamSprite.bounds.size.y, 1);
+                extra.Add(wake);
+            }
             float groundY = BladeGroundY(start, .95f); int emitted = 0;
-            Emitter(body, 52, .1f, (owner, p) =>
+            Emitter(body, 46, .1f, (owner, p) =>
             {
                 emitted++;
                 if (level)
                 {
-                    // Tearing the floor under the wave: dust thrown up and back, grit, sparks off the crest and a scored furrow.
+                    // Tearing the floor under the wave: dust and warm grit thrown up and back, painted stone chips, needle sparks off the
+                    // crest and a scored furrow.
                     Vector2 g = new Vector2(p.x + dir.x * Range(-.1f, .6f), groundY);
                     switch (emitted % 4)
                     {
                         case 0:
-                            var dust = Puff(g + new Vector2(Range(-.2f, .2f), .22f), Range(.7f, 1.15f), BladeDust, new Vector2(-dir.x * Range(.5f, 2), Range(1.4f, 3)), Range(.45f, .7f), 118);
+                            var dust = Puff(g + new Vector2(Range(-.2f, .2f), .22f), Range(.7f, 1.15f), emitted % 8 == 0 ? BladeSoot : BladeDust, new Vector2(-dir.x * Range(.5f, 2), Range(1.4f, 3)), Range(.45f, .7f), 118);
                             dust.endScale = 2.3f; break;
                         case 1:
-                            var chip = Spawn("Wave grit", BladeChunkSprite, g + Vector2.up * .1f, Range(.16f, .3f), BladeStoneTone, Range(.5f, .7f), false, 128);
+                            var chip = BladeStone("Wave grit", g + Vector2.up * .1f, Range(.2f, .34f), Range(.5f, .7f));
                             chip.velocity = new Vector2(dir.x * Range(-1.5f, 2.5f), Range(3.5f, 7)); chip.gravity = 18; chip.spin = Range(-600, 600); chip.fadePower = .6f; break;
                         case 2:
-                            Spark(new Vector2(p.x, groundY + Range(.3f, 3)), new Vector2(-dir.x * Range(3, 7), Range(-1, 2)), emitted % 8 == 2 ? Color.white : light, Range(.22f, .36f), Range(.22f, .34f), 3, 2); break;
+                            Spark(new Vector2(p.x, groundY + Range(.3f, 3)), new Vector2(-dir.x * Range(3, 7), Range(-1, 2)), emitted % 8 == 2 ? Color.white : light, Range(.26f, .4f), Range(.22f, .34f), 3, 2); break;
                         default:
-                            Decal(g + Vector2.up * .02f, scorch, Range(.7f, 1f), new Color(.14f, .09f, .05f, .5f), .8f, false, 24);
-                            Line(g + new Vector2(-dir.x * .4f, .04f), g + new Vector2(dir.x * .4f, .04f), .14f, Alpha(light, .85f), .4f, 26); break;
+                            Decal(g + Vector2.up * .02f, scorch, Range(.7f, 1f), new Color(.32f, .2f, .1f, .36f), .8f, false, 24);
+                            BladeCutLine(g + new Vector2(-dir.x * .5f, .04f), g + new Vector2(dir.x * .4f, .04f), .16f, Alpha(light, 1), .4f, 26); break;
                     }
                 }
-                else if (emitted % 3 == 0) Glint(p + Inside(.6f), Range(.4f, .7f), Color.white, .14f);
-                else Spark(p + Inside(.9f), -dir * Range(3, 7) + Inside(1.5f), emitted % 2 == 0 ? Color.white : light, Range(.2f, .34f), Range(.2f, .32f), 2, 2);
+                else Spark(p + Inside(.9f), -dir * Range(3, 7) + Inside(1.5f), emitted % 2 == 0 ? Color.white : light, Range(.24f, .38f), Range(.2f, .32f), 2, 2);
             });
-            extra.AddRange(new[] { shadow, echo, razor, halo2, wake, wakeInk });
             Bundle(root, body, extra.ToArray());
-            // Launch: a flash where the wave leaves and a puff of dust at the feet.
-            Flash(start + dir * .5f, 1.5f, Alpha(Warm, .75f), .14f);
-            Glint(start + dir * .5f, 1.8f, Color.white, .18f);
-            if (level) for (int i = 0; i < Budget(4); i++)
+            // Launch: a spark flaring where the wave leaves, needle sparks and a puff of dust at the feet.
+            BladeStar(start + dir * .5f, 1.6f, Alpha(Warm, 1), Alpha(light, .5f), .14f);
+            BladeNeedles(start + dir * .5f, Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg, 35, 5, 7, light, .3f);
+            if (level) for (int i = 0; i < Budget(3); i++)
                     Puff(new Vector2(start.x + Range(-.3f, .3f), groundY + .15f), Range(.5f, .8f), BladeDust, new Vector2(-dir.x * Range(1, 3), Range(.4f, 1.2f)), Range(.4f, .6f), 118);
             // The wave pierces: every body it passes through is cut (a crescent slash through it), and at the end of its reach it
-            // breaks apart into gold light and dust instead of vanishing (unless a last body stopped it).
+            // breaks apart into gold strokes and dust instead of vanishing (unless a last body stopped it).
             float rise = level ? h * .5f - 1.1f : 0;
             ArcheryPassWatch(root, .16f, .08f, (at, d) => BladeWaveThrough(at, d, light, grade));
             ArcheryWatch(root, 4.5f, last =>
@@ -689,53 +961,47 @@ namespace PrototypeLab.Roguelike
             });
         }
 
-        /// <summary>The sword wave passing through a body it pierces: a gold crescent cut across it over an amber shadow, a flash,
-        /// a glint and sparks thrown on along the flight. Light (about ten clips): a wave crosses several bodies.</summary>
+        /// <summary>The sword wave passing through a body it pierces: a gold crescent cut across it, a flaring spark and needle
+        /// sparks thrown on along the flight. Light (about ten clips): a wave crosses several bodies.</summary>
         private void BladeWaveThrough(Vector2 at, Vector2 d, Color light, int grade)
         {
             float angle = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg, s = BladeLevel(1.1f, 1.2f);
-            var ink = Spawn("Wave pass shadow", crescent, at + d * .2f, 2f * s, Alpha(BladeAmberInk, .7f), .24f, false, 118);
-            var cut = Crescent(at + d * .3f, 1.85f * s, Alpha(light, 1), .2f, angle, 131);
-            ink.angle = angle; ink.startScale = .75f; ink.endScale = 1.12f; ink.ease = 3; ink.fadePower = 1.3f;
-            foreach (var clip in new[] { ink, cut }) { clip.scale.y *= 1.35f; clip.velocity = d * 3; clip.drag = 5; }
-            var flash = Flash(at, 1.3f, Alpha(Warm, .8f), .1f); flash.ramp = Ramp(Color.white, light);
-            Glint(at, 1.4f, grade >= 3 ? Alpha(BladeAwakeGold, 1) : Color.white, .16f, angle + 45);
-            var through = Line(at, at + d * 1.7f, .13f, new Color(1, 1, 1, .85f), .14f, 131); through.velocity = d * 6; through.startScale = .3f; through.endScale = 1; through.ease = 3;
-            for (int i = 0; i < 4; i++)
-                Spark(at, Direction(angle + Range(-50, 50)) * Range(4, 8), i % 2 == 0 ? Color.white : light, Range(.2f, .32f), Range(.18f, .3f), 5, 2.5f);
+            var cut = Crescent(at + d * .3f, 1.9f * s, Alpha(light, 1), .2f, angle, 131);
+            cut.scale.y *= 1.35f; cut.velocity = d * 3; cut.drag = 5; cut.startScale = .8f; cut.ease = 6; cut.hold = .25f;
+            BladeStar(at, 1.3f, grade >= 3 ? Alpha(BladeAwakeGold, 1) : Color.white, Alpha(light, .45f), .11f);
+            var through = BladeCutLine(at - d * .2f, at + d * 1.7f, .16f, Color.white, .14f, 131); through.velocity = d * 6; through.startScale = .3f; through.endScale = 1; through.ease = 4;
+            BladeNeedles(at, angle, 45, 4, 8, light, .28f, .4f);
         }
 
-        /// <summary>A sword wave reaching the end of its flight: the crescent bursts forward and frays into gold light, sparks and
-        /// (for a wave running along the floor) a last kick of dust and grit. <paramref name="ground"/> is NaN for a wave in the air.</summary>
+        /// <summary>A sword wave reaching the end of its flight: the crescent bursts forward and frays apart into gold strokes,
+        /// needle sparks and (for a wave running along the floor) a last kick of dust and grit. <paramref name="ground"/> is NaN for a
+        /// wave in the air.</summary>
         private void BladeWaveBreak(Vector2 center, Vector2 d, Color light, float h, float ground, int grade)
         {
             float angle = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg;
-            for (int layer = 0; layer < 2; layer++)
-            {
-                bool ink = layer == 0;
-                var ghost = Spawn(ink ? "Wave break shadow" : "Wave break", crescent, center + d * (ink ? .1f : .25f), ink ? 2.6f : 2.4f,
-                    ink ? Alpha(BladeAmberInk, .6f) : Alpha(grade >= 3 ? Warm : light, .85f), ink ? .34f : .3f, !ink, ink ? 118 : 127);
-                ghost.angle = angle; ghost.scale.y *= h * (ink ? 1.02f : .96f) / (ink ? 2.6f : 2.4f); ghost.root.transform.localScale = ghost.scale;
-                ghost.velocity = d * 5; ghost.drag = 3; ghost.startScale = 1; ghost.endScale = 1.3f; ghost.axisEnd = new Vector2(1.5f, .55f); ghost.ease = 2; ghost.fadePower = 1.4f;
-            }
-            var flash = Flash(center + d * .5f, 1.6f, Alpha(Warm, .75f), .14f); flash.ramp = Ramp(Color.white, light);
-            Glint(center + d * .6f, 1.5f, Color.white, .18f, angle);
+            var ghost = Sheet("Wave break", BladeSweepFray, center + d * .25f, 2.3f, Alpha(grade >= 3 ? Warm : light, 1), .3f, 127, 0, false);
+            ghost.angle = angle; ghost.scale.y *= h * .95f / 2.3f; ghost.root.transform.localScale = ghost.scale;
+            ghost.velocity = d * 5; ghost.drag = 3; ghost.startScale = 1; ghost.endScale = 1.3f; ghost.axisEnd = new Vector2(1.5f, .6f); ghost.ease = 2; ghost.fadePower = 1.2f;
+            var bloom = Spawn("Wave break bloom", glow, center + d * .4f, h * 1.1f, Alpha(light, .45f), .34f, true, 125); bloom.scale.x *= .6f; bloom.angle = angle;
+            bloom.root.transform.localScale = bloom.scale; bloom.velocity = d * 5; bloom.drag = 3; bloom.endScale = 1.3f; bloom.ease = 2; bloom.fadePower = 1.3f;
+            var burst = ShockFlip(center + d * .5f, 1.9f, Alpha(light, .9f), .26f, 129); burst.scale.x *= .45f; burst.angle = angle;
+            BladeStar(center + d * .5f, 1.5f, Alpha(Warm, 1), Color.clear, .14f);
             int sparks = Budget(6);
             for (int i = 0; i < sparks; i++)
-                Spark(center + new Vector2(0, Range(-.45f, .45f) * h), Direction(angle + Range(-40, 40)) * Range(4, 8), i % 3 == 0 ? Color.white : light, Range(.2f, .34f), Range(.25f, .4f), 4, 2.2f);
-            int motes = Budget(4);
-            for (int i = 0; i < motes; i++)
+                Spark(center + new Vector2(0, Range(-.45f, .45f) * h), Direction(angle + Range(-40, 40)) * Range(4, 8), i % 3 == 0 ? Color.white : light, Range(.24f, .38f), Range(.25f, .4f), 4, 2.2f);
+            for (int i = 0; i < 3; i++)
             {
-                var mote = Spawn("Wave break mote", glow, center + new Vector2(Range(-.2f, .4f), Range(-.4f, .4f) * h), Range(.16f, .28f), Alpha(i % 2 == 0 ? Warm : light, .9f), Range(.45f, .7f), true, 130);
-                mote.velocity = d * Range(.8f, 2) + Vector2.up * Range(.3f, 1.1f); mote.drag = 1.6f; mote.flicker = .4f; mote.endScale = .25f; mote.ease = 1;
+                Vector2 from = center + new Vector2(0, (i - 1) * h * .3f);
+                var streakOut = BladeCutLine(from, from + d * Range(1.2f, 2), .2f, i == 1 ? Color.white : Alpha(light, 1), .22f, 128);
+                streakOut.velocity = d * 7; streakOut.fadePower = 1.4f;
             }
             if (float.IsNaN(ground)) return;
             for (int i = 0, n = Budget(3); i < n; i++)
             {
-                var dust = Puff(new Vector2(center.x + Range(-.3f, .5f), ground + .2f), Range(.65f, 1f), BladeDust, d * Range(.8f, 2.2f) + Vector2.up * Range(.6f, 1.4f), Range(.55f, .8f), 118);
+                var dust = Puff(new Vector2(center.x + Range(-.3f, .5f), ground + .2f), Range(.65f, 1f), i == 0 ? BladeSoot : BladeDust, d * Range(.8f, 2.2f) + Vector2.up * Range(.6f, 1.4f), Range(.55f, .8f), 118);
                 dust.endScale = 2.3f;
             }
-            BladeRubble(new Vector2(center.x, ground + .25f), 3, 4, .3f, .7f, BladeStoneTone);
+            BladeRubble(new Vector2(center.x, ground + .25f), 3, 4, .34f, .7f);
         }
 
         private void HitShockwave(Vector2 pos, Color tint, bool signature, Vector2 direction)
@@ -744,26 +1010,22 @@ namespace PrototypeLab.Roguelike
             float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
             if (!signature)
             {
-                Flash(pos, .9f, Alpha(Warm, .85f), .1f);
-                Crescent(pos + direction * .15f, 1.1f, Alpha(light, .95f), .16f, angle, 131);
-                var ink = Spawn("Wave hit shadow", crescent, pos + direction * .1f, 1.15f, BladeAmberInk, .18f, false, 118);
-                ink.angle = angle; ink.startScale = .75f; ink.endScale = 1.1f; ink.ease = 3; ink.fadePower = 1.3f;
-                for (int i = 0; i < 6; i++) Spark(pos, Direction(angle + Range(-60, 60)) * Range(3, 6), i % 2 == 0 ? Color.white : light, Range(.18f, .3f), Range(.15f, .25f), 4, 3);
+                BladeStar(pos, .95f, Alpha(Warm, 1), Alpha(light, .4f), .1f);
+                var arc = Crescent(pos + direction * .15f, 1.1f, Alpha(light, 1), .16f, angle, 131); arc.ease = 6; arc.hold = .25f;
+                BladeNeedles(pos, angle, 55, 5, 5, light, .2f, .34f);
                 return;
             }
-            Underlay(pos, 2.6f, .32f, .3f);
-            var bloom = Flash(pos, 2.4f, Alpha(light, .95f), .18f); bloom.ramp = Ramp(Color.white, light); BladeWaveHit = bloom;
-            ImpactLines(pos, 3.4f, Alpha(Warm, .85f), .2f);
-            Glint(pos, 1.8f, Color.white, .22f, angle);
-            var arcInk = Spawn("Wave hit shadow", crescent, pos + direction * .15f, 2.6f, BladeAmberInk, .28f, false, 118);
-            arcInk.angle = angle; arcInk.scale.y *= 1.4f; arcInk.startScale = .75f; arcInk.endScale = 1.12f; arcInk.ease = 3; arcInk.fadePower = 1.3f;
-            var arc = Crescent(pos + direction * .25f, 2.4f, Alpha(light, 1), .24f, angle, 131); arc.scale.y *= 1.4f;
-            Wave(pos, 2.2f, Alpha(light, .8f), .26f, 3);
-            int sparks = Budget(14);
-            for (int i = 0; i < sparks; i++)
-                Spark(pos + Inside(.2f), Direction(angle + Range(-70, 70)) * Range(4, 10), i % 3 == 0 ? Color.white : light, Range(.2f, .4f), Range(.25f, .45f), 6, 2.2f);
-            BladeRubble(pos, 5, 5, .34f, .8f, BladeStoneTone);
-            int dusts = Budget(5);
+            // A gold spark flaring over the body with a white-hot one at its heart and a shock ring, wedge lines, a crescent cut
+            // through it, needle sparks thrown on, painted stones and a kick of warm dust behind.
+            var star = BladeStar(pos, 2.2f, Alpha(light, 1), Alpha(light, .55f), .18f); BladeWaveHit = star;
+            BladeStar(pos + direction * .1f, 1.2f, Color.white, Color.clear, .1f, 133);
+            ShockFlip(pos, 2.4f, Alpha(light, .85f), .26f, 130);
+            ImpactLines(pos, 3.3f, Alpha(Warm, .85f), .2f);
+            var cut = Crescent(pos + direction * .25f, 2.4f, Alpha(light, 1), .24f, angle, 131); cut.scale.y *= 1.4f; cut.ease = 6; cut.hold = .25f;
+            BladeNeedles(pos, angle, 65, 12, 10, light, .4f, .44f);
+            BladeRubble(pos, 5, 5, .4f, .8f);
+            BladeKick(pos, direction + Vector2.up * .5f, .5f, BladeDust, 2, .5f);
+            int dusts = Budget(3);
             for (int i = 0; i < dusts; i++) Puff(pos + Inside(.4f), Range(.5f, .8f), BladeDust, direction * Range(.5f, 2) + Vector2.up * Range(.4f, 1.2f), Range(.5f, .8f), 118);
         }
 
@@ -773,32 +1035,24 @@ namespace PrototypeLab.Roguelike
             Vector2 d = delta / length; float angle = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg;
             Color light = Color.Lerp(BladeHotGold, tint, .35f);
             const float sweep = .16f;
-            // A crescent wave races down the line, scoring a golden cut behind it.
-            var waveInk = Spawn("Sweep wave shadow", crescent, from - d * .12f, 1.6f, BladeAmberInk, sweep + .1f, false, 118);
-            var wave = Spawn("Sweep wave", crescent, from, 1.45f, Alpha(light, 1), sweep + .08f, true, 128);
-            foreach (var clip in new[] { waveInk, wave }) { clip.angle = angle; clip.scale.y *= 1.5f; clip.velocity = d * length / sweep; clip.hold = .6f; clip.fadePower = 2; }
-            int segments = Mathf.Clamp(Mathf.RoundToInt(length * 1.2f), 2, 6);
-            for (int i = 0; i < segments; i++)
-            {
-                Vector2 a = Vector2.Lerp(from, to, i / (float)segments), b = Vector2.Lerp(from, to, (i + 1f) / segments) + d * .2f;
-                float delay = i / (float)segments * sweep;
-                var ink = BladeCutLine(a, b, .8f, Alpha(BladeAmberInk, .6f), .32f, 117, false); ink.fadePower = 1.4f; BladeDelay(ink, delay);
-                var cut = Line(a, b, .5f, Alpha(light, .85f), .28f, 127, 1.05f); cut.fadePower = 1.4f; BladeDelay(cut, delay);
-                var core2 = BladeCutLine(a, b, .16f, Color.white, .2f, 129); BladeDelay(core2, delay);
-            }
-            // Dust and grit kicked up along the floor, sparks thrown forward as it passes.
+            // A painted crescent wave races down the line, scoring a slash beam behind it.
+            var wave = Spawn("Sweep wave", BladeSweepSheet[2], from, 1.5f, Alpha(light, 1), sweep + .08f, true, 128);
+            wave.angle = angle; wave.scale.y *= 1.5f; wave.velocity = d * length / sweep; wave.hold = .6f; wave.fadePower = 2;
+            var bloom = BladeBloomLine(from - d * .2f, to + d * .3f, 1.3f, Alpha(light, .45f), .34f, 125);
+            var cut = BladeBeamLine(from, to + d * .2f, .45f, Alpha(light, 1), .28f, 127);
+            foreach (var clip in new[] { bloom, cut }) { clip.axisStart = new Vector2(.2f, .6f); clip.axisEnd = Vector2.one; clip.ease = 4; clip.hold = .3f; clip.fadePower = 1.4f; }
+            // Dust and grit kicked up along the floor, needle sparks thrown forward as it passes.
             float gy = BladeGroundY(from, .8f);
-            int count = Budget(Mathf.Clamp(Mathf.RoundToInt(length * 1.6f), 3, 10));
+            int count = Budget(Mathf.Clamp(Mathf.RoundToInt(length * 1.4f), 3, 9));
             for (int i = 0; i < count; i++)
             {
                 float t = (i + .5f) / count;
                 var dust = Puff(new Vector2(Mathf.Lerp(from.x, to.x, t), gy + .15f), Range(.5f, .8f), BladeDust, new Vector2(d.x * Range(.6f, 1.6f), Range(.8f, 1.8f)), Range(.45f, .7f), 118);
                 BladeDelay(dust, t * sweep);
-                var spark = Spark(Vector2.Lerp(from, to, t) + Vector2.up * Range(-.5f, .6f), d * Range(3, 7) + Vector2.up * Range(-1, 2), i % 2 == 0 ? Color.white : light, Range(.18f, .32f), Range(.2f, .35f), 4, 2.5f);
-                BladeDelay(spark, t * sweep);
+                var needle = Spark(Vector2.Lerp(from, to, t) + Vector2.up * Range(-.5f, .6f), d * Range(3, 7) + Vector2.up * Range(-1, 2), i % 2 == 0 ? Color.white : light, Range(.22f, .36f), Range(.2f, .35f), 4, 2.5f);
+                BladeDelay(needle, t * sweep);
             }
-            var end = Flash(to, 1.6f, Alpha(Warm, .85f), .14f); BladeDelay(end, sweep);
-            var star = Glint(to, 1.4f, Color.white, .18f); BladeDelay(star, sweep);
+            BladeStar(to, 1.5f, Alpha(Warm, 1), Alpha(light, .45f), .14f, 132, sweep);
         }
 
         // ---------------------------------------------------------------- BladeStorm: a whirlwind of swords
@@ -807,14 +1061,14 @@ namespace PrototypeLab.Roguelike
         {
             float w = c.windup, release = Mathf.Max(0, w - .03f);
             Vector2 pos = c.pos, feet = new Vector2(pos.x, BladeGroundY(pos, 1)), hub = pos + Vector2.up * .35f;
-            Color light = Color.Lerp(BladeHotGold, c.light, .3f), pale = Color.Lerp(light, Color.white, .45f);
+            Color light = Color.Lerp(BladeStormGold, c.light, .25f);
             if (w < .2f)
             {
-                // An instant echo: one quick whirl round the body; the storm follows at once.
-                var quickInk = Spawn("Storm quick whirl shadow", BladeWhirlSprite, hub, 3.3f, Alpha(BladeBronzeInk, .6f), w + .14f, false, 116);
-                var quick = Spawn("Storm quick whirl", BladeWhirlSprite, hub, 3.1f, Alpha(light, .8f), w + .12f, true, 124);
-                foreach (var clip in new[] { quickInk, quick }) { clip.spin = 1100; clip.startScale = .5f; clip.endScale = 1.05f; clip.ease = 2; clip.fadeIn = .03f; clip.fadePower = 1.5f; }
-                var quickStar = Glint(hub + Vector2.up * .5f, 2f, Color.white, .18f); BladeDelay(quickStar, release);
+                // An instant echo: one quick painted whirl round the body; the storm follows at once.
+                var quick = Spawn("Storm quick whirl", BladeWhirlSprite, hub, 3.2f, Alpha(light, 1), w + .12f, true, 124);
+                quick.spin = 1100; quick.startScale = .5f; quick.endScale = 1.05f; quick.ease = 2; quick.fadeIn = .03f; quick.fadePower = 1.5f;
+                var quickGlow = Spawn("Storm quick glow", glow, hub, 3.4f, Alpha(light, .4f), w + .14f, true, 28); quickGlow.startScale = .5f; quickGlow.ease = 2; quickGlow.fadePower = 1.5f;
+                BladeStar(hub + Vector2.up * .5f, 2.2f, Alpha(Warm, 1), Alpha(light, .5f), .14f, 29, release);
                 return;
             }
             // Spectral swords flash into being one after another, tips outward like the spokes of a wheel, and circle the caster,
@@ -825,87 +1079,76 @@ namespace PrototypeLab.Roguelike
             for (int i = 0; i < swords; i++)
             {
                 float delay = Mathf.Min(i * .24f / swords, w * .4f), life = Mathf.Max(.08f, release - delay + .02f), start = i * 360f / swords + 15;
-                for (int layer = 0; layer < 2; layer++)
-                {
-                    bool ink = layer == 0;
-                    var sword = Spawn(ink ? "Phantom sword shadow" : "Phantom sword", BladeSwordSprite, hub, ink ? 2.4f : 2.2f, ink ? BladeBronzeInk : Alpha(pale, 1), life, !ink, ink ? 117 : 127);
-                    sword.orbitCenter = hub; sword.orbitAngle = start; sword.orbit = orbitSpeed; sword.orbitRadius = ringStart; sword.orbitRadiusEnd = ringEnd; sword.orbitPower = .7f;
-                    sword.spin = orbitSpeed; sword.fadeIn = .05f; sword.hold = .9f; sword.fadePower = 2;
-                    sword.position = hub + Direction(start) * ringStart; sword.root.transform.position = sword.position;
-                    sword.angle = start; sword.root.transform.localRotation = Quaternion.Euler(0, 0, start);
-                    sword.scale.y *= ink ? 2.1f : 1.8f; sword.startScale = .55f; sword.endScale = 1; sword.ease = 3; sword.root.transform.localScale = sword.scale;
-                    BladeDelay(sword, delay);
-                }
-                var spark = Glint(hub + Direction(start) * ringStart, 1.2f, Color.white, .16f); BladeDelay(spark, delay);
+                var sword = Spawn("Phantom sword", BladeSwordSprite, hub, 2.2f, Alpha(light, 1), life, true, 127);
+                sword.orbitCenter = hub; sword.orbitAngle = start; sword.orbit = orbitSpeed; sword.orbitRadius = ringStart; sword.orbitRadiusEnd = ringEnd; sword.orbitPower = .7f;
+                sword.spin = orbitSpeed; sword.fadeIn = .05f; sword.hold = .9f; sword.fadePower = 2;
+                sword.position = hub + Direction(start) * ringStart; sword.root.transform.position = sword.position;
+                sword.angle = start; sword.root.transform.localRotation = Quaternion.Euler(0, 0, start);
+                sword.scale.y *= 1.8f; sword.startScale = .55f; sword.endScale = 1; sword.ease = 3; sword.root.transform.localScale = sword.scale;
+                BladeDelay(sword, delay);
+                var spark = Spawn("Sword spark", fleck, hub + Direction(start) * ringStart, .8f, Color.white, .14f, true, 131);
+                spark.startScale = .3f; spark.endScale = 1; spark.ease = 4; spark.fadePower = 1.4f; BladeDelay(spark, delay);
                 // Where this sword sits when the wheel bursts: it shoots straight out from there.
                 float at = start + (release - delay) * orbitSpeed;
                 Vector2 from = hub + Direction(at) * ringEnd;
-                for (int layer = 0; layer < 2; layer++)
-                {
-                    bool ink = layer == 0;
-                    var flung = Spawn(ink ? "Flung sword shadow" : "Flung sword", BladeSwordSprite, from, ink ? 2.5f : 2.3f, ink ? BladeBronzeInk : new Color(1, .97f, .85f, 1), .24f, !ink, ink ? 117 : 128);
-                    flung.angle = at; flung.velocity = Direction(at) * 17; flung.drag = 4; flung.scale.y *= ink ? 2.1f : 1.8f; flung.root.transform.localScale = flung.scale;
-                    flung.root.transform.localRotation = Quaternion.Euler(0, 0, at); flung.stretch = .03f; flung.fadePower = 1.6f;
-                    BladeDelay(flung, release);
-                }
+                var flung = Spawn("Flung sword", BladeSwordSprite, from, 2.3f, Alpha(light, 1), .24f, true, 128);
+                flung.angle = at; flung.velocity = Direction(at) * 17; flung.drag = 4; flung.scale.y *= 1.8f; flung.root.transform.localScale = flung.scale;
+                flung.root.transform.localRotation = Quaternion.Euler(0, 0, at); flung.stretch = .03f; flung.fadePower = 1.6f;
+                BladeDelay(flung, release);
             }
-            // The storm forming: a whirl of light spinning up round the body over a golden glow and rune ring at the feet.
-            var whirlInk = Spawn("Storm forming shadow", BladeWhirlSprite, hub, 3.3f, Alpha(BladeBronzeInk, .5f), w + .04f, false, 116);
-            var whirl = Spawn("Storm forming", BladeWhirlSprite, hub, 3.1f, Alpha(light, .55f), w + .04f, true, 124);
-            foreach (var clip in new[] { whirlInk, whirl }) { clip.spin = 900; clip.startScale = .45f; clip.endScale = 1; clip.ease = 2; clip.fadeIn = .1f; clip.hold = .8f; clip.fadePower = 2; }
-            whirlInk.angle = -14;
-            // A golden column behind the body (behind the actors) swells to the release.
+            // The storm forming: a painted whirl spinning up round the body over a deep-gold one turning just inside it, and a
+            // gold glow swelling behind the hero.
+            var whirlDepth = Spawn("Storm forming depth", BladeWhirlSprite, hub, 2.9f, Alpha(BladeDeepGold, .7f), w + .04f, true, 123);
+            var whirl = Spawn("Storm forming", BladeWhirlSprite, hub, 3.1f, Alpha(light, .8f), w + .04f, true, 124);
+            foreach (var clip in new[] { whirlDepth, whirl }) { clip.spin = 900; clip.startScale = .45f; clip.endScale = 1; clip.ease = 2; clip.fadeIn = .1f; clip.hold = .8f; clip.fadePower = 2; }
+            whirlDepth.angle = 150;
+            // Gold flame licks climb round the body over a glow behind the actors, taller with the level.
             float lift = BladeLevel(1.15f, 1.3f);
-            var columnInk = BladeColumn(c.anchor, feet, 2.6f, 4f * lift, new Color(.36f, .18f, .03f, .45f), w + .05f, 28, false);
-            var column = BladeColumn(c.anchor, feet, 2f, 4.6f * lift, Alpha(light, .75f), w + .05f, 29);
-            foreach (var clip in new[] { columnInk, column }) { clip.axisStart = new Vector2(.4f, .25f); clip.axisEnd = Vector2.one; clip.ease = 1.3f; clip.fadeIn = .05f; clip.hold = .9f; clip.fadePower = 3; }
-            BladeBackShade(hub, 4.2f, new Color(.24f, .12f, .02f, .35f), w + .1f);
-            if (grade >= 3 && w >= .2f)
+            BladeAuraLicks(c.anchor, pos, feet.y, w, light, BladeDeepGold, 16 * lift, .8f * lift, .9f);
+            if (grade >= 3)
             {
                 // Awakened: the wind is already being dragged in from far out, and a gold-white crown turns over the head.
-                BladeInward(hub + Vector2.down * .3f, 7, 4.8f, Warm, w, .12f);
+                BladeInward(hub + Vector2.down * .3f, 7, 4.8f, Warm, w, .14f);
                 var crownPlane = BladeFlatPlane(c.anchor, hub + Vector2.up * 2.1f, .3f, w + .1f);
-                var crownInk = BladeOnPlane(crownPlane, "Storm crown shadow", runeRing, 2.7f, Alpha(BladeBronzeInk, .6f), w + .1f, 116, false, 300);
+                var crownGlow = BladeOnPlane(crownPlane, "Storm crown glow", glow, 3.1f, Alpha(BladeAwakeGold, .45f), w + .1f, 27, true, 0);
                 var crown = BladeOnPlane(crownPlane, "Storm crown", runeRing, 2.6f, Alpha(BladeAwakeGold, .95f), w + .1f, 128, true, 300);
-                foreach (var clip in new[] { crownInk, crown }) { clip.startScale = .3f; clip.endScale = 1; clip.ease = 3; }
+                foreach (var clip in new[] { crownGlow, crown }) { clip.startScale = .3f; clip.endScale = 1; clip.ease = 3; }
             }
-            GroundGlow(feet + Vector2.up * .05f, 4.2f, Alpha(light, .55f), w + .2f);
             var floor = BladeFlatPlane(c.anchor, feet + Vector2.up * .06f, .26f, w + .3f);
-            var runeInk = BladeOnPlane(floor, "Storm rune shadow", runeRing, 4f, Alpha(BladeBronzeInk, .55f), w + .3f, 25, false, 220);
-            var rune = BladeOnPlane(floor, "Storm rune", runeRing, 3.9f, Alpha(light, .9f), w + .3f, 27, true, 220);
-            var vortex = BladeOnPlane(floor, "Storm cast vortex", swirl, 4.4f, Alpha(light, .6f), w + .1f, 26, true, 600);
-            foreach (var clip in new[] { runeInk, rune, vortex }) { clip.startScale = .5f; clip.endScale = 1; clip.ease = 3; }
-            Converge(hub, 12, 2.2f, light, w, .6f);
-            int dusts = Budget(6);
+            var runeGlow = BladeOnPlane(floor, "Storm rune glow", glow, 4.6f, Alpha(light, .42f), w + .3f, 25, true, 0);
+            var rune = BladeOnPlane(floor, "Storm rune", runeRing, 3.9f, Alpha(light, .85f), w + .3f, 27, true, 220);
+            var floorWhirl = BladeOnPlane(floor, "Storm cast whirl", BladeWhirlSprite, 4.4f, Alpha(light, .85f), w + .1f, 26, true, 600);
+            foreach (var clip in new[] { runeGlow, rune, floorWhirl }) { clip.startScale = .5f; clip.endScale = 1; clip.ease = 3; }
+            Converge(hub, 10, 2.2f, light, w, .6f);
+            int dusts = Budget(5);
             for (int i = 0; i < dusts; i++)
             {
                 float side = i % 2 == 0 ? 1 : -1, x = Range(1.2f, 2.2f);
                 var puff = Puff(feet + new Vector2(side * x, .18f), Range(.55f, .85f), BladeDust, new Vector2(-side * x * 2, Range(.4f, 1)), w * Range(.75f, 1.05f), 118);
                 puff.drag = 2.5f; puff.spin = 260 * side;
             }
-            // Release: a ring and a star as the storm breaks out.
-            var ring2 = Wave(hub, 4.8f, Alpha(light, .85f), .26f, 3); BladeDelay(ring2, release);
-            var flare = Glint(hub + Vector2.up * .5f, 2.4f, Color.white, .2f); BladeDelay(flare, release);
+            // Release: a shock ring and a spark flaring as the storm breaks out.
+            var burstRing = Wave(hub, 4.8f, Alpha(light, .85f), .26f, 3); BladeDelay(burstRing, release);
+            BladeStar(hub + Vector2.up * .5f, 2.6f, Alpha(Warm, 1), Alpha(light, .5f), .15f, 29, release);
         }
 
         private void ImpactBladeStorm(Vector2 pos, float radius, Color tint, int facing)
         {
             float R = Mathf.Clamp(radius, .9f, 4.5f), k = Mathf.Clamp(R / 3, .35f, 1.4f);
-            Color light = Color.Lerp(BladeHotGold, tint, .3f);
+            Color light = Color.Lerp(BladeStormGold, tint, .25f);
             Vector2 center = pos + Vector2.up * .35f;
-            // A full sword circle whips round the body. Higher levels' zones already stack more light round the hero, so each
-            // turn's own additive light steps down a little to keep the body readable on pale skies.
+            // Each turn of the storm: a painted crescent sweeps round the body on the floor plane (so it reads as circling the
+            // hero), and a big painted sweep arcs up on one side. Higher levels' zones already stack more light round the hero,
+            // so each turn's own light steps down a little to keep the body readable.
             bool clockwise = Chance(.5f); float start = Range(0, 360), calm = BladeLevel(.85f, .75f);
-            var swingInk = Spawn("Storm swing shadow", BladeWhirlSprite, center, R * 1.4f, BladeBronzeInk, .2f, false, 117);
-            var swing = Spawn("Storm swing", BladeWhirlSprite, center, R * 1.32f, Alpha(light, calm), .18f, true, 128);
-            foreach (var clip in new[] { swingInk, swing })
-            {
-                if (clockwise) clip.scale.x *= -1;
-                clip.angle = start; clip.spin = clockwise ? -1500 : 1500; clip.startScale = .75f; clip.endScale = 1.06f; clip.ease = 3; clip.fadePower = 1.4f;
-            }
-            swingInk.angle = start + (clockwise ? 14 : -14);
-            // Curved cuts snap open off-centre in an X, then a flat sweep crosses the whole area; each is tipped with a glint.
+            var swing = Spawn("Storm swing", BladeWhirlSprite, center + Vector2.down * .2f, R * 2.2f, Alpha(light, .85f * calm), .2f, true, 128);
+            LayFlat(swing, .42f);
+            if (clockwise) swing.scale.x *= -1;
+            swing.angle = start; swing.spin = clockwise ? -1300 : 1300; swing.startScale = .8f; swing.endScale = 1.05f; swing.ease = 4; swing.hold = .2f; swing.fadePower = 1.3f;
             float crossSide = facing != 0 ? facing : (Chance(.5f) ? 1 : -1);
+            float sweepAngle = (crossSide > 0 ? 0 : 180) + Range(-25, 25);
+            BladeSweep(center + new Vector2(crossSide * R * .18f, .1f), R * 1.15f, R * 1.25f, sweepAngle, Alpha(light, .9f * calm), .3f * calm, Alpha(BladeDeepGold, .6f * calm), .22f, 129, Chance(.5f), false);
+            // Curved cuts snap open off-centre in an X, then a flat sweep crosses the whole area; each is tipped with a fleck.
             Vector2 cross = center + new Vector2(crossSide * Range(.3f, .5f) * R, Range(-.1f, .3f));
             float tilt = Range(22, 40);
             for (int i = 0; i < 3; i++)
@@ -913,43 +1156,37 @@ namespace PrototypeLab.Roguelike
                 float angle = (i == 0 ? tilt : i == 1 ? -tilt : Range(-8, 8)) + (Chance(.5f) ? 180 : 0);
                 float delay = .02f + i * .05f, width = 2 * R * (i == 2 ? 1.12f : .95f), height = width * .5f;
                 Vector2 at = (i == 2 ? center + Vector2.down * .5f : cross) + Inside(.12f * R);
-                var ink = BladeSlashAt(at, width * 1.04f, height * 1.05f, angle, BladeBronzeInk, .26f, false, 117);
-                var body = BladeSlashAt(at, width, height, angle, Alpha(light, 1), .22f, true, 129);
-                var edge = BladeSlashAt(at, width * .97f, height, angle, new Color(1, 1, 1, .8f), .16f, true, 130);
-                BladeSnap(ink, delay); BladeSnap(body, delay); BladeSnap(edge, delay);
-                var tip = Glint(at + Direction(angle) * width * .38f * (Chance(.5f) ? 1 : -1), .9f + .3f * k, Color.white, .16f, Range(0, 45)); BladeDelay(tip, delay + .03f);
+                var cut = BladeSlashAt(at, width, height, angle, Alpha(light, i == 2 ? .85f : 1), .22f, true, 130);
+                BladeSnap(cut, delay);
+                var tip = Spawn("Storm cut tip", fleck, at + Direction(angle) * width * .4f * (Chance(.5f) ? 1 : -1), .6f + .25f * k, Color.white, .14f, true, 131);
+                tip.startScale = .3f; tip.ease = 4; tip.fadePower = 1.4f; BladeDelay(tip, delay + .03f);
             }
-            Flash(cross, .9f * k + .3f, Alpha(Warm, .4f * calm), .1f);
-            ImpactLines(cross, R * 1.7f, Alpha(light, .45f * calm), .18f);
+            ShockFlip(cross, R * 1.1f, Alpha(light, .6f * calm), .22f, 129);
             // A flurry of thin cuts flickers through the storm.
-            int cuts = Budget(4);
+            int cuts = Budget(3);
             for (int i = 0; i < cuts; i++)
             {
                 Vector2 mid = center + Inside(R * .7f); float a = Range(0, 180), len = R * Range(.5f, .9f);
-                Vector2 half = Direction(a) * len * .5f; float delay = .03f + i * .045f;
-                var cutInk = BladeCutLine(mid - half, mid + half, .4f, BladeBronzeInk, .16f, 118, false); cutInk.fadePower = 1.5f; BladeDelay(cutInk, delay);
-                var cut = BladeCutLine(mid - half, mid + half, .18f, Color.white, .14f, 130); cut.fadePower = 1.5f; BladeDelay(cut, delay);
+                Vector2 half = Direction(a) * len * .5f;
+                var thin = BladeCutLine(mid - half, mid + half, .2f, Color.white, .14f, 130); thin.fadePower = 1.5f; BladeDelay(thin, .03f + i * .045f);
             }
-            // Sparks sprayed along the slashes.
-            int sparks = BladeShare(Mathf.RoundToInt(8 + 6 * k));
+            // Needle sparks sprayed along the slashes.
+            int sparks = BladeShare(Mathf.RoundToInt(7 + 5 * k));
             for (int i = 0; i < sparks; i++)
             {
                 float a = (i % 2 == 0 ? tilt : -tilt) + (Chance(.5f) ? 180 : 0) + Range(-12, 12);
-                Spark(cross + Inside(.3f), Direction(a) * Range(5, 11) * (.6f + .4f * k), i % 3 == 0 ? Color.white : light, Range(.2f, .38f), Range(.2f, .36f), 5, 2.4f);
+                Spark(cross + Inside(.3f), Direction(a) * Range(5, 11) * (.6f + .4f * k), i % 3 == 0 ? Color.white : light, Range(.24f, .4f), Range(.2f, .36f), 5, 2.4f);
             }
-            Wave(center, R * 1.5f, Alpha(light, .4f), .22f, 3);
-            // The rim of the storm bites on both sides: short curved cuts with a hit flash where enemies stand, and a ring on
+            // The rim of the storm bites on both sides: a short razor slash and a flaring spark where enemies stand, and a ring on
             // the floor that marks the reach of every turn.
             float floorY = BladeGroundY(pos, 1.1f);
             for (int s = -1; s <= 1; s += 2)
             {
                 Vector2 bite = new Vector2(center.x + s * R * Range(.72f, .92f), floorY + Range(.6f, 1.3f));
-                float angle = Range(-35, 35) + (s < 0 ? 180 : 0), delay = Range(.03f, .1f);
-                var biteInk = BladeSlashAt(bite, 2f * (.6f + .4f * k), 1f * (.6f + .4f * k), angle, BladeBronzeInk, .22f, false, 117);
-                var biteLight = BladeSlashAt(bite, 1.9f * (.6f + .4f * k), .95f * (.6f + .4f * k), angle, Alpha(Warm, 1), .18f, true, 130);
-                BladeSnap(biteInk, delay); BladeSnap(biteLight, delay);
-                var pop = Flash(bite, 1.1f * (.6f + .4f * k), Alpha(light, .8f), .1f); BladeDelay(pop, delay + .02f);
-                var star = Glint(bite, 1.2f * (.6f + .4f * k), Color.white, .14f, Range(0, 45)); BladeDelay(star, delay + .02f);
+                float angle = Range(-35, 35) + (s < 0 ? 180 : 0), delay = Range(.03f, .1f), size = .6f + .4f * k;
+                var biteLight = BladeSlashAt(bite, 1.9f * size, 1f * size, angle, Alpha(Color.Lerp(light, Color.white, .3f), 1), .18f, true, 130); BladeSnap(biteLight, delay);
+                BladeStar(bite, 1.15f * size, Alpha(Warm, 1), Alpha(light, .45f), .12f, 132, delay + .02f);
+                BladeNeedles(bite, angle, 35, 3, 7 * size, light, .25f, .38f, delay + .02f);
             }
             // The ring's rim lands exactly on the storm's reach.
             var reach = GroundWave(new Vector2(center.x, floorY + .05f), R * 2 / .74f, Alpha(light, .6f), .3f); reach.startScale = .55f;
@@ -962,72 +1199,77 @@ namespace PrototypeLab.Roguelike
         private void ZoneBladeStorm(Transform root, float radius, float life)
         {
             float R = Mathf.Clamp(radius, 1.2f, 4.5f);
-            Color light = BladeHotGold, pale = Color.Lerp(light, Color.white, .45f);
+            Color light = BladeStormGold, pale = Color.Lerp(light, Color.white, .45f);
             var layers = new List<Clip>();
-            var heart = Attach(root, "Blade storm heart", glow, R * .9f, Alpha(light, .1f), 121, true, new Vector2(0, .35f));
-            BladeZoneFade(heart, life); heart.pulse = .12f;
-            // A bronze shadow behind the actors gives the whirl a dark eye to spin against on pale floors.
-            var shade = Attach(root, "Blade storm shadow", BladeShadeSprite, R * 2.3f, new Color(.22f, .11f, .02f, .3f), 28, false, new Vector2(0, .3f));
-            shade.scale.y *= .55f; BladeZoneFade(shade, life); layers.Add(shade);
-            // Outer orbit: two long sweeps racing round a flat ellipse at the hips; a tilted counter-rotating one inside it.
+            var heart = Attach(root, "Blade storm heart", glow, .1f, new Color(0, 0, 0, 0), 121, true, new Vector2(0, .35f));
+            BladeZoneFade(heart, life);
+            // Outer orbit: painted sweeps racing round a flat ellipse at the hips; a tilted counter-rotating pair inside it.
             // Higher levels add layers (a counter ring of swords, a taller cyclone, a crown), so these sweeps dim to make room:
             // the new layers replace light rather than pile more of it on the hero.
-            int grade = Grade; float calm = BladeLevel(.7f, .6f);
+            int grade = Grade; float calm = BladeLevel(.75f, .65f);
             BladeOrbit(layers, BladePlane(root, new Vector2(0, .32f), .3f, 0), R * 2, 2, 820, light, .95f * calm, life, 124);
-            BladeOrbit(layers, BladePlane(root, new Vector2(0, .5f), .48f, 15), R * 1.45f, 2, -1000, light, .75f * calm, life, 125);
-            // The whirlwind climbs: narrower, fainter sweeps stacked above the head give the storm a cyclone's height.
-            BladeOrbit(layers, BladePlane(root, new Vector2(0, 1.75f), .32f, -6), R * 1.2f, 1, 1250, pale, .6f * calm, life, 123);
-            BladeOrbit(layers, BladePlane(root, new Vector2(0, 2.75f), .36f, 8), R * .8f, 1, -1500, pale, .45f * calm, life, 122);
-            // Inner orbit: a ring of spectral swords circling the body.
+            // A deep-gold pair turning just inside the outer sweeps gives the whirl body and depth on a pale sky.
+            BladeOrbit(layers, BladePlane(root, new Vector2(0, .26f), .3f, -4), R * 1.8f, 2, 900, BladeDeepGold, .6f * calm, life, 123);
+            BladeOrbit(layers, BladePlane(root, new Vector2(0, .55f), .46f, 15), R * 1.45f, 2, -1000, light, .85f * calm, life, 125);
+            // The whirlwind climbs: narrower sweeps stacked above the head give the storm a cyclone's height.
+            BladeOrbit(layers, BladePlane(root, new Vector2(0, 1.75f), .32f, -6), R * 1.2f, 1, 1250, light, .8f * calm, life, 123);
+            BladeOrbit(layers, BladePlane(root, new Vector2(0, 2.75f), .36f, 8), R * .8f, 1, -1500, light, .65f * calm, life, 122);
+            // Inner orbit: a ring of painted spectral swords circling the body.
             var swordPlane = BladePlane(root, new Vector2(0, .42f), .62f, -10);
-            var swordInk = Attach(swordPlane, "Storm swords shadow", BladeRingSprite, R * 1.56f, BladeBronzeInk, 118, false); swordInk.spin = 600; swordInk.angle = -8;
             var swords = Attach(swordPlane, "Storm swords", BladeRingSprite, R * 1.5f, Alpha(pale, 1), 126); swords.spin = 600;
-            // Wind: fast pale streaks, and a golden vortex over a dust ring skimming the floor.
-            var wind = Attach(BladePlane(root, new Vector2(0, .7f), .4f, 7), "Storm wind", BladeWhirlSprite, R * 2.3f, new Color(1, 1, 1, .3f), 123); wind.spin = 1300;
+            // The storm's light: a gold glow behind the hero (behind the actors) and a soft glow lying on the floor, a vortex of
+            // painted wind turning on the floor, pale sand skidding round the feet and pale wind streaks higher up.
+            var aura = Attach(root, "Storm glow", glow, R * 2.6f, Alpha(light, .28f), 28, true, new Vector2(0, .5f)); aura.scale.y *= .8f; aura.pulse = .05f;
             var floor = BladePlane(root, new Vector2(0, -.5f), .26f, 0);
-            var vortex = Attach(floor, "Storm vortex", swirl, R * 2.4f, Alpha(light, .5f), 116); vortex.spin = 520;
-            var dust = Attach(floor, "Storm dust ring", swirl, R * 2.5f, new Color(.5f, .38f, .24f, .5f), 113, false); dust.spin = 520; dust.angle = 40;
-            foreach (var clip in new[] { swordInk, swords, wind, vortex, dust }) { BladeZoneFade(clip, life); layers.Add(clip); }
-            // Sparks flung off the rim, glints along it and dust skidding round the feet.
+            var floorGlow = Attach(floor, "Storm floor glow", glow, R * 2.8f, Alpha(light, .4f), 26); floorGlow.pulse = .06f;
+            var vortex = Attach(floor, "Storm vortex", swirl, R * 2.3f, Alpha(light, .75f), 27); vortex.spin = 700;
+            var dust = Attach(floor, "Storm dust ring", BladeWhirlSprite, R * 2.5f, new Color(.9f, .8f, .64f, .5f), 113, false); dust.spin = 560; dust.angle = 40;
+            var dust2 = Attach(floor, "Storm dust ring", BladeWhirlSprite, R * 2.1f, new Color(.9f, .8f, .64f, .4f), 113, false); dust2.spin = 640; dust2.angle = 220;
+            var wind = Attach(BladePlane(root, new Vector2(0, .75f), .4f, 7), "Storm wind", BladeWhirlSprite, R * 2.3f, Alpha(pale, .3f), 123); wind.spin = 1300;
+            foreach (var clip in new[] { swords, aura, floorGlow, vortex, dust, dust2, wind }) { BladeZoneFade(clip, life); layers.Add(clip); }
+            // Needle sparks flung off the rim, flecks along it, gusts spiralling up and dust skidding round the feet.
             int tick = 0;
-            Emitter(heart, 46, 0, (owner, p) =>
+            Emitter(heart, 42, 0, (owner, p) =>
             {
                 tick++;
                 float phi = Range(0, 360) * Mathf.Deg2Rad, cos = Mathf.Cos(phi), sin = Mathf.Sin(phi);
                 Vector2 on = p + new Vector2(cos * R, sin * R * .3f - .03f), tangent = new Vector2(-sin, cos * .3f).normalized;
                 if (tick % 6 == 0)
-                    Puff(new Vector2(on.x, p.y - .82f), Range(.5f, .85f), BladeDust, tangent * Range(1.5f, 3) + Vector2.up * Range(.3f, .9f), Range(.45f, .7f), 118);
+                    Puff(new Vector2(on.x, p.y - .82f), Range(.5f, .85f), tick % 12 == 0 ? BladeSoot : BladeDust, tangent * Range(1.5f, 3) + Vector2.up * Range(.3f, .9f), Range(.45f, .7f), 118);
                 else if (tick % 5 == 0)
                 {
                     // A gust spiralling up the cyclone wall.
                     Vector2 wall = p + new Vector2(cos * R * .55f, -.5f + sin * .15f), rise = (tangent * 3.5f + Vector2.up * 6).normalized;
-                    var gust = BladeCutLine(wall, wall + rise * Range(.9f, 1.5f), Range(.07f, .13f), tick % 2 == 0 ? new Color(1, 1, 1, .75f) : Alpha(light, .85f), Range(.24f, .34f), 124);
+                    var gust = BladeCutLine(wall, wall + rise * Range(.9f, 1.5f), Range(.1f, .16f), tick % 2 == 0 ? Color.white : Alpha(light, 1), Range(.22f, .32f), 124);
                     gust.velocity = rise * Range(5, 8) + tangent * 2; gust.fadeIn = .03f; gust.fadePower = 1.3f;
                 }
-                else if (tick % 4 == 0) Glint(on, Range(.5f, .9f), Color.white, .14f, Range(0, 90));
-                else Spark(on, tangent * Range(6, 11) + (on - p).normalized * 1.5f, tick % 3 == 0 ? Color.white : light, Range(.22f, .38f), Range(.18f, .3f), 2, 2.4f);
+                else if (tick % 4 == 0)
+                {
+                    var mote = Spawn("Storm fleck", fleck, on, Range(.4f, .65f), Color.white, .14f, true, 131);
+                    mote.angle = Range(-20, 20); mote.startScale = .3f; mote.endScale = 1; mote.ease = 4; mote.fadePower = 1.4f;
+                }
+                else Spark(on, tangent * Range(6, 11) + (on - p).normalized * 1.5f, tick % 3 == 0 ? Color.white : light, Range(.26f, .4f), Range(.18f, .3f), 2, 2.4f);
             });
             if (grade >= 2)
             {
                 // Level two: a second ring of swords turns the other way higher on the body and the cyclone climbs taller.
                 var plane2 = BladePlane(root, new Vector2(0, 1f), .5f, 12);
-                var ring2Ink = Attach(plane2, "Storm counter swords shadow", BladeRingSprite, R * 1.2f, BladeBronzeInk, 118, false);
-                var ring2 = Attach(plane2, "Storm counter swords", BladeRingSprite, R * 1.15f, Alpha(Color.Lerp(pale, Warm, .5f), .7f), 126);
-                foreach (var clip in new[] { ring2Ink, ring2 }) { clip.scale.x *= -1; clip.spin = -760; clip.angle = 50; BladeZoneFade(clip, life); layers.Add(clip); }
-                BladeOrbit(layers, BladePlane(root, new Vector2(0, 3.65f), .4f, -10), R * .6f, 1, 1800, pale, .38f, life, 121);
+                var ring2 = Attach(plane2, "Storm counter swords", BladeRingSprite, R * 1.15f, Alpha(Color.Lerp(pale, Warm, .5f), .85f), 126);
+                ring2.scale.x *= -1; ring2.spin = -760; ring2.angle = 50; BladeZoneFade(ring2, life); layers.Add(ring2);
+                BladeOrbit(layers, BladePlane(root, new Vector2(0, 3.65f), .4f, -10), R * .6f, 1, 1800, pale, .45f, life, 121);
             }
             if (grade >= 3)
             {
                 // Level three, awakened: a gold-white crown turns over the cyclone, and wind streaks and dust rush in along the
                 // floor from as far as the storm drags enemies (1.6 times its reach) toward the caster.
                 var crownPlane = BladePlane(root, new Vector2(0, 3.2f), .3f, 0);
-                var crownInk = Attach(crownPlane, "Storm crown shadow", runeRing, 2.75f, Alpha(BladeBronzeInk, .6f), 116, false);
+                var crownGlow = Attach(crownPlane, "Storm crown glow", glow, 3.2f, Alpha(BladeAwakeGold, .45f), 121);
                 var crown = Attach(crownPlane, "Storm crown", runeRing, 2.6f, Alpha(BladeAwakeGold, .95f), 127);
-                foreach (var clip in new[] { crownInk, crown }) { clip.spin = 260; BladeZoneFade(clip, life); layers.Add(clip); }
+                foreach (var clip in new[] { crownGlow, crown }) { clip.spin = 260; BladeZoneFade(clip, life); layers.Add(clip); }
                 var pull = Attach(root, "Storm suction", glow, .1f, new Color(0, 0, 0, 0), 110);
                 BladeZoneFade(pull, life); layers.Add(pull);
                 float outer = Mathf.Max(radius * 1.6f, R + .8f), inner = R * .3f; int beat = 0;
-                Emitter(pull, 36, 0, (owner, p) =>
+                Emitter(pull, 32, 0, (owner, p) =>
                 {
                     if (owner.age > owner.life - .3f) return;
                     beat++;
@@ -1036,19 +1278,18 @@ namespace PrototypeLab.Roguelike
                     float speed = Range(8, 11), travel = Mathf.Clamp((x - inner) / speed, .12f, .45f);
                     if (beat % 3 == 0)
                     {
-                        // Dust skidding in along the floor: a dark scuff streak with a puff kicked up behind it, as if dragged.
-                        Vector2 foot = new Vector2(o.x + side * x, floorY + .1f), pull = new Vector2(-side, 0);
-                        var skid = BladeCutLine(foot - pull * Range(1.4f, 2.2f), foot, Range(.3f, .4f), new Color(.4f, .3f, .2f, .6f), travel, 117, false);
-                        skid.velocity = pull * speed; skid.fadeIn = .04f; skid.hold = .5f; skid.fadePower = 1.4f;
-                        var drift = Puff(foot + new Vector2(0, .12f), Range(.5f, .75f), BladeDust, pull * Range(4, 6) + Vector2.up * Range(.1f, .4f), Range(.4f, .55f), 118);
+                        // Dust skidding in along the floor: a pale scuff streak with a puff kicked up behind it, as if dragged.
+                        Vector2 foot = new Vector2(o.x + side * x, floorY + .1f), toward = new Vector2(-side, 0);
+                        var skid = BladeBeamLine(foot - toward * Range(1.4f, 2.2f), foot, Range(.3f, .4f), new Color(.82f, .7f, .54f, .55f), travel, 117, false);
+                        skid.velocity = toward * speed; skid.fadeIn = .04f; skid.hold = .5f; skid.fadePower = 1.4f;
+                        var drift = Puff(foot + new Vector2(0, .12f), Range(.5f, .75f), BladeDust, toward * Range(4, 6) + Vector2.up * Range(.1f, .4f), Range(.4f, .55f), 118);
                         drift.drag = 1.2f; drift.endScale = 1.6f; return;
                     }
-                    // A wind streak with a dark core rushing in toward the caster at body height.
+                    // A wind streak rushing in toward the caster at body height.
                     float y = floorY + Range(.35f, 1.8f), len = Range(1.4f, 2.3f);
                     Vector2 head = new Vector2(o.x + side * x, y), dir = new Vector2(-side, Range(-.05f, .05f));
-                    var ink = BladeCutLine(head - dir * len * 1.05f, head, .38f, new Color(.32f, .16f, .02f, .62f), travel, 116, false);
-                    var lit = BladeCutLine(head - dir * len, head, Range(.2f, .3f), beat % 4 == 1 ? new Color(1, 1, 1, .9f) : Alpha(BladeAwakeGold, .95f), travel, 123);
-                    foreach (var clip in new[] { ink, lit }) { clip.velocity = dir * speed; clip.fadeIn = .04f; clip.hold = .55f; clip.fadePower = 1.5f; }
+                    var lit = BladeBeamLine(head - dir * len, head, Range(.24f, .34f), beat % 4 == 1 ? Color.white : Alpha(BladeAwakeGold, 1), travel, 123);
+                    lit.velocity = dir * speed; lit.fadeIn = .04f; lit.hold = .55f; lit.fadePower = 1.5f;
                 });
             }
             Bundle(root, heart, layers.ToArray());
@@ -1056,114 +1297,95 @@ namespace PrototypeLab.Roguelike
 
         // ---------------------------------------------------------------- DashStrike: blazing dash and iaido flash cut
 
+        /// <summary>The push-off of a dash: a forward needle beam of glare over a bloom, a sonic ring, a spark flaring at the hip,
+        /// the floor cracking and pale wind and dust blasted out behind.</summary>
+        private void BladeDashLaunch(Vector2 pos, Vector2 feet, int f, Color cyan, float delay, bool full)
+        {
+            var glare = BladeBeamLine(pos + new Vector2(-f * 1.2f, -.05f), pos + new Vector2(f * 3.2f, .05f), .5f, Alpha(Color.Lerp(cyan, Color.white, .25f), 1), .14f, 131);
+            glare.startScale = .5f; glare.endScale = 1.1f; glare.ease = 5; glare.fadePower = 1.4f; BladeDelay(glare, delay);
+            var boom = ShockFlip(pos + new Vector2(f * .5f, 0), 2.9f, Alpha(cyan, 1), .24f, 130);
+            boom.angle = 0; boom.scale.x *= .38f; boom.startScale = .3f; boom.endScale = 1.1f; boom.ease = 3; BladeDelay(boom, delay);
+            BladeStar(pos + new Vector2(f * .3f, -.1f), 1.7f, Color.white, Alpha(cyan, .5f), .1f, 132, delay);
+            if (!full) return;
+            var kickScar = Decal(feet + Vector2.up * .02f, crack, 2.8f, new Color(.16f, .3f, .62f, .45f), .9f, false, 25); BladeDelay(kickScar, delay);
+            var kickGlow = Decal(feet + Vector2.up * .03f, crack, 2.8f, Alpha(cyan, 1), .55f, true, 26); kickGlow.fadePower = 1.8f; BladeDelay(kickGlow, delay);
+            var kickRing = GroundWave(feet + Vector2.up * .05f, 3.4f, Alpha(cyan, .9f), .3f); BladeDelay(kickRing, delay);
+            BladeKick(feet + new Vector2(-f * .2f, .4f), new Vector2(-f, .35f), .6f, BladeWind, BladeShare(3), .45f, 126, delay);
+            int kicks = BladeShare(3);
+            for (int i = 0; i < kicks; i++)
+            {
+                var puff = Puff(feet + new Vector2(-f * Range(0, .5f), .2f), Range(.6f, .9f), BladeDust, new Vector2(-f * Range(3, 6), Range(.6f, 1.6f)), Range(.4f, .6f), 118);
+                puff.endScale = 2.2f; BladeDelay(puff, delay);
+            }
+        }
+
         private void CastDashStrike(CastInfo c)
         {
             int f = c.facing; float w = c.windup, release = Mathf.Max(0, w - .02f);
             Vector2 pos = c.pos, feet = new Vector2(pos.x, BladeGroundY(pos, 1)), hip = pos + new Vector2(-f * .25f, -.25f), eye = pos + new Vector2(f * .16f, .52f);
-            Color cyan = Color.Lerp(BladeCyan, c.light, .3f), aura = new Color(.04f, .16f, .52f, .62f);
+            Color cyan = BladeDashHue(c.light);
             if (w < .2f)
             {
-                // An instant echo: the blade's gleam at the hip, a glare and a sonic ring as the body launches.
-                var quickGleam = Anchored(c.anchor, hip + new Vector2(f * .4f, .08f), "Dash quick gleam", BladeCutSprite, 2.4f, new Color(1, 1, 1, .95f), w + .05f, 128);
-                quickGleam.angle = f > 0 ? 18 : 162; quickGleam.startScale = .3f; quickGleam.endScale = 1.2f; quickGleam.ease = 1.5f; quickGleam.fadePower = 1.5f;
-                var quickGlare = Spawn("Dash quick glare", streak, pos + new Vector2(f * .6f, 0), 5f, new Color(1, 1, 1, .9f), .12f, true, 131);
-                quickGlare.scale.y *= .45f; quickGlare.startScale = .4f; quickGlare.endScale = 1.2f; quickGlare.ease = 3; quickGlare.fadePower = 1.5f; BladeDelay(quickGlare, release);
-                var quickRing = Spawn("Dash quick ring", ring, pos + new Vector2(f * .5f, 0), 2.6f, Alpha(cyan, .9f), .2f, true, 130);
-                quickRing.scale.x *= .38f; quickRing.startScale = .3f; quickRing.endScale = 1.1f; quickRing.ease = 3; quickRing.fadePower = 1.3f; BladeDelay(quickRing, release);
+                // An instant echo: the blade's gleam at the hip, then the launch glare and a sonic ring as the body breaks away.
+                var quickGleam = Anchored(c.anchor, hip + new Vector2(f * .4f, .08f), "Dash quick gleam", BladeCutSprite, 2.4f, Alpha(cyan, 1), w + .05f, 128);
+                quickGleam.angle = f > 0 ? 18 : 162; quickGleam.scale.y *= .7f; quickGleam.startScale = .3f; quickGleam.endScale = 1.2f; quickGleam.ease = 1.5f; quickGleam.fadePower = 1.5f;
+                BladeDashLaunch(pos, feet, f, cyan, release, false);
                 return;
             }
-            // A dark battle aura: a deep-blue halo behind the crouched body and blue smoke boiling tight round it.
-            BladeBackShade(pos + Vector2.up * .2f, 4.2f, new Color(.02f, .07f, .3f, .55f), w + .08f, 1.15f);
+            // A battle aura: deep cobalt smoke boiling tight round the crouched body (behind the actors) over a blue glow, with
+            // flame licks of blue and cobalt light climbing through it, longer and denser with the level.
+            int grade = Grade; float lift = BladeLevel(1.15f, 1.3f);
             int smokes = BladeShare(6);
             for (int i = 0; i < smokes; i++)
             {
                 float side = i % 2 == 0 ? 1 : -1, delay = Range(0, w * .5f);
-                var smoke = Puff(pos + new Vector2(side * Range(.35f, .7f), Range(-.8f, .35f)), Range(1.1f, 1.6f), aura, new Vector2(side * Range(.1f, .35f), Range(.9f, 1.8f)), Mathf.Clamp(w - delay + .05f, .15f, .5f), 29);
+                var smoke = Puff(pos + new Vector2(side * Range(.35f, .7f), Range(-.8f, .35f)), Range(1, 1.5f), new Color(.24f, .46f, 1, .42f), new Vector2(side * Range(.1f, .35f), Range(.9f, 1.8f)), Mathf.Clamp(w - delay + .05f, .15f, .5f), 27);
                 smoke.drag = 1; smoke.startScale = .6f; smoke.endScale = 1.4f; BladeDelay(smoke, delay);
             }
-            // A cyan column of battle aura rises behind the body (behind the actors) and swells until the dash.
-            int grade = Grade; float lift = BladeLevel(1.15f, 1.3f);
-            var columnInk = BladeColumn(c.anchor, feet, 2.9f, 4.4f * lift, new Color(.02f, .1f, .38f, .55f), w + .04f, 28, false);
-            var column = BladeColumn(c.anchor, feet, 2.3f, 5f * lift, Alpha(cyan, .9f), w + .04f, 29);
-            foreach (var clip in new[] { columnInk, column }) { clip.axisStart = new Vector2(.4f, .2f); clip.axisEnd = Vector2.one; clip.ease = 1.2f; clip.fadeIn = .04f; clip.hold = .92f; clip.fadePower = 3; }
-            column.pulse = .07f;
-            var auraLight = Anchored(c.anchor, pos + Vector2.up * .1f, "Dash charge aura", glow, 2.2f, Alpha(cyan, .3f), w + .04f, 120);
-            auraLight.fadeIn = .05f; auraLight.startScale = .5f; auraLight.endScale = 1.2f; auraLight.ease = 1; auraLight.pulse = .1f; auraLight.hold = .9f; auraLight.fadePower = 2.5f;
-            Emitter(auraLight, 56, .1f, (owner, p) =>
-            {
-                // Aura flame licks: needles of light shooting up the body's outline, thicker and longer as the dash nears.
-                float charged = Mathf.Clamp01(owner.age / Mathf.Max(.05f, w));
-                if (!Chance(.35f + .65f * charged)) return;
-                float side = Chance(.5f) ? 1 : -1;
-                Vector2 at = p + new Vector2(side * Range(.25f, .7f), Range(-1f, .2f)), rise = new Vector2(-side * Range(0, .25f), 1).normalized;
-                var lick = BladeCutLine(at, at + rise * Range(.6f, 1.2f) * (.7f + .5f * charged), Range(.12f, .22f), Chance(.3f) ? Color.white : Alpha(cyan, 1), Range(.14f, .22f), 121);
-                lick.velocity = rise * Range(3, 5.5f); lick.fadeIn = .03f; lick.fadePower = 1.3f;
-            });
-            // The sheathed blade at the hip swells with light right up to the draw; the eyes flash just before the dash.
-            var charge = Anchored(c.anchor, hip, "Dash charge", glow, 1.8f, Alpha(cyan, .95f), w + .04f, 126);
-            charge.fadeIn = .03f; charge.startScale = .3f; charge.endScale = 1.6f; charge.ease = 1; charge.pulse = .12f; charge.hold = .92f; charge.fadePower = 3;
-            var spark = Anchored(c.anchor, hip, "Dash charge core", core, .45f, Color.white, w + .03f, 127);
-            spark.startScale = .4f; spark.endScale = 1.4f; spark.ease = 1; spark.pulse = .2f; spark.hold = .92f; spark.fadePower = 2;
-            var gleam = Anchored(c.anchor, hip + new Vector2(f * .4f, .08f), "Dash blade gleam", BladeCutSprite, 2.4f, new Color(1, 1, 1, .95f), w + .03f, 128);
-            gleam.angle = f > 0 ? 18 : 162; gleam.startScale = .25f; gleam.endScale = 1.2f; gleam.ease = 1.2f; gleam.hold = .9f; gleam.fadePower = 2;
+            BladeAuraLicks(c.anchor, pos, feet.y, w, cyan, BladeCobalt, 30 * lift, 1.05f * lift, .75f);
+            // The sheathed blade at the hip: a white star swelling on it and the drawn edge gleaming longer up to the draw; the
+            // eyes flash just before the dash.
+            var spark = Anchored(c.anchor, hip, "Dash charge star", fleck, 1.1f, Color.white, w + .03f, 127);
+            spark.startScale = .25f; spark.endScale = 1.25f; spark.ease = 1; spark.pulse = .15f; spark.spin = 220; spark.hold = .9f; spark.fadePower = 2;
+            var gleam = Anchored(c.anchor, hip + new Vector2(f * .4f, .08f), "Dash blade gleam", BladeCutSprite, 2.4f, Alpha(cyan, 1), w + .03f, 128);
+            gleam.angle = f > 0 ? 18 : 162; gleam.scale.y *= .75f; gleam.startScale = .25f; gleam.endScale = 1.2f; gleam.ease = 1.2f; gleam.hold = .9f; gleam.fadePower = 2;
             if (grade >= 2)
             {
                 // Higher levels: the drawn edge burns longer and, awakened, gold-white along its length.
-                var gild = Anchored(c.anchor, hip + new Vector2(f * .5f, .1f), "Dash blade gilt", BladeCutSprite, 2.4f * lift + .4f, Alpha(grade >= 3 ? BladeAwakeGold : Warm, .9f), w + .03f, 129);
-                gild.angle = f > 0 ? 18 : 162; gild.scale.y *= 1.4f; gild.startScale = .25f; gild.endScale = 1.2f; gild.ease = 1.2f; gild.hold = .9f; gild.fadePower = 2; gild.pulse = .08f;
+                var gild = Anchored(c.anchor, hip + new Vector2(f * .55f, .12f), "Dash blade gilt", BladeCutSprite, 2.4f * lift + .5f, Alpha(grade >= 3 ? BladeAwakeGold : Warm, 1), w + .03f, 129);
+                gild.angle = f > 0 ? 18 : 162; gild.scale.y *= .55f; gild.startScale = .25f; gild.endScale = 1.2f; gild.ease = 1.2f; gild.hold = .9f; gild.fadePower = 2;
             }
-            var eyeGlint = Anchored(c.anchor, eye, "Dash eye glint", glint, 1.6f, new Color(.85f, 1, 1, 1), .2f, 133);
-            eyeGlint.startScale = .2f; eyeGlint.endScale = 1; eyeGlint.ease = 4; eyeGlint.spin = 160; eyeGlint.fadePower = 1.6f; BladeDelay(eyeGlint, Mathf.Max(.04f, w - .15f));
+            BladeTwinkle(eye, 1.4f, Alpha(Color.Lerp(cyan, Color.white, .5f), 1), .2f, 0, Mathf.Max(.04f, w - .15f));
             int zaps = BladeShare(4);
             for (int i = 0; i < zaps; i++) BladeZap(pos + Inside(.9f), 1.5f, cyan, Range(.04f, w * .9f));
             // A thin line of intent runs from the hip to the target and brightens until the dash: the path the cut will take.
             if ((c.target - hip).sqrMagnitude > .25f)
             {
-                var aimInk = BladeCutLine(hip, c.target, .24f, new Color(.03f, .1f, .38f, .55f), w + .02f, 117, false);
-                var aimLine = BladeCutLine(hip, c.target, .08f, Alpha(cyan, 1), w + .02f, 128);
-                foreach (var clip in new[] { aimInk, aimLine }) { clip.fadeIn = w * .75f; clip.hold = .92f; clip.fadePower = 2; }
+                var aimGlow = BladeBloomLine(hip, c.target, .5f, Alpha(cyan, .4f), w + .02f, 127);
+                var aimLine = BladeCutLine(hip, c.target, .1f, Alpha(cyan, 1), w + .02f, 128);
+                foreach (var clip in new[] { aimGlow, aimLine }) { clip.fadeIn = w * .75f; clip.hold = .92f; clip.fadePower = 2; }
                 aimLine.flicker = .3f;
             }
-            // Ground charge: a navy ring, a cyan glow, a fast vortex and a ring of wind drawn in under the planted feet.
-            Spawn("Dash charge ground shadow", glow, feet + Vector2.up * .05f, 3.6f, new Color(.02f, .08f, .25f, .5f), w + .1f, false, 24).scale.y *= .3f;
-            GroundGlow(feet + Vector2.up * .05f, 3.2f, Alpha(cyan, .75f), w + .1f);
-            var floor = BladeFlatPlane(c.anchor, feet + Vector2.up * .08f, .28f, w + .05f);
-            var vortexInk = BladeOnPlane(floor, "Dash vortex shadow", swirl, 3.5f, BladeNavyInk, w + .05f, 25, false, -760 * f);
-            var vortex = BladeOnPlane(floor, "Dash vortex", swirl, 3.3f, Alpha(cyan, .9f), w + .05f, 27, true, -760 * f);
-            foreach (var clip in new[] { vortexInk, vortex }) { clip.startScale = .5f; clip.endScale = 1.1f; clip.ease = 2; clip.hold = .85f; }
-            var pull = GroundWave(feet + Vector2.up * .05f, 4.4f, Alpha(cyan, .8f), w * .9f); pull.startScale = 1; pull.endScale = .15f; pull.ease = 2; pull.fadeIn = .08f;
+            // The floor: a painted shock ring drawn in under the planted feet.
+            var pull = GroundWave(feet + Vector2.up * .05f, 4.4f, Alpha(cyan, .9f), w * .9f); pull.startScale = 1; pull.endScale = .15f; pull.ease = 2; pull.fadeIn = .08f;
             // Speed lines rush in from both sides and slip past the body, crowding in as the dash nears.
-            int lines = BladeShare(12);
+            int lines = BladeShare(11);
             for (int i = 0; i < lines; i++)
             {
                 float side = i % 3 == 0 ? -f : f, y = pos.y + Range(-.9f, 1f), x = pos.x + side * Range(2.2f, 4f), len = Range(1, 2.4f);
-                var line = BladeCutLine(new Vector2(x + side * len, y), new Vector2(x, y), Range(.08f, .17f), i % 3 == 1 ? Color.white : Alpha(cyan, .95f), Range(.16f, .24f), 128);
+                var line = BladeCutLine(new Vector2(x + side * len, y), new Vector2(x, y), Range(.1f, .2f), i % 3 == 1 ? Color.white : Alpha(cyan, 1), Range(.16f, .24f), 128);
                 line.velocity = new Vector2(-side * Range(9, 14), 0); line.fadeIn = .03f; line.fadePower = 1.4f;
                 BladeDelay(line, w * .75f * Mathf.Sqrt(Range(0, 1)));
             }
-            Converge(hip, Mathf.RoundToInt(12 * BladeLevel(.85f, .7f)), 2.1f, cyan, w, .5f);
-            int dusts = BladeShare(5);
+            Converge(hip, Mathf.RoundToInt(9 * BladeLevel(.85f, .7f)), 2.1f, cyan, w, .5f);
+            int dusts = BladeShare(4);
             for (int i = 0; i < dusts; i++)
             {
                 var puff = Puff(feet + new Vector2(-f * Range(.1f, .5f), .12f), Range(.4f, .65f), BladeDust, new Vector2(-f * Range(1.5f, 3), Range(.3f, .9f)), Range(.3f, .45f), 118);
                 BladeDelay(puff, Range(0, w * .5f));
             }
-            // Release: a horizontal glare and a sonic ring as the body launches; the floor cracks under the push-off and dust
-            // blasts out behind it.
-            var glare = Spawn("Dash launch glare", streak, pos + new Vector2(f * .6f, 0), 6f, new Color(1, 1, 1, .95f), .14f, true, 131);
-            glare.scale.y *= .5f; glare.startScale = .4f; glare.endScale = 1.2f; glare.ease = 3; glare.fadePower = 1.5f; BladeDelay(glare, release);
-            var boomInk = Spawn("Dash sonic ring shadow", ring, pos + new Vector2(f * .45f, 0), 3f, BladeNavyInk, .24f, false, 118);
-            var boom = Spawn("Dash sonic ring", ring, pos + new Vector2(f * .5f, 0), 2.9f, Alpha(cyan, .95f), .22f, true, 130);
-            foreach (var clip in new[] { boomInk, boom }) { clip.scale.x *= .38f; clip.startScale = .3f; clip.endScale = 1.1f; clip.ease = 3; clip.fadePower = 1.3f; BladeDelay(clip, release); }
-            var kickInk = Decal(feet + Vector2.up * .02f, crack, 2.8f, new Color(.05f, .07f, .16f, .85f), .9f, false, 25); BladeDelay(kickInk, release);
-            var kickGlow = Decal(feet + Vector2.up * .03f, crack, 2.8f, Alpha(cyan, 1), .55f, true, 26); kickGlow.fadePower = 1.8f; BladeDelay(kickGlow, release);
-            var kickRing = GroundWave(feet + Vector2.up * .05f, 3.4f, Alpha(cyan, .9f), .3f); BladeDelay(kickRing, release);
-            int kicks = BladeShare(4);
-            for (int i = 0; i < kicks; i++)
-            {
-                var puff = Puff(feet + new Vector2(-f * Range(0, .5f), .2f), Range(.6f, .9f), BladeDust, new Vector2(-f * Range(3, 6), Range(.6f, 1.6f)), Range(.4f, .6f), 118);
-                puff.endScale = 2.2f; BladeDelay(puff, release);
-            }
+            // Release: the body breaks away.
+            BladeDashLaunch(pos, feet, f, cyan, release, true);
         }
 
         private void ImpactDashStrike(Vector2 pos, float radius, Color tint, int facing)
@@ -1172,52 +1394,47 @@ namespace PrototypeLab.Roguelike
             if (facing == 0) { BladeCrossCut(pos, radius, tint); return; }
             int f = facing < 0 ? -1 : 1, grade = Grade;
             float R = Mathf.Clamp(radius, 1, 7f), k = Mathf.Clamp(R / 4.5f, .3f, 1.1f), lift = BladeLevel(1.15f, 1.3f);
-            Color cyan = Color.Lerp(BladeCyan, tint, .25f), navy = new Color(.03f, .12f, .4f, .85f);
-            float gy = BladeGroundY(pos, 1), span = Mathf.Min(2 * R, 8.6f * BladeLevel(1.12f, 1.25f)), tilt = Range(-4, 4), height = span * .34f;
-            Vector2 center = pos + new Vector2(f * span * .22f, -.1f), along = Direction(tilt) * f;
+            Color cyan = BladeDashHue(tint), deep = Alpha(BladeCobalt, .8f);
+            float gy = BladeGroundY(pos, 1), span = Mathf.Min(2 * R, 8.6f * BladeLevel(1.12f, 1.25f)), tilt = Range(-4, 4);
+            Vector2 center = pos + new Vector2(f * span * .22f, -.1f), along = Direction(tilt) * f, across = new Vector2(-along.y, along.x);
             Vector2 a0 = center - along * span * .5f, a1 = center + along * span * .5f;
             // Iaido: the flash cut lands now; the sheath clicks home at burstAt and every cut left hanging in the air bursts at once.
             // An awakened dash's crossing cut lands 0.2 s after the dash, so its sheath clicks early (0.13 s): three clean beats,
             // the dash cut, the sheath burst, then the X.
             float burstAt = grade >= 3 ? .13f : .46f, spacing = grade >= 3 ? .02f : .03f;
-            // Impact frame: for a breath the whole cut darkens (over the actors), so one white line splits a navy world:
-            // a navy band, a cyan glow band and a white razor across the whole reach.
-            var frame = BladeBackShade(center + Vector2.up * .2f, span * 1.2f, new Color(.03f, .08f, .32f, .8f), .2f, .36f);
-            frame.renderer.sortingOrder = 112; frame.fadeIn = 0; frame.fadePower = 2.5f;
-            var band = BladeInk(Line(a0 - along * .3f, a1 + along * .3f, 2.3f * lift, new Color(.03f, .12f, .4f, .9f), .36f, 117));
-            var glowBand = Line(a0, a1, .95f * lift, Alpha(cyan, 1), .3f, 129);
-            var razor = BladeCutLine(a0 - along * .4f, a1 + along * .6f, .32f * lift, Color.white, .22f, 131);
-            var cutLayers = new List<Clip> { band, glowBand, razor };
-            if (grade >= 3)
+            // The flash cut: one long slash beam across the whole reach (a blue beam with a white core and a white needle over a
+            // slightly thinner cobalt stroke and a wide blue bloom), with a thinner beam glancing off it at a slight angle.
+            BladeShade(a0 - along * .2f, a1 + along * .3f, 3f * lift, .34f, .5f);
+            var band = BladeBloomLine(a0 - along * .5f, a1 + along * .6f, 2.6f * lift, Alpha(cyan, .32f), .36f, 126);
+            var depthBeam = BladeBeamLine(a0 - along * .2f, a1 + along * .4f, 1.1f * lift, deep, .32f, 128);
+            var beam = BladeBeamLine(a0 - along * .3f, a1 + along * .45f, 1.25f * lift, Alpha(cyan, 1), .3f, 129);
+            var needle = BladeBeamLine(a0 + along * span * .15f, a1 + along * .9f, .42f * lift, Color.white, .2f, 131);
+            var glance = BladeBeamLine(a0 + along * span * .3f - across * .55f, a1 + along * .2f + across * .75f, .5f * lift, Alpha(cyan, 1), .24f, 130);
+            var cutLayers = new List<Clip> { band, depthBeam, beam, needle, glance };
+            // Awakened: a gold-white edge runs the whole cut.
+            if (grade >= 3) cutLayers.Add(BladeCutLine(a0 - along * .3f + across * .2f, a1 + along * .7f + across * .2f, .24f, Alpha(BladeAwakeGold, 1), .3f, 132));
+            foreach (var clip in cutLayers) { clip.axisStart = new Vector2(.3f, .45f); clip.axisEnd = Vector2.one; clip.ease = 9; clip.hold = .3f; clip.fadePower = 1.3f; }
+            var thread = BladeCutLine(a0, a1 + along * .3f, .12f, Alpha(cyan, 1), .75f, 128); thread.hold = .35f; thread.fadePower = 1.4f;
+            // The finisher: a giant painted crescent cut sweeping up through the reach in front of the hero, bulging forward, glowing
+            // over a blue bloom with a cobalt stroke inside it, and a white silhouette frame the moment it lands.
+            float sweepW = span * .56f, sweepH = span * .62f;
+            BladeSweep(new Vector2(pos.x + f * span * .18f, gy + sweepH * .4f), sweepW, sweepH, f > 0 ? 14 : 166, Alpha(cyan, 1), .45f, Alpha(BladeCobalt, .7f), .42f, 128, f < 0, true);
+            // Hits along the cut: sparks flaring one after the other over blue blooms with needle sparks thrown forward, a shock
+            // ring and wedge lines at the first, pale wind kicked out of the far end.
+            for (int i = 0; i < 2; i++)
             {
-                // Awakened: a gold-white edge runs the whole cut, over a second, wider glow band.
-                cutLayers.Add(BladeCutLine(a0 - along * .5f, a1 + along * .7f, .2f, Alpha(BladeAwakeGold, 1), .3f, 132));
-                cutLayers.Add(Line(a0, a1, 1.7f, Alpha(cyan, .45f), .34f, 128));
+                Vector2 at = Vector2.Lerp(a0, a1, .45f + i * .28f) + across * Range(-.2f, .5f);
+                BladeStar(at, (1.25f + .4f * k) * (i == 0 ? 1.25f : 1), i == 1 ? Alpha(cyan, 1) : Color.white, Alpha(cyan, .5f), .13f, 133, i * .04f);
+                BladeNeedles(at, f > 0 ? 8 : 172, 40, 5, 10, cyan, .32f, .46f, i * .04f);
             }
-            foreach (var clip in cutLayers) { clip.axisStart = new Vector2(.15f, 1); clip.axisEnd = Vector2.one; clip.ease = 9; clip.fadePower = 1.5f; }
-            var thread = BladeCutLine(a0, a1 + along * .3f, .1f, Alpha(cyan, .9f), .75f, 128); thread.hold = .35f; thread.fadePower = 1.4f;
-            // A wide crescent swoosh rides just above the line.
-            var ink = BladeSlashAt(center, span * .96f, height * 1.1f, tilt, new Color(.03f, .12f, .4f, .8f), .38f, false, 116);
-            var body = BladeSlashAt(center, span * .92f, height, tilt, Alpha(cyan, .95f), .3f, true, 128);
-            var edge = BladeSlashAt(center, span * .9f, height, tilt, new Color(1, 1, 1, .75f), .18f, true, 130);
-            BladeSnap(ink, 0); BladeSnap(body, 0); BladeSnap(edge, 0);
-            var glare = Spawn("Flash cut glare", streak, center, span * 1.15f, new Color(1, 1, 1, .9f), .16f, true, 132);
-            glare.scale.y *= .35f; glare.startScale = .5f; glare.endScale = 1.1f; glare.ease = 3; glare.fadePower = 1.6f;
-            Flash(pos + new Vector2(f * .7f, .1f), 2.6f * k + .6f, new Color(.9f, 1, 1, .9f), .16f);
-            ImpactLines(center + Vector2.up * .3f, R * 2.2f, new Color(.85f, 1, 1, .8f), .22f);
-            Glint(pos + new Vector2(f * .8f, .15f), 2.4f * k + .6f, Color.white, .24f);
-            Wave(center + Vector2.up * .3f, R * 1.3f, Alpha(cyan, .8f), .3f, 3);
+            var hitRing = ShockFlip(Vector2.Lerp(a0, a1, .45f), 2.6f + k, Alpha(cyan, .9f), .26f, 130); hitRing.scale.x *= .55f; hitRing.angle = 0;
+            ImpactLines(Vector2.Lerp(a0, a1, .55f) + Vector2.up * .3f, R * 1.3f, new Color(.7f, .9f, 1, .6f), .18f);
+            BladeKick(a1 - along * .8f, along + Vector2.up * .3f, .6f, BladeWind, BladeShare(3), .45f, 126);
             // The strike's reach on the floor: a ring centred where the dash ends, its rim on the gameplay radius.
-            GroundWave(new Vector2(pos.x, gy + .05f), R * 2 / .74f, Alpha(cyan, .85f), .4f);
-            if (R >= 3) ScreenFlash(center, new Color(.8f, .95f, 1, .12f), .08f);
-            int sparks = BladeShare(Mathf.RoundToInt(8 + 6 * k));
-            for (int i = 0; i < sparks; i++)
-            {
-                Vector2 at = center + new Vector2(Range(-.5f, .5f) * span, Range(0, .5f));
-                Spark(at, new Vector2(f * Range(4, 11), Range(-1.5f, 2.5f)), i % 3 == 0 ? Color.white : cyan, Range(.22f, .42f), Range(.25f, .45f), 4, 2.2f);
-            }
-            // Hanging cuts: thin lines of light snap open one after another across the area and hang there, trembling, until the
-            // sheath clicks; then each splits open into a band of cyan light with a flash, a star, sparks and drifting motes.
+            GroundWave(new Vector2(pos.x, gy + .05f), R * 2 / .74f, Alpha(cyan, .9f), .4f);
+            if (R >= 3) ScreenFlash(center, new Color(.8f, .95f, 1, .1f), .08f);
+            // Hanging cuts: thin cuts snap open one after another across the area and hang there, trembling, until the sheath
+            // clicks; then each splits open into a band of blue light with a flaring spark and needle sparks.
             // An awakened dash follows with its crossing cut, so it leaves three fewer cuts hanging here.
             int cuts = Mathf.RoundToInt(3 + 4 * k) - (grade >= 3 ? 3 : 0);
             for (int i = 0; i < cuts; i++)
@@ -1228,106 +1445,93 @@ namespace PrototypeLab.Roguelike
                 Vector2 mid = new Vector2(pos.x + f * Mathf.Lerp(-.2f, 1.05f, Mathf.Repeat(slot * 3.7f, 1)) * R * .9f + Range(-.25f, .25f), gy + Range(.4f, 2.2f));
                 float a = i % 3 == 2 ? Range(-12, 12) : (i % 2 == 0 ? Range(25, 60) : Range(-60, -25)), len = Range(3.4f, 4.8f) * (.5f + .5f * k);
                 Vector2 half = Direction(a) * len * .5f;
-                var shadow = BladeCutLine(mid - half * 1.08f, mid + half * 1.08f, 1f, navy, hang + .05f, 118, false);
-                var glowCut = BladeCutLine(mid - half * 1.04f, mid + half * 1.04f, .5f, Alpha(cyan, 1), hang + .03f, 129);
-                var cut = BladeCutLine(mid - half, mid + half, .13f, Color.white, hang + .02f, 130);
-                foreach (var clip in new[] { shadow, glowCut, cut }) { clip.axisStart = new Vector2(.08f, 1); clip.axisEnd = Vector2.one; clip.ease = 14; clip.hold = .9f; clip.fadePower = 2; BladeDelay(clip, appear); }
-                glowCut.flicker = .2f;
-                var tip = Glint(mid + half * .9f, .9f, Color.white, .12f, a); BladeDelay(tip, appear);
-                var blastInk = BladeCutLine(mid - half * 1.2f, mid + half * 1.2f, .7f, navy, .26f, 117, false);
-                var blast = BladeCutLine(mid - half * 1.15f, mid + half * 1.15f, .55f, Alpha(cyan, 1), .22f, 131);
-                var blastCore = BladeCutLine(mid - half * 1.1f, mid + half * 1.1f, .2f, Color.white, .15f, 132);
-                blastInk.axisEnd = new Vector2(1.1f, 3); blast.axisEnd = new Vector2(1.08f, 4); blastCore.axisEnd = new Vector2(1.05f, 2.5f);
-                foreach (var clip in new[] { blastInk, blast, blastCore }) { clip.axisStart = Vector2.one; clip.ease = 3; clip.fadePower = 1.6f; BladeDelay(clip, pop); }
-                if (grade < 2) { var flash = Flash(mid, .9f * (.6f + .4f * k), Alpha(cyan, .6f), .12f); BladeDelay(flash, pop); }
-                var star = Glint(mid + half * Range(-.4f, .4f), 1.7f * (.6f + .4f * k), Color.white, .22f, a); BladeDelay(star, pop);
+                var cut = BladeCutLine(mid - half, mid + half, .27f, Alpha(cyan, 1), hang + .03f, 130);
+                cut.axisStart = new Vector2(.08f, 1); cut.axisEnd = Vector2.one; cut.ease = 14; cut.hold = .9f; cut.fadePower = 2; BladeDelay(cut, appear);
+                cut.flicker = .15f;
+                var tip = Spawn("Cut tip", fleck, mid + half * .95f, .7f, Color.white, .12f, true, 131); tip.startScale = .3f; tip.ease = 4; tip.fadePower = 1.4f; BladeDelay(tip, appear);
+                var blastGlow = BladeBloomLine(mid - half, mid + half, 1.1f, Alpha(cyan, .45f), .28f, 128);
+                var blast = BladeBeamLine(mid - half * 1.15f, mid + half * 1.15f, .45f, Alpha(cyan, 1), .22f, 131);
+                blastGlow.axisEnd = new Vector2(1.08f, 2.2f); blast.axisEnd = new Vector2(1.08f, 3f);
+                foreach (var clip in new[] { blastGlow, blast }) { clip.axisStart = Vector2.one; clip.ease = 3; clip.hold = .15f; clip.fadePower = 1.4f; BladeDelay(clip, pop); }
+                BladeStar(mid + half * Range(-.4f, .4f), 1.5f * (.6f + .4f * k), Color.white, Color.clear, .16f, 132, pop);
                 // The scar of the cut lingers a moment after it bursts.
-                var after = BladeCutLine(mid - half, mid + half, .1f, Alpha(cyan, .85f), .55f, 129); after.hold = .25f; after.fadePower = 1.3f; BladeDelay(after, pop + .08f);
+                var after = BladeCutLine(mid - half, mid + half, .12f, Alpha(cyan, 1), .5f, 129); after.hold = .25f; after.fadePower = 1.3f; BladeDelay(after, pop + .08f);
                 for (int j = 0; j < (grade >= 2 ? 2 : 3); j++)
                 {
-                    var bit = Spark(mid + half * Range(-.8f, .8f), Direction(a + 90 + Range(-25, 25) + (j % 2 == 0 ? 0 : 180)) * Range(4, 9), j == 0 ? Color.white : cyan, Range(.2f, .36f), Range(.22f, .36f), 4, 2.5f);
+                    var bit = Spark(mid + half * Range(-.8f, .8f), Direction(a + 90 + Range(-25, 25) + (j % 2 == 0 ? 0 : 180)) * Range(4, 9), j == 0 ? Color.white : cyan, Range(.26f, .42f), Range(.22f, .36f), 4, 2.5f);
                     BladeDelay(bit, pop);
                 }
-                for (int j = 0; j < (grade >= 2 ? 1 : 2); j++)
-                {
-                    var mote = Spawn("Cut mote", glow, mid + half * Range(-.8f, .8f), Range(.22f, .38f), Alpha(cyan, .95f), Range(.7f, 1.05f), true, 131);
-                    mote.velocity = new Vector2(Range(-.3f, .3f), Range(.5f, 1.3f)); mote.drag = .6f; mote.flicker = .45f; mote.endScale = .3f; mote.ease = 1; mote.hold = .3f;
-                    BladeDelay(mote, pop + .05f);
-                }
             }
-            // The sheath click: a glint and a ring at the hip, then a wide ring and a last burst of impact lines over the cut area.
+            // The sheath click: a glint and a ring at the hip, then a wide ring and a last burst of wedge lines over the cut area.
             Vector2 sheath = pos + new Vector2(-f * .2f, -.25f);
-            var click = Glint(sheath, 1.5f, Color.white, .18f); BladeDelay(click, burstAt - .03f);
-            var clickRing = Wave(sheath, 1.6f, Alpha(cyan, .9f), .2f, 3); BladeDelay(clickRing, burstAt - .03f);
-            // (Awakened, the crossing cut brings its own burst a beat later, so this one stays a ring without the white lines.)
-            var finale = Wave(center + Vector2.up * .4f, R * 2f, Alpha(cyan, grade >= 3 ? .5f : .75f), .34f, 3); BladeDelay(finale, burstAt);
-            if (grade < 3) { var finaleLines = ImpactLines(center + Vector2.up * .4f, R * 2.4f, new Color(.85f, 1, 1, .75f), .24f); BladeDelay(finaleLines, burstAt); }
-            // Follow-through: a scar of light on the floor under the cut, wind and dust swept forward and a fading crescent.
-            var scarInk = BladeCutLine(new Vector2(a0.x, gy + .04f), new Vector2(a1.x, gy + .04f), .3f, new Color(.03f, .1f, .3f, .45f), 1.3f, 24, false);
-            var scar = BladeCutLine(new Vector2(a0.x, gy + .05f), new Vector2(a1.x, gy + .05f), .14f, Alpha(cyan, .95f), 1.1f, 26);
-            foreach (var clip in new[] { scarInk, scar }) { clip.axisStart = new Vector2(.2f, 1); clip.axisEnd = Vector2.one; clip.ease = 9; clip.hold = .5f; clip.fadePower = 1.5f; }
-            int dusts = BladeShare(6);
+            BladeTwinkle(sheath, 1.4f, Color.white, .18f, 20, burstAt - .03f);
+            var clickRing = Wave(sheath, 1.6f, Alpha(Color.Lerp(cyan, Color.white, .6f), 1), .2f, 3); BladeDelay(clickRing, burstAt - .03f);
+            // (Awakened, the crossing cut brings its own burst a beat later, so this one stays a ring without the wedge lines.)
+            var finale = Wave(center + Vector2.up * .4f, R * 2f, Alpha(cyan, grade >= 3 ? .5f : .8f), .34f, 3); BladeDelay(finale, burstAt);
+            if (grade < 3) { var finaleLines = ImpactLines(center + Vector2.up * .4f, R * 1.6f, new Color(.7f, .9f, 1, .6f), .22f); BladeDelay(finaleLines, burstAt); }
+            // Follow-through: a scar of light on the floor under the cut over a soft glow, and dust swept forward.
+            var scarGlow = BladeBloomLine(new Vector2(a0.x, gy + .04f), new Vector2(a1.x, gy + .04f), .55f, Alpha(cyan, .4f), 1.1f, 25);
+            var scar = BladeCutLine(new Vector2(a0.x, gy + .05f), new Vector2(a1.x, gy + .05f), .16f, Alpha(cyan, 1), 1.1f, 26);
+            foreach (var clip in new[] { scarGlow, scar }) { clip.axisStart = new Vector2(.2f, 1); clip.axisEnd = Vector2.one; clip.ease = 9; clip.hold = .5f; clip.fadePower = 1.5f; }
+            int dusts = BladeShare(5);
             for (int i = 0; i < dusts; i++)
             {
                 var puff = Puff(new Vector2(pos.x + f * Range(-.3f, 1.5f) * R * .5f, gy + .15f), Range(.55f, .95f), BladeDust, new Vector2(f * Range(1.5f, 4), Range(.3f, 1)), Range(.5f, .8f), 118);
                 puff.endScale = 2.2f;
             }
-            var linger = BladeSlashAt(center, span * .92f, height, tilt, Alpha(cyan, .45f), .8f, true, 127); linger.fadePower = 1.6f; BladeDelay(linger, .12f);
         }
 
-        /// <summary>The awakened crossing cut where a dash ended (facing 0), drawn at the moment it strikes: two long diagonal cuts
-        /// snap open one after the other into a tall X standing on the floor, its feet on the burst's reach and its crossing above
-        /// the hero's head; a cyan star flares where they cross, each cut splits open into a band of cyan light within a tenth of
-        /// a second (with the damage), and an X scar is left on the floor.</summary>
+        /// <summary>The awakened crossing cut where a dash ended (facing 0), drawn at the moment it strikes: two long diagonal slash
+        /// beams snap open one after the other into a tall X standing on the floor, its feet on the burst's reach and its crossing
+        /// above the hero's head; each rides a curved razor slash, a blast of blue light flares where they cross, each cut splits open into
+        /// a band of blue light within a tenth of a second (with the damage), and an X scar is left on the floor.</summary>
         private void BladeCrossCut(Vector2 pos, float radius, Color tint)
         {
             float r = Mathf.Clamp(radius, 1, 6), k = Mathf.Clamp(r / 4, .4f, 1.2f);
-            Color cyan = Color.Lerp(BladeCyan, tint, .25f), navy = new Color(.03f, .12f, .4f, .85f);
+            Color cyan = BladeDashHue(tint);
             float gy = BladeGroundY(pos, .8f), slope = 30, reach = Mathf.Min(r * .92f, 5.2f), half = reach / Mathf.Cos(slope * Mathf.Deg2Rad);
             float rise = half * Mathf.Sin(slope * Mathf.Deg2Rad);
             // The X stands on the floor: its lower tips touch the ground at the reach on both sides.
             Vector2 center = new Vector2(pos.x, gy + Mathf.Max(1.05f, rise - .05f));
-            BladeBackShade(center, r * 2.1f, new Color(.02f, .07f, .3f, .5f), .4f, .55f);
             for (int i = 0; i < 2; i++)
             {
-                float angle = i == 0 ? slope : -slope, appear = i * .05f, pop = .1f + i * .04f;
+                float angle = i == 0 ? slope : 180 - slope, appear = i * .05f, pop = .1f + i * .04f;
                 Vector2 d = Direction(angle) * half, a = center - d, b = center + d;
-                var ink = BladeCutLine(a - d * .05f, b + d * .05f, 1.6f * k + .35f, navy, pop - appear + .04f, 117, false);
-                var glowCut = BladeCutLine(a, b, .85f * k + .2f, Alpha(cyan, 1), pop - appear + .03f, 129);
-                var razor = BladeCutLine(a + d * .03f, b - d * .03f, .24f, Color.white, pop - appear + .02f, 131);
-                foreach (var clip in new[] { ink, glowCut, razor }) { clip.axisStart = new Vector2(.06f, 1); clip.axisEnd = Vector2.one; clip.ease = 12; clip.hold = .85f; clip.fadePower = 2; BladeDelay(clip, appear); }
-                // A curved swoosh rides each cut so it has body, not just a line.
-                var arcInk = BladeSlashAt(center, half * 1.95f, r * .5f, angle, new Color(.03f, .12f, .4f, .7f), .3f, false, 116);
-                var arc = BladeSlashAt(center, half * 1.9f, r * .45f, angle, Alpha(cyan, .85f), .26f, true, 128);
-                if (i == 1) { arcInk.scale.y *= -1; arc.scale.y *= -1; }
-                BladeSnap(arcInk, appear); BladeSnap(arc, appear);
-                var tip = Glint(b, 1.2f * k + .4f, Color.white, .16f, angle); BladeDelay(tip, appear + .02f);
+                var bloom = BladeBloomLine(a, b, 2.1f * k + .5f, Alpha(cyan, .5f), pop - appear + .1f, 127);
+                var depthBeam = BladeBeamLine(a, b, .72f * k + .16f, Alpha(BladeCobalt, .8f), pop - appear + .05f, 128);
+                var beam = BladeBeamLine(a - d * .04f, b + d * .04f, .85f * k + .2f, Alpha(cyan, 1), pop - appear + .05f, 129);
+                var razor = BladeBeamLine(a + d * .2f, b + d * .1f, .3f, Color.white, pop - appear + .04f, 131);
+                foreach (var clip in new[] { bloom, depthBeam, beam, razor }) { clip.axisStart = new Vector2(.1f, .6f); clip.axisEnd = Vector2.one; clip.ease = 12; clip.hold = .85f; clip.fadePower = 2; BladeDelay(clip, appear); }
+                // A curved razor slash rides each cut so it has body, not just a line.
+                var arc = BladeSlashAt(center, half * 1.9f, r * .45f, angle, Alpha(cyan, 1), .26f, true, 128);
+                if (i == 1) arc.scale.y *= -1;
+                BladeSnap(arc, appear);
+                BladeStar(b, 1f * k + .4f, Color.white, Alpha(cyan, .45f), .12f, 132, appear + .02f);
                 int sparks = BladeShare(4);
                 for (int j = 0; j < sparks; j++)
                 {
-                    var bit = Spark(center + d * Range(-.9f, .9f), Direction(angle + (j % 2 == 0 ? 90 : -90) + Range(-25, 25)) * Range(4, 9) * k, j % 3 == 0 ? Color.white : cyan, Range(.22f, .36f), Range(.22f, .36f), 5, 2.5f);
+                    var bit = Spark(center + d * Range(-.9f, .9f), Direction(angle + (j % 2 == 0 ? 90 : -90) + Range(-25, 25)) * Range(4, 9) * k, j % 3 == 0 ? Color.white : cyan, Range(.26f, .4f), Range(.22f, .36f), 5, 2.5f);
                     BladeDelay(bit, appear + .02f);
                 }
                 // The cut splits open: a band of light swelling across its width, then gone.
-                var blastInk = BladeCutLine(a - d * .1f, b + d * .1f, .7f, navy, .26f, 117, false);
-                var blast = BladeCutLine(a - d * .08f, b + d * .08f, .55f, Alpha(cyan, 1), .22f, 130);
-                var blastCore = BladeCutLine(a - d * .05f, b + d * .05f, .2f, Color.white, .15f, 132);
-                blastInk.axisEnd = new Vector2(1.08f, 3.2f); blast.axisEnd = new Vector2(1.06f, 4); blastCore.axisEnd = new Vector2(1.04f, 2.5f);
-                foreach (var clip in new[] { blastInk, blast, blastCore }) { clip.axisStart = Vector2.one; clip.ease = 3; clip.fadePower = 1.6f; BladeDelay(clip, pop); }
+                var blast = BladeBeamLine(a - d * .08f, b + d * .08f, .6f, Alpha(cyan, 1), .22f, 130);
+                blast.axisEnd = new Vector2(1.06f, 3.6f); blast.axisStart = Vector2.one; blast.ease = 3; blast.hold = .15f; blast.fadePower = 1.4f; BladeDelay(blast, pop);
             }
-            // Where the cuts cross: a cyan star and a ring (the awakening overlay brings the white flash and crown here).
-            var star = Glint(center, 2.2f * k + .5f, Alpha(cyan, 1), .26f, 0); star.spin = 0; BladeDelay(star, .05f);
-            var air = Wave(center, r * 1.4f, Alpha(cyan, .75f), .3f, 3); BladeDelay(air, .1f);
+            // Where the cuts cross: a blue blast of light flaring (the awakening overlay brings the crown here), a ring racing out
+            // and pale wind thrown up behind.
+            Blast(center, 1.8f * k + .9f, Alpha(cyan, 1), .34f, 131);
+            BladeStar(center, 1.6f * k + .5f, Color.white, Color.clear, .16f, 134, .05f);
+            var air = Wave(center, r * 1.4f, Alpha(cyan, .8f), .3f, 3); BladeDelay(air, .1f);
+            BladeKick(center, Vector2.up, .55f, BladeWind, BladeShare(3), .45f, 116, .05f);
             // The reach on the floor and an X scar left in it (two crossing seams in perspective).
-            var reachInk = BladeInk(Wave(new Vector2(pos.x, gy + .04f), r * 2 / .74f * 1.02f, navy, .5f, 3)); reachInk.scale.y *= .3f; reachInk.renderer.sortingOrder = 115;
             GroundWave(new Vector2(pos.x, gy + .05f), r * 2 / .74f, Alpha(cyan, .9f), .45f);
             for (int i = 0; i < 2; i++)
             {
                 float lean = i == 0 ? .14f : -.14f;
                 Vector2 s0 = new Vector2(pos.x - r * .8f, gy + .03f - lean), s1 = new Vector2(pos.x + r * .8f, gy + .03f + lean);
-                var scarInk = BladeCutLine(s0, s1, .32f, new Color(.03f, .1f, .3f, .5f), 1.2f, 24, false);
-                var scar = BladeCutLine(s0, s1, .13f, Alpha(cyan, .95f), 1f, 26);
-                foreach (var clip in new[] { scarInk, scar }) { clip.axisStart = new Vector2(.1f, 1); clip.axisEnd = Vector2.one; clip.ease = 9; clip.hold = .45f; clip.fadePower = 1.5f; BladeDelay(clip, i * .07f); }
+                var scarGlow = BladeBloomLine(s0, s1, .5f, Alpha(cyan, .4f), 1f, 25);
+                var scar = BladeCutLine(s0, s1, .15f, Alpha(cyan, 1), 1f, 26);
+                foreach (var clip in new[] { scarGlow, scar }) { clip.axisStart = new Vector2(.1f, 1); clip.axisEnd = Vector2.one; clip.ease = 9; clip.hold = .45f; clip.fadePower = 1.5f; BladeDelay(clip, i * .07f); }
             }
             int dusts = BladeShare(3);
             for (int i = 0; i < dusts; i++)
@@ -1342,53 +1546,55 @@ namespace PrototypeLab.Roguelike
         {
             Vector2 delta = to - from; float length = delta.magnitude; if (length < .05f) return;
             Vector2 d = delta / length, n = new Vector2(-d.y, d.x); float angle = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg;
-            Color cyan = Color.Lerp(BladeCyan, tint, .25f);
+            Color cyan = BladeDashHue(tint);
             int grade = Grade; float lift = BladeLevel(1.15f, 1.3f);
-            // The blazing ribbon: a navy shadow band under a cyan light band, a white-hot cut and a thin scar that lingers.
-            // Higher levels widen it; awakened, a gold-white edge runs its length.
-            var ink = BladeCutLine(from - d * .3f, to + d * .5f, 2.1f * lift, BladeNavyInk, .34f, 117, false); ink.fadePower = 1.3f;
-            var ribbon = Line(from - d * .2f, to + d * .2f, 1.05f * lift, Alpha(cyan, .85f), .3f, 128); ribbon.fadePower = 1.3f;
-            var hot = BladeCutLine(from, to + d * .5f, .34f * lift, Color.white, .2f, 130); hot.fadePower = 1.5f;
-            var linger = BladeCutLine(from, to, .1f, Alpha(cyan, .9f), .7f, 129); linger.hold = .35f; linger.fadePower = 1.4f;
-            if (grade >= 3) { var gilt = BladeCutLine(from + n * .22f, to + d * .4f + n * .22f, .12f, Alpha(BladeAwakeGold, 1), .26f, 131); gilt.fadePower = 1.4f; }
-            // Wind-cut lines slip along the ribbon and past it.
-            int cuts = BladeShare(Grade >= 3 ? 9 : 12);
+            // The dash itself: long slash beams along the path, a blue beam with a white core and a white needle over a slightly
+            // thinner cobalt stroke and a wide blue bloom, with two thinner beams streaking alongside at different heights and
+            // lengths (wider with the level).
+            BladeShade(from - d * .3f, to + d * .4f, 2.6f * lift, .36f, .4f);
+            var bloom = BladeBloomLine(from - d * .5f, to + d * .6f, 2.4f * lift, Alpha(cyan, .3f), .36f, 126);
+            var depthBeam = BladeBeamLine(from - d * .25f, to + d * .45f, .95f * lift, Alpha(BladeCobalt, .85f), .31f, 127);
+            var beam = BladeBeamLine(from - d * .35f, to + d * .5f, 1.1f * lift, Alpha(cyan, 1), .3f, 128);
+            var needle = BladeBeamLine(from + d * length * .1f, to + d * .85f, .3f * lift, Color.white, .22f, 130);
+            var upper = BladeBeamLine(from + d * length * .3f + n * .6f, to + n * .5f + d * .3f, .42f * lift, Alpha(cyan, 1), .24f, 129);
+            var lower = BladeBeamLine(from + d * length * .12f - n * .5f, to - n * .42f - d * .5f, .3f * lift, Alpha(BladeDashBlue, 1), .2f, 129);
+            var beams = new List<Clip> { bloom, depthBeam, beam, needle, upper, lower };
+            // Awakened, a gold-white edge runs its length.
+            if (grade >= 3) beams.Add(BladeCutLine(from + n * .24f, to + d * .4f + n * .24f, .16f, Alpha(BladeAwakeGold, 1), .26f, 131));
+            foreach (var clip in beams) { clip.axisStart = new Vector2(.45f, .6f); clip.axisEnd = Vector2.one; clip.ease = 8; clip.hold = .25f; clip.fadePower = 1.3f; }
+            var linger = BladeCutLine(from, to, .12f, Alpha(cyan, 1), .7f, 129); linger.hold = .35f; linger.fadePower = 1.4f;
+            // White silhouettes of the body strung along the dash, the ones behind fading first.
+            BladeGhosts(from, to, grade >= 3 ? 3 : 2);
+            // Wind-cut lines slip along the beams and past them.
+            int cuts = BladeShare(grade >= 3 ? 8 : 10);
             for (int i = 0; i < cuts; i++)
             {
                 Vector2 a = Vector2.Lerp(from, to, Range(-.1f, .7f)) + n * Range(-1, 1) * Range(.3f, 1.1f);
-                var cut = BladeCutLine(a, a + d * Range(1, 2.4f), Range(.04f, .11f), i % 3 == 0 ? Color.white : Alpha(cyan, .9f), Range(.14f, .26f), 129);
+                var cut = BladeCutLine(a, a + d * Range(1, 2.4f), Range(.07f, .15f), i % 3 == 0 ? Color.white : Alpha(cyan, 1), Range(.14f, .26f), 129);
                 cut.velocity = d * Range(5, 10); cut.fadePower = 1.4f; BladeDelay(cut, Range(0, .06f));
             }
-            // Sonic rings strung along the path.
+            // A sonic ring where the body broke away and another midway.
             for (int i = 0; i < 2; i++)
             {
-                Vector2 at = Vector2.Lerp(from, to, .15f + i * .35f);
-                var shadow = Spawn("Dash sonic ring shadow", ring, at - d * .08f, 2.3f - i * .3f, BladeNavyInk, .26f, false, 118);
-                var boom = Spawn("Dash sonic ring", ring, at, 2.2f - i * .3f, Alpha(cyan, .9f), .24f, true, 130);
-                foreach (var clip in new[] { shadow, boom }) { clip.scale.x *= .34f; clip.angle = angle; clip.startScale = .35f; clip.endScale = 1.15f; clip.ease = 3; clip.fadePower = 1.3f; BladeDelay(clip, i * .04f); }
+                var boom = ShockFlip(Vector2.Lerp(from, to, .12f + i * .38f), 2.2f - i * .3f, Alpha(cyan, 1), .26f, 130);
+                boom.scale.x *= .34f; boom.angle = angle; boom.startScale = .35f; boom.endScale = 1.15f; boom.ease = 3; BladeDelay(boom, i * .04f);
             }
-            // Ghost glows of the body along the path, fading from the start.
-            for (int i = 0; i < 4; i++)
-            {
-                var ghost = Spawn("Dash ghost light", glow, Vector2.Lerp(from, to, .15f + i * .22f), 1.1f, Alpha(cyan, .5f), .18f + i * .04f, true, 127);
-                ghost.scale.y *= 1.6f; ghost.fadePower = 1.4f;
-            }
-            // Sparks thrown off the ribbon and dust kicked from the floor beneath it.
-            int sparks = BladeShare(12);
+            // Kick-off (the cast's launch brings the spark): pale wind torn off behind and needle sparks flung back off the beam.
+            BladeKick(from - d * .3f, -d + Vector2.up * .4f, .55f, BladeWind, BladeShare(3), .45f, 126);
+            int sparks = BladeShare(10);
             for (int i = 0; i < sparks; i++)
             {
                 Vector2 at = Vector2.Lerp(from, to, Range(0, 1)) + n * Range(-.35f, .35f);
-                Spark(at, -d * Range(1, 4) + n * Range(-4, 4) + Vector2.up * Range(0, 2), i % 3 == 0 ? Color.white : cyan, Range(.16f, .3f), Range(.2f, .4f), 6, 2);
+                Spark(at, -d * Range(1, 4) + n * Range(-4, 4) + Vector2.up * Range(0, 2), i % 3 == 0 ? Color.white : cyan, Range(.22f, .36f), Range(.2f, .4f), 6, 2);
             }
             float gy = BladeGroundY(from, .95f);
-            int dusts = BladeShare(Mathf.Clamp(Mathf.RoundToInt(length * 1.3f), 2, 8));
+            int dusts = BladeShare(Mathf.Clamp(Mathf.RoundToInt(length * 1.1f), 2, 7));
             for (int i = 0; i < dusts; i++)
             {
                 float t = (i + .5f) / dusts;
                 var dust = Puff(new Vector2(Mathf.Lerp(from.x, to.x, t), gy + .12f), Range(.45f, .75f), BladeDust, new Vector2(d.x * Range(.8f, 2.2f), Range(.4f, 1.2f)), Range(.4f, .6f), 118);
                 BladeDelay(dust, t * .05f);
             }
-            Flash(from, 2, new Color(.85f, 1, 1, .75f), .12f);
         }
     }
 }

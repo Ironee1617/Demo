@@ -21,7 +21,7 @@ namespace PrototypeLab.Roguelike
         {
             public string id, kind; public int art;
             public float[] bodyPivot, front, back, extra, shoulder; public int[] bob, card;
-            public float top, rest, reach, arm; public bool offhand, oneHand, weaponBehind, thrown;
+            public float top, rest, reach, arm, secondGrip; public bool offhand, oneHand, weaponBehind, thrown;
         }
         sealed class Sheet { public Layout layout; public Sprite[] body; public Sprite front, back, weapon, offhand, card; }
 
@@ -95,7 +95,7 @@ namespace PrototypeLab.Roguelike
         Layout layout;
         Transform flip, pose, frontPivot, backPivot, weaponPivot, offhandPivot, fistGrip;
         Transform[] extraPivots;
-        SpriteRenderer bodyView, weaponView;
+        SpriteRenderer bodyView, weaponView, backView;
         SpriteRenderer[] views;
         float gait, weaponAlpha = 1, restArm;
         bool posed, released;
@@ -135,7 +135,7 @@ namespace PrototypeLab.Roguelike
             }
             // Gods that hold the weapon behind the body (Zeus) bring the free fist across the front instead.
             bool behind = layout.weaponBehind;
-            if (!layout.oneHand) list.Add(View(backPivot, sheet.back, behind ? 37 : 33));
+            if (!layout.oneHand) { backView = View(backPivot, sheet.back, behind ? 37 : 33); list.Add(backView); }
             bodyView = View(pose, sheet.body[0], 35); list.Add(bodyView);
             frontPivot = Child("Front fist", pose);
             weaponPivot = Child("Weapon", frontPivot);
@@ -266,7 +266,14 @@ namespace PrototypeLab.Roguelike
             }
 
             // A weapon raised behind the head passes behind the body instead of across the face.
-            weaponView.sortingOrder = layout.weaponBehind ? 33 : Mathf.DeltaAngle(layout.rest, angle) > 50 ? 34 : 36;
+            bool raised = !layout.weaponBehind && Mathf.DeltaAngle(layout.rest, angle) > 50;
+            weaponView.sortingOrder = layout.weaponBehind ? 33 : raised ? (layout.secondGrip != 0 ? 33 : 34) : 36;
+            // A two-handed weapon (Sun Wukong's staff) keeps the back fist on its shaft, just over the weapon.
+            if (layout.secondGrip != 0 && backView != null)
+            {
+                back = front + (Vector2)(Quaternion.Euler(0, 0, angle) * new Vector3(0, layout.secondGrip, 0));
+                backView.sortingOrder = weaponView.sortingOrder + 1;
+            }
             pose.localPosition = Px(body.x, body.y);
             pose.localRotation = Quaternion.Euler(0, 0, tilt);
             frontPivot.localPosition = Px(front.x, front.y);

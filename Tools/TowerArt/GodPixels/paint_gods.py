@@ -7,6 +7,8 @@ Each god becomes one 16-cell strip (96 px cells) in Resources/Tower/Myths/Pixel/
 14 off-hand item, 15 card portrait. Gods.json carries pivots, grips and the rest pose
 that TowerGodPixelArt animates at run time. Zeus keeps chuchuking's idle frames,
 fists and lightning bolt; only his run/jump/hurt frames are derived from them.
+Odin and Sun Wukong are posed from chuchuking's Spine characters (spinekit.py) with his
+fists and weapons from Assets/RogueLike/Character/Weapons.
 """
 import argparse
 import json
@@ -24,11 +26,14 @@ import body
 import extras
 import hair
 import heads
+import spinekit
 import weapons
 from gods import GODS, SKINS, EYES, GOLD, SILVER
 
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 ZEUS_DIR = os.path.join(ROOT, 'Assets', 'RogueLike', 'Character', 'Zeus')
+SPINE_DIR = os.path.join(ROOT, 'Assets', 'RogueLike', 'Character', 'Spine')
+GEAR_DIR = os.path.join(ROOT, 'Assets', 'RogueLike', 'Character', 'Weapons')
 OUT_DIR = os.path.join(ROOT, 'Assets', 'Demos', 'Roguelike', 'Resources', 'Tower', 'Myths', 'Pixel')
 CELL = 96
 BODY_OFFSET = (17, 10)          # where the 61x75 body frame sits inside a cell
@@ -210,20 +215,24 @@ def portrait(body_cell, front, back, weapon, offhand, layout):
     def held():
         out.alpha_composite(rotate_about_grip(weapon, layout['rest']), at(layout['front']))
         out.alpha_composite(front, at(layout['front']))
+        if layout['secondGrip']:
+            a = math.radians(layout['rest'])
+            d = layout['secondGrip']
+            out.alpha_composite(back, at((round(layout['front'][0] - d * math.sin(a)), round(layout['front'][1] + d * math.cos(a)))))
 
     behind = layout['weaponBehind']
     for i in range(0, len(layout['extra']), 2):
         out.alpha_composite(back, at(layout['extra'][i:i + 2]))
     if offhand is not None:
         out.alpha_composite(offhand, at(layout['back']))
-    if not layout['oneHand'] and not behind:
+    if not layout['oneHand'] and not behind and not layout['secondGrip']:
         out.alpha_composite(back, at(layout['back']))
     if behind:
         held()
     out.alpha_composite(body_cell, (int(round(origin[0] - layout['bodyPivot'][0])), int(origin[1] - layout['bodyPivot'][1])))
     if behind:
         # The free fist crosses in front of the body while the weapon hand stays behind it.
-        if not layout['oneHand']:
+        if not layout['oneHand'] and not layout['secondGrip']:
             out.alpha_composite(back, at(layout['back']))
     else:
         held()
@@ -320,6 +329,81 @@ def zeus_frames():
     return frames
 
 
+# chuchuking's Spine characters are posed on their animation keys, 2/15 s apart: idle and run straight from
+# his Idle and Run, jump and fall from his Jump, hurt from idle frame 2 with the eyes squeezed shut. The free
+# arm (slot arm0) becomes the back fist, so it is left out of the body.
+SPINE_KEY = 2 / 15.0
+SPINE_POSES = [('Idle', 0), ('Idle', 1), ('Idle', 2), ('Idle', 3), ('Run', 0), ('Run', 1), ('Run', 2), ('Run', 3),
+               ('Jump', 0), ('Jump', 2), ('Idle', 2)]
+# His 61x75 weapon canvases share the body frame and put the grip on this pixel; his 20x25 arms hold a
+# weapon across (10, 12) like Zeus's Arm1 and rest the free hand on (9, 10) like Zeus's Arm0.
+WEAPON_GRIP = (30, 38)
+FRONT_ARM_GRIP = (10, 12)
+BACK_ARM_GRIP = (9, 10)
+
+
+def gear_image(name):
+    return Image.open(os.path.join(GEAR_DIR, name + '.png')).convert('RGBA')
+
+
+def held_cell(image, grip):
+    """A fist or weapon cell with the sprite pixel `grip` on the cell's grip pixel."""
+    cell = Image.new('RGBA', (CELL, CELL))
+    cell.alpha_composite(image, (GRIP - grip[0], GRIP - grip[1]))
+    return cell
+
+
+def head_sink(body, reference):
+    """Rows the head moved down from `reference` (body slot only), found by aligning the head rows."""
+    def mask(img, top):
+        return [a > 0 for a in img.crop((0, top, CELL, top + 30)).getchannel('A').tobytes()]
+    ref = mask(reference, 20)
+    return min(range(-6, 7), key=lambda dy: sum(a != b for a, b in zip(ref, mask(body, 20 + dy))))
+
+
+def squeeze_eyes(cell, dy, eyes):
+    """chuchuking's faces share Zeus's eye rows: shut the named eyes ('left', 'right') and open the mouth."""
+    px = cell.load()
+    ox, oy = BODY_OFFSET[0], BODY_OFFSET[1] + dy
+    skin = px[ox + 31, oy + 34]
+    lash = None
+    boxes = {'left': range(27, 31), 'right': range(33, 37)}
+    for side in eyes:
+        for y in range(33, 36):
+            for x in boxes[side]:
+                p = px[ox + x, oy + y]
+                if p[3] and p[:3] != skin[:3]:
+                    if y == 33 and lash is None:
+                        lash = p
+                    px[ox + x, oy + y] = skin
+    lash = lash or (11, 14, 28, 255)
+    marks = {'left': ((27, 33), (28, 34), (29, 34), (27, 35)), 'right': ((36, 33), (35, 34), (34, 34), (36, 35))}
+    for side in eyes:
+        for x, y in marks[side]:
+            px[ox + x, oy + y] = lash
+    mouth = px[ox + 31, oy + 37]
+    if mouth[3] and mouth[:3] != skin[:3]:
+        for x, y in ((31, 37), (32, 37), (31, 38), (32, 38)):
+            px[ox + x, oy + y] = mouth
+
+
+def spine_body(g):
+    """Body cells and the upper-body sink of each, posed from chuchuking's Spine character."""
+    char = spinekit.Character(SPINE_DIR, g['spine'])
+    root = (BODY_OFFSET[0] + PIVOT_X, BODY_OFFSET[1] + GROUND)
+    cells, sink, first = [], [], None
+    for anim, key in SPINE_POSES:
+        t = key * SPINE_KEY + 1e-3
+        cells.append(char.render(anim, t, (CELL, CELL), root, skip=('arm0',)))
+        torso = char.render(anim, t, (CELL, CELL), root, only=('0',))
+        first = first or torso
+        sink.append(head_sink(torso, first))
+    hurt = len(SPINE_POSES) - 1
+    squeeze_eyes(cells[hurt], sink[hurt], g.get('hurt_eyes', ('left', 'right')))
+    back = held_cell(char.images['arm0'], BACK_ARM_GRIP) if 'arm0' in char.images else None
+    return cells, sink, back
+
+
 def build(g):
     if g['id'] == 'zeus':
         frames = zeus_frames()
@@ -334,6 +418,17 @@ def build(g):
         weapon = Image.new('RGBA', (CELL, CELL))
         grip = (30, 38)
         weapon.alpha_composite(bolt, (GRIP - grip[0], GRIP - grip[1]))
+        tip = grip[1] - bolt.getbbox()[1]
+        offhand = None
+    elif g.get('spine'):
+        body_cells, spine_sink, back = spine_body(g)
+        frames = [c.crop((BODY_OFFSET[0], BODY_OFFSET[1], BODY_OFFSET[0] + 61, BODY_OFFSET[1] + 75)) for c in body_cells]
+        front = held_cell(gear_image(g['front_arm']), FRONT_ARM_GRIP)
+        if g.get('back_arm'):
+            back = held_cell(gear_image(g['back_arm']), FRONT_ARM_GRIP)
+        bolt = gear_image(g['weapon_art'])
+        grip = g.get('weapon_grip', WEAPON_GRIP)
+        weapon = held_cell(bolt, grip)
         tip = grip[1] - bolt.getbbox()[1]
         offhand = None
     else:
@@ -353,7 +448,7 @@ def build(g):
         'bodyPivot': [round(body_pivot[0], 2), body_pivot[1]],
         'pivot': [0, 0],
         'top': HEAD_TOP,
-        'bob': bob(g),
+        'bob': spine_sink if g.get('spine') else bob(g),
         'front': list(g.get('front') or [x + reach for x, reach in zip(FRONT_BY_KIND.get(kind, FRONT_HAND), (wide, 0))]),
         'back': list(g.get('back') or [x + reach for x, reach in zip(BACK_HAND, (-wide, 0))]),
         'rest': g.get('rest', REST_ANGLE[kind]),
@@ -365,8 +460,10 @@ def build(g):
         'shoulder': list(g.get('shoulder', ())),
         'arm': g.get('arm', 0),
         'extra': [v for e in EXTRA_HANDS[:g.get('extra_hands', 0)] for v in e],
+        # A second hand on the weapon (Sun Wukong's staff): art pixels from the grip toward the far end.
+        'secondGrip': g.get('second_grip', 0),
     }
-    cells = [cell_of_body(f) for f in frames]
+    cells = body_cells if g.get('spine') else [cell_of_body(f) for f in frames]
     cells += [front, back, weapon, offhand or Image.new('RGBA', (CELL, CELL))]
     cells.append(portrait(cells[0], front, back, weapon, offhand, layout))
     # Card portraits are a fixed window: x, y from the cell bottom, width, height.
@@ -383,6 +480,18 @@ def build(g):
 # 8 px arm from the shoulder at the top of his torso (column 35, row 42) and turns with it.
 ZEUS = dict(id='zeus', art=105, kind='throw', weapon_behind=True, thrown=True, front=(8, 9), back=(-7, 12), rest=-110,
             shoulder=(4, 13), arm=8)
+
+# chuchuking's Spine Odin and Sun Wukong replace their generated looks on Zeus's arm layout (his rig puts the
+# free hand where Zeus's rests). Odin keeps Gungnir behind him with the free hand in front of the body;
+# Wukong grips his staff in both hands. Their gods.py entries still name the palette for effects.
+SPINE_GODS = {
+    # Gungnir is gripped low on the shaft so the leaning spear clears the floor.
+    'odin': dict(spine='Odin', front_arm='Odin_arm', weapon_art='Odin_weapon', weapon_grip=(30, 54), hurt_eyes=('left',),
+                 weapon_behind=True, front=(8, 9), back=(-7, 12), rest=-20, shoulder=(4, 13), arm=8),
+    # The staff is gripped a little below its middle so a raised staff's lower end stays near the floor.
+    'sun_wukong': dict(spine='Wukong', front_arm='Wukong_arm0', back_arm='Wukong_arm1', weapon_art='Wukong_weapon',
+                       weapon_grip=(30, 48), front=(8, 9), back=(-7, 12), rest=-70, shoulder=(4, 13), arm=8, second_grip=-8),
+}
 
 
 def preview(results, path, scale=4):
@@ -406,7 +515,7 @@ def main():
     ap.add_argument('--out', default=OUT_DIR)
     ap.add_argument('--no-write', action='store_true')
     args = ap.parse_args()
-    roster = [ZEUS] + GODS
+    roster = [ZEUS] + [dict(g, **SPINE_GODS.get(g['id'], {})) for g in GODS]
     roster.sort(key=lambda g: g['art'])
     only = set(filter(None, args.only.split(',')))
     results, layouts = [], []

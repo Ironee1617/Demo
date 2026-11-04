@@ -160,7 +160,7 @@ namespace PrototypeLab.Roguelike
                 "층을 클리어할 때마다 최대 체력 {v}% 추가 회복", value: .3f),
 
             P(PassiveKind.Nimble, "zodiac_rat", "기민한 척후", "열두 수호자 가운데 가장 먼저 도착한 날랜 척후.",
-                "순간 회피 판정 +{vn}초 · 순간 회피하면 회피 대기시간 초기화", value: .1f),
+                "순간 회피 판정 +{vn}초 · 순간 회피하면 3초에 한 번 대시 충전 모두 회복", value: .1f),
             P(PassiveKind.Endure, "zodiac_ox", "황소의 인내", "묵묵히 걸어 끝내 도착하는 인내의 거신.",
                 "피격될 때마다 {d}초간 방어력 +{vn} (최대 {k}중첩)", value: 6, duration: 4, stacks: 5),
             P(PassiveKind.Roar, "zodiac_tiger", "산군의 포효", "산을 다스리는 군주의 울음에 짐승들이 엎드린다.",
