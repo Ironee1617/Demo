@@ -14,6 +14,7 @@ Shader "Aquarium/Living Reef"
   #pragma target 3.0
   #include "UnityCG.cginc"
   #include "CoralPaint.cginc"
+  #include "AquariumCurrent.cginc"
   sampler2D _Caustics;fixed4 _Color;half _Sway,_Soft,_PolypDetail,_Smoothness,_Pattern,_Fluoro;
   float _AquariumPreviewTime,_AquariumPreviewTimeEnabled;
   float ReefTime(){return lerp(_Time.y,_AquariumPreviewTime,_AquariumPreviewTimeEnabled);}
@@ -21,9 +22,12 @@ Shader "Aquarium/Living Reef"
   void vert(inout appdata_full v,out Input o) {
    UNITY_INITIALIZE_OUTPUT(Input,o);o.tissue=v.texcoord.xy;
    float weight=v.texcoord1.x,phase=v.texcoord1.y,t=ReefTime();
-   float2 wave=float2(sin(t*.91+phase+v.vertex.y*.58)*.20+sin(t*1.43+phase)*.035,cos(t*.72+phase+v.vertex.y*.41)*.13);
-   v.vertex.xz+=_Sway*weight*wave;
-   v.normal.xz+=_Sway*weight*.045*float2(cos(t*.91+phase),sin(t*.72+phase));
+   // R85: the shared current (AquariumCurrent.cginc): lean, swell, flutter, curling tentacles, leaning away from swimmers.
+   float3 restWorld=mul(unity_ObjectToWorld,v.vertex).xyz;
+   float3 bend=AquariumSway(restWorld,v.texcoord.y,weight,phase,_Sway,_Soft,t);
+   v.vertex.xyz+=bend;v.normal.xz+=bend.xz*.18;
+   // Soft bodies breathe a little (the column and the tentacle roots, not the tips).
+   v.vertex.xyz+=v.normal*(_Soft*.004*sin(t*1.25+phase*.37+restWorld.y*3)*(1-saturate(abs(weight)*8)));
    // R68: never a zero normal or tangent (NaN after normalize, a black square after the bloom).
    if(dot(v.normal,v.normal)<1e-12)v.normal=float3(0,1,0);if(dot(v.tangent.xyz,v.tangent.xyz)<1e-12)v.tangent=float4(abs(v.normal.y)<.9?normalize(cross(float3(0,1,0),v.normal)):float3(1,0,0),1);
   }

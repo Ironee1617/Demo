@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace PrototypeLab.Aquarium
@@ -51,6 +51,7 @@ namespace PrototypeLab.Aquarium
 
         private static AquariumSceneryLayout BuildTwin(int seed)
         {
+            if (AquariumMaps.IsTutorial) return BuildTutorial(seed);   // R78b: the tutorial tank's fixed dressing (AquariumTutorialMap.cs)
             var layout = new AquariumSceneryLayout(seed, new float[AquariumMonolithLayout.Groups.Length], new float[0]);
             layout.Map = AquariumMaps.IsGrotto ? AquariumMaps.Grotto : AquariumMaps.Twin;   // R73: the grotto shares this
             int baseSeed = seed == 0 ? 5701 : seed;

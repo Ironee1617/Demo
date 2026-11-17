@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace PrototypeLab.Aquarium
@@ -7,17 +7,17 @@ namespace PrototypeLab.Aquarium
     // and the AI that plays the drains.
     public sealed partial class AquariumModel
     {
-        public const float HideSeconds = 20f;
-        public const float AlienAbilityCooldown = 60f, InkBombSeconds = 5f, InkBombRadius = 10f;   // R73d: ink 7 -> 10 m
-        public const float InvisibleSeconds = 5f, InvisibleFadeSeconds = .7f;
-        public const float ShockRadius = 9f, ShockStun = 4f;   // R73d: shock 6 -> 9 m
-        public const float DashDistance = 6f, DashSeconds = .35f, DashCooldown = 30f;
-        public const float BlueStillSeconds = 3f;
-        public const float DiverAbilityDelay = 180f, XraySeconds = 10f, XrayCooldown = 60f;
+        public static float HideSeconds = 20f;
+        public static float AlienAbilityCooldown = 60f, InkBombSeconds = 5f, InkBombRadius = 10f;   // R73d: ink 7 -> 10 m
+        public static float InvisibleSeconds = 5f, InvisibleFadeSeconds = .7f;
+        public static float ShockRadius = 9f, ShockStun = 4f;   // R73d: shock 6 -> 9 m
+        public static float DashDistance = 6f, DashSeconds = .35f, DashCooldown = 30f;
+        public static float BlueStillSeconds = 3f;
+        public static float DiverAbilityDelay = 180f, XraySeconds = 10f, XrayCooldown = 60f;
         // R49: the harpoon only counts a hit that goes properly through the body (core of the old hit volume),
         // and the body is then skewered on the shaft. Shared with the aiming camera through FishHitTime / PlayerHitTime.
-        public const float HitCore = .8f;
-        public const int CorpseScore = 10;
+        public static float HitCore = .8f;
+        public static int CorpseScore = 10;
         public static bool StarvedCorpse(Swimmer p) { return p != null && !p.alive && !p.escaped && !p.collected && p.deathReason == "starved"; }
         private void Skewer(Harpoon h, Point centre, float radius)
         {
@@ -28,26 +28,40 @@ namespace PrototypeLab.Aquarium
             h.catchDepth = radius * .95f + Math.Max(0, Point.Dot(h.position - centre, axis) - radius * .95f);
             h.catchOffset = axis * -h.catchDepth;
         }
-        public const int XrayUses = 3, GlueUses = 1, FeedsPerGame = 3;
-        public const float DroneSpeed = 3.4f, DroneWanderSpeed = 1.4f, DroneLeash = 4f;
+        public static int XrayUses = 3, GlueUses = 1, FeedsPerGame = 3;
+        public static float DroneSpeed = 3.4f, DroneWanderSpeed = 1.4f, DroneLeash = 4f;
         // Scores (R47 table).
-        public const int ScrewScore = 5, LastEscapeBonus = 20, FishScore = 5, AllyEatScore = -10, EggLayScore = 10, EggBreakScore = 10;
-        public const int CatchScore = 30, CaughtScore = -20, MisfireScore = -5, TeamWinScore = 40, WipedOutBonus = 20, LoseScore = -20;
+        public static int ScrewScore = 5, LastEscapeBonus = 20, FishScore = 5, AllyEatScore = -10, EggLayScore = 10, EggBreakScore = 10;
+        public static int CatchScore = 30, CaughtScore = -20, MisfireScore = -5, TeamWinScore = 40, WipedOutBonus = 20, LoseScore = -20;
 
         public static bool IsKind(Swimmer p, int kind) { return p != null && p.team == Team.Hider && p.alienKind == kind; }
         public static bool IsDiver(Swimmer p, int kind) { return p != null && p.team == Team.Seeker && p.diverKind == kind; }
 
-        public static float HungerMax(Swimmer p) { return IsKind(p, 1) ? 120f : IsKind(p, 2) ? 80f : HungerSeconds; }
-        public static float StaminaMax(Swimmer p) { return IsKind(p, 1) ? 120f : IsDiver(p, 1) ? 80f : MaxStamina; }
-        public static int HitsToKill(Swimmer p) { return IsKind(p, 1) ? 3 : 2; }
-        public static float MealRecoveryOf(Swimmer p) { return MealRecovery + (IsKind(p, 1) ? 10f : 0f); }
+        public static float HungerMax(Swimmer p) { return HungerCap; }   // R86: 100 for every alien (no per-kind stomach)
+        // R76b: the per-character numbers are tunable fields (Aquarium/밸런스 조정 툴).
+        public static float KeeperHarpoonRange = 8f, TrackerHarpoonRange = 5f, DroneHarpoonRange = 8f;
+        public static float KeeperHarpoonSpeed = 1f, TrackerHarpoonSpeed = 1f, DroneHarpoonSpeed = 1.2f;
+        public static float TrackerStamina = 80f, DiverSprintBoost = .6f, TrackerSprintBoost = .76f;
+        public static float GreenStamina = 120f, RedStunScale = .7f;
+        public static int AlienHits = 2, GreenHits = 3;
+        public static float StaminaMax(Swimmer p) { return IsKind(p, 1) ? GreenStamina : IsDiver(p, 1) ? TrackerStamina : MaxStamina; }
+        public static int HitsToKill(Swimmer p) { return IsKind(p, 1) ? GreenHits : AlienHits; }
+        public static float MealRecoveryOf(Swimmer p) { return HungerPerMeal; }   // R86: +30 for every alien
         public static int EggFoodFor(Swimmer p) { return IsKind(p, 0) ? 8 : EggFoodRequired; }
-        public static float HatchSecondsFor(Swimmer p) { return IsKind(p, 0) ? 40f : HatchSeconds; }
-        public static float StunScale(Swimmer p) { return IsKind(p, 4) ? .7f : 1f; }
+        public static float HatchSecondsFor(Swimmer p) { return IsKind(p, 0) ? PurpleHatchSeconds : HatchSeconds; }
+        public static float StunScale(Swimmer p) { return IsKind(p, 4) ? RedStunScale : 1f; }
         public static float LidSecondsFor(Swimmer p) { return IsKind(p, 4) ? 6f : LidSeconds; }
-        public static float SprintBoost(Swimmer p) { return IsDiver(p, 1) ? .76f : .6f; }
-        public static float HarpoonRangeOf(Swimmer p) { return p != null && p.team == Team.Seeker ? AquariumDiverKinds.Get(p.diverKind).harpoonRange : HarpoonRange; }
-        public static float HarpoonSpeedOf(Swimmer p) { return HarpoonSpeed * (p != null && p.team == Team.Seeker ? AquariumDiverKinds.Get(p.diverKind).harpoonSpeedScale : 1f); }
+        public static float SprintBoost(Swimmer p) { return IsDiver(p, 1) ? TrackerSprintBoost : DiverSprintBoost; }
+        public static float HarpoonRangeOf(Swimmer p)
+        {
+            if (p == null || p.team != Team.Seeker) return HarpoonRange;
+            return p.diverKind == 1 ? TrackerHarpoonRange : p.diverKind == 2 ? DroneHarpoonRange : KeeperHarpoonRange;
+        }
+        public static float HarpoonSpeedOf(Swimmer p)
+        {
+            if (p == null || p.team != Team.Seeker) return HarpoonSpeed;
+            return HarpoonSpeed * (p.diverKind == 1 ? TrackerHarpoonSpeed : p.diverKind == 2 ? DroneHarpoonSpeed : KeeperHarpoonSpeed);
+        }
         public static bool HasAlienAbility(Swimmer p) { return p != null && p.team == Team.Hider && p.alienKind != 1; }
         public static float AlienAbilityCooldownOf(Swimmer p) { return IsKind(p, 4) ? DashCooldown : AlienAbilityCooldown; }
         public static float DiverAbilityAt(float huntAt) { return huntAt + DiverAbilityDelay; }
@@ -197,18 +211,19 @@ namespace PrototypeLab.Aquarium
             }
         }
 
-        // Blue alien: holding still for 3 s stops the hunger drain.
+        // Blue alien: how long it has held still (its R73 hunger pause is not back in R86: passives leave hunger alone).
         private void TickStill(Swimmer p, Point move, float dt)
         {
             bool still = move.Length < .05f && p.velocity.Length < .25f;
             p.stillFor = still ? p.stillFor + dt : 0;
-            if (IsKind(p, 2) && p.stillFor >= BlueStillSeconds) p.lastMealAt = Math.Min(Time, p.lastMealAt + dt);
+            // R75: the blue passive (hunger stops while still) went with the hunger
         }
 
         // ---- Endings -------------------------------------------------------------------------------------
         private void CheckWinner()
         {
             if (Phase != RoundPhase.Playing) return;
+            if (Tutorial) { EndsAt = Time + 599f; return; }   // R78b: a tutorial has no endings and no clock
             // Finish the last retrieval before freezing the round, including the four-second death view.
             if (Harpoons.Exists(h => h.stowedAt > Time)) return;
             bool inside = Players.Exists(p => p.team == Team.Hider && p.alive);
@@ -345,11 +360,11 @@ namespace PrototypeLab.Aquarium
             return best;
         }
 
-        // Alien AI: eat below 40% hunger, disguise and run from a diver within 8 m (or one looking at it),
+        // Alien AI (R86): eat first under half hunger (a starving one leaves its drain and bites on the run), disguise and run from a diver within 8 m (or one looking at it),
         // work the most advanced drain while the diver is more than 15 m away, otherwise drift among fish.
         private SwimInput AlienBot(Swimmer p)
         {
-            float hunger = HungerLeft(p, Time) / HungerMax(p);
+            float hunger = HungerLeft(p, Time) / Math.Max(1f, HungerMax(p)); bool canEat = !Full(p, Time, EndsAt), starving = hunger < .2f;   // R86: 1 = full
             float diverDistance; var diver = NearestSeeker(p.position, out diverDistance);
             bool seen = diver != null && InAim(diver, p.position, 12.001f) && !Hidden(p, Time);
             bool danger = diver != null && Time >= HuntAt && (diverDistance < 8f || seen);
@@ -357,11 +372,11 @@ namespace PrototypeLab.Aquarium
             // R68: eggs are laid only in the alien form. A disguised bot drops its disguise to lay only when no diver is
             // within 14 m (and does not disguise again meanwhile); otherwise it keeps the egg for later.
             bool lay = EggsReady(p) > 0 && !danger && (p.species < 0 || diverDistance > 14f);
-            if ((p.drainTask == DrainTask.Screw || p.drainTask == DrainTask.Lid) && p.drainIndex >= 0 && p.drainIndex < drains.Length)
+            if ((p.drainTask == DrainTask.Screw || p.drainTask == DrainTask.Lid) && p.drainIndex >= 0 && p.drainIndex < drains.Length && !(starving && canEat && !danger))
             {
                 int part = p.drainTask == DrainTask.Lid ? DrainLidPart : p.drainScrew;
                 var s = Go(p, p.position, 0, DrainPartPoint(drains[p.drainIndex], part) - p.position);
-                if (danger || hunger < .25f) { s.interact = true; s.interactDrain = p.drainIndex; s.interactPart = part; }
+                if (danger) { s.interact = true; s.interactDrain = p.drainIndex; s.interactPart = part; }
                 return s;
             }
             Prey food = null; float foodDistance = float.MaxValue;
@@ -373,9 +388,10 @@ namespace PrototypeLab.Aquarium
                 if (p.alienKind == 4 && ability) aim = away;
                 var s = Go(p, p.position + away * 4f + new Point(0, .3f, 0), .9f, aim);
                 s.morph = p.species < 0 && food != null && foodDistance < 9f; s.sprint = diverDistance < 5f; s.ability = ability;
+                s.action = starving && canEat && food != null && foodDistance < 1.72f && Time >= HuntAt;   // R86: a starving bot bites on the run
                 return s;
             }
-            if (food != null && (hunger < .4f || diver == null))
+            if (food != null && canEat && (hunger < .5f || diver == null))   // R86: under half full it eats first
             {
                 var s = Go(p, food.position, .75f, food.position - p.position);
                 s.action = foodDistance < 1.72f && Time >= HuntAt; s.morph = p.species < 0 && diverDistance < 18f; LayInAlienForm(p, s, lay);
@@ -395,7 +411,7 @@ namespace PrototypeLab.Aquarium
             }
             var target = AquariumMaps.Layout((float)Math.Sin(Time * 0.23f + p.id) * 10, 3 + (float)Math.Sin(Time * 0.3f + p.id) * 1.5f, (float)Math.Cos(Time * 0.31f + p.id) * 6);
             var w = Go(p, target, .55f, food != null ? food.position - p.position : target - p.position);
-            w.morph = p.species < 0 && food != null && foodDistance < 9f; LayInAlienForm(p, w, lay);
+            w.morph = p.species < 0 && food != null && foodDistance < 9f; w.action = canEat && hunger < .8f && food != null && foodDistance < 1.72f && Time >= HuntAt; LayInAlienForm(p, w, lay);
             return w;
         }
 

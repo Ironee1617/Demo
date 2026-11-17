@@ -4,7 +4,7 @@ using UnityEngine;
 namespace PrototypeLab.Aquarium
 {
     // R73: the new sound set (synthesised WAVs in Resources/AquariumAudio, the old procedural tones stay as the
-    // fallback), the starving warning (below 20% hunger: a blurry red border that breathes, and the stomach growls),
+    // fallback), the starving warning (R86: hunger 30 or less: a blurry red border that breathes, and the stomach growls),
     // and the lobby's "fill the empty seats with AI" switch.
     public sealed partial class AquariumGame
     {
@@ -13,6 +13,8 @@ namespace PrototypeLab.Aquarium
         private AudioClip growlSound;
         private Texture2D starveTexture;
         private bool starving;
+        private AudioSource growlSource;   // R86: its own source, so the growl stops the moment hunger is back over 30
+        private const string StarveLine = "배가 너무 고파요!  물고기를 먹어야 해요";
         private float growlAt, growlPlayedAt = -100;
 
         // Called at the end of Awake: every key that has a file uses it.
@@ -33,16 +35,19 @@ namespace PrototypeLab.Aquarium
                 screwSource = gameObject.AddComponent<AudioSource>();
                 screwSource.clip = screw; screwSource.loop = true; screwSource.playOnAwake = false; screwSource.spatialBlend = 0; screwSource.volume = 0;
             }
+            LoadRealSounds();   // R74: the recorded set overrides these (AquariumGameR74.cs)
         }
 
+        // R86: the warning is the alien's own: its player, or a spectator watching it. Other aliens never get it
+        // (aliens share only alive or dead and lives).
         private bool Starving(Swimmer p, AquariumSnapshot state)
         {
-            return p != null && !session.IsSpectator && p.id == session.LocalId && p.alive && p.team == Team.Hider && p.swallowedBy == 0
-                && state.phase == RoundPhase.Playing && state.time >= state.huntAt
-                && AquariumModel.HungerLeft(p, state.time) < AquariumModel.HungerMax(p) * AquariumModel.StarvingFraction;
+            if (p == null || state == null || state.phase != RoundPhase.Playing || state.time < state.huntAt) return false;
+            bool mine = session.IsSpectator ? p.id == session.SpectatingId : p.id == session.LocalId;
+            return mine && AquariumModel.HungerWarning(p, state.time);
         }
 
-        // Update: the growl when hunger first drops under 20%, then every few seconds while it stays there.
+        // Update (UpdateHungerWarning): the growl when hunger first drops to 30, then every few seconds while it stays there.
         private AudioSource screwSource;
         private const float ScrewHearing = 9f;   // R73i: heard only close by (it was the drain hearing distance, 25 m)
         // R73b: while an alien works a screw, its ratchet loops: full for the one doing it, fading out over the
@@ -80,8 +85,16 @@ namespace PrototypeLab.Aquarium
             bool now = state != null && Starving(Local(), state);
             if (now && !starving) growlAt = Time.unscaledTime;
             starving = now;
-            if (!now || pause || Time.unscaledTime < growlAt) return;
-            if (growlSound != null) audioSource.PlayOneShot(growlSound, .9f);
+            // R86: over 30 again, dead or out of the tank: the growl stops at once.
+            if (!now) { if (growlSource != null && growlSource.isPlaying) growlSource.Stop(); return; }
+            if (pause || Time.unscaledTime < growlAt || growlSound == null) return;
+            if (growlSource == null)
+            {
+                growlSource = gameObject.AddComponent<AudioSource>();
+                growlSource.playOnAwake = false; growlSource.loop = false; growlSource.spatialBlend = 0;
+                growlSource.outputAudioMixerGroup = audioSource.outputAudioMixerGroup;
+            }
+            growlSource.clip = growlSound; growlSource.volume = audioSource.volume * .9f; growlSource.Play();
             growlPlayedAt = Time.unscaledTime;
             growlAt = Time.unscaledTime + Random.Range(4.5f, 6.5f);
         }
@@ -91,8 +104,8 @@ namespace PrototypeLab.Aquarium
         {
             if (!Starving(p, state) || Event.current.type != EventType.Repaint) return;
             if (starveTexture == null) starveTexture = StarveTexture();
-            float max = AquariumModel.HungerMax(p), left = AquariumModel.HungerLeft(p, state.time);
-            float severity = 1 - Mathf.Clamp01(left / (max * AquariumModel.StarvingFraction));
+            float warn = Mathf.Max(1f, AquariumModel.HungerWarnAt), left = AquariumModel.HungerLeft(p, state.time);
+            float severity = 1 - Mathf.Clamp01(left / warn);   // R86: 0 at 30, 1 at 0
             float since = Time.unscaledTime - growlPlayedAt, swell = since < 1.8f ? Mathf.Sin(Mathf.Clamp01(since / 1.8f) * Mathf.PI) : 0;
             float breathe = .5f + .5f * Mathf.Sin(Time.unscaledTime * 2.1f);
             float alpha = Mathf.Clamp01(.42f + .38f * severity + .12f * breathe + .25f * swell);
@@ -103,7 +116,8 @@ namespace PrototypeLab.Aquarium
             GUI.DrawTexture(new Rect((width - w) / 2, (height - h) / 2, w, h), starveTexture, ScaleMode.StretchToFill, true);
             GUI.color = old;
             // the reason, small, above the vitals
-            Label(24, height - 196, 260, 22, "배가 너무 고파요!  물고기를 먹어야 해요", Tinted(small, new Color(1f, .55f, .5f)));
+            var why = Tinted(small, new Color(1f, .55f, .5f));
+            Label(24, height - 196, Measure(why, StarveLine).x + 6, 22, StarveLine, why);
         }
 
         // A soft rounded-rect vignette with smoky blotches (low resolution, so stretching blurs it further).

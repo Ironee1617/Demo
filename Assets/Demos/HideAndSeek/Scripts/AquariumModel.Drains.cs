@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace PrototypeLab.Aquarium
 {
@@ -17,13 +17,13 @@ namespace PrototypeLab.Aquarium
     //    wedged in the hole). The screws stay loose, so the aliens only have to drag the lid again.
     public sealed partial class AquariumModel
     {
-        public const float ScrewSeconds = 20f, LidSeconds = 10f, SqueezeSeconds = 10f, CoverSeconds = 4f;
+        public static float ScrewSeconds = 20f, LidSeconds = 10f, SqueezeSeconds = 10f, CoverSeconds = 4f;
         // R28: the diver sees where an alien got out (the "escape" effect) for this long, through walls.
-        public const float EscapeMarkSeconds = 10f;
-        public const float ScrewReach = 2.6f, LidReach = 2.7f, HoleReach = 2.6f, CoverReach = 3.0f, DrainSlack = .6f;
-        public const int EscapeScore = 20;
+        public static float EscapeMarkSeconds = 10f;
+        public static float ScrewReach = 2.6f, LidReach = 2.7f, HoleReach = 2.6f, CoverReach = 3.0f, DrainSlack = .6f;
+        public static int EscapeScore = 20;
         // Interaction parts: 0-5 screws, then the lid and the open hole.
-        public const int DrainLidPart = 6, DrainHolePart = 7;
+        public static int DrainLidPart = 6, DrainHolePart = 7;
         // Where an alien hovers while it squeezes in: its rounded hull just touching the mouth.
         public const float SqueezeHover = .55f * AquariumFishTraits.AlienSizeRatio, SqueezeSettleSeconds = .6f;
 

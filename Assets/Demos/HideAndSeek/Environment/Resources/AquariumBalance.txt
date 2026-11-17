@@ -1,0 +1,6 @@
+# Aquarium balance (Aquarium/밸런스 조정 툴). Only values that differ from the code are kept.
+DiverAbilityDelay=120
+FeedRadius=7
+HarpoonSpeed=30
+HarpoonRange=8
+DartRange=20

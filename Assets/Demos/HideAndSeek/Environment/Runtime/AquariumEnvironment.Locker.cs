@@ -5,15 +5,12 @@ using UnityEngine.Rendering;
 
 namespace PrototypeLab.Aquarium
 {
-    // R60: one fish-guide poster on the changing-room wall.
-    public struct LockerPoster { public Texture2D image; public string title, line1, line2; public Color tint; }
-
     public static partial class AquariumEnvironment
     {
         // R60: the divers' changing room (AquariumLockerRoom), built once at run time at the room's origin: tiled floor and
         // walls, a closed ceiling with three light panels, numbered lockers on two walls, a long bench, towels and the
-        // double door to the dive hall, and the fish guide (one poster per species, with picture lights) on the front wall.
-        public static GameObject LockerRoom(Transform parent, IList<LockerPoster> posters)
+        // double door to the dive hall. R81: the fish guide posters are gone; the front wall is plain.
+        public static GameObject LockerRoom(Transform parent)
         {
             var o = AquariumLockerRoom.Origin;
             var root = new GameObject("DIVER CHANGING ROOM | closed, dry"); root.transform.SetParent(parent, false);
@@ -35,7 +32,7 @@ namespace PrototypeLab.Aquarium
             }
             // walls: tiled dado with a teal band, painted upper wall, a cornice; ceiling
             Wall(tiles, paint, new Vector3(-W, 0, D), new Vector3(W, 0, D), H);      // back
-            Wall(tiles, paint, new Vector3(W, 0, -D), new Vector3(-W, 0, -D), H);    // front (fish guide)
+            Wall(tiles, paint, new Vector3(W, 0, -D), new Vector3(-W, 0, -D), H);    // front
             Wall(tiles, paint, new Vector3(-W, 0, -D), new Vector3(-W, 0, D), H);    // left
             Wall(tiles, paint, new Vector3(W, 0, D), new Vector3(W, 0, -D), H);      // right (door)
             Flat(paint, new Vector3(-W - .1f, H, -D - .1f), new Vector3(W + .1f, H, D + .1f), C(0xe7ecec), 1);
@@ -50,7 +47,7 @@ namespace PrototypeLab.Aquarium
             int number = 1;
             for (int i = 0; i < 13; i++) Locker(metal, paint, new Vector3(-4.16f + .32f + i * .64f, 0, D - .26f), Quaternion.Euler(0, 180, 0), i % 2 == 0 ? C(0x2e7fa8) : C(0x3995ba), root.transform, number++);
             for (int i = 0; i < 7; i++) Locker(metal, paint, new Vector3(-W + .26f, 0, -2.3f + .32f + i * .64f), Quaternion.Euler(0, 90, 0), i % 2 == 0 ? C(0x2a8a8f) : C(0x34a0a3), root.transform, number++);
-            // R70b: no room-name signs on the walls (the 탈의실 / 입수장 / 어종 도감 captions were removed on request).
+            // R70b: no room-name signs on the walls (the room-name captions were removed on request).
 
             // bench in front of the back lockers
             var bench = AquariumLockerRoom.Bench;
@@ -80,36 +77,6 @@ namespace PrototypeLab.Aquarium
             {
                 metal.Box(new Vector3(W - .2f, 1.95f, -2.1f), new Vector3(.32f, .03f, 1.6f), C(0xb8c1c4), Quaternion.identity);
                 paint.Box(new Vector3(W - .2f, 2.03f, -2.6f + i * .5f), new Vector3(.22f, .12f, .18f), i == 1 ? C(0xf2c94c) : C(0x2b3236), Quaternion.Euler(0, 0, 10));
-            }
-
-            // front wall: the fish guide
-            int count = posters == null ? 0 : posters.Count;
-            float pw = count > 0 ? Mathf.Min(1.15f, 9.2f / count - .14f) : 1, gap = .14f, total = count * pw + Mathf.Max(0, count - 1) * gap;
-            for (int i = 0; i < count; i++)
-            {
-                var poster = posters[i]; float cx = total / 2 - pw / 2 - i * (pw + gap);   // left to right as seen from inside
-                float top = 2.3f, bottom = .95f;
-                paint.Box(new Vector3(cx, (top + bottom) / 2, -D + .02f), new Vector3(pw + .08f, top - bottom + .08f, .03f), C(0x2c3a40), Quaternion.identity);
-                var tint = poster.tint; tint.a = 1;
-                Flat(paint, new Vector3(cx - pw / 2, bottom, -D + .036f), new Vector3(cx + pw / 2, top, -D + .036f), C(0xf6f0e2), 1, true);
-                Flat(paint, new Vector3(cx - pw / 2, top - .07f, -D + .038f), new Vector3(cx + pw / 2, top, -D + .038f), Color.Lerp(tint, Color.white, .15f), 1, true);
-                if (poster.image != null)
-                {
-                    // R70b: keep the picture's own aspect (the square guide renders were squeezed to 1.6 : 1).
-                    float aspect = poster.image.height > 0 ? poster.image.width / (float)poster.image.height : 1;
-                    float ah = Mathf.Min(.72f, pw * .92f / aspect), aw = ah * aspect, ay = top - .1f - ah;
-                    var art = new Geo();
-                    int n = art.Count;
-                    art.V(new Vector3(cx + aw / 2, ay, -D + .04f), C(0xeaf3f2), new Vector2(0, 0)); art.V(new Vector3(cx - aw / 2, ay, -D + .04f), C(0xeaf3f2), new Vector2(1, 0));
-                    art.V(new Vector3(cx - aw / 2, ay + ah, -D + .04f), C(0xeaf3f2), new Vector2(1, 1)); art.V(new Vector3(cx + aw / 2, ay + ah, -D + .04f), C(0xeaf3f2), new Vector2(0, 1));
-                    art.Q(n, n + 3, n + 2, n + 1);
-                    var picture = make("poster " + poster.title, .05f, 0); picture.SetFloat("_Tex", 1); picture.mainTexture = poster.image;
-                    art.Emit("Fish guide • " + poster.title, root.transform, picture, false);
-                }
-                Label(root.transform, poster.title, new Vector3(cx, bottom + .43f, -D + .045f), Quaternion.Euler(0, 180, 0), .013f, C(0x1e3f4a));
-                if (!string.IsNullOrEmpty(poster.line1)) Label(root.transform, poster.line1, new Vector3(cx, bottom + .27f, -D + .045f), Quaternion.Euler(0, 180, 0), .0082f, C(0x41606a));
-                if (!string.IsNullOrEmpty(poster.line2)) Label(root.transform, poster.line2, new Vector3(cx, bottom + .13f, -D + .045f), Quaternion.Euler(0, 180, 0), .0074f, C(0x41606a));
-                metal.Box(new Vector3(cx, top + .12f, -D + .09f), new Vector3(pw * .5f, .04f, .08f), C(0x30383c), Quaternion.identity);   // picture lamp
             }
 
             tiles.Emit("Glazed tiles", root.transform, tileMat, true);

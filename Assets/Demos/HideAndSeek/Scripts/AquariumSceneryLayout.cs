@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace PrototypeLab.Aquarium
@@ -143,8 +143,8 @@ namespace PrototypeLab.Aquarium
             if (Changed != null) Changed();
         }
         // R73: the authored layout of each twin-family map (the twin tanks, the grotto).
-        private static readonly AquariumSceneryLayout[] twinBaked = new AquariumSceneryLayout[2];
-        public static AquariumSceneryLayout TwinBaked { get { int slot = AquariumMaps.IsGrotto ? 1 : 0; if (twinBaked[slot] == null) twinBaked[slot] = GetTwin(0); return twinBaked[slot]; } }
+        private static readonly AquariumSceneryLayout[] twinBaked = new AquariumSceneryLayout[3];   // R78b: + the tutorial tank
+        public static AquariumSceneryLayout TwinBaked { get { int slot = AquariumMaps.IsGrotto ? 1 : AquariumMaps.IsTutorial ? 2 : 0; if (twinBaked[slot] == null) twinBaked[slot] = GetTwin(0); return twinBaked[slot]; } }
         // R58: the twin tanks get their own rocks, plants, corals and anemones (AquariumSceneryLayout.Twin.cs).
         private static AquariumSceneryLayout CreateTwin(int seed) { return BuildTwin(seed); }
 
@@ -157,7 +157,7 @@ namespace PrototypeLab.Aquarium
         private static readonly HashSet<long> twinBuilding = new HashSet<long>();
         private static readonly object twinLock = new object();
         private static long TwinKey(int map, int seed) { return ((long)map << 32) | (uint)seed; }
-        private static int TwinMapNow { get { return AquariumMaps.IsGrotto ? AquariumMaps.Grotto : AquariumMaps.Twin; } }
+        private static int TwinMapNow { get { return AquariumMaps.IsGrotto ? AquariumMaps.Grotto : AquariumMaps.IsTutorial ? AquariumMaps.Tutorial : AquariumMaps.Twin; } }
         // The selected map's (the twin tanks when the default tank is selected: the lobby may switch to them).
         public static void PrepareTwin(int seed) { PrepareTwin(seed, TwinMapNow); }
         public static void PrepareTwin(int seed, int map)

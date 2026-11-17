@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace PrototypeLab.Aquarium
@@ -39,6 +39,8 @@ namespace PrototypeLab.Aquarium
             public bool entryReady; public Point entryAnchor, entryRight;
             // R73: one rounded box tank (no second tank, no tunnel): half extents, corner radius, the dive deck's x.
             public bool single; public float halfX, halfZ, corner, entryX;
+            // R78b: tube = the grotto's visitor tube stands in the box; top > 0 = a flat lid at this height (the tutorial tank).
+            public bool tube; public float top;
         }
         private static readonly Shape TwinShape = new Shape
         {
@@ -50,11 +52,19 @@ namespace PrototypeLab.Aquarium
         public const float TubeHalfX = 33f, TubeHalfZ = 16f;   // R73e: 20% less water (66 x 32 m)
         private static readonly Shape TubeShape = new Shape
         {
-            single = true, halfX = TubeHalfX, halfZ = TubeHalfZ, corner = 3.2f, entryX = 22f,
+            single = true, tube = true, halfX = TubeHalfX, halfZ = TubeHalfZ, corner = 3.2f, entryX = 22f,
             A = new Tank { cx = -16.5f, cz = 0, a = 11f, b = 16f, square = true },
             B = new Tank { cx = 16.5f, cz = 0, a = 11f, b = 16f, square = true }
         };
-        private static Shape S { get { return AquariumMaps.Current == AquariumMaps.Grotto ? TubeShape : TwinShape; } }
+        // R78b: the tutorial tank: a small glass box, 22 x 14 m of water under a lid at 7 m (AquariumMaps.Tutorial).
+        public const float TutorialHalfX = 11f, TutorialHalfZ = 7f, TutorialTop = 7f;
+        private static readonly Shape TutorialShape = new Shape
+        {
+            single = true, halfX = TutorialHalfX, halfZ = TutorialHalfZ, corner = .9f, entryX = 0f, top = TutorialTop,
+            A = new Tank { cx = -5.5f, cz = 0, a = 5.5f, b = 7f, square = true },
+            B = new Tank { cx = 5.5f, cz = 0, a = 5.5f, b = 7f, square = true }
+        };
+        private static Shape S { get { int c = AquariumMaps.Current; return c == AquariumMaps.Grotto ? TubeShape : c == AquariumMaps.Tutorial ? TutorialShape : TwinShape; } }
         // True on the tube tank (one box, no tunnel).
         public static bool Single { get { return S.single; } }
         private static Tank A { get { return S.A; } }
@@ -282,13 +292,13 @@ namespace PrototypeLab.Aquarium
         public static bool UnderRoof(Point p, float pad) { return p.x > PlaneA - pad && p.x < PlaneB + pad && !S.single; }
         public static bool AboveRoof(Point p, float pad)
         {
-            if (S.single) return AquariumTubeMap.Overlaps(p, pad);   // R73: the visitor tube and its legs
+            if (S.single) { var s = S; return s.tube ? AquariumTubeMap.Overlaps(p, pad) : s.top > 0 && p.y > s.top - pad + .001f; }   // R73: the visitor tube and its legs (R78b: or the lid)
             return UnderRoof(p, pad) && p.y > RoofCeiling(p.x, p.z, pad) + .001f;
         }
         // Pushes a body out of the tunnel roof or the front wall above the mouth, whichever is nearer.
         public static Point ConstrainRoof(Point p, float pad)
         {
-            if (S.single) return AquariumTubeMap.Constrain(p, pad);
+            if (S.single) { var s = S; if (s.tube) return AquariumTubeMap.Constrain(p, pad); if (s.top > 0 && p.y > s.top - pad) p.y = s.top - pad; return p; }
             if (!UnderRoof(p, pad)) return p;
             float top = RoofCeiling(p.x, p.z, pad);
             if (p.y <= top) return p;
@@ -307,7 +317,13 @@ namespace PrototypeLab.Aquarium
         // blocked fraction of the segment, or 2 when it stays clear (as AquariumModel.ObstacleHit).
         public static float RoofHit(Point start, Point end, float pad = 0)
         {
-            if (S.single) return AquariumTubeMap.Hit(start, end, pad);
+            if (S.single)
+            {
+                var s = S; if (s.tube) return AquariumTubeMap.Hit(start, end, pad);
+                if (s.top <= 0) return 2;
+                float lid = s.top - pad; if (start.y > lid) return 0; if (end.y <= lid) return 2;
+                return (lid - start.y) / (end.y - start.y);
+            }
             float lo = PlaneA - pad, hi = PlaneB + pad;
             if ((start.x <= lo && end.x <= lo) || (start.x >= hi && end.x >= hi)) return 2;
             var d = end - start; float length = d.Length;
@@ -392,7 +408,7 @@ namespace PrototypeLab.Aquarium
             for (float x = -50; x <= 50; x += 1f) for (float z = -22; z <= 22; z += 1f) // R61: a metre apart (the denser rocks made the scan slow)
             {
                 var p = new Point(x, 0, z);
-                if (Single ? AquariumTubeMap.Near(x, z, 3f) : x > PlaneA - 6.5f && x < PlaneB + 6.5f) continue;
+                if (Single ? S.tube && AquariumTubeMap.Near(x, z, 3f) : x > PlaneA - 6.5f && x < PlaneB + 6.5f) continue;
                 if (!AquariumDrainLayout.IsClear(p)) continue;
                 // R59: open water above the lid too (no giant's overhang or arch over a drain).
                 float sand = AquariumSeabed.Height(p);

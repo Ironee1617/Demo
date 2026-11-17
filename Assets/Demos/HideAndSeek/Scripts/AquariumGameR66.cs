@@ -82,6 +82,7 @@ namespace PrototypeLab.Aquarium
         // Every frame (two property reads): building a tank sets 4x anti-aliasing again.
         private void ApplyGraphicsChoice()
         {
+            AquariumWaterLife.Fast = fastGraphics;   // R85: fewer specks, cheaper sway
             if (!fastGraphics) return;
             if (QualitySettings.antiAliasing > 2) QualitySettings.antiAliasing = 2;
             if (QualitySettings.shadowCascades > 2) QualitySettings.shadowCascades = 2;

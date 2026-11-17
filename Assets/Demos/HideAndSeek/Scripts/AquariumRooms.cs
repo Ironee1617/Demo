@@ -14,19 +14,20 @@ namespace PrototypeLab.Aquarium
     [Serializable]
     public sealed class AquariumRoom
     {
-        public string id, name, code, phase;
+        public string id, name, code, phase, host;
         public int players, maxPlayers;
         public bool hasPassword;
         public bool CanJoin { get { return players < maxPlayers; } }
     }
 
-    // Lobby discovers rooms and checks passwords; Relay still carries the game connection.
+    // Lobby discovers rooms and checks passwords; R85: the game connection is EOS peer to peer to the host's EOS id (HostKey).
     public static class AquariumRooms
     {
-        public const string ProtocolTag = "aquarium-v6";
+        public const string ProtocolTag = "aquarium-v7";
         public const string ProtocolKey = "protocol";
         public const string RelayCodeKey = "relayCode";
         public const string PhaseKey = "phase";
+        public const string HostKey = "hostId";
         public const string WaitingPhase = "Waiting";
         private static Task initialization;
         private static readonly SemaphoreSlim queryGate = new SemaphoreSlim(1, 1);
@@ -67,7 +68,7 @@ namespace PrototypeLab.Aquarium
             return rooms;
         }
 
-        public static async Task<Lobby> CreateAsync(string roomName, string password, string relayCode, string allocationId = "")
+        public static async Task<Lobby> CreateAsync(string roomName, string password, string relayCode, string hostId)
         {
             roomName = (roomName ?? "").Trim();
             if (roomName.Length < 1 || roomName.Length > 32)
@@ -75,30 +76,32 @@ namespace PrototypeLab.Aquarium
             ValidatePassword(password);
             relayCode = NormalizeCode(relayCode);
             if (relayCode.Length == 0) throw new InvalidOperationException("방 연결 코드를 만들지 못했습니다.");
+            if (string.IsNullOrEmpty(hostId)) throw new InvalidOperationException("방장의 연결 정보를 만들지 못했습니다.");
             await EnsureServicesAsync();
             return await LobbyService.Instance.CreateLobbyAsync(roomName, AquariumModel.MaxPlayers, new CreateLobbyOptions
             {
                 IsPrivate = false,
                 IsLocked = false,
                 Password = string.IsNullOrEmpty(password) ? null : password,
-                Player = new Player(AuthenticationService.Instance.PlayerId, allocationId: string.IsNullOrEmpty(allocationId) ? null : allocationId),
+                Player = new Player(AuthenticationService.Instance.PlayerId),
                 Data = new Dictionary<string, DataObject>
                 {
                     { ProtocolKey, PublicData(ProtocolTag, DataObject.IndexOptions.S1) },
                     { RelayCodeKey, PublicData(relayCode, DataObject.IndexOptions.S2) },
-                    { PhaseKey, PublicData(WaitingPhase, DataObject.IndexOptions.S3) }
+                    { PhaseKey, PublicData(WaitingPhase, DataObject.IndexOptions.S3) },
+                    { HostKey, new DataObject(DataObject.VisibilityOptions.Public, hostId) }
                 }
             });
         }
 
-        public static async Task<Lobby> JoinAsync(string lobbyId, string password, string allocationId = "")
+        public static async Task<Lobby> JoinAsync(string lobbyId, string password)
         {
             ValidatePassword(password);
             await EnsureServicesAsync();
             return await LobbyService.Instance.JoinLobbyByIdAsync(lobbyId, new JoinLobbyByIdOptions
             {
                 Password = string.IsNullOrEmpty(password) ? null : password,
-                Player = new Player(AuthenticationService.Instance.PlayerId, allocationId: string.IsNullOrEmpty(allocationId) ? null : allocationId)
+                Player = new Player(AuthenticationService.Instance.PlayerId)
             });
         }
 
@@ -161,7 +164,7 @@ namespace PrototypeLab.Aquarium
             if (lobby == null) throw new ArgumentNullException(nameof(lobby));
             return new AquariumRoom
             {
-                id = lobby.Id, name = lobby.Name, code = ReadData(lobby, RelayCodeKey), phase = ReadData(lobby, PhaseKey),
+                id = lobby.Id, name = lobby.Name, code = ReadData(lobby, RelayCodeKey), phase = ReadData(lobby, PhaseKey), host = ReadData(lobby, HostKey),
                 players = lobby.MaxPlayers - lobby.AvailableSlots, maxPlayers = lobby.MaxPlayers, hasPassword = lobby.HasPassword
             };
         }

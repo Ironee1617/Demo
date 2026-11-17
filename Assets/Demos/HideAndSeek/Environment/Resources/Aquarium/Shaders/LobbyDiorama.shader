@@ -11,6 +11,7 @@ Shader "Aquarium/Lobby Diorama"
     {
         _Caustics ("Refracted light", 2D) = "black" {}
         _Sway ("Current strength", Float) = 0
+        _Soft ("R85 soft tissue (curling tentacles)", Float) = 0
         _Background ("Water wall", Float) = 0
         _Saturation ("Saturation", Float) = 1.3
         _Moss ("Moss on top faces", Float) = 0
@@ -31,7 +32,8 @@ Shader "Aquarium/Lobby Diorama"
             #pragma target 3.0
             #include "UnityCG.cginc"
             #include "CoralPaint.cginc"
-            sampler2D _Caustics; float _Sway, _Background, _Saturation, _Moss, _Ripple, _Glow, _Pattern; float4 _Spot;
+            #include "AquariumCurrent.cginc"
+            sampler2D _Caustics; float _Soft, _Sway, _Background, _Saturation, _Moss, _Ripple, _Glow, _Pattern; float4 _Spot;
             struct appdata { float4 vertex:POSITION; float3 normal:NORMAL; float4 color:COLOR; float2 uv:TEXCOORD0; float2 data:TEXCOORD1; };
             struct v2f { float4 pos:SV_POSITION; float4 color:COLOR; float3 obj:TEXCOORD0; float3 normal:TEXCOORD1; float3 world:TEXCOORD2; float2 uv:TEXCOORD3; };
 
@@ -44,8 +46,8 @@ Shader "Aquarium/Lobby Diorama"
             v2f vert(appdata v)
             {
                 float t = _Time.y, weight = v.data.x, phase = v.data.y;
-                float2 wave = float2(sin(t * .91 + phase + v.vertex.y * .58) * .20 + sin(t * 1.43 + phase) * .035, cos(t * .72 + phase + v.vertex.y * .41) * .13);
-                v.vertex.xz += _Sway * weight * wave;
+                // R85: the shared current (AquariumCurrent.cginc), as in the tanks.
+                v.vertex.xyz += AquariumSway(mul(unity_ObjectToWorld, v.vertex).xyz, v.uv.y, weight, phase, _Sway, _Soft, t);
                 v2f o; o.pos = UnityObjectToClipPos(v.vertex); o.color = v.color; o.obj = v.vertex.xyz;
                 o.normal = UnityObjectToWorldNormal(v.normal); o.world = mul(unity_ObjectToWorld, v.vertex).xyz; o.uv = v.uv; return o;
             }

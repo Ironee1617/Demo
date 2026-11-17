@@ -17,6 +17,23 @@
       },
       "hash": "d49ae2953580f3481beb1e084a1da2682f0b5610"
     },
+    "com.etdofresh.fishyeos": {
+      "version": "https://github.com/ETdoFresh/FishyEOS.git?path=/FishNet/Plugins/FishyEOS",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "1be0b553fb083129a6bcebc7a9ffed8256c186a5"
+    },
+    "com.playeveryware.eos": {
+      "version": "https://github.com/PlayEveryWare/eos_plugin_for_unity_upm.git",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.0.2",
+        "com.unity.editorcoroutines": "1.0.0"
+      },
+      "hash": "0b8f679193c5b6c74df5bddbe3248c9d7aadaee8"
+    },
     "com.unity.burst": {
       "version": "1.8.30",
       "depth": 2,
@@ -38,6 +55,13 @@
         "com.unity.nuget.mono-cecil": "1.11.6",
         "com.unity.test-framework.performance": "3.0.3"
       },
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.editorcoroutines": {
+      "version": "1.1.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {},
       "url": "https://packages.unity.com"
     },
     "com.unity.ext.nunit": {
@@ -205,7 +229,7 @@
     },
     "com.unity.ugui": {
       "version": "2.0.0",
-      "depth": 2,
+      "depth": 0,
       "source": "builtin",
       "dependencies": {
         "com.unity.modules.ui": "1.0.0",
@@ -232,13 +256,13 @@
     },
     "com.unity.modules.hierarchycore": {
       "version": "1.0.0",
-      "depth": 2,
+      "depth": 1,
       "source": "builtin",
       "dependencies": {}
     },
     "com.unity.modules.imageconversion": {
       "version": "1.0.0",
-      "depth": 1,
+      "depth": 0,
       "source": "builtin",
       "dependencies": {}
     },
@@ -254,6 +278,12 @@
       "source": "builtin",
       "dependencies": {}
     },
+    "com.unity.modules.particlesystem": {
+      "version": "1.0.0",
+      "depth": 0,
+      "source": "builtin",
+      "dependencies": {}
+    },
     "com.unity.modules.physics": {
       "version": "1.0.0",
       "depth": 0,
@@ -262,7 +292,7 @@
     },
     "com.unity.modules.physics2d": {
       "version": "1.0.0",
-      "depth": 1,
+      "depth": 0,
       "source": "builtin",
       "dependencies": {}
     },
@@ -276,13 +306,13 @@
     },
     "com.unity.modules.ui": {
       "version": "1.0.0",
-      "depth": 2,
+      "depth": 0,
       "source": "builtin",
       "dependencies": {}
     },
     "com.unity.modules.uielements": {
       "version": "1.0.0",
-      "depth": 1,
+      "depth": 0,
       "source": "builtin",
       "dependencies": {
         "com.unity.modules.ui": "1.0.0",
@@ -294,7 +324,7 @@
     },
     "com.unity.modules.unitywebrequest": {
       "version": "1.0.0",
-      "depth": 1,
+      "depth": 0,
       "source": "builtin",
       "dependencies": {}
     }

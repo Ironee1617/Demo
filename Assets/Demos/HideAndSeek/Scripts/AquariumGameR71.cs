@@ -36,11 +36,11 @@ namespace PrototypeLab.Aquarium
         {
             if (menuTitle != null) return;
             menuTitle = new GUIStyle(title) { fontSize = 54, fontStyle = FontStyle.Bold, wordWrap = false, clipping = TextClipping.Overflow };
-            menuTitle.normal.textColor = Color.white;
-            menuTitleShadow = new GUIStyle(menuTitle); menuTitleShadow.normal.textColor = new Color(0, .05f, .09f, .55f);
+            menuTitle.normal.textColor = Color.white; Steady(menuTitle);   // R78a: no hover colour
+            menuTitleShadow = new GUIStyle(menuTitle); menuTitleShadow.normal.textColor = new Color(0, .05f, .09f, .55f); Steady(menuTitleShadow);
             menuButton = new GUIStyle(heading) { fontSize = 21, alignment = TextAnchor.MiddleLeft, wordWrap = false };
-            menuButton.normal.textColor = Color.white;
-            menuButtonHot = new GUIStyle(menuButton); menuButtonHot.normal.textColor = new Color(.02f, .1f, .14f);
+            menuButton.normal.textColor = Color.white; Steady(menuButton);
+            menuButtonHot = new GUIStyle(menuButton); menuButtonHot.normal.textColor = new Color(.02f, .1f, .14f); Steady(menuButtonHot);
             menuButtonSub = new GUIStyle(small) { fontSize = 12, alignment = TextAnchor.MiddleLeft, wordWrap = false };
             const int n = 64; menuShade = new Texture2D(n, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "Menu shade" };
             for (int i = 0; i < n; i++) { float a = 1 - i / (n - 1f); menuShade.SetPixel(i, 0, new Color(.0f, .04f, .07f, .78f * a * a * (3 - 2 * a))); }
@@ -54,7 +54,7 @@ namespace PrototypeLab.Aquarium
             // a soft shade behind the title and buttons so they read over the reef
             GUI.DrawTexture(new Rect(0, 0, 640, height), menuShade, ScaleMode.StretchToFill, true);
             float x = 72, y = Mathf.Max(48, height * .13f);
-            Label(x + 2, y, 520, 18, "AQUARIUM  ·  HIDE & SEEK", caption);
+            Label(x + 2, y, 520, 18, "AQUARIUM   HIDE & SEEK", caption);
             Label(x + 3, y + 25, 620, 70, "수족관 술래잡기", menuTitleShadow);
             Label(x, y + 22, 620, 70, "수족관 술래잡기", menuTitle);
             Shape(new Rect(x + 3, y + 96, 72, 4), cyan, 2);
@@ -67,8 +67,9 @@ namespace PrototypeLab.Aquarium
             MenuPanel[] panels = { MenuPanel.Create, MenuPanel.Find, MenuPanel.Tutorial, MenuPanel.Settings, MenuPanel.None };
             for (int i = 0; i < labels.Length; i++)
             {
-                if (!MenuButton(new Rect(x, by + i * (bh + gap), bw, bh), labels[i], "", panels[i] != MenuPanel.None && menuPanel == panels[i], i == 0)) continue;
+                if (!MenuButton(new Rect(x, by + i * (bh + gap), bw, bh), labels[i], i == 1 && !R78Unlocked() ? "잠김: 튜토리얼을 마치면 열려요" : "", panels[i] != MenuPanel.None && menuPanel == panels[i], i == 0)) continue;
                 if (panels[i] == MenuPanel.None) QuitGame();
+                else if (panels[i] == MenuPanel.Find && !R78Unlocked()) R78GateBounce();   // R78b: online play opens after the tutorials
                 else { Toggle(panels[i]); if (menuPanel == MenuPanel.Find) RefreshRoomList(); }
             }
             GUI.enabled = !showRules && roomDialog == RoomDialog.None;
@@ -105,48 +106,57 @@ namespace PrototypeLab.Aquarium
             Label(rr.x + 28, rr.y + (hasSub ? 6 : 0), rr.width - 40, hasSub ? 32 : rr.height, label, text);
             if (hasSub) Label(rr.x + 29, rr.y + 34, rr.width - 40, 18, sub, main ? Tinted(menuButtonSub, new Color(.03f, .22f, .26f)) : menuButtonSub);
             Label(rr.xMax - 36, rr.y, 24, rr.height, "›", Tinted(menuButton, main ? new Color(.02f, .1f, .14f, .8f) : new Color(.7f, .95f, 1f, hover ? 1 : .5f)));
-            return GUI.Button(r, GUIContent.none, GUIStyle.none);
+            return UiButton(r, GUIContent.none, GUIStyle.none);
         }
 
         private Rect PanelCard(float px, float pw, float ph, float height, string titleText, string sub)
         {
             var r = new Rect(px, Mathf.Max(24, (height - ph) / 2), pw, ph);
             Card(r, true, 18);
-            Label(r.x + 26, r.y + 20, pw - 120, 34, titleText, heading);
-            if (!string.IsNullOrEmpty(sub)) Label(r.x + 26, r.y + 56, pw - 60, 22, sub, small);
+            // R79: tall enough for the fonts (the 22 px heading needs 35 px, the 13 px line 23 px; they were cut at the foot)
+            R79Text(new Rect(r.x + 26, r.y + 18, pw - 120, 38), titleText, heading);
+            if (!string.IsNullOrEmpty(sub)) R79Text(new Rect(r.x + 26, r.y + 56, pw - 60, 24), sub, small);
             if (Button(new Rect(r.xMax - 64, r.y + 18, 42, 36), "✕")) { menuPanel = MenuPanel.None; GUI.FocusControl(null); }
             return r;
         }
 
         private void CreatePanel(float px, float pw, float height, bool usable)
         {
-            var r = PanelCard(px, pw, 380, height, "방 만들기", "친구와 온라인으로, 또는 혼자 AI와 연습하세요.");
-            float cx = r.x + 26, cw = (r.width - 52 - 16) / 2, top = r.y + 96;
+            // R79: the cards are as tall as the online card's text needs (measured), so the locked note never runs into it.
+            const string onlineText = "2–5인, 빈자리는 AI로 채울지 방에서 정합니다.\n방 이름과 비밀번호(선택)를 정해 친구를 부르세요.", lockText = "잠김: 튜토리얼을 마치면 열려요";
+            bool unlocked = R78Unlocked();
+            float cw = (pw - 52 - 16) / 2, headH = R79Height("온라인 방", heading, cw - 36), onlineH = R79Height(onlineText, small, cw - 36), lockH = unlocked ? 0 : R79Height(lockText, small, cw - 36) + 8;
+            float cardH = Mathf.Max(216, 16 + headH + 8 + onlineH + 10 + lockH + 42 + 18);
+            var r = PanelCard(px, pw, 164 + cardH, height, "방 만들기", "친구와 온라인으로, 또는 혼자 AI와 연습하세요.");
+            float cx = r.x + 26, top = r.y + 96;
             GUI.enabled = usable;
             // online room
-            var online = new Rect(cx, top, cw, 216); Card(online, false, 14);
-            Label(online.x + 18, online.y + 16, cw - 36, 28, "온라인 방", Tinted(heading, cyan));
-            Label(online.x + 18, online.y + 52, cw - 36, 80, "2–5인, 빈자리는 AI로 채울지 방에서 정합니다.\n방 이름과 비밀번호(선택)를 정해 친구를 부르세요.", small);
-            if (Button(new Rect(online.x + 18, online.yMax - 60, cw - 36, 42), "온라인 방 만들기", true)) OpenRoomDialog(RoomDialog.Create);
+            var online = new Rect(cx, top, cw, cardH); Card(online, false, 14);
+            R79Text(new Rect(online.x + 18, online.y + 16, cw - 36, headH), "온라인 방", Tinted(heading, cyan));
+            R79Text(new Rect(online.x + 18, online.y + 16 + headH + 8, cw - 36, onlineH), onlineText, small);
+            if (unlocked) { if (R79Button(new Rect(online.x + 18, online.yMax - 60, cw - 36, 42), "온라인 방 만들기", true)) OpenRoomDialog(RoomDialog.Create); }
+            else
+            {
+                // R78b: locked until the three tutorials are done; the button leads to them
+                R79Text(new Rect(online.x + 18, online.yMax - 60 - lockH, cw - 36, lockH - 8), lockText, Tinted(small, Warm));
+                if (R79Button(new Rect(online.x + 18, online.yMax - 60, cw - 36, 42), "튜토리얼 하러 가기")) R78GateBounce();
+            }
             // AI practice
-            var practice = new Rect(cx + cw + 16, top, cw, 216); Card(practice, false, 14);
-            Label(practice.x + 18, practice.y + 16, cw - 36, 28, "AI 연습", Tinted(heading, new Color(1f, .82f, .45f)));
-            Label(practice.x + 18, practice.y + 52, cw - 36, 22, "혼자 연습, 나머지는 AI", small);
+            var practice = new Rect(cx + cw + 16, top, cw, cardH); Card(practice, false, 14);
+            R79Text(new Rect(practice.x + 18, practice.y + 16, cw - 36, headH), "AI 연습", Tinted(heading, new Color(1f, .82f, .45f)));
+            R79Text(new Rect(practice.x + 18, practice.y + 16 + headH + 2, cw - 36, 24), "혼자 연습, 나머지는 AI", small);
             float hw = (cw - 36 - 8) / 2;
             if (Button(new Rect(practice.x + 18, practice.y + 84, hw, 38), (selectedTeam == Team.Hider ? "✓ " : "") + "외계인", selectedTeam == Team.Hider)) selectedTeam = Team.Hider;
             if (Button(new Rect(practice.x + 18 + hw + 8, practice.y + 84, hw, 38), (selectedTeam == Team.Seeker ? "✓ " : "") + "잠수부", selectedTeam == Team.Seeker)) selectedTeam = Team.Seeker;
             if (Button(new Rect(practice.x + 18, practice.yMax - 60, cw - 36, 42), "연습 시작"))
             { SaveName(); lastEffect = 0; session.OpenPracticeLobby(playerName, selectedTeam, selectedAlien); }
-            Label(cx, r.yMax - 46, r.width - 52, 24, "이름은 설정에서 바꿀 수 있습니다.  현재 이름: " + AquariumModel.CleanName(playerName), small);
+            R79Text(new Rect(cx, r.yMax - 46, r.width - 52, 24), "이름은 설정에서 바꿀 수 있습니다.  현재 이름: " + AquariumModel.CleanName(playerName), small);   // (R79Text: audited)
         }
 
         // R72: the three solo tutorials, each a wide button with its length.
         private void TutorialPanel(float px, float pw, float height, bool usable)
         {
-            var r = PanelCard(px, Mathf.Min(pw, 560), 330, height, "튜토리얼", "혼자 1~2분, 조작과 규칙을 차근차근 익혀요.");
-            GUI.enabled = usable;
-            for (int i = 1; i <= 3; i++)
-                if (Button(new Rect(r.x + 26, r.y + 96 + (i - 1) * 64, r.width - 52, 52), TutorialNames[i].Replace("튜토리얼: ", ""), i == 1)) StartTutorial(i);
+            R78TutorialPanel(px, pw, height, usable);   // R78b (AquariumGameR78Tutorial.cs)
         }
 
         private void FindPanel(float px, float pw, float height, bool usable)
@@ -167,7 +177,7 @@ namespace PrototypeLab.Aquarium
 
         private void SettingsPanel(float px, float pw, float height, bool usable)
         {
-            var r = PanelCard(px, Mathf.Min(pw, 560), 390, height, "설정", "");
+            var r = PanelCard(px, Mathf.Min(pw, 560), 530, height, "설정", "");
             float sx = r.x + 26, sw = r.width - 52, y = r.y + 76;
             GUI.enabled = usable;
             Label(sx, y, 200, 22, "플레이어 이름", caption);
@@ -182,6 +192,7 @@ namespace PrototypeLab.Aquarium
             Label(sx + sw - 56, y + 22, 56, 30, Mathf.RoundToInt(v * 100) + "%", body);
             if (!Mathf.Approximately(v, menuVolume)) { menuVolume = v; AudioListener.volume = v; PlayerPrefs.SetFloat("Aquarium.Volume", v); }
             y += 70;
+            y = SensitivityRows(sx, sw, y);   // R84
             Label(sx, y, 200, 22, "화면", caption);
             bool full = Screen.fullScreen;
             if (Button(new Rect(sx, y + 22, hw, 40), (full ? "✓ " : "") + "전체 화면", full)) Screen.fullScreen = true;

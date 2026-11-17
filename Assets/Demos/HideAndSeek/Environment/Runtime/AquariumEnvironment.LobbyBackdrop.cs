@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -52,8 +52,8 @@ namespace PrototypeLab.Aquarium
             var sandMat = make("sand"); sandMat.SetFloat("_Ripple", 1); sandMat.SetFloat("_Saturation", 1.1f);
             var rockMat = make("reef stone"); rockMat.SetFloat("_Moss", 1); rockMat.SetFloat("_Saturation", 1.15f);
             var coralMat = make("coral"); coralMat.SetFloat("_Saturation", 1.12f); coralMat.SetFloat("_Glow", .04f); coralMat.SetFloat("_Pattern", 1);
-            var kelpMat = make("kelp"); kelpMat.SetFloat("_Sway", 1); kelpMat.SetFloat("_Saturation", 1.35f);
-            var softMat = make("anemones"); softMat.SetFloat("_Sway", .42f); softMat.SetFloat("_Saturation", 1.5f); softMat.SetFloat("_Glow", .16f);
+            var kelpMat = make("kelp"); kelpMat.SetFloat("_Sway", 1.3f);   // R85: the shared current (AquariumCurrent.cginc) kelpMat.SetFloat("_Saturation", 1.35f);
+            var softMat = make("anemones"); softMat.SetFloat("_Sway", .42f); softMat.SetFloat("_Soft", 1); softMat.SetFloat("_Saturation", 1.5f); softMat.SetFloat("_Glow", .16f);
             var bubbleMat = Fx("Lobby • bubbles", C(0xc8f7ff), .7f, 1);
             var moteMat = Fx("Lobby • plankton", C(0xe8fbff), .45f, 1);
             var rayMat = Fx("Lobby • sun shafts", C(0xd6f6ff), .26f, 2);

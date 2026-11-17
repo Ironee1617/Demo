@@ -52,7 +52,11 @@ namespace PrototypeLab.Aquarium
                 }
                 float bend=Mathf.Abs(material.GetFloat("_Sway"))*part.maximumWeight;
                 // Exact sine/cosine amplitude bounds from LivingReef.vert and ReefLit.vert.
-                var movement=shader=="Aquarium/Living Reef"?new Vector3(.235f*bend,0,.13f*bend):new Vector3(.29f*bend,0,.14f*bend);
+                // R85: Living Reef moves with the shared current (AquariumCurrent.cginc): lean, swell and flutter (soft tissue
+                // more, with its curl) plus leaning away from a swimmer; a little vertical dip too.
+                float soft=shader=="Aquarium/Living Reef"&&material.GetFloat("_Soft")>.5f?1:0;
+                float reach=bend*(soft>0?1.5f:.47f)+Mathf.Min(bend*(1+1.1f*soft),.9f)*.45f;
+                var movement=shader=="Aquarium/Living Reef"?new Vector3(reach,reach*.6f,reach):new Vector3(.29f*bend,0,.14f*bend);
                 var bounds=part.bounds;bounds.extents+=movement+Vector3.one*.003f;
                 if(bounds.Equals(renderer.localBounds))continue;
                 renderer.localBounds=bounds;stats.tightenedBounds++;

@@ -255,3 +255,13 @@ ShaderVariantCollection:
       variants:
       - keywords: 
         passType: 4
+  - first: {fileID: 4800000, guid: b8cc749041d5af9489731386760d6a8d, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: 721913d25e035a646b4e7195894d8738, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0

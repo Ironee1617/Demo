@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -336,7 +336,10 @@ namespace PrototypeLab.Aquarium
         }
 
         // ---------------------------------------------------------------- seaweed and anemones
-        private struct Item { public AquariumEnvironment.SceneryPrototype proto; public Matrix4x4 matrix; public float phase; public int rock1; }
+        private struct Item { public AquariumEnvironment.SceneryPrototype proto; public Matrix4x4 matrix; public float phase; public int rock1; public float sway; }
+        // R85: taller plants bend further in the current (the bend weight baked in uv2.x is scaled per plant when an
+        // area is merged): about a tenth of the plant's height at the tip, from a grass tuft to a 6 m kelp.
+        private static float SwayOf(float height) { return Mathf.Clamp(Mathf.Pow(Mathf.Max(.05f, height), .8f) / 1.5f, .3f, 3f); }
         private static AquariumEnvironment.SceneryPrototype Seaweed(int form, float height, int variant)
         {
             if (seaweed == null) seaweed = new Dictionary<int, AquariumEnvironment.SceneryPrototype>();
@@ -505,8 +508,8 @@ namespace PrototypeLab.Aquarium
                 var plant = layout.Plants[i]; var proto = Seaweed(plant.form, plant.height, i % 2);
                 // R61: the twin tanks' grass tufts are drawn on their own, without shadows.
                 // R62: and the short seaweed (under 1.6 m) with them: no shadows, dropped in the distance.
-                if (twin && (plant.form == AquariumSceneryLayout.GrassForm || plant.height < 1.6f)) Add(grass, plant.position, proto, plant.height / proto.size, plant.yaw, plant.phase, SmallArea);
-                else Add(kelp, plant.position, proto, plant.height / proto.size, plant.yaw, plant.phase);
+                if (twin && (plant.form == AquariumSceneryLayout.GrassForm || plant.height < 1.6f)) Add(grass, plant.position, proto, plant.height / proto.size, plant.yaw, plant.phase, SmallArea, SwayOf(plant.height));
+                else Add(kelp, plant.position, proto, plant.height / proto.size, plant.yaw, plant.phase, Area, SwayOf(plant.height));
             }
             for (int i = 0; i < layout.Anemones.Length; i++)
             {
@@ -521,15 +524,15 @@ namespace PrototypeLab.Aquarium
         }
         // R61: the sand's small things are merged per 6 m square and dropped beyond about 50 m (CullSmall).
         private const float SmallArea = 6f, SmallCullHeight = .1f;
-        private static void Add(SortedDictionary<long, List<Item>> areas, Point at, AquariumEnvironment.SceneryPrototype proto, float scale, float yaw, float phase, float area = Area)
+        private static void Add(SortedDictionary<long, List<Item>> areas, Point at, AquariumEnvironment.SceneryPrototype proto, float scale, float yaw, float phase, float area = Area, float sway = 1)
         {
-            Add(areas, at, proto, scale, Quaternion.Euler(0, yaw, 0), phase, area);
+            Add(areas, at, proto, scale, Quaternion.Euler(0, yaw, 0), phase, area, sway);
         }
-        private static void Add(SortedDictionary<long, List<Item>> areas, Point at, AquariumEnvironment.SceneryPrototype proto, float scale, Quaternion turn, float phase, float area)
+        private static void Add(SortedDictionary<long, List<Item>> areas, Point at, AquariumEnvironment.SceneryPrototype proto, float scale, Quaternion turn, float phase, float area, float sway = 1)
         {
             long key = ((long)Mathf.FloorToInt(at.x / area) << 32) ^ (uint)Mathf.FloorToInt(at.z / area);
             List<Item> list; if (!areas.TryGetValue(key, out list)) areas[key] = list = new List<Item>();
-            list.Add(new Item { proto = proto, phase = phase, matrix = Matrix4x4.TRS(new Vector3(at.x, at.y, at.z), turn, Vector3.one * scale) });
+            list.Add(new Item { proto = proto, phase = phase, sway = sway, matrix = Matrix4x4.TRS(new Vector3(at.x, at.y, at.z), turn, Vector3.one * scale) });
         }
         private static int Hash(int n) { unchecked { uint x = (uint)n * 2654435761u; x ^= x >> 15; x *= 2246822519u; x ^= x >> 13; return (int)(x & 0x7fffffff); } }
         private void Emit(SortedDictionary<long, List<Item>> areas, string name, Material material, bool shadows = true, bool cullSmall = false, bool hue = false)
@@ -602,14 +605,20 @@ namespace PrototypeLab.Aquarium
                     }
                 }
                 // The current's phase differs per plant, so neighbours never sway in lockstep.
-                var phase = mesh.uv2;
+                var phase = mesh.uv2; float reach = 0;
                 if (!hue && phase.Length == mesh.vertexCount)
                 {
                     int at = 0;
-                    foreach (var item in items) { int end = Math.Min(phase.Length, at + item.proto.vertices); for (; at < end; at++) phase[at].y += item.phase; }
+                    foreach (var item in items)
+                    {
+                        // R85: and taller plants bend further (Item.sway scales the baked bend weight).
+                        int end = Math.Min(phase.Length, at + item.proto.vertices); float bend = item.sway > 0 ? item.sway : 1; reach = Mathf.Max(reach, bend);
+                        for (; at < end; at++) { phase[at].x *= bend; phase[at].y += item.phase; }
+                    }
                     mesh.uv2 = phase;
                 }
-                var bounds = mesh.bounds; bounds.Expand(1f); mesh.bounds = bounds;
+                // R85: room for the sway (AquariumCurrent.cginc: under half a metre per unit weight, plus leaning away from a swimmer).
+                var bounds = mesh.bounds; bounds.Expand(Mathf.Max(1f, reach + .9f)); mesh.bounds = bounds;
                 nextMade.Add(mesh);
                 var go = new GameObject(name + " " + (spawned.Count + nextSpawned.Count + 1).ToString("00")); go.SetActive(false); go.layer = plantLayer; go.transform.SetParent(root.transform, false);
                 go.AddComponent<MeshFilter>().sharedMesh = mesh;

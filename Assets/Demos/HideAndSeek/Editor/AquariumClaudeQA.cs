@@ -98,8 +98,8 @@ namespace PrototypeLab.Aquarium.Editor
                 model.Players.RemoveAll(p => p.filled);
                 while (model.Time < model.HuntAt + .1f) model.Tick(1f / 30);
                 var diver = model.Player(2); diver.position = new Point(2.3f, 9, 4); diver.facing = new Point(0, 0, 1);
-                model.Player(1).position = new Point(-20, 8, -5); model.Player(1).lastMealAt = float.MaxValue;
-                model.Player(3).position = new Point(-20, 8, 3); model.Player(3).lastMealAt = float.MaxValue;
+                model.Player(1).position = new Point(-20, 8, -5); model.Player(1).lastMealAt = float.MaxValue; model.Player(1).starveAt = float.MaxValue;
+                model.Player(3).position = new Point(-20, 8, 3); model.Player(3).lastMealAt = float.MaxValue; model.Player(3).starveAt = float.MaxValue;
                 foreach (var f in model.Fish) { f.position = new Point(-20, 8, -5); f.facing = new Point(1, 0); f.turnAt = float.MaxValue; f.steering = new Point(); f.swimSpeed = 0; }
                 rt = new RenderTexture(1280, 800, 24) { antiAliasing = 4 }; view.Camera.targetTexture = rt; view.Camera.fieldOfView = 45;
             }
@@ -305,7 +305,7 @@ namespace PrototypeLab.Aquarium.Editor
             {
                 var model = new AquariumModel { DiveEntry = true }; model.AddPlayer(1, "Diver", Team.Seeker); model.AddPlayer(2, "Alien", Team.Hider); model.SetRole(2, Team.Hider, true);
                 if (!model.StartRound()) throw new Exception("round did not start");
-                foreach (var p in model.Players) p.lastMealAt = float.MaxValue;
+                foreach (var p in model.Players) { p.lastMealAt = float.MaxValue; p.starveAt = float.MaxValue; }
                 var camera = new AquariumThirdPersonCamera(view.Camera);
                 var diver = model.Player(1);
                 float start = diver.entryAt - AquariumDiveEntry.Seconds;

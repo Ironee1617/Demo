@@ -5,8 +5,7 @@ namespace PrototypeLab.Aquarium
     // R70b UI rework: textured HUD icons (Resources/AquariumHud/Hud_*.png, crisp anti-aliased glyphs drawn white
     // with a dark outline and tinted at draw time), the controls guide on the right edge of the play HUD (K shows
     // and hides it, remembered in PlayerPrefs), the waiting room's portraits with team-coloured frames
-    // (Resources/AquariumHud/PortraitAlien{k}.png / PortraitDiver{k}.png, baked from the lobby's 3D stages),
-    // and the species guide's trait sentences.
+    // (Resources/AquariumHud/PortraitAlien{k}.png / PortraitDiver{k}.png, baked from the lobby's 3D stages).
     public sealed partial class AquariumGame
     {
         // ---- team colours (waiting room frames, chat names) ------------------------------------------------
@@ -123,24 +122,6 @@ namespace PrototypeLab.Aquarium
             Separator(x + 12, fy - 4, w - 24);
             Key(x + 14, fy + 3, GuideKey);
             Label(x + 48, fy + 3, w - 60, 22, GuideHide, Tinted(promptText, muted));
-        }
-
-        // ---- species guide texts -------------------------------------------------------------------------------
-        // One or two sentences per species: how it moves, where it lives, what gives a copy away.
-        private static string SpeciesTrait(AquariumSpecies s)
-        {
-            string key = s != null && s.normal != null ? s.normal.name : "";
-            switch (key)
-            {
-                case "Fish0": return "특징: 5~7마리가 무리 지어 우두머리를 따라다니고, 놀라면 함께 달아납니다. 무리에 섞여 움직이면 들키기 어렵습니다.";
-                case "FishBlueTang": return "특징: 혼자서 수조 여기저기를 바쁘게 돌아다니며 자주 방향을 바꿉니다. 먹이를 뿌리면 곧장 몰려듭니다.";
-                case "FishClownfish": return "특징: 자기 말미잘 위를 맴돌다가 위험하면 촉수 속으로 쏙 숨어듭니다. 말미잘에서 멀리 떨어진 흰동가리는 의심받기 쉽습니다.";
-                case "FishYellowTang": return "특징: 블루탱처럼 혼자 이곳저곳을 누비며 산호와 바위 사이를 자주 오갑니다. 먹이를 뿌리면 금방 몰려듭니다.";
-                case "FishShark": return "특징: 절대 멈추지 않고 크고 느긋한 원을 그리며 수조를 순찰합니다. 사육사 잠수부가 뿌린 먹이에만 관심이 있어서, 다른 먹이로 다가가는 상어는 수상합니다.";
-                case "FishMantaRay": return "특징: 넓게 선회합니다. 커다란 지느러미를 펼치고 천천히 미끄러지듯 떠다니며, 사육사 잠수부가 뿌린 먹이에만 관심을 보입니다.";
-                case "FishFlatfish": return "특징: 바닥 모래 위에 납작하게 엎드려 쉬다가 가끔 짧게 미끄러지듯 자리를 옮깁니다. 높이 떠서 헤엄치는 넙치는 금방 눈에 띕니다.";
-            }
-            return "특징: " + HabitText(AquariumFishTraits.Habit(s != null ? s.speciesId : 0)) + ".";
         }
 
         // ---- ability boxes (alien and diver select) --------------------------------------------------------------

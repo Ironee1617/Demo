@@ -1,0 +1,24 @@
+{
+  "dependencies": {
+    "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v10.0.0",
+    "com.etdofresh.fishyeos": "https://github.com/ETdoFresh/FishyEOS.git?path=/FishNet/Plugins/FishyEOS",
+    "com.playeveryware.eos": "https://github.com/EOS-Contrib/eos_plugin_for_unity_upm.git",
+    "com.unity.editorcoroutines": "1.1.0",
+    "com.unity.netcode.gameobjects": "2.7.0",
+    "com.unity.pipeline": "0.8.0-exp.1",
+    "com.unity.services.multiplayer": "1.2.0",
+    "com.unity.ugui": "2.0.0",
+    "com.unity.modules.animation": "1.0.0",
+    "com.unity.modules.audio": "1.0.0",
+    "com.unity.modules.imageconversion": "1.0.0",
+    "com.unity.modules.imgui": "1.0.0",
+    "com.unity.modules.jsonserialize": "1.0.0",
+    "com.unity.modules.particlesystem": "1.0.0",
+    "com.unity.modules.physics": "1.0.0",
+    "com.unity.modules.physics2d": "1.0.0",
+    "com.unity.modules.screencapture": "1.0.0",
+    "com.unity.modules.ui": "1.0.0",
+    "com.unity.modules.uielements": "1.0.0",
+    "com.unity.modules.unitywebrequest": "1.0.0"
+  }
+}

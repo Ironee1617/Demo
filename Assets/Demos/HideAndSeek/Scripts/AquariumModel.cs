@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace PrototypeLab.Aquarium
@@ -47,6 +47,8 @@ namespace PrototypeLab.Aquarium
         public int species = -1, swallowedBy, deathSpecies = -1, swallowedSpecies = -1;
         public float releaseAt, revealUntil, nextAction, nextMorph, nextFeed, stunnedUntil;
         public float stamina = 100, lastMealAt, nextScan, scanUntil, morphLockedUntil, exposureSeconds, diedAt;
+        // R86: the model time at which this alien's hunger runs out (AquariumModel.HungerLeft); sent in the snapshot.
+        public float starveAt;
         public int personalEaten, score, exposureScore;
         // R25: one revival egg per EggFoodRequired fish eaten; this counts the eggs already laid.
         public int eggsLaid;
@@ -81,6 +83,8 @@ namespace PrototypeLab.Aquarium
         public float nextAbility, abilityUntil, dashUntil, stillFor;
         public int feedsLeft = 3, abilityUses;
         public bool droneOut, droneControl;
+        // R76: the drone's tranquiliser dart is ready again at this time (kept when switching between diver and drone).
+        public float nextDart;
         public Point dronePosition, droneFacing = new Point(0, 0, 1);
         [NonSerialized] public Point droneHome, droneSteer;
         [NonSerialized] public float droneTurnAt, botTimer, botFeedAt, botAbilityAt;
@@ -201,40 +205,55 @@ namespace PrototypeLab.Aquarium
     public sealed partial class AquariumModel
     {
         // R25: one egg per 10 fish eaten (was a single egg after 3).
-        public const int MaxPlayers = 5, FishCount = 50, EggFoodRequired = 10;
-        public const float FishSpeed = 4f, HiderSpeed = FishSpeed, SeekerSpeed = 4.7f, RoundSeconds = 600f;
+        public static int MaxPlayers = 5, FishCount = 50, EggFoodRequired = 10;
+        public const float FishSpeed = 4f;
+        public static float HiderSpeed = 4f, SeekerSpeed = 4.7f, RoundSeconds = 600f;   // R76: tunable (AquariumBalance)
         // R33: one shot every 5 s. The line still reels the spear home in HarpoonReelSeconds; the gun then waits
         // out the rest of the cooldown with the spear seated.
-        public const float HarpoonCooldown = 5f, HarpoonReelSeconds = 3f, FeedCooldown = .5f, FeedRadius = 6f, FeedDuration = 5f;
+        public static float HarpoonCooldown = 5f, HarpoonReelSeconds = 3f, FeedCooldown = .5f, FeedRadius = 6f, FeedDuration = 5f;
         // R33: a wounded alien keeps 80% of its speed (sprint included); a first hit never stops or tows it.
-        public const float InjurySpeed = .8f, HarpoonGlanceBack = .4f;
-        public const float DiverSideSpeed = .85f, DiverBackSpeed = .70f;
+        public static float InjurySpeed = 1.25f, HarpoonGlanceBack = .4f;   // R84: a hit alien bolts (+25% for InjurySeconds), it was -20%
+        public static float DiverSideSpeed = .85f, DiverBackSpeed = .70f;
         // The spear flies 5 m at most, then the line reels it back along a slack, swinging curve.
-        public const float HarpoonSpeed = 20f, HarpoonRange = 5f, HarpoonTension = .22f;
-        public const float HungerSeconds = 100f, EatStun = 2f, AllyStun = 3f, MorphLock = 6f, HatchSeconds = 60f;
+        public static float HarpoonSpeed = 20f, HarpoonRange = 5f, HarpoonTension = .22f;
+        public static float EatStun = 2f, AllyStun = 3f, MorphLock = 6f, HatchSeconds = 20f;   // R76: counted from the moment an ally is down
         // R29: a successful disguise can be taken again only after this; dropping it (C) is always allowed.
-        public const float MorphCooldown = 10f;
-        // Hunger is a 100-point gauge, draining at one point per second.
-        public const float FeedingHungerFraction = .8f, MealRecovery = 50f, InjurySeconds = 5f, LayEggSeconds = 3f, CollectSeconds = 1.25f;
-        // R73: fish can be eaten only once hunger drops below 80% (80 of 100); below 20% the HUD warns.
-        public static bool Full(Swimmer p, float time) { return HungerLeft(p, time) >= FeedingHungerFraction * HungerMax(p); }
-        public const float StarvingFraction = .2f;
-        public static float HungerLeft(Swimmer p, float time) { float max = HungerMax(p); return Math.Max(0, Math.Min(max, max - (time - p.lastMealAt))); }
+        public static float MorphCooldown = 10f;
+        public static float InjurySeconds = 5f, LayEggSeconds = 3f, CollectSeconds = 1.25f;
+        // R86: hunger is back (R73 had it, R75 took it out). A gauge of HungerCap (100) that drains HungerDrainPerSecond
+        // (1) a second while the hunt is on (it stays full through the hide phase, and drains while disguised, stunned,
+        // swallowed or squeezing); each fish eaten refills HungerPerMeal (30), never past the cap; at 0 the alien starves
+        // (the usual death: counts as down, the body can be reeled in, an egg can revive it, full again). At HungerWarnAt
+        // (30) or less its own screen gets the red rim and its stomach growls. Swallowing an ally is still no meal.
+        // R73's "only below 80%" rule stays gone: eating is limited by the R75 eat cooldown alone (10 s, 5 s late).
+        public static readonly bool HungerOn = true;
+        public static float HungerCap = 100f, HungerDrainPerSecond = 1f, HungerPerMeal = 30f, HungerWarnAt = 30f;
+        public static float HungerRate { get { return Math.Max(.001f, HungerDrainPerSecond); } }
+        public static float EatCooldown = 10f, EatCooldownLate = 5f, EatLateSeconds = 180f;
+        public static float EatCooldownAt(float time, float endsAt) { return endsAt - time <= EatLateSeconds ? EatCooldownLate : EatCooldown; }
+        public static float EatReadyAt(Swimmer p, float time, float endsAt) { return p.lastMealAt + EatCooldownAt(time, endsAt); }
+        public static bool Full(Swimmer p, float time, float endsAt) { return time < EatReadyAt(p, time, endsAt); }
+        // R86: hunger now (0 to HungerCap), worked out from when it runs out, so it needs no per-tick sync.
+        public static float HungerLeft(Swimmer p, float time) { return p == null ? 0 : Math.Max(0, Math.Min(HungerMax(p), (p.starveAt - time) * HungerRate)); }
+        // R86: the alien's own warning (red rim and growl): hunger at HungerWarnAt or less.
+        public static bool HungerWarning(Swimmer p, float time) { return HungerOn && p != null && p.team == Team.Hider && p.alive && !p.escaped && HungerLeft(p, time) <= HungerWarnAt; }
+        // R86: when a stomach filled at `from` runs out.
+        public static float StarveAtFull(float from) { return from + HungerCap / HungerRate; }
         // R47: aliens can eat at any time.
         public static bool HungryEnough(Swimmer p, float time) { return true; }
         public static int EggsReady(Swimmer p) { return Math.Max(0, p.personalEaten / EggFoodFor(p) - p.eggsLaid); }
-        public const float ScanDuration = 5f, ScanCooldown = 18f, MaxStamina = 100f;
+        public static float ScanDuration = 5f, ScanCooldown = 18f, MaxStamina = 100f;
         // R32: 2 s of dye from the mouth after a meal; a wound bleeds a green wake for the whole injury.
         // R33: every bit of dye then lingers WakeLingerSeconds, fading, so the path shows which way it went.
         public const float WakeLingerSeconds = 5f, MealWakeEmitSeconds = 2f;
         public const float TraceDuration = 9f, ReviewSeconds = 20f, MealTrailSeconds = MealWakeEmitSeconds + WakeLingerSeconds, BloodWakeFade = WakeLingerSeconds;
         // R18: faster meals. The fish gulp is greedy and quick; the alien tentacle meal runs 1.32x faster.
-        public const float FishFeedingSeconds = 2.4f, TentacleFeedingSeconds = 2.3f, SwallowVisualSeconds = 2.45f;
+        public static float FishFeedingSeconds = 2.4f, TentacleFeedingSeconds = 2.3f, SwallowVisualSeconds = 2.45f;
         // The eater turns to the meal and closes in; the meal itself is never moved.
-        public const float FishLungeReach = 1.2f, TentacleLungeReach = .9f, LungeSeconds = .45f, GulpRevealDelay = .75f;
-        public const float ReleaseKickSeconds = .85f, ReleaseKickSpeed = 5.4f, SpitAnimationSeconds = 1.2f;
-        public const float DeathReviewSeconds = 4f, FeedSoundRadius = 10f;
-        public const float EggSinkSpeed = 1.2f, EggRadius = 0.4f;
+        public static float FishLungeReach = 1.2f, TentacleLungeReach = .9f, LungeSeconds = .45f, GulpRevealDelay = .75f;
+        public static float ReleaseKickSeconds = .85f, ReleaseKickSpeed = 5.4f, SpitAnimationSeconds = 1.2f;
+        public static float DeathReviewSeconds = 4f, FeedSoundRadius = 10f;
+        public static float EggSinkSpeed = 1.2f, EggRadius = 0.4f;
         public const float HalfWidth = 15f * AquariumMapOutline.HorizontalScale, HalfDepth = 10f * AquariumMapOutline.HorizontalScale, WaterHeight = 12f, Floor = 0.15f, RockHalfHeight = 1.4f;
         public static readonly float[] RockRadii = { 1.15f, 1.35f, 0.8f, 1.05f, 0.85f, 1.0f, 1.05f, 0.85f, 0.9f, 0.85f, 0.75f };
         // R57: the reef rocks of the default tank; the twin tanks have none (AquariumMaps).
@@ -387,7 +406,9 @@ namespace PrototypeLab.Aquarium
                 p.alive = true; p.swallowedBy = 0; p.swallowedSpecies = -1; p.species = p.bot && p.team == Team.Hider ? 0 : -1;
                 p.releaseAt = p.revealUntil = p.nextAction = p.nextMorph = p.nextFeed = p.stunnedUntil = 0;
                 p.visualAction = ""; p.visualAt = p.deathAt = p.morphAt = -100; p.visualTarget = 0; p.revealAt = 0;
-                p.stamina = StaminaMax(p); p.lastMealAt = HuntAt; p.personalEaten = p.score = p.exposureScore = 0;
+                p.stamina = StaminaMax(p); p.lastMealAt = -1000; p.nextDart = 0;   // R75: can eat as soon as the hunt starts
+                p.starveAt = StarveAtFull(HuntAt);   // R86: a full stomach when the hunt starts
+                p.personalEaten = p.score = p.exposureScore = 0;   // R86: this reset had slipped into the R75 comment above
                 p.kills = 0; p.eggsLaid = 0; p.nextScan = p.scanUntil = p.morphLockedUntil = p.exposureSeconds = 0; p.deathReason = "";
                 p.velocity = new Point(); p.diedAt = 0; p.deathSpecies = -1;
                 p.position = Constrain(p.team == Team.Hider ? HiderStart(hider++) : AquariumMaps.Layout(10, 2, -4 + seeker++ * 2), p.team == Team.Seeker ? .5f : .4f);
@@ -450,7 +471,7 @@ namespace PrototypeLab.Aquarium
         private float Range(float a, float b) { return a + (float)random.NextDouble() * (b - a); }
         // R40: schooling species (FishHabit.School) come in SchoolsPerSpecies schools of SchoolMin-SchoolMax;
         // the rest of FishCount is shared round-robin by the other species.
-        public const int SchoolsPerSpecies = 4, SchoolMin = 5, SchoolMax = 7;
+        public static int SchoolsPerSpecies = 4, SchoolMin = 5, SchoolMax = 7;
         private readonly List<List<Prey>> schools = new List<List<Prey>>();
         private void ResetFish()
         {
@@ -567,7 +588,7 @@ namespace PrototypeLab.Aquarium
             foreach (var p in Players)
             {
                 if (!p.alive) { p.velocity = new Point(); continue; }
-                if (p.team == Team.Hider && Time >= HuntAt && Time - p.lastMealAt >= HungerMax(p))
+                if (HungerOn && p.team == Team.Hider && !p.escaped && Time >= HuntAt && StarvingNow(p))   // R86: hunger is back
                 { Kill(p, "starved"); continue; }
                 if (p.swallowedBy != 0)
                 {
@@ -604,13 +625,14 @@ namespace PrototypeLab.Aquarium
                 if (p.bot) input = BotInputR47(p);
                 else if (!inputs.TryGetValue(p.id, out input) || Time - inputTimes[p.id] > 0.4f) input = new SwimInput();
                 if (Time >= EndsAt) input = new SwimInput();
+                if (TutorialInput != null) input = TutorialInput(p, input) ?? input;   // R78b: scripted tutorial bots (AquariumModelR78.cs)
                 var move = new Point(input.x, input.y, input.z);
                 if (move.Length > 1) move = move.Normalized;
                 var aim = new Point(input.aimX, input.aimY, input.aimZ);
                 // R47: a diver flying the drone steers it instead of swimming.
                 if (p.team == Team.Seeker && p.droneControl && p.droneOut && Time >= HuntAt && Time >= p.stunnedUntil)
-                { DriveDrone(p, move, aim, dt); move = new Point(); input.action = input.feed = input.interact = false; }
-                else if (aim.Length > 0.1f && !feeding) p.facing = aim.Normalized;
+                { DriveDrone(p, move, aim, dt); if (input.action && Time >= p.nextDart) FireDart(p, aim); move = new Point(); input.action = input.feed = input.interact = false; }   // R76: LMB = dart
+                else if (aim.Length > 0.1f && !feeding && !(Time < p.stunnedUntil && p.visualAction == "Shocked")) p.facing = aim.Normalized;   // R84: shocked = cannot turn
                 if ((p.team == Team.Seeker && Time < HuntAt) || Time < p.stunnedUntil)
                 { p.velocity = new Point(); input.action = input.morph = input.feed = input.scan = input.layEgg = input.unmorph = input.interact = input.ability = false; p.stamina = Math.Min(StaminaMax(p), p.stamina + 18f * dt); continue; }
                 // R27: the diver kneels into the lid while pushing it back; swimming off or shooting lets go.
@@ -639,7 +661,19 @@ namespace PrototypeLab.Aquarium
                 if (Time < p.dashUntil && p.facing.Length > .01f) p.velocity = p.facing.Normalized * (DashDistance / DashSeconds);
                 var wanted = p.position + p.velocity * dt;
                 var movedTo = AquariumBodyCollision.Move(p, p.velocity * dt, Players, Fish, Time,Harpoons);
-                if ((wanted - movedTo).Length > 0.001f) p.velocity = new Point();
+                if ((wanted - movedTo).Length > 0.001f)
+                {
+                    // R84: grazing a rock or slipping past something passable keeps the full speed along the way that is
+                    // open (it used to stop dead every tick, so sliding along terrain crawled). Truly blocked: stop.
+                    var achieved = movedTo - p.position; float want = (wanted - p.position).Length, got = achieved.Length;
+                    if (got > want * .2f && got > .0001f)
+                    {
+                        var dir = achieved / got;
+                        if (want - got > .0001f) { var from = p.position; p.position = movedTo; movedTo = AquariumBodyCollision.Move(p, dir * (want - got), Players, Fish, Time, Harpoons); p.position = from; }
+                        p.velocity = dir * p.velocity.Length;
+                    }
+                    else p.velocity = new Point();
+                }
                 bool moved = Point.Dot(movedTo - p.position, move) > 0.001f;
                 if (sprinting && moved) p.stamina = Math.Max(0, p.stamina - 25f * dt);
                 else if (!input.sprint || move.Length <= 0.01f || !moved) p.stamina = Math.Min(StaminaMax(p), p.stamina + 18f * dt);
@@ -707,7 +741,7 @@ namespace PrototypeLab.Aquarium
         }
 
         // Both the local outline and authoritative action use this angular-first selector.
-        public const float MorphReach = 4.5f;
+        public static float MorphReach = 4.5f;
         public static MorphTarget FindMorphTarget(IList<Prey> fish, IList<Swimmer> players, Swimmer caster, Point aim, float time)
         {
             if (caster == null || !caster.alive || caster.team != Team.Hider || caster.swallowedBy != 0 || !ValidComponent(aim.x) || !ValidComponent(aim.y) || !ValidComponent(aim.z) || aim.Length < 0.1f) return null;
@@ -808,8 +842,8 @@ namespace PrototypeLab.Aquarium
         private void Bite(Swimmer p)
         {
             if (Time < HuntAt) return;
-            // R73: fish are eaten only below 80% hunger (Full); each meal restores 50. Allies can still be carried.
-            bool full = Full(p, Time);
+            // R86: fish are eaten whenever the eat cooldown is over (Full); each refills 30 hunger (RecoverMeal). Allies can still be carried.
+            bool full = Full(p, Time, EndsAt);   // R75: the eat cooldown
             p.nextAction = Time + 0.65f;
             if (Players.Exists(h => h.swallowedBy == p.id)) return;
             Swimmer friend = null; Prey prey = null; float distance = 1.78f;
@@ -1207,11 +1241,18 @@ namespace PrototypeLab.Aquarium
             ClearDrainTask(p); p.drainAt = 0; p.escaped = false; p.escapedAt = 0;
             p.lastBloodPosition = p.position;
         }
+        // R86: true once this alien's hunger has run out. A tutorial never starves: hunger stops at 40 there.
+        private bool StarvingNow(Swimmer p)
+        {
+            if (Tutorial) { float floor = (HungerWarnAt + 10f) / HungerRate; if (p.starveAt - Time < floor) p.starveAt = Time + floor; return false; }
+            return Time >= p.starveAt;
+        }
         private void SetHunger(Swimmer p, float value)
-        { float max = HungerMax(p); p.lastMealAt = Time - (max - Math.Max(0, Math.Min(max, value))); }
+        { p.starveAt = Time + Math.Max(0, Math.Min(HungerMax(p), value)) / HungerRate; }
         private void RecoverMeal(Swimmer p)
         {
-            SetHunger(p, HungerLeft(p, Time) + MealRecoveryOf(p));
+            p.starveAt = Time + Math.Min(HungerMax(p), HungerLeft(p, Time) + MealRecoveryOf(p)) / HungerRate;   // R86: +30, never past the cap
+            p.lastMealAt = Time;   // R75: starts the eat cooldown
             // Meal traces are their own two-second visual event; injury bleeding stays independent.
         }
         private void HitAlien(Swimmer p)
@@ -1228,9 +1269,9 @@ namespace PrototypeLab.Aquarium
             if (p.harpoonHits >= HitsToKill(p)) { Kill(p, "harpoon"); return; }
             // R33: a first hit keeps the alien's momentum (no stop that reads as the line yanking it back);
             // it only drops to the wounded top speed.
-            p.velocity = p.velocity * InjurySpeed;
+            // R84: the hit keeps its momentum; the burst of speed comes from InjurySpeed while injured
             p.injuredUntil = Time + InjurySeconds;
-            SetHunger(p, HungerLeft(p, Time) * .5f);
+            // R75: a hit does not touch hunger (still true in R86)
             p.visualAction = "Hurt"; p.visualAt = Time;
             p.bloodTrailUntil = Math.Max(p.bloodTrailUntil, p.injuredUntil);
             p.lastBloodPosition = p.position; p.nextBloodAt = Time;
@@ -1264,7 +1305,7 @@ namespace PrototypeLab.Aquarium
             owner.eggsLaid++; owner.score += EggLayScore;
             var target = Players.Find(p => p.team == Team.Hider && !p.alive && !p.escaped && !Eggs.Exists(e => e.revivePlayer == p.id));
             var egg = new RevivalEgg { id = ++nextEgg, owner = owner.id, revivePlayer = target != null ? target.id : 0,
-                position = Constrain(owner.position - owner.facing * 0.7f, EggRadius), hatchAt = Time + HatchSecondsFor(owner) };
+                position = Constrain(owner.position - owner.facing * 0.7f, EggRadius), hatchAt = target != null ? Time + HatchSecondsFor(owner) : 0 };   // R76: 0 = waiting for a fallen ally
             Eggs.Add(egg); Effect("egg", egg.position, owner.facing, 0.8f);
         }
 
@@ -1283,11 +1324,15 @@ namespace PrototypeLab.Aquarium
                 var fallingTo = egg.position + new Point(0, -EggSinkSpeed * dt, 0);
                 float surface = ObstacleHit(egg.position, fallingTo, EggRadius);
                 egg.position += (fallingTo - egg.position) * Math.Min(1, Math.Max(0, surface));
-                if (Time < egg.hatchAt || target == null) continue;
+                // R76: no ally down = no countdown (hatchAt 0); the 20 s start when one falls.
+                if (target == null) { egg.hatchAt = 0; continue; }
+                if (egg.hatchAt <= 0) egg.hatchAt = Time + HatchSecondsFor(Player(egg.owner));
+                if (Time < egg.hatchAt) continue;
                 ResetDamage(target);
                 target.alive = true; target.position = egg.position; target.species = -1; target.swallowedBy = 0; target.swallowedSpecies = -1;
                 target.visualAction = ""; target.visualAt = target.deathAt = target.morphAt = -100; target.revealAt = 0;
                 target.stamina = StaminaMax(target); target.lastMealAt = Time; target.deathReason = "";
+                target.starveAt = StarveAtFull(Math.Max(Time, HuntAt));   // R86: hatches with a full stomach
                 target.velocity = new Point(); target.diedAt = 0; target.deathSpecies = -1;
                 target.releaseAt = target.stunnedUntil = target.nextAction = target.nextMorph = target.morphLockedUntil = 0;
                 target.revealUntil = Time + 0.8f; target.exposureScore = 0; target.exposureSeconds = 0;
@@ -1493,11 +1538,11 @@ namespace PrototypeLab.Aquarium
         public static float PlayerHitTime(Point a, Point b, Swimmer p, float time, AquariumDrainPlacement[] drains = null)
         {
             if (HasFishDisguise(p, time))
-                return HullHitTime(a, b, p.position, p.facing, HitCore * .48f / AquariumBodyCollision.FishRadius * AquariumFishTraits.HullRadius(p.species), AquariumFishTraits.HullHalf(p.species));
+                return HullHitTime(a, b, p.position, p.facing, HitCore * .48f * HarpoonHitScale / AquariumBodyCollision.FishRadius * AquariumFishTraits.HullRadius(p.species), AquariumFishTraits.HullHalf(p.species));
             float r = AquariumFishTraits.AlienSizeRatio;
             if (p.drainTask == DrainTask.Enter && drains != null && p.drainIndex >= 0 && p.drainIndex < drains.Length)
-                return HitTime(a, b, AquariumDrainLayout.Mouth(drains[p.drainIndex]) + new Point(0, .12f * r, 0), .38f * r);
-            return Math.Min(HitTime(a, b, p.position + new Point(0, .2f * r, 0), .38f * r), HitTime(a, b, p.position - new Point(0, .16f * r, 0), .34f * r));
+                return HitTime(a, b, AquariumDrainLayout.Mouth(drains[p.drainIndex]) + new Point(0, .12f * r, 0), .38f * r * HarpoonHitScale);
+            return Math.Min(HitTime(a, b, p.position + new Point(0, .2f * r, 0), .38f * r * HarpoonHitScale), HitTime(a, b, p.position - new Point(0, .16f * r, 0), .34f * r * HarpoonHitScale));
         }
         // R23: a long body (shark) is hit along its length, not only near its centre.
         public static float HullHitTime(Point a, Point b, Point centre, Point facing, float radius, float half)

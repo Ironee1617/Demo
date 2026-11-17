@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -27,7 +27,7 @@ namespace PrototypeLab.Aquarium
                 m.rock.SetColor("_MossColor", C(0x6c7d48)); m.rock.SetColor("_DustColor", C(0xdacba8)); m.rock.SetFloat("_Dust", .55f);
                 m.rock.SetFloat("_NormalStrength", .8f);
             }
-            m.coral = LivingMaterial("Living coral / six growth forms", caustics, 0, 0, .65f); PaintedReef(m.coral);
+            m.coral = LivingMaterial("Living coral / six growth forms", caustics, .6f, 0, .65f); PaintedReef(m.coral);   // R85: sea fans sway a little (hard corals carry no bend weight)
             m.kelp = LivingMaterial("Mixed seaweed / anchored continuous current", caustics, 1, 0, .05f);
             m.anemone = LivingMaterial("Anemones / gently moving soft tentacles", caustics, .42f, 1, .1f);
             foreach (var material in new[] { m.rock, m.stone, m.coral, m.kelp, m.anemone }) material.hideFlags = HideFlags.HideAndDontSave;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace PrototypeLab.Aquarium
 {
@@ -8,22 +8,26 @@ namespace PrototypeLab.Aquarium
     public static class AquariumMaps
     {
         public const int Basic = 0, Twin = 1, Grotto = 2, Count = 3;
+        // R78b: the tutorial tank, a small box used only by the tutorials (never offered in the lobby: Count stays 3).
+        // Slots sizes per-map tables that must hold it too.
+        public const int Tutorial = 3, Slots = 4;
         private static volatile int current;
         // R62: a worker thread can lay a map out without touching the selected one (AquariumSceneryLayout.PrepareTwin):
         // it answers every map query on that thread for its own map (0 = none, else map + 1).
         [ThreadStatic] private static int threadMap;
         public static int Current { get { int t = threadMap; return t > 0 ? t - 1 : current; } }
         // R73: true for every map laid out by AquariumTwinMap: the twin tanks and map 2 (the tube tank, named Grotto in code).
-        public static bool IsTwin { get { int c = Current; return c == Twin || c == Grotto; } }
+        public static bool IsTwin { get { int c = Current; return c == Twin || c == Grotto || c == Tutorial; } }
+        public static bool IsTutorial { get { return Current == Tutorial; } }
         public static bool IsGrotto { get { return Current == Grotto; } }
-        public static bool TwinFamily(int id) { return id == Twin || id == Grotto; }
+        public static bool TwinFamily(int id) { return id == Twin || id == Grotto || id == Tutorial; }
         public static void UseOnThisThread(int map) { threadMap = map < 0 ? 0 : Clamp(map) + 1; }
         // Bumped whenever the selected map changes (presentation compares it).
         public static int Version { get; private set; }
         public static event Action Changed;
 
-        public static int Clamp(int id) { return id == Twin || id == Grotto ? id : Basic; }
-        public static string Name(int id) { id = Clamp(id); return id == Twin ? "쌍둥이 수조" : id == Grotto ? "보랏빛 터널 수조" : "기본 수조"; }
+        public static int Clamp(int id) { return id == Twin || id == Grotto || id == Tutorial ? id : Basic; }
+        public static string Name(int id) { id = Clamp(id); return id == Twin ? "쌍둥이 수조" : id == Grotto ? "보랏빛 터널 수조" : id == Tutorial ? "연습 수조" : "기본 수조"; }
         public static string Description(int id)
         {
             id = Clamp(id);
@@ -32,7 +36,7 @@ namespace PrototypeLab.Aquarium
                 : "바위 절벽과 산호초, 유리 산책로가 있는 수조";
         }
         // R58: the lobby's map cards (R73: the cards show the name only; kept for other text).
-        public static string Size(int id) { id = Clamp(id); return id == Twin ? "92 x 44 m, 수심 12 m" : id == Grotto ? "66 x 32 m, 수심 12 m" : "72 x 48 m, 수심 12 m"; }
+        public static string Size(int id) { id = Clamp(id); return id == Tutorial ? "22 x 14 m, 수심 7 m" : id == Twin ? "92 x 44 m, 수심 12 m" : id == Grotto ? "66 x 32 m, 수심 12 m" : "72 x 48 m, 수심 12 m"; }
         public static string Short(int id) { id = Clamp(id); return id == Twin ? "수조 2개 + 터널" : id == Grotto ? "돌벽 수조 + U자 관람 터널" : "큰 수조 1개"; }
 
         // Switch every map-dependent query (outline, sand, walls, entry deck, scenery layout) to this map.

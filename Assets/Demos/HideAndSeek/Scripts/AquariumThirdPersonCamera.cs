@@ -255,7 +255,8 @@ namespace PrototypeLab.Aquarium
         // stride and the splash down under the surface and hands over to the diver's own eyes as the hunt begins.
         private void DiveEntryShot(AquariumSnapshot state, Swimmer player, Vector3 centre, AquariumView view)
         {
-            float t = state.time - (player.entryAt - AquariumDiveEntry.Seconds);
+            // R82: the shot runs on the view's frame clock; on the snapshot time the camera moved 30 times a second.
+            float t = (view != null ? view.FrameTime(state) : state.time) - (player.entryAt - AquariumDiveEntry.Seconds);
             // R60: before the cut the diver is in the changing room, looking about freely at eye height.
             if (t < 0)
             {

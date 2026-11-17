@@ -65,7 +65,7 @@ namespace PrototypeLab.Aquarium
                 if (Button(left, "‹")) { PickMap((map + AquariumMaps.Count - 1) % AquariumMaps.Count); flipped = true; }
                 if (Button(right, "›")) { PickMap((map + 1) % AquariumMaps.Count); flipped = true; }
             }
-            if (!flipped && GUI.Button(rect, GUIContent.none, GUIStyle.none)) lobbyTab = open ? 0 : MapTab;
+            if (!flipped && UiButton(rect, GUIContent.none, GUIStyle.none)) lobbyTab = open ? 0 : MapTab;
         }
 
         // The right-hand panel's map tab.
@@ -105,7 +105,7 @@ namespace PrototypeLab.Aquarium
                 if (chosen) { Shape(action, new Color(cyan.r, cyan.g, cyan.b, .16f), 10); GUI.Label(action, "선택 중", Tinted(smallCentred, cyan)); }
                 else if (CanPickMap) { if (Button(action, "이 맵으로 하기")) PickMap(map); }
                 else { Shape(action, new Color(0.04f, 0.12f, 0.17f, .6f), 10); GUI.Label(action, "방장만 바꿀 수 있습니다", Tinted(smallCentred, muted)); }
-                if (CanPickMap && !chosen && GUI.Button(new Rect(card.x, card.y, card.width, action.y - card.y), GUIContent.none, GUIStyle.none)) PickMap(map);
+                if (CanPickMap && !chosen && UiButton(new Rect(card.x, card.y, card.width, action.y - card.y), GUIContent.none, GUIStyle.none)) PickMap(map);
             }
             if (!host) Label(x + 24, y + height - 50, width - 48, 40, "보기 전용: 방장이 맵을 바꾸면 여기에 바로 보입니다.", small);
         }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -74,6 +74,8 @@ namespace PrototypeLab.Aquarium
             public Quaternion rigRestRotation;
             // R47: the diver drone's glowing red pupils.
             public Transform[] droneEyes;
+            // R77: the jelly wobble of a body skewered on a harpoon (AquariumSkewerJelly).
+            public AquariumSkewerJelly jelly;
         }
         private sealed class OutlinePart { public Renderer source, shell; }
         private readonly List<OutlinePart> outlineParts = new List<OutlinePart>();
@@ -139,6 +141,8 @@ namespace PrototypeLab.Aquarium
         private readonly System.Random random = new System.Random(54);
         public Camera Camera { get; private set; }
         private AquariumFirstPersonEquipment equipment;
+        // R85: suspended specks, ambient bubble streams, the swimmers the plants lean away from.
+        private AquariumWaterLife waterLife;
 
         public AquariumView(Transform parent, Camera cameraOverride = null)
         {
@@ -180,6 +184,7 @@ namespace PrototypeLab.Aquarium
             BuildEnvironment();
             drains = new AquariumDrainPresentation(root);
             abilities = new AquariumAbilityFx(root);
+            waterLife = new AquariumWaterLife(root);
             localRing = Ring("Your swimmer", root, 0.68f, new Color(0.59f, 1f, 0.81f, 0.85f), 0.035f);
             Camera = cameraOverride != null ? cameraOverride : UnityEngine.Camera.main;
             if (Camera == null) { var go = new GameObject("Aquarium Camera"); go.tag = "MainCamera"; Camera = go.AddComponent<Camera>(); go.AddComponent<AudioListener>(); }
@@ -222,8 +227,8 @@ namespace PrototypeLab.Aquarium
         private float Range(float a, float b) { return a + (float)random.NextDouble() * (b - a); }
 
         // R57: one baked environment per map (AquariumMaps); only the selected map's is active.
-        private readonly AquariumEnvironmentRoot[] environments = new AquariumEnvironmentRoot[AquariumMaps.Count];
-        private readonly AquariumSceneryPresentation[] sceneryByMap = new AquariumSceneryPresentation[AquariumMaps.Count];
+        private readonly AquariumEnvironmentRoot[] environments = new AquariumEnvironmentRoot[AquariumMaps.Slots];   // R78b: + the tutorial tank
+        private readonly AquariumSceneryPresentation[] sceneryByMap = new AquariumSceneryPresentation[AquariumMaps.Slots];
         private readonly List<Renderer> environmentGlass = new List<Renderer>();
         private int shownMap = -1;
         private void BuildEnvironment() { ShowMap(AquariumMaps.Current); }
@@ -642,7 +647,7 @@ namespace PrototypeLab.Aquarium
         // person, the hand catches it ahead-left and yanks it up and away out of view.
         private void PresentCatchStow(AquariumSnapshot state, Harpoon shot, Actor owner, Actor caught, float radius, Vector3 seated)
         {
-            float s=state.time-shot.retrievedAt;
+            float s=FrameTime(state)-shot.retrievedAt;   // R82: the frame clock (the snapshot time moves in steps)
             bool fps=equipment.Visible&&equipment.Owner==shot.owner;
             if(fps)AquariumCatchPose.PresentFirstPersonCatch(Camera.transform,equipment.ReceivingGrip,caught.root.transform,radius,seated,s);
             else if(owner.diver!=null)AquariumCatchPose.PresentStow(owner.diver,owner.fingers,owner.pouch,caught.root.transform,radius,seated,s);
@@ -662,6 +667,27 @@ namespace PrototypeLab.Aquarium
             if(caught.bodyCollider!=null)caught.bodyCollider.enabled=false;
         }
         private readonly List<Transform> stowTransforms=new List<Transform>();
+        // R77: a skewered alien body (a caught alien or a starved body) wobbles like jelly while it is reeled in and
+        // stowed. Presentation only; the skewer pose above stays as it is (the wobble is about the body's middle).
+        private readonly List<Actor> jellied=new List<Actor>();
+        private void Jiggle(Harpoon shot,Actor caught,bool seated)
+        {
+            if(!AquariumSkewerJelly.Enabled || shot.caughtPlayer==0 || caught.creature==null)return;
+            if(caught.jelly==null)caught.jelly=new AquariumSkewerJelly();
+            if(!jellied.Contains(caught))jellied.Add(caught);
+            caught.jelly.Present(caught.root.transform,caught.creature.transform,caught.kind=="alien"?AlienBodyLift:0,seated,Time.unscaledDeltaTime,shot.id);
+        }
+        // Bodies not presented on the spear last frame (released, stowed, removed) get their transform back.
+        private void ReleaseJellies(bool all)
+        {
+            for(int i=jellied.Count-1;i>=0;i--)
+            {
+                var a=jellied[i];
+                if(!all && a.jelly!=null && a.jelly.frame>=Time.frameCount-1 && a.root!=null)continue;
+                if(a.jelly!=null)a.jelly.Release();
+                jellied.RemoveAt(i);
+            }
+        }
         private readonly List<Renderer> stowRenderers=new List<Renderer>();
         // R49: a skewered body sits with its middle on the drawn shaft (catchDepth behind the tip, along the drawn
         // spear, so it stays on it while the reel swings the spear onto the barrel) and is turned side-on to the
@@ -702,6 +728,18 @@ namespace PrototypeLab.Aquarium
             return line;
         }
 
+        // R82: the frame clock for anything animated from snapshot times outside Draw (the camera's dive shot, the
+        // harpoon dock, the catch stow, the first-person hands). It is Draw's pose clock: it advances every rendered
+        // frame and stays within a tick of the snapshot, whose own time only moves when a tick or a packet arrives.
+        // Off = the snapshot time as before R82 (editor before/after reviews).
+        public static bool FrameClock = true;
+        public float FrameTime(AquariumSnapshot state)
+        {
+            if (state == null) return 0;
+            if (!FrameClock || presentationTime < 0 || state.phase == RoundPhase.Finished) return state.time;
+            return Mathf.Clamp(presentationTime, state.time - .1f, state.time + .05f);
+        }
+
         public void Draw(AquariumSnapshot state, int localId, float dt, float renderTime = float.NaN)
         {
             if (state == null) return;
@@ -713,6 +751,7 @@ namespace PrototypeLab.Aquarium
             if (!finished) environmentTime = Time.time;
             Shader.SetGlobalFloat("_AquariumPreviewTime", environmentTime);
             Shader.SetGlobalFloat("_AquariumPreviewTimeEnabled", 1);
+            waterLife.Present(environmentTime);
             if (finished && worldFrozen && frozenRound == state.round) { CleanupFrozenWorld(state); abilities.BeginFrame(); abilities.EndFrame(); abilities.StopXray(); AquariumGalleryCamera.InkBombMurk = 0; return; }
             worldFrozen = finished; frozenRound = state.round; freezeExistingPoses = finished;
             bool resetMotion = lastStateTime < 0 || state.time < lastStateTime || state.round != presentationRound || state.phase != presentationPhase;
@@ -747,6 +786,7 @@ namespace PrototypeLab.Aquarium
                 if (actors.TryGetValue(PlayerKey(p.id), out var released) && released.carried)
                 { released.positions.Clear(); released.carried = false; }
                 var actor=Place(PlayerKey(p.id),kind,p.position,p.facing,dt,visualTime,deathPose,state.time,renderAt,p.team==Team.Seeker?p.diverKind:p.alienKind);
+                if(!deathPose && !escaping && !finished)waterLife.Swimmer(p.id,actor.root.transform.position,actor.velocity,kind=="diver",kind=="alien",p.id==localId);
                 if (actor.diver != null && !frozenPose)
                 {
                     Harpoon heldShot=null;foreach(var h in state.harpoons)if(h.owner==p.id){heldShot=h;break;}
@@ -851,7 +891,7 @@ namespace PrototypeLab.Aquarium
             if (state.eggs != null) foreach (var egg in state.eggs)
             {
                 var actor = Place("e" + egg.id, "egg", egg.position, new Point(0, 1), dt, visualTime,false,state.time,renderAt);
-                float urgency = Mathf.Clamp01(1 - (egg.hatchAt - visualTime) / AquariumModel.HatchSeconds);
+                float urgency = egg.hatchAt <= 0 ? 0 : Mathf.Clamp01(1 - (egg.hatchAt - visualTime) / AquariumModel.HatchSeconds);   // R76: 0 = waiting
                 float pulse = Mathf.Sin(visualTime * (3 + urgency * 5) + egg.id) * (0.025f + urgency * 0.025f);
                 // Pulse sideways while keeping the shell's foot planted on the collision surface.
                 actor.root.transform.localScale = new Vector3(1 - pulse, 1, 1 - pulse);
@@ -1016,6 +1056,8 @@ namespace PrototypeLab.Aquarium
             }
         }
 
+        // R80: how much of the ink bomb its own thrower sees, against the diver's 1 (other aliens: cloud .25, no veil).
+        public static float InkBombOwnCloud = .4f, InkBombOwnMurk = .3f;
         // One ability event; returns how much of the ink bomb's murk the viewer's camera is in (0..1).
         private float PresentAbility(GameObject fx, WaterEffect e, float now, Swimmer viewer)
         {
@@ -1026,12 +1068,14 @@ namespace PrototypeLab.Aquarium
                 {
                     var cloud = fx.GetComponent<AquariumInkCloud>(); if (cloud == null) return 0;
                     // Thick for divers (and anyone watching one); faint for the aliens that use it.
-                    bool diver = viewer != null && viewer.team == Team.Seeker;
-                    cloud.PresentBomb(age, e.duration, at, AquariumModel.InkBombRadius, diver ? 1 : .25f);
-                    if (!diver || Camera == null || age < 0 || age >= e.duration) return 0;
+                    // R80: the alien that threw it sees it thinner than the diver does (it was as thick, R75), so it can
+                    // still see and play through its own ink: a lighter cloud and a lighter veil over the view.
+                    bool diver = viewer != null && viewer.team == Team.Seeker, own = viewer != null && !diver && viewer.id == e.owner;
+                    cloud.PresentBomb(age, e.duration, at, AquariumModel.InkBombRadius, diver ? 1 : own ? InkBombOwnCloud : .25f);
+                    if ((!diver && !own) || Camera == null || age < 0 || age >= e.duration) return 0;
                     float fadeIn = Mathf.Clamp01(age / .35f), fadeOut = 1 - Mathf.SmoothStep(0, 1, Mathf.InverseLerp(e.duration - 1.6f, e.duration, age));
                     float inside = Mathf.Clamp01((AquariumModel.InkBombRadius + .5f - Vector3.Distance(Camera.transform.position, at)) / 2f);
-                    return inside * fadeIn * fadeOut;
+                    return inside * fadeIn * fadeOut * (own ? InkBombOwnMurk : 1);
                 }
                 case "shock": abilities.PresentShock(fx.transform, age, e.duration, at, AquariumModel.ShockRadius, e.id); break;
                 case "dash":
@@ -1082,7 +1126,12 @@ namespace PrototypeLab.Aquarium
         {
             this.followId = followId;
             Actor followed; actors.TryGetValue(PlayerKey(followId), out followed);
-            equipment.Present(state, followId, firstPerson, followed == null ? 0 : followed.moveSpeed);
+            // R82: the reel's last stretch, the stow throw, the reload and the first-person hands are animated on
+            // the frame clock. They used the snapshot time, which only moves 30 times a second (20 on a client),
+            // so at 100+ fps they stood still on most frames and jumped on the rest.
+            float now = FrameTime(state);
+            equipment.Present(state, followId, firstPerson, followed == null ? 0 : followed.moveSpeed, now);
+            ReleaseJellies(state == null || state.phase == RoundPhase.Finished);
             if (state == null || state.phase == RoundPhase.Finished) return;
             foreach (var diver in actors.Values) { if (diver.pouch != null) AquariumCatchPose.PresentPouch(diver.pouch, 0); if (diver.fingers != null) diver.fingers.Pose(0, 0); }
             foreach (var shot in state.harpoons)
@@ -1093,12 +1142,12 @@ namespace PrototypeLab.Aquarium
                 var tip = projectile.shotPresented ? projectile.shotTip : new Vector3(shot.position.x, shot.position.y, shot.position.z);
                 var direction = projectile.shotPresented ? projectile.shotDirection : new Vector3(shot.direction.x, shot.direction.y, shot.direction.z).normalized;
                 var dockedTip = gun.muzzle.position + gun.muzzle.forward * gun.headLength * gun.transform.lossyScale.z;
-                if (!shot.returning) tip = Vector3.Lerp(dockedTip, tip, Mathf.Clamp01((state.time - shot.born) / .07f));
+                if (!shot.returning) tip = Vector3.Lerp(dockedTip, tip, Mathf.Clamp01((now - shot.born) / .07f));
                 else
                 {
                     // The last stretch is reeled straight down the barrel: the spear swings onto the muzzle axis
                     // (tip out), then slides in tail first and seats exactly when the cooldown ends.
-                    float u = Mathf.InverseLerp(shot.retrievedAt - HarpoonDockSeconds, shot.retrievedAt, state.time);
+                    float u = Mathf.InverseLerp(shot.retrievedAt - HarpoonDockSeconds, shot.retrievedAt, now);
                     if (u > 0)
                     {
                         // One smooth curve from where the spear was when docking began (carried along with the swimming
@@ -1120,13 +1169,14 @@ namespace PrototypeLab.Aquarium
                 string catchKey=shot.caughtFish!=0?FishKey(shot.caughtFish):shot.caughtPlayer!=0?PlayerKey(shot.caughtPlayer):null;
                 if(catchKey!=null && actors.TryGetValue(catchKey,out var caught))
                 {
-                    if(state.time<shot.retrievedAt)
+                    if(now<shot.retrievedAt)
                     {
                         PinHarpoonCatch(catchKey,tip,direction,shot);
+                        Jiggle(shot,caught,false);   // R77
                         // R31: the free hand shoots out, fingers spread and waggling, while the spear is still coming in.
                         bool ownView=equipment.Visible&&equipment.Owner==shot.owner;
                         if(!ownView && shot.stowedAt>0 && owner.diver!=null)
-                            AquariumCatchPose.PresentStow(owner.diver,owner.fingers,owner.pouch,null,0,Vector3.zero,state.time-shot.retrievedAt);
+                            AquariumCatchPose.PresentStow(owner.diver,owner.fingers,owner.pouch,null,0,Vector3.zero,now-shot.retrievedAt);
                     }
                     else
                     {
@@ -1142,6 +1192,7 @@ namespace PrototypeLab.Aquarium
                         }
                         else seated=dockedTip+new Vector3(shot.catchOffset.x,shot.catchOffset.y,shot.catchOffset.z);
                         PresentCatchStow(state,shot,owner,caught,radius,seated);
+                        Jiggle(shot,caught,true);   // R77
                     }
                 }
                 projectile.tether.transform.parent.localPosition = new Vector3(0, 0, -gun.shaftLength);
@@ -1152,7 +1203,7 @@ namespace PrototypeLab.Aquarium
                 for (int i = 0; i < projectile.tether.positionCount; i++)
                 {
                     float t = i / (float)(projectile.tether.positionCount - 1); float arc = Mathf.Sin(t * Mathf.PI);
-                    var ripple = side * (Mathf.Sin(t * 9 - state.time * 2.5f) * Mathf.Min(.045f, distance * .009f));
+                    var ripple = side * (Mathf.Sin(t * 9 - now * 2.5f) * Mathf.Min(.045f, distance * .009f));
                     projectile.tether.SetPosition(i, Vector3.Lerp(from, to, t) + (Vector3.down * sag + ripple) * arc);
                 }
             }
@@ -1578,6 +1629,7 @@ namespace PrototypeLab.Aquarium
             AquariumMaps.Select(AquariumMaps.Basic); AquariumSceneryLayout.Apply(0);
             drains.Dispose();
             abilities.Dispose(); AquariumGalleryCamera.InkBombMurk = 0;
+            waterLife?.Dispose();
             equipment?.Dispose();
             Shader.SetGlobalFloat("_AquariumPreviewTimeEnabled", 0);
             ClearOutline();

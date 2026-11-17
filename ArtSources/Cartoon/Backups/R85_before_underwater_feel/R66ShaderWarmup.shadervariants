@@ -1,0 +1,257 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!200 &20000000
+ShaderVariantCollection:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: R66ShaderWarmup
+  m_Shaders:
+  - first: {fileID: 64, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: SHADOWS_SPLIT_SPHERES
+        passType: 0
+  - first: {fileID: 46, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP LIGHTPROBE_SH SHADOWS_SCREEN
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP
+        passType: 5
+      - keywords: FOG_EXP POINT
+        passType: 5
+      - keywords: SHADOWS_DEPTH
+        passType: 8
+  - first: {fileID: 10753, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 66, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 6, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: SHADOWS_DEPTH
+        passType: 8
+  - first: {fileID: 106, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: _SUNDISK_SIMPLE
+        passType: 0
+  - first: {fileID: 9000, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9001, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9002, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9003, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9004, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9007, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9100, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 9101, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 19011, guid: 0000000000000000f000000000000000, type: 0}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: 461f750185672ce4581892ef1b0695f7, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP LIGHTPROBE_SH
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP LIGHTPROBE_SH SHADOWS_SCREEN
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP LIGHTPROBE_SH VERTEXLIGHT_ON
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP
+        passType: 5
+      - keywords: FOG_EXP POINT
+        passType: 5
+      - keywords: SHADOWS_DEPTH
+        passType: 8
+  - first: {fileID: 4800000, guid: 7dde1d105179a2b43b337402ebde0284, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: 89a11084ad5cefa428b260463b1cdb30, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP LIGHTPROBE_SH
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP LIGHTPROBE_SH SHADOWS_SCREEN
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP
+        passType: 5
+      - keywords: FOG_EXP POINT
+        passType: 5
+      - keywords: SHADOWS_DEPTH
+        passType: 8
+  - first: {fileID: 4800000, guid: a20b872f1ddd22343863b7fdf459b35e, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP LIGHTPROBE_SH SHADOWS_SCREEN
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP
+        passType: 5
+      - keywords: FOG_EXP POINT
+        passType: 5
+      - keywords: SHADOWS_DEPTH
+        passType: 8
+  - first: {fileID: 4800000, guid: d6731e887981156478979116a2ce24a8, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP LIGHTPROBE_SH SHADOWS_SCREEN
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP
+        passType: 5
+      - keywords: FOG_EXP POINT
+        passType: 5
+  - first: {fileID: 4800000, guid: e2c1b2f9faacedf43b2d77890f8a6f4c, type: 3}
+    second:
+      variants:
+      - keywords: FOG_EXP
+        passType: 0
+  - first: {fileID: 4800000, guid: 51939aeb87eded842872bd98f1d78eb3, type: 3}
+    second:
+      variants:
+      - keywords: FOG_EXP
+        passType: 0
+  - first: {fileID: 4800000, guid: e93890ac6ceef8e4183926a6f9d23d90, type: 3}
+    second:
+      variants:
+      - keywords: FOG_EXP
+        passType: 0
+  - first: {fileID: 4800000, guid: 4ea94d0976a806a47b946666bef2cb91, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP LIGHTPROBE_SH SHADOWS_SCREEN
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP
+        passType: 5
+      - keywords: FOG_EXP POINT
+        passType: 5
+      - keywords: SHADOWS_DEPTH
+        passType: 8
+  - first: {fileID: 4800000, guid: 8df72d9426c64434a9ef32d135981c38, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP LIGHTPROBE_SH SHADOWS_SCREEN
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP
+        passType: 5
+      - keywords: FOG_EXP POINT
+        passType: 5
+      - keywords: SHADOWS_DEPTH
+        passType: 8
+  - first: {fileID: 4800000, guid: ad771d00d24a7dd4790b1807e4744fad, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: 007c049fbba54bec8a8c46f6bccbdf48, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: d1d34ea2b4d43eb42bd7c4ec1e58d88f, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: e7df35d26b8cc1745b652d1ace560dc2, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP INSTANCING_ON LIGHTPROBE_SH SHADOWS_SCREEN
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP
+        passType: 5
+      - keywords: FOG_EXP POINT
+        passType: 5
+      - keywords: INSTANCING_ON SHADOWS_DEPTH
+        passType: 8
+  - first: {fileID: 4800000, guid: cfd11b7605c82cd4e9a1a8f15b1ec747, type: 3}
+    second:
+      variants:
+      - keywords: FOG_EXP
+        passType: 0
+  - first: {fileID: 4800000, guid: cf5fc48dfbb86654db1ebc6360049ee4, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 0
+  - first: {fileID: 4800000, guid: 8487077b32527d44a8973007e275d8ca, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP LIGHTPROBE_SH
+        passType: 4
+      - keywords: DIRECTIONAL FOG_EXP
+        passType: 5
+      - keywords: FOG_EXP POINT
+        passType: 5
+      - keywords: SHADOWS_DEPTH
+        passType: 8
+  - first: {fileID: 4800000, guid: b5dc3eab56531ee43a33c3f8a9ff2391, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 4
+      - keywords: FOG_EXP
+        passType: 4
+  - first: {fileID: 4800000, guid: 06b260590fd83f842966b148e9f993f1, type: 3}
+    second:
+      variants:
+      - keywords: FOG_EXP
+        passType: 0
+  - first: {fileID: 4800000, guid: 3f4d20334af6954418529e6d0552c035, type: 3}
+    second:
+      variants:
+      - keywords: FOG_EXP
+        passType: 0
+  - first: {fileID: 4800000, guid: 1e252b79fb0232b4a9862a2aa4b68579, type: 3}
+    second:
+      variants:
+      - keywords: DIRECTIONAL FOG_EXP LIGHTPROBE_SH SHADOWS_SCREEN
+        passType: 4
+      - keywords: SHADOWS_DEPTH
+        passType: 8
+  - first: {fileID: 4800000, guid: 422dc6aabd6a5ca4cbe2abcbf673a9e2, type: 3}
+    second:
+      variants:
+      - keywords: 
+        passType: 4

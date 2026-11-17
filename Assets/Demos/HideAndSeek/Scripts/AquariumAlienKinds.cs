@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace PrototypeLab.Aquarium
 {
@@ -22,11 +22,11 @@ namespace PrototypeLab.Aquarium
         public static readonly AquariumAlienKind[] All =
         {
             new AquariumAlienKind { id = 0, key = "Purple", name = "보라 외계인", look = "새싹 더듬이, 동그란 눈", prefab = "AquariumCharacters/Alien",
-                abilityName = "먹물 폭탄, 번식", abilityText = "F 먹물 폭탄: 반경 10m에 5초간 진녹색 먹물을 뿌림(쿨 60초), 패시브 번식: 알 부화 40초, 산란에 필요한 포식 8", r = .74f, g = .55f, b = .95f },
+                abilityName = "먹물 폭탄, 번식", abilityText = "F 먹물 폭탄: 반경 10m에 5초간 진녹색 먹물을 뿌림(쿨 60초), 패시브 번식: 산란에 필요한 포식 8", r = .74f, g = .55f, b = .95f },
             new AquariumAlienKind { id = 1, key = "Green", name = "초록 외계인", look = "공 더듬이, 웃는 눈", prefab = "AquariumCharacters/Alien_Green",
-                abilityName = "뛰어난 체력", abilityText = "패시브 뛰어난 체력: 스태미나 120, 작살 3번 맞아야 죽음, 배고픔 최대 120, 포식 회복 +10", r = .47f, g = .84f, b = .42f },
+                abilityName = "뛰어난 체력", abilityText = "패시브 뛰어난 체력: 스태미나 120, 작살 3번 맞아야 죽음", r = .47f, g = .84f, b = .42f },
             new AquariumAlienKind { id = 2, key = "Blue", name = "파랑 외계인", look = "초승달 더듬이, 졸린 눈", prefab = "AquariumCharacters/Alien_Blue",
-                abilityName = "투명화, 가사 상태", abilityText = "F 투명화: 5초간 서서히 사라짐(쿨 60초), 패시브 가사 상태: 3초 이상 가만히 있으면 배고픔 멈춤, 배고픔 최대 80", r = .42f, g = .63f, b = .98f },
+                abilityName = "투명화", abilityText = "F 투명화: 5초간 서서히 사라짐(쿨 60초)", r = .42f, g = .63f, b = .98f },
             new AquariumAlienKind { id = 3, key = "Yellow", name = "노랑 외계인", look = "찌릿 더듬이, 반쯤 뜬 눈", prefab = "AquariumCharacters/Alien_Yellow",
                 abilityName = "전기 충격, 재빠른 촉수", abilityText = "F 전기 충격: 반경 9m 물고기와 잠수부 4초 경직(쿨 60초), 패시브 재빠른 촉수: 나사 +10%(같이 풀면 +20%)", r = .98f, g = .76f, b = .2f },
             new AquariumAlienKind { id = 4, key = "Red", name = "빨강 외계인", look = "고깔 더듬이, 시큰둥한 눈", prefab = "AquariumCharacters/Alien_Red",

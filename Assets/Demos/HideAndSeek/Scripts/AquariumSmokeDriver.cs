@@ -222,7 +222,7 @@ namespace PrototypeLab.Aquarium
                     phase = s == null ? "none" : s.phase.ToString(), time = s == null ? 0 : s.time, fishRemaining = s == null ? 0 : s.remaining,
                     winReason = s == null ? "none" : s.winReason.ToString(), reviewRemaining = s == null ? 0 : Mathf.Max(0, s.reviewEndsAt - s.time),
                     target = s == null ? 0 : s.target, killed = s == null ? 0 : s.killed, feedReadyAt = p == null ? 0 : p.nextFeed,
-                    stamina = p == null ? 0 : p.stamina, hungerRemaining = p == null || s == null ? 0 : Mathf.Clamp(AquariumModel.HungerSeconds - (s.time - p.lastMealAt), 0, AquariumModel.HungerSeconds),
+                    stamina = p == null ? 0 : p.stamina, hungerRemaining = p == null || s == null ? 0 : AquariumModel.HungerLeft(p, s.time),
                     personalEaten = p == null ? 0 : p.personalEaten, score = p == null ? 0 : p.score, morphLockedUntil = p == null ? 0 : p.morphLockedUntil,
                     eggs = s == null || s.eggs == null ? 0 : s.eggs.Length, scanReadyAt = p == null ? 0 : p.nextScan,
                     scanRemaining = p == null || s == null ? 0 : Mathf.Max(0, p.scanUntil - s.time),
@@ -563,11 +563,11 @@ namespace PrototypeLab.Aquarium
                 PinTargetScenario();
                 return;
             }
-            starvationAt = session.Model.HuntAt + AquariumModel.HungerSeconds;
+            starvationAt = AquariumModel.StarveAtFull(session.Model.HuntAt);
             foreach (var player in session.Model.Players)
             {
                 if (player.id == session.LocalId || player.team != Team.Hider) continue;
-                player.lastMealAt = starvationAt;
+                player.starveAt = AquariumModel.StarveAtFull(starvationAt);   // R86: the others outlast the local alien
                 if (mode == "terminal" || mode == "eggdeath")
                 { player.alive = false; player.diedAt = session.Model.Time; player.deathSpecies = player.species; player.deathReason = "setup"; }
             }
@@ -892,7 +892,7 @@ namespace PrototypeLab.Aquarium
         {
             session.DiveEntry = false;   // scenario places the diver itself
             session.StartPractice("Harpoon equipment check", Team.Seeker);
-            foreach (var p in session.Model.Players) { p.bot = false; p.velocity = new Point(); p.lastMealAt = float.MaxValue; }
+            foreach (var p in session.Model.Players) { p.bot = false; p.velocity = new Point(); p.lastMealAt = float.MaxValue; p.starveAt = float.MaxValue; }
             while (session.Model.Time < session.Model.HuntAt + .1f) session.Model.Tick(1f / 30);
             var diver = session.Model.Player(session.LocalId); diver.position = AquariumModel.Constrain(new Point(2.3f, 9, 4), .6f); diver.facing = new Point(0, 0, 1);
             foreach (var p in session.Model.Players) if (p != diver) p.position = AquariumModel.Constrain(new Point(-20 + p.id * 2, 8, -5), .6f);

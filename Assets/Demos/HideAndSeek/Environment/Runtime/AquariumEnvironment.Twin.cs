@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -13,7 +13,7 @@ namespace PrototypeLab.Aquarium
         public const string TwinResourcePath = "AquariumTwin/TwinGallery";
         // R73: the tube tank's baked gallery (map 2; built at run time when it is missing).
         public const string GrottoResourcePath = "AquariumTwin/TubeGallery";
-        public static string ResourcePathOf(int map) { return map == AquariumMaps.Twin ? TwinResourcePath : map == AquariumMaps.Grotto ? GrottoResourcePath : ResourcePath; }
+        public static string ResourcePathOf(int map) { return map == AquariumMaps.Twin ? TwinResourcePath : map == AquariumMaps.Grotto ? GrottoResourcePath : map == AquariumMaps.Tutorial ? "AquariumTwin/TutorialTank" : ResourcePath; }   // R78b: the tutorial tank is always built at run time
 
         // The gallery of a map: the one already in the scene, else its baked prefab, else built now.
         public static AquariumEnvironmentRoot EnsureMap(int map, Transform parent)
@@ -39,6 +39,7 @@ namespace PrototypeLab.Aquarium
 
         private static AquariumEnvironmentRoot CreateTwinBaked(Transform parent)
         {
+            if (AquariumMaps.IsTutorial) return CreateTutorialTank(parent);   // R78b (AquariumTutorialMap.cs)
             bool grotto = AquariumMaps.IsGrotto;
             var root = new GameObject(grotto ? "VIOLET TUBE TANK | Environment" : "TWIN TANKS | Environment"); root.transform.SetParent(parent, false);
             var marker = root.AddComponent<AquariumEnvironmentRoot>();

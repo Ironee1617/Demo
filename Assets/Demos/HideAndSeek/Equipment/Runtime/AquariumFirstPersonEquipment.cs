@@ -60,7 +60,8 @@ namespace PrototypeLab.Aquarium
             result.transform.localPosition = rig != null && rig.gunSocket != null ? Vector3.zero : Grip; result.transform.localRotation = Quaternion.identity; return result;
         }
 
-        public void Present(AquariumSnapshot state, int followId, bool firstPerson, float speed)
+        // R82: frameTime = the view's frame clock (AquariumView.FrameTime); NaN = the snapshot time as before.
+        public void Present(AquariumSnapshot state, int followId, bool firstPerson, float speed, float frameTime = float.NaN)
         {
             var player = state == null ? null : Array.Find(state.players, p => p.id == followId);
             Visible = firstPerson && state != null && state.phase != RoundPhase.Lobby && player != null && player.alive && player.team == Team.Seeker;
@@ -69,7 +70,7 @@ namespace PrototypeLab.Aquarium
             Paint(player.diverKind);
             overlay.fieldOfView = world.fieldOfView; overlay.aspect = world.aspect; overlay.rect = world.rect;
             overlay.targetTexture = world.targetTexture;
-            float time = state.time;
+            float time = float.IsNaN(frameTime) ? state.time : frameTime;
             var shot=Array.Find(state.harpoons,h=>h.owner==player.id);
             float firedAt=shot!=null?shot.born:player.nextAction-AquariumModel.HarpoonCooldown;
             // R27: pushing a drain lid back takes the free left hand.

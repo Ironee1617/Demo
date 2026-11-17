@@ -5,8 +5,8 @@ using UnityEngine;
 namespace PrototypeLab.Aquarium
 {
     // R60: chat in the waiting room and after the round (never while playing), the aliens' pings (middle mouse,
-    // seen by the aliens only, pointing only), and the divers' changing room: built here with the fish guide on its
-    // wall, the walk input flattened to the floor, a small hint while waiting, and the fade to black over the cut to
+    // seen by the aliens only, pointing only), and the divers' changing room: built here,
+    // the walk input flattened to the floor, a small hint while waiting, and the fade to black over the cut to
     // the dive deck.
     public sealed partial class AquariumGame
     {
@@ -26,10 +26,10 @@ namespace PrototypeLab.Aquarium
         private void ChatStyles()
         {
             if (chatLine != null) return;
-            chatLine = new GUIStyle(small) { wordWrap = false, clipping = TextClipping.Clip, fontSize = 13 }; chatLine.normal.textColor = new Color(.9f, .96f, .98f);
+            chatLine = new GUIStyle(small) { wordWrap = false, clipping = TextClipping.Clip, fontSize = 13 }; chatLine.normal.textColor = new Color(.9f, .96f, .98f); Steady(chatLine);
             chatName = new GUIStyle(chatLine) { fontStyle = FontStyle.Bold };
             pingName = new GUIStyle(small) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, fontSize = 13, clipping = TextClipping.Overflow };
-            pingName.normal.textColor = Color.white;
+            pingName.normal.textColor = Color.white; Steady(pingName);
             chatField = new GUIStyle(field) { fontSize = 14, padding = new RectOffset(12, 12, 7, 6) };
         }
 
@@ -183,19 +183,7 @@ namespace PrototypeLab.Aquarium
         private void EnsureLockerRoom()
         {
             if (lockerRoom != null) return;
-            var posters = new List<LockerPoster>();
-            foreach (var s in SpeciesCatalog())
-            {
-                int id = s.speciesId;
-                posters.Add(new LockerPoster
-                {
-                    image = GuideImage(id), title = SpeciesName(s), tint = s.tint,
-                    // R70b: habits only (no size or speed figures, as in the lobby's fish guide)
-                    line1 = HabitText(AquariumFishTraits.Habit(id)) + (AquariumFishTraits.Habit(id) == FishHabit.School ? ", 떼 지어 다님" : ""),
-                    line2 = AquariumFishTraits.IgnoresFeed(id) ? "사육사 잠수부의 먹이에만 관심" : "먹이를 뿌리면 몰려듦"
-                });
-            }
-            lockerRoom = AquariumEnvironment.LockerRoom(null, posters);
+            lockerRoom = AquariumEnvironment.LockerRoom(null);
             if (pingSound == null) pingSound = PingSound();
         }
 
@@ -216,7 +204,7 @@ namespace PrototypeLab.Aquarium
             var r = new Rect(width / 2 - 230, 196, 460, 58);
             Card(r, false, 14);
             Label(r.x, r.y + 6, r.width, 24, Cat("입수까지 ", Int(Mathf.CeilToInt(left)), "초"), Tinted(centred, new Color(1f, .82f, .45f)));
-            Label(r.x, r.y + 31, r.width, 20, "WASD 걷기   Shift 달리기   마우스 둘러보기   벽의 어종 도감을 확인하세요", smallCentred);
+            Label(r.x, r.y + 31, r.width, 20, "WASD 걷기   Shift 달리기   마우스 둘러보기", smallCentred);
         }
 
         // Black over the cut from the room to the deck (for whoever's eyes the camera is).
@@ -224,7 +212,7 @@ namespace PrototypeLab.Aquarium
         {
             if (!session.Connected || session.State.phase != RoundPhase.Playing) return;
             var viewer = PlayerById(session.State.players, followCamera.FollowId);
-            float a = AquariumLockerRoom.Fade(viewer, session.State.time);
+            float a = AquariumLockerRoom.Fade(viewer, view.FrameTime(session.State));   // R82: fades every frame
             if (a > .001f) Panel(new Rect(0, 0, width, height), new Color(0, .01f, .02f, a));
         }
     }

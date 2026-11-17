@@ -11,7 +11,7 @@ namespace PrototypeLab.Aquarium
     // Layout in room space (floor at y = 0, the room centred on Origin):
     //   x -5..5 (door to the dive hall on +x), z -3.5..3.5, ceiling 3.2;
     //   lockers along the back wall (+z) and the left wall (-x), a long bench in front of the back lockers,
-    //   the fish guide (posters) on the front wall (-z), towels and a sign by the door.
+    //   a plain front wall (-z), towels by the door.
     public static class AquariumLockerRoom
     {
         public static readonly Point Origin = new Point(0, -150, 0);
@@ -25,7 +25,7 @@ namespace PrototypeLab.Aquarium
         public static readonly Rect Bench = new Rect(-2.6f, 1.55f, 5.2f, .44f);
 
         public static float RootY { get { return Origin.y + AquariumDiveEntry.StandHeight; } }
-        public static Point Facing { get { return new Point(0, 0, -1); } }   // toward the fish guide wall
+        public static Point Facing { get { return new Point(0, 0, -1); } }   // toward the front wall
 
         public static Point Spawn(int slot)
         {
